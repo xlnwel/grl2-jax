@@ -3,7 +3,6 @@ import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import setup_logging
-from core.tf_config import *
 from tools import pkg
 from run.args import parse_rank_args
 from run.utils import search_for_config
@@ -22,10 +21,6 @@ if __name__ == '__main__':
         main = pkg.import_main('rank', config=config)
     except Exception as e:
         print('Default main is used for ranking due to :', e)
-
-    silence_tf_logs()
-    configure_gpu()
-    configure_precision(config.precision)
 
     # set up env_config
     n = args.n_episodes

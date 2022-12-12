@@ -17,10 +17,11 @@ from tools.plot import plot_data_dict
 from tools.ray_setup import sigint_shutdown_ray
 from tools.run import evaluate
 from tools.graph import save_video
+from tools.utils import modify_config
 from tools import pkg
 from env.func import create_env
 from run.args import parse_eval_args
-from run.utils import search_for_config
+from run.utils import search_for_config, search_for_all_configs
 
 
 def plot(data: dict, outdir: str, figname: str):
@@ -94,19 +95,33 @@ if __name__ == '__main__':
     setup_logging(args.verbose)
 
     # load respective config
-    configs = [search_for_config(d) for d in args.directory]
+    if len(args.directory) == 1:
+        configs = search_for_all_configs(args.directory[0])
+        directories = [args.directory[0] for _ in configs]
+    else:
+        configs = [search_for_config(d) for d in args.directory]
+        directories = args.directory
     config = configs[0]
 
     # get the main function
     try:
         main = pkg.import_main('eval', config=config)
     except Exception as e:
-        do_logging(f'default evaluation is used due to error: {e}', color='red')
+        do_logging(f'Default evaluation is used due to error: {e}', color='red')
 
     configure_gpu()
 
     # set up env_config
-    for config in configs:
+    for d, config in zip(directories, configs):
+        if not d.startswith(config.root_dir):
+            i = d.find(config.root_dir)
+            root_dir = d[:i] + config.root_dir
+            do_logging(f'root dir: {root_dir}')
+            config = modify_config(
+                config, 
+                overwrite_existed_only=True, 
+                root_dir=root_dir
+            )
         n = args.n_episodes
         if args.n_runners:
             if 'runner' in config:

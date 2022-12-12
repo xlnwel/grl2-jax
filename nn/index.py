@@ -3,8 +3,9 @@ import jax.numpy as jnp
 import haiku as hk
 import chex
 
-from nn.func import mlp, nn_registry
+from nn.func import nn_registry
 from nn.layers import Layer
+from nn.mlp import MLP
 from nn.utils import get_initializer
 from core.typing import dict2AttrDict
 
@@ -144,7 +145,10 @@ class IndexModule(hk.Module):
         layers = self.build_net()
 
         for l in layers:
-            x = l(x, hx)
+            if isinstance(l, MLP):
+                x = l(x)
+            else:
+                x = l(x, hx)
 
         return x
 
@@ -165,7 +169,7 @@ class IndexModule(hk.Module):
             ))
         elif self.index == 'head':
             self.index_config['scale'] = self.config.pop('out_scale', 1.)
-            layers = [mlp(**self.config)]
+            layers = [MLP(**self.config)]
             
             layers.append(IndexLayer(
                 **self.index_config, 
@@ -173,7 +177,7 @@ class IndexModule(hk.Module):
                 name='out'
             ))
         else:
-            layers = [mlp(
+            layers = [MLP(
                 **self.config, 
                 out_size=self.out_size, 
             )]

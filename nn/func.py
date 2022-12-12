@@ -31,7 +31,6 @@ def create_network(config, name):
 
 
 def construct_components(config, name):
-    from nn.func import create_network
     networks = {k: create_network(v, name=f'{name}/{k}') 
         for k, v in config.items() if isinstance(v, dict)}
     return networks

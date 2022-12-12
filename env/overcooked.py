@@ -1,10 +1,11 @@
+import random
 import numpy as np
 import gym
 
-from env.overcooked_env.mdp.actions import Action
-from env.overcooked_env.mdp.overcooked_mdp import OvercookedGridworld
-from env.overcooked_env.mdp.overcooked_env import OvercookedEnv
-from env.overcooked_env.planning.planners import MediumLevelActionManager, NO_COUNTERS_PARAMS
+from overcooked_ai_py.mdp.actions import Action
+from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
+from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
+from overcooked_ai_py.planning.planners import MediumLevelActionManager, NO_COUNTERS_PARAMS
 from env.utils import compute_aid2uids
 from core.typing import AttrDict2dict
 
@@ -72,6 +73,10 @@ class Overcooked:
         self.obs_shape = self._get_observation_shape()
         self.obs_dtype = self._get_observation_dtype()
 
+    def seed(self, seed):
+        random.seed(seed)
+        np.random.seed(seed)
+
     def get_screen(self, **kwargs):
         """
         Standard way to view the state of an esnvironment programatically
@@ -89,15 +94,11 @@ class Overcooked:
             obs_shape = [dict(
                 obs=shape,
                 global_state=shape, 
-                prev_reward=(), 
-                prev_action=(self.action_dim[0],), 
             ) for _ in self.aid2uids]
         else:
             shape = self._env.lossless_state_encoding_mdp(dummy_state)[0].shape
             obs_shape = [dict(
                 obs=shape,
-                prev_reward=(), 
-                prev_action=(self.action_dim[0],), 
             ) for _ in self.aid2uids]
         if self._add_goal:
             for shape in obs_shape:
@@ -109,14 +110,10 @@ class Overcooked:
             obs_dtype = [dict(
                 obs=np.float32,
                 global_state=np.float32,
-                prev_reward=np.float32, 
-                prev_action=np.float32, 
             ) for _ in self.aid2uids]
         else:
             obs_dtype = [dict(
                 obs=np.float32,
-                prev_reward=np.float32, 
-                prev_action=np.float32, 
             ) for _ in self.aid2uids]
         if self._add_goal:
             for dtype in obs_dtype:
@@ -134,7 +131,7 @@ class Overcooked:
 
     def step(self, action):
         assert len(action) == 2, action
-        real_action = Action.ALL_ACTIONS[action[0][0]], Action.ALL_ACTIONS[action[1][0]]
+        real_action = Action.ALL_ACTIONS[action[0]], Action.ALL_ACTIONS[action[1]]
         state, reward, done, info = self._env.step(real_action)
         rewards = reward * np.ones(self.n_units, np.float32)
         self._score += rewards
@@ -152,8 +149,6 @@ class Overcooked:
             epslen=self._epslen,
             dense_score=self._dense_score,
             game_over=done,
-            dense_reward=info['shaped_r_by_agent'],
-            sparse_reward=info['sparse_r_by_agent'],
         )
 
         rewards = [rewards[uids] for uids in self.aid2uids]
@@ -168,8 +163,6 @@ class Overcooked:
             obs = [dict(
                 obs=o, 
                 global_state=o, 
-                prev_reward=np.zeros((1, self.action_dim[0]), dtype=np.float32), 
-                prev_action=np.zeros((1, ), dtype=np.float32), 
             ) for o in obs]
         else:
             obs = [dict(
@@ -210,7 +203,7 @@ if __name__ == '__main__':
         env_name=args.env,
         max_episode_steps=400,
         dense_reward=True,
-        featurize=False,
+        featurize=True,
         add_goal=False
         # layout_params={
         #     'onion_time': 1,
@@ -240,16 +233,15 @@ if __name__ == '__main__':
 
     env = Overcooked(config)
     obs = env.reset()
+    print(obs[0]['obs'].max(), obs[0]['obs'].min())
     d = False
-    print(np.all(obs[0]['obs'] == obs[1]['obs']))
     while not np.all(d):
-        print(env.get_screen())
+        # print(env.get_screen())
         if args.interactive:
             a = input('action: ').split(' ')
         else:
             a = env.random_action()
-        print(action2char(a))
-        o, r, d, i = env.step(action2array(a))
+        o, r, d, i = env.step(a)
         # print(o['goal'])
         print("Curr reward: (sparse)", i['sparse_reward'], "\t(dense)", i['dense_reward'])
         print('Reward', r)

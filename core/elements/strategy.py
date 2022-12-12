@@ -1,6 +1,7 @@
 import copy
 from typing import Tuple, Union
 
+from core.log import do_logging
 from core.elements.actor import Actor
 from core.elements.model import Model
 from core.elements.trainer import TrainerBase, TrainerEnsemble
@@ -135,7 +136,6 @@ class Strategy:
     ):
         inp = self._prepare_input_to_actor(env_output)
         out = self.actor(inp, evaluation=evaluation)
-        
         self._record_output(out)
         return out[:2]
 
@@ -175,16 +175,16 @@ class Strategy:
 
 
 def create_strategy(
-        name, 
-        config: AttrDict,
-        env_stats: AttrDict, 
-        actor: Actor=None,
-        trainer: Union[TrainerBase, TrainerEnsemble]=None, 
-        dataset=None,
-        *,
-        strategy_cls=Strategy,
-        training_loop_cls=None
-    ):
+    name, 
+    config: AttrDict,
+    env_stats: AttrDict, 
+    actor: Actor=None,
+    trainer: Union[TrainerBase, TrainerEnsemble]=None, 
+    dataset=None,
+    *,
+    strategy_cls=Strategy,
+    training_loop_cls=None
+):
     if trainer is not None:
         if dataset is None:
             raise ValueError('Missing dataset')

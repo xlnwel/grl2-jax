@@ -21,7 +21,6 @@ def MPEEnv(config):
     '''
 
     # load scenario from script
-    assert 'mpe' in config['name'], config['name']
     name = config['env_name']
     scenario = load(name + ".py").Scenario()
     # create world

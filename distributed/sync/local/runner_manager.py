@@ -6,7 +6,7 @@ import ray
 from ..remote.parameter_server import ParameterServer
 from ..remote.runner import MultiAgentSimRunner
 from core.log import do_logging
-from core.monitor import Monitor
+from core.elements.monitor import Monitor
 from core.remote.base import ManagerBase, RayBase
 from core.typing import ModelPath, AttrDict, AttrDict2dict
 from tools.utils import batch_dicts

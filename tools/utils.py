@@ -494,15 +494,13 @@ def convert_batch_with_func(data, func=np.stack):
             data = list(data)
     return data
 
-def convert_batch_tuples_with_func(data, func=np.stack):
-    return [convert_batch_with_func(x, func=func) 
-        for x in zip(*data)]
-
-def prefix_name(terms, name):
+def prefix_name(terms, name, filter=[]):
     if name is not None:
         new_terms = AttrDict()
         for k, v in terms.items():
-            if '/' not in k:
+            if k in filter:
+                new_terms[k] = v
+            elif '/' not in k:
                 new_terms[f'{name}/{k}'] = v
             else:
                 new_terms[k] = v

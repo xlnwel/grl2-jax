@@ -8,15 +8,18 @@ from core.typing import AttrDict
 from jax_tools import jax_assert, jax_dist, jax_loss, jax_utils
 
 
-def get_hx(*args):
-    hx = [a for a in args if a is not None]
-    if len(hx) == 0:
-        return None
-    elif len(hx) == 1:
-        return hx[0]
-    else:
-        hx = lax.concatenate(hx, -1)
-    return hx
+def _get_initial_state(state, i):
+    return jax_utils.tree_map(lambda x: x[:, i], state)
+
+def _reshape_for_bptt(*args, bptt):
+    return jax_utils.tree_map(
+        lambda x: x.reshape(-1, bptt, *x.shape[2:]), args
+    )
+
+def _restore_shape(*args, shape):
+    return jax_utils.tree_map(
+        lambda x: x.reshape(*shape, -1), args
+    )
 
 def compute_values(
     func, 
@@ -24,22 +27,31 @@ def compute_values(
     rng, 
     x, 
     next_x, 
-    sid=None, 
-    next_sid=None, 
-    idx=None, 
-    next_idx=None, 
-    event=None, 
-    next_event=None, 
+    state_reset, 
+    state, 
+    bptt, 
     seq_axis=1
 ):
-    hx = get_hx(sid, idx, event)
-    value = func(params, rng, x, hx=hx)
-    if next_x is None:
-        value, next_value = jax_utils.split_data(value, axis=seq_axis)
+    if state is None:
+        value, _ = func(params, rng, x)
+        next_value, _ = func(params, rng, next_x)
     else:
-        next_hx = get_hx(next_sid, next_idx, next_event)
-        jax_assert.assert_shape_compatibility([hx, next_hx])
-        next_value = func(params, rng, next_x, hx=next_hx)
+        state_reset, next_state_reset = jax_utils.split_data(
+            state_reset, axis=seq_axis)
+        if bptt is not None:
+            shape = x.shape[:-1]
+            x, next_x, state_reset, next_state_reset, state = \
+                _reshape_for_bptt(
+                    x, next_x, state_reset, next_state_reset, state, bptt=bptt
+                )
+        state0 = _get_initial_state(state, 0)
+        state1 = _get_initial_state(state, 1)
+        value, _ = func(params, rng, x, state_reset, state0)
+        next_value, _ = func(params, rng, next_x, next_state_reset, state1)
+        if bptt is not None:
+            value, next_value = jax_utils.tree_map(
+                lambda x: x.reshape(shape), (value, next_value)
+            )
     next_value = lax.stop_gradient(next_value)
     jax_assert.assert_shape_compatibility([value, next_value])
 
@@ -50,19 +62,29 @@ def compute_policy_dist(
     params, 
     rng, 
     x, 
-    sid, 
-    idx, 
-    event, 
-    action_mask=None
+    state_reset, 
+    state, 
+    action_mask=None, 
+    bptt=None
 ):
-    hx = get_hx(sid, idx, event)
-    act_out = func(params, rng, x, hx, action_mask=action_mask)
+    if state is not None and bptt is not None:
+        shape = x.shape[:-1]
+        x, state_reset, state, action_mask = _reshape_for_bptt(
+            x, state_reset, state, action_mask, bptt=bptt
+        )
+    state = _get_initial_state(state, 0)
+    act_out, _ = func(
+        params, rng, x, state_reset, state, action_mask=action_mask
+    )
+    if state is not None and bptt is not None:
+        act_out = jax_utils.tree_map(
+            lambda x: x.reshape(*shape, -1), act_out
+        )
     if isinstance(act_out, tuple):
         act_dist = jax_dist.MultivariateNormalDiag(*act_out)
     else:
         act_dist = jax_dist.Categorical(act_out)
     return act_dist
-
 
 def compute_policy(
     func, 
@@ -72,41 +94,25 @@ def compute_policy(
     next_x, 
     action, 
     mu_logprob, 
-    sid=None, 
-    next_sid=None, 
-    idx=None, 
-    next_idx=None, 
-    event=None, 
-    next_event=None, 
+    state_reset, 
+    state, 
     action_mask=None, 
     next_action_mask=None, 
+    bptt=None, 
     seq_axis=1
 ):
-    [x, sid, idx, event, action_mask], _ = \
-        jax_utils.split_data(
-            [x, sid, idx, event, action_mask], 
-            [next_x, next_sid, next_idx, next_event, next_action_mask], 
-            axis=seq_axis
-        )
+    [x, action_mask], _ = jax_utils.split_data(
+        [x, action_mask], [next_x, next_action_mask], 
+        axis=seq_axis
+    )
     act_dist = compute_policy_dist(
-        func, params, rng, x, sid, idx, event, action_mask)
+        func, params, rng, x, state_reset, state, action_mask, bptt=bptt)
     pi_logprob = act_dist.log_prob(action)
     jax_assert.assert_shape_compatibility([pi_logprob, mu_logprob])
     log_ratio = pi_logprob - mu_logprob
     ratio = lax.exp(log_ratio)
 
     return act_dist, pi_logprob, log_ratio, ratio
-
-def compute_next_obs_dist(
-    func, 
-    params, 
-    rng, 
-    x, 
-    action, 
-):
-    dist = func(params, rng, x, action)
-
-    return dist
 
 def prefix_name(terms, name):
     if name is not None:
@@ -213,15 +219,6 @@ def collect(buffer, env, env_step, reset, obs, next_obs, **kwargs):
     for k, v in obs.items():
         if k not in kwargs:
             kwargs[k] = v
-    if buffer.config.timeout_done:
-        for k, v in next_obs.items():
-            kwargs[f'next_{k}'] = v
-    else:
-        for k, v in next_obs.items():
-            kwargs[f'next_{k}'] = np.where(
-                np.expand_dims(reset, -1), 
-                env.prev_obs()[buffer.aid][k], 
-                next_obs[k]
-            )
-
+    for k, v in next_obs.items():
+        kwargs[f'next_{k}'] = v
     buffer.add(**kwargs, reset=reset)

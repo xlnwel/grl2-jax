@@ -10,7 +10,7 @@ import ray
 from .parameter_server import ParameterServer
 from ..common.typing import ModelStats
 from core.log import do_logging
-from core.monitor import Monitor as ModelMonitor
+from core.elements.monitor import Monitor as ModelMonitor
 from core.remote.base import RayBase
 from core.typing import ModelPath
 from rule.utils import is_rule_strategy

@@ -4,7 +4,7 @@ from core.decorator import *
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.log import do_logging
-from core.monitor import Monitor
+from core.elements.monitor import Monitor
 from core.typing import ModelPath, get_algo, AttrDict
 from distributed.sync.common.typing import ModelWeights
 from run.utils import search_for_config
@@ -29,9 +29,7 @@ class Agent:
             self.strategies: Dict[str, Strategy] = strategy
         else:
             self.strategies: Dict[str, Strategy] = {'default': strategy}
-        self.strategy: Strategy = self.strategies[
-            get_algo(self._model_path)
-        ]
+        self.strategy: Strategy = next(iter(self.strategies.values()))
         self.monitor: Monitor = monitor
         self.builder: ElementsBuilder = builder
         # trainable is set to align with the first strategy

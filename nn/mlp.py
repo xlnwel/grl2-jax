@@ -1,15 +1,26 @@
 import logging
 import jax
+import jax.numpy as jnp
 import haiku as hk
 
 from core.log import do_logging
 from nn.layers import Layer
 from nn.registry import layer_registry, nn_registry
-from nn.utils import get_initializer
 
 
 logger = logging.getLogger(__name__)
 
+
+def _prepare_for_rnn(x):
+    shape = x.shape
+    x = jnp.swapaxes(x, 0, 1)
+    x = jnp.reshape(x, (x.shape[0], -1, *x.shape[3:]))
+    return x, shape
+
+def _recover_shape(x, shape):
+    x = jnp.swapaxes(x, 0, 1)
+    x = jnp.reshape(x, (*shape[:3], x.shape[-1]))
+    return x
 
 @nn_registry.register('mlp')
 class MLP(hk.Module):
@@ -32,6 +43,8 @@ class MLP(hk.Module):
         }, 
         out_w_init=None, 
         out_b_init=None, 
+        rnn_type=None, 
+        rnn_units=None, 
         **kwargs
     ):
         super().__init__(name=name)
@@ -65,24 +78,61 @@ class MLP(hk.Module):
             **kwargs
         )
 
-    def __call__(self, x, is_training=True):
-        layers = self.build_net()
+        self.rnn_type = rnn_type
+        assert self.rnn_type in (None, 'gru', 'lstm'), self.rnn_type
+        self.rnn_units = rnn_units
 
-        for l in layers:
-            x = l(x, is_training)
+    def __call__(self, x, reset=None, state=None, is_training=True):
+        if self.rnn_type is None:
+            layers = self.build_net()
+            for l in layers:
+                x = l(x, is_training)
+            return x
+        else:
+            layers, core, out_layers = self.build_net()
+            for l in layers:
+                x = l(x, is_training)
+            if state is None:
+                state = core.initial_state(x.shape[0])
 
-        return x
+            # we assume the original data is of form [B, T, U, *]
+            x, shape = _prepare_for_rnn(x)
+            reset, _ = _prepare_for_rnn(reset)
+            x = (x, reset)
+            x, state = hk.dynamic_unroll(core, x, state)
+            x = _recover_shape(x, shape)
+
+            for l in out_layers:
+                x = l(x, is_training)
+            return x, state
     
     @hk.transparent
     def build_net(self):
-        layers = []
+        if self.rnn_type is None:
+            layers = []
+            for u in self.units_list:
+                layers.append(Layer(u, **self.layer_kwargs))
+            if self.out_size:
+                layers.append(Layer(self.out_size, **self.out_kwargs))
 
-        for u in self.units_list:
-            layers.append(Layer(u, **self.layer_kwargs))
-        if self.out_size:
-            layers.append(Layer(self.out_size, **self.out_kwargs))
-        
-        return layers
+            return layers
+        else:
+            assert isinstance(self.rnn_units, int), self.rnn_units
+            layers = []
+            for u in self.units_list:
+                layers.append(Layer(u, **self.layer_kwargs))
+
+            if self.rnn_type == 'lstm':
+                core = hk.LSTM(self.rnn_units)
+            elif self.rnn_type == 'gru':
+                core = hk.GRU(self.rnn_units)
+            core = hk.ResetCore(core)
+
+            out_layers = []
+            if self.out_size:
+                out_layers.append(Layer(self.out_size, **self.out_kwargs))
+
+            return layers, core, out_layers
 
 
 if __name__ == '__main__':
@@ -94,15 +144,28 @@ if __name__ == '__main__':
         norm='layer', 
         name='mlp', 
         out_scale=.01, 
-        out_size=1
+        out_size=1, 
+        rnn_type='gru', 
+        rnn_units=2
     )
-    def mlp(x):
+    def mlp(x, reset=None, state=None):
         layer = MLP(**config)
-        return layer(x)
+        return layer(x, reset, state)
+    import jax.numpy as jnp
     rng = jax.random.PRNGKey(42)
-    x = jax.random.normal(rng, (2, 3))
+    b = 2
+    s = 3
+    d = 4
+    # x = jax.random.normal(rng, (b, s, d))
+    x = jnp.ones((b, s, d))
+    reset = jnp.ones((b, s))
     net = hk.transform(mlp)
-    params = net.init(rng, x)
-    print(params)
-    print(net.apply(params, None, x))
-    print(hk.experimental.tabulate(net)(x))
+    params = net.init(rng, x, reset)
+    out, state = net.apply(params, rng, x, reset)
+    print('first x', out)
+    state = jax.tree_util.tree_map(jnp.ones_like, state)
+    reset = jnp.ones((b, s))
+    out, state = net.apply(params, rng, x, reset, state)
+    # print('next x', out)
+    print(state)
+    # print(hk.experimental.tabulate(net)(x, reset))

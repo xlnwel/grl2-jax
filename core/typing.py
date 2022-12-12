@@ -202,6 +202,36 @@ def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
     def __getattr__(self, name):
         return self[name] if name in self._fields else None
 
+    """ The following three methods enable pickling """
+    def __getstate__(self):
+        try:
+            return [s for s in self]
+        except IndexError as e:
+            for j, s in enumerate(self):
+                if s is None:
+                    continue
+                try:
+                    _ = s
+                except IndexError:
+                    raise Exception(f"Occured in {self.__class__} at field "
+                        f"'{self._fields[j]}'.") from e
+        
+    def __setstate__(self, state):
+        value = state[0]
+        try:
+            for j, (s, v) in enumerate(zip(self, value)):
+                if isinstance(s, dict):
+                    for k in s.keys():
+                        s[k] = v[k]
+                else:
+                    s = v
+        except (ValueError, IndexError, TypeError) as e:
+            raise Exception(f"Occured in {self.__class__} at field "
+                f"'{self._fields[j]}'.") from e
+
+    def __reduce__(self):
+        return (tuple, (), self.__getstate__())
+
     def get(self, key, val=None):
         "Retrieve value as if indexing into regular tuple."
         return getattr(self, key) if key in self._fields else val
@@ -231,6 +261,8 @@ def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
         '__setitem__': __setitem__,
         '__getattr__': __getattr__,
         '__contains__': __contains__,
+        '__getstate__': __getstate__, 
+        '__setstate__': __setstate__, 
         'get': get,
         'get_with_idx': get_with_idx,
         'items': items,
@@ -315,20 +347,21 @@ def get_all_ids(model_name: str):
 
 def get_basic_model_name(model_name: str):
     """ Basic model name excludes aid and vid """
-    name = '/'.join(model_name.split('/')[:2])
+    name = '/'.join(model_name.split('/')[:3])
 
     return name
 
 def get_algo(model: ModelPath):
     s = model.root_dir.split('/')
-    if len(s) == 1:
-        algo = model.root_dir
-    elif len(s) == 3:
-        algo = s[-1]
-    elif len(s) == 4:
-        algo = ''.join(s[-2:])
-    else:
-        # raise ValueError(f'Unknown model: {model}')
-        assert False, f'Unknown model: {model}'
+    algo = s[-1]
+    # if len(s) == 1:
+    #     algo = model.root_dir
+    # elif len(s) == 3:
+    #     algo = s[-1]
+    # elif len(s) == 4:
+    #     algo = ''.join(s[-2:])
+    # else:
+    #     # raise ValueError(f'Unknown model: {model}')
+    #     assert False, f'Unknown model: {model}'
 
     return algo

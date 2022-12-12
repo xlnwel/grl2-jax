@@ -148,8 +148,8 @@ class MultivariateNormalDiag(Distribution):
     def get_stats(self, prefix=None):
         if prefix is None:
             return {
-                f'{prefix}_mean': self.mu, 
-                f'{prefix}_std': self.std, 
+                'mean': self.mu, 
+                'std': self.std, 
             }
         else:
             return {

@@ -2,4 +2,7 @@
 
 source activate plt
 
-python -m smart_logger.htmlpage -u cxw -pw imin -wks ~/chenxinwei/cache -d ~/chenxinwei/grl/html-logs -p 7006
+cd ~/Documents/SmartLogger
+python -m smart_logger.htmlpage -u cxw -pw imin -wks ~/work/Polixir/cache -d ~/github/html-logs -p 7008
+# cd ~/github/SmartLogger
+# python -m smart_logger.htmlpage -u cxw -pw imin -wks ~/work/Polixir/cache -d ~/Documents/html-logs -p 7008

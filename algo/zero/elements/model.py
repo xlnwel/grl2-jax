@@ -8,19 +8,17 @@ import haiku as hk
 
 from core.log import do_logging
 from core.elements.model import Model as ModelBase
-from core.typing import dict2AttrDict
-from nn.func import create_network
+from core.typing import AttrDict, dict2AttrDict
 from tools.file import source_file
 from jax_tools import jax_dist
-from .utils import get_hx
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 logger = logging.getLogger(__name__)
 
 
-def construct_fake_data(env_stats, aid):
-    basic_shape = (1, len(env_stats.aid2uids[aid]))
+def construct_fake_data(env_stats, aid, batch_size=1):
+    basic_shape = (batch_size, 1, len(env_stats.aid2uids[aid]))
     shapes = env_stats.obs_shape[aid]
     dtypes = env_stats.obs_dtype[aid]
     action_dim = env_stats.action_dim[aid]
@@ -30,7 +28,7 @@ def construct_fake_data(env_stats, aid):
     data.setdefault('global_state', data.obs)
     data.setdefault('hidden_state', data.obs)
     data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
-    data.hx = get_hx(data.sid, data.idx, data.event)
+    data.state_reset = jnp.zeros(basic_shape, jnp.float32)
 
     return data
 
@@ -39,38 +37,33 @@ class Model(ModelBase):
         self.imaginary_params = dict2AttrDict({'imaginary': True})
         self.params.imaginary = False
 
+        self._initial_state = None
+
     def build_nets(self):
-        def build_fn(rng, *args, name, **kwargs):
-            def build_net(*args, **kwargs):
-                config = dict2AttrDict(self.config, to_copy=True)
-                net = create_network(config[name], name)
-                return net(*args, **kwargs)
-            net = hk.transform(build_net)
-            return net.init(rng, *args, **kwargs), net.apply
         aid = self.config.get('aid', 0)
         self.is_action_discrete = self.env_stats.is_action_discrete[aid]
         data = construct_fake_data(self.env_stats, aid)
 
-        rngs = random.split(self.rng, 4)
-        self.params.policy, self.modules.policy = build_fn(
-            rngs[0], data.obs, data.hx, data.action_mask, name='policy')
-        self.params.value, self.modules.value = build_fn(
-            rngs[1], data.global_state, data.hx, name='value')
+        self.params.policy, self.modules.policy = self.build_net(
+            data.obs, data.state_reset, data.state, data.action_mask, name='policy')
+        self.params.value, self.modules.value = self.build_net(
+            data.global_state, data.state_reset, data.state, name='value')
         self.sync_imaginary_params()
-        # self.params.model, self.modules.model = build_fn(
-        #     rngs[2], data.obs, data.action, name='model')
-        # self.params.emodels, self.modules.emodels = build_fn(
-        #     rngs[3], data.obs, data.action, name='emodels')
 
     def compile_model(self):
         self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
-    
+
     @property
     def theta(self):
         return self.params
 
-    def switch_params(self):
+    def switch_params(self, imaginary):
         self.params, self.imaginary_params = self.imaginary_params, self.params
+        self.check_params(imaginary)
+
+    def check_params(self, imaginary):
+        assert self.params.imaginary == imaginary, (self.params.imaginary, imaginary)
+        assert self.imaginary_params.imaginary == 1-imaginary, (self.params.imaginary, imaginary)
 
     def sync_imaginary_params(self):
         for k, v in self.params.items():
@@ -84,14 +77,22 @@ class Model(ModelBase):
         data, 
         evaluation=False, 
     ):
-        data.hx = self.build_hx(data)
         rngs = random.split(rng, 3)
-        act_dist = self.policy_dist(params.policy, rngs[0], data, evaluation)
-        action = act_dist.sample(rng=rngs[1])
+        state = data.pop('state')
+        data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
+        act_out, policy_state = self.modules.policy(
+            params.policy, 
+            rngs[0], 
+            data.obs, 
+            data.state_reset, 
+            state.policy, 
+            action_mask=data.action_mask, 
+        )
+        state.policy = policy_state
+        act_dist = self.policy_dist(act_out, evaluation)
 
         if self.is_action_discrete:
-            pi = nn.softmax(act_dist.logits)
-            stats = {'mu': pi}
+            stats = {'mu_logits': act_dist.logits}
         else:
             mean = act_dist.mean()
             std = lax.exp(act_dist.logstd)
@@ -100,44 +101,112 @@ class Model(ModelBase):
                 'mu_std': jnp.broadcast_to(std, mean.shape), 
             }
 
-        state = data.state
         if evaluation:
-            data.action = action
-            return action, stats, state
+            action = act_dist.mode()
+            stats['action'] = action
         else:
+            action = act_dist.sample(rng=rngs[1])
             logprob = act_dist.log_prob(action)
-            value = self.modules.value(
+            value, value_state = self.modules.value(
                 params.value, 
                 rngs[2], 
-                data.get('global_state', data.obs), 
-                hx=data.hx
+                data.global_state, 
+                data.state_reset, 
+                state.value
             )
+            state.value = value_state
             stats.update({'mu_logprob': logprob, 'value': value})
+        action, stats = jax.tree_util.tree_map(
+            lambda x: jnp.squeeze(x, 1), (action, stats))
+        
+        return action, stats, state
 
-            return action, stats, state
+    def compute_value(self, data):
+        @jax.jit
+        def comp_value(params, rng, global_state, state_reset=None, state=None):
+            v, _ = self.modules.value(
+                params.value, rng, 
+                global_state, state_reset, state
+            )
+            return v
+        self.act_rng, rng = random.split(self.act_rng)
+        value = comp_value(self.params, rng, **data)
+        return value
 
-    def policy_dist(self, params, rng, data, evaluation):
-        act_out = self.modules.policy(
-            params, 
-            rng, 
-            data.obs, 
-            hx=data.hx, 
-            action_mask=data.action_mask, 
-        )
+    def policy_dist(self, act_out, evaluation):
         if self.is_action_discrete:
-            if evaluation and self.config.eval_act_temp > 0:
+            if evaluation and self.config.get('eval_act_temp', 0) > 0:
                 act_out = act_out / self.config.eval_act_temp
             dist = jax_dist.Categorical(act_out)
         else:
             mu, logstd = act_out
-            if evaluation and self.config.eval_act_temp > 0:
+            if evaluation and self.config.get('eval_act_temp', 0) > 0:
                 logstd = logstd + math.log(self.config.eval_act_temp)
             dist = jax_dist.MultivariateNormalDiag(mu, logstd)
 
         return dist
 
-    def build_hx(self, data):
-        return get_hx(data.sid, data.idx, data.event)
+    """ RNN Operators """
+    def get_initial_state(self, batch_size):
+        aid = self.config.get('aid', 0)
+        data = construct_fake_data(self.env_stats, aid, batch_size)
+        _, policy_state = self.modules.policy(
+            self.params.policy, 
+            self.act_rng, 
+            data.obs, 
+            data.state_reset
+        )
+        _, value_state = self.modules.value(
+            self.params.value, 
+            self.act_rng, 
+            data.global_state, 
+            data.state_reset
+        )
+        self._initial_state = AttrDict(
+            policy=jax.tree_util.tree_map(jnp.zeros_like, policy_state), 
+            value=jax.tree_util.tree_map(jnp.zeros_like, value_state), 
+        )
+        return self._initial_state
+    
+    @property
+    def state_size(self):
+        if self.config.policy.rnn_type is None and self.config.value.rnn_type is None:
+            return None
+        state_size = AttrDict(
+            policy=self.config.policy.rnn_units, 
+            value=self.config.value.rnn_units, 
+        )
+        return state_size
+    
+    @property
+    def state_keys(self):
+        if self.config.policy.rnn_type is None and self.config.value.rnn_type is None:
+            return None
+        key_map = {
+            'lstm': hk.LSTMState._fields, 
+            'gru': None, 
+            None: None
+        }
+        state_keys = AttrDict(
+            policy=key_map[self.config.policy.rnn_type], 
+            value=key_map[self.config.value.rnn_type], 
+        )
+        return state_keys
+
+    @property
+    def state_type(self):
+        if self.config.policy.rnn_type is None and self.config.value.rnn_type is None:
+            return None
+        type_map = {
+            'lstm': hk.LSTMState, 
+            'gru': None, 
+            None: None
+        }
+        state_type = AttrDict(
+            policy=type_map[self.config.policy.rnn_type], 
+            value=type_map[self.config.value.rnn_type], 
+        )
+        return state_type
 
 
 def setup_config_from_envstats(config, env_stats):
@@ -161,10 +230,6 @@ def create_model(
     **kwargs
 ): 
     config = setup_config_from_envstats(config, env_stats)
-    # config.models.out_size = env_stats.obs_shape[0][0]
-    # config.model = config.models.copy()
-    # config.model.nn_id = 'model'
-    # config.model.pop('n')
 
     return Model(
         config=config, 

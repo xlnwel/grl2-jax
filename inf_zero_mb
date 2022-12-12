@@ -1,0 +1,48 @@
+#!/bin/bash
+export PYTHONPATH=.
+
+algos=(zero_mb)
+suite=magw
+envs=(staghunt)
+config=magw
+args1=(64 256)
+args2=(10 20)
+args3=(5e-4)
+date=$(date +"%m%d")
+info=""
+ld="${suite}-logs"
+# for x in $(seq 1 3); do
+#     shift
+# done
+
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
+
+for e in "${envs[@]}"; do
+    for a in "${algos[@]}"; do
+        for s in {1..5}; do
+            la1=${#args1[@]}
+            idx=$(($INF_MAC_NODE_RANK % $la1))
+            a1=${args1[$idx]}
+            la2=${#args2[@]}
+            idx=$(($INF_MAC_NODE_RANK % $la2))
+            a2=${args2[$idx]}
+            kws="n_imaginary_envs=$a1 n_imaginary_steps=$a2"
+            env="${suite}-${e}"
+            if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+                gpu=$(($i % $gpus))
+                py_script="python run/train.py -a ${a} ${a} magw -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -kw $kws -na 3 &"
+            else
+                py_script="python run/train.py -a ${a} ${a} magw -e $env -c $config -ld $ld -n $n -s $s -kw $kws -na 3 -ki 0 1 &"
+            fi
+            echo $py_script
+            eval $py_script
+            ((i=(i+1) ))
+        done
+    done
+done
+wait
+echo "Script completed"

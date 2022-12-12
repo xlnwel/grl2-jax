@@ -479,7 +479,7 @@ def clipped_value_loss(
         value, traj_ret, old_value, clip_range, huber_threshold)
     
     value_loss = jnp.maximum(loss1, loss2)
-    clip_frac = jax_utils.mask_mean(jnp.abs(value_diff) > clip_range, mask, n)
+    clip_frac = jax_math.mask_mean(jnp.abs(value_diff) > clip_range, mask, n)
 
     return value_loss, clip_frac
 
@@ -507,6 +507,7 @@ def compute_kl(
     p_std=None,
     q_mean=None,
     q_std=None,
+    action_mask=None, 
     sample_mask=None,
     n=None, 
 ):
@@ -531,6 +532,7 @@ def compute_kl(
                 p_std=q_std, 
                 q_mean=p_mean, 
                 q_std=p_std, 
+                action_mask=action_mask, 
             )
         elif kl_type == 'reverse':
             kl = jax_div.kl_from_distributions(
@@ -540,6 +542,7 @@ def compute_kl(
                 p_std=p_std, 
                 q_mean=q_mean, 
                 q_std=q_std, 
+                action_mask=action_mask, 
             )
         else:
             raise NotImplementedError(f'Unknown kl {kl_type}')

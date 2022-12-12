@@ -23,11 +23,11 @@ def print_dict(d, prefix='', level='pwt', backtrack=3):
 
 def _print_array(v, prefix, level, backtrack):
     do_logging(f'{prefix}: {v.shape} {v.dtype} '
-        f'norm({np.linalg.norm(v):0.4g}) max({v.max():0.4g}) min({v.min():0.4g}) ',
+        f'norm({np.linalg.norm(v):0.4g}) mean({v.mean():0.4g}) max({v.max():0.4g}) min({v.min():0.4g}) ',
         level=level, backtrack=backtrack+1)
 
 def print_dict_info(d, prefix='', level='pwt', backtrack=3):
-    if isinstance(d, Sequence):
+    if isinstance(d, (list, tuple)):
         for i, v in enumerate(d):
             print_dict_info(v, f'{prefix} {i}', level=level, backtrack=backtrack+1)
     elif isinstance(d, (np.ndarray, jnp.DeviceArray, jax.ShapedArray)):
@@ -41,7 +41,7 @@ def print_dict_info(d, prefix='', level='pwt', backtrack=3):
                 # namedtuple is assumed
                 do_logging(f'{prefix} {k}', level=level, backtrack=backtrack)
                 print_dict_info(v._asdict(), prefix+'\t', level=level, backtrack=backtrack+1)
-            elif isinstance(v, Sequence):
+            elif isinstance(v, (list, tuple)):
                 do_logging(f'{prefix} {k}: {len(v)}', level=level, backtrack=backtrack)
                 print_dict_info(v, f'{prefix} {k}', level, backtrack=backtrack+1)
             elif isinstance(v, (np.ndarray, jnp.DeviceArray, jax.ShapedArray)):

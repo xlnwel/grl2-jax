@@ -80,12 +80,13 @@ def search_for_file(directory, filename, check_duplicates=True):
                 if not check_duplicates:
                     break
             elif f.endswith(filename) and target_file is not None:
-                print(f'Get multiple "{filename}": "{target_file}" and "{os.path.join(root, f)}"')
+                do_logging(f'Get multiple "{filename}": "{target_file}" and "{os.path.join(root, f)}"', backtrack=4)
                 exit()
         if not check_duplicates and target_file is not None:
             break
 
     return target_file
+
 
 def search_for_all_files(directory, filename, is_suffix=True, remove_dir=False):
     if not os.path.exists(directory):
@@ -106,7 +107,8 @@ def search_for_all_files(directory, filename, is_suffix=True, remove_dir=False):
         all_target_files = [f.replace(f'{directory}/', '') for f in all_target_files]
     return all_target_files
 
-def search_for_dirs(directory, dirname, is_suffix=True, name=None):
+
+def search_for_dirs(directory, dirname, is_suffix=True, matches=None):
     if not os.path.exists(directory):
         return []
     directory = directory
@@ -115,7 +117,7 @@ def search_for_dirs(directory, dirname, is_suffix=True, name=None):
     for root, _, _ in os.walk(directory):
         if 'src' in root:
             continue
-        if name is not None and name not in root:
+        if matches is not None and all([m not in root for m in matches]):
             continue
         endnames = root.rsplit('/', n_slashes+1)[1:]
         endname = '/'.join(endnames)
@@ -127,3 +129,25 @@ def search_for_dirs(directory, dirname, is_suffix=True, name=None):
                 all_target_files.add(root)
 
     return list(all_target_files)
+
+
+def yield_dirs(directory, dirname, is_suffix=True, matches=None):
+    if not os.path.exists(directory):
+        return []
+    directory = directory
+    n_slashes = dirname.count('/')
+    
+    for root, _, _ in os.walk(directory):
+        if 'src' in root:
+            continue
+        if matches is not None and all([m not in root for m in matches]):
+            continue
+
+        endnames = root.rsplit('/', n_slashes+1)[1:]
+        endname = '/'.join(endnames)
+        if is_suffix:
+            if endname.endswith(dirname):
+                yield root
+        else:
+            if endname.startswith(dirname):
+                yield root

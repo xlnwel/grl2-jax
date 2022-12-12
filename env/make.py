@@ -199,7 +199,7 @@ def make_magw(config):
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.PopulationSelection(env, config.pop('population_size', 1))
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, timeout_done=config.get('timeout_done', True))
 
     return env
 
@@ -229,12 +229,9 @@ def make_unity(config):
     return env
 
 if __name__ == '__main__':
-    config = dict(
-        env_name='matrix-ipd', 
-        uid2aid=[0, 0], 
-        max_episode_steps=150,
-    )
-    env = make_matrix(config)
+    from tools import yaml_op
+    config = yaml_op.load_config('algo/zero/configs/mpe')
+    env = make_mpe(config.env)
     print(env.action_shape)
     for _ in range(1):
         a = env.random_action()

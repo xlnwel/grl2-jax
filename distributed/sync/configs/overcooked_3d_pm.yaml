@@ -67,10 +67,6 @@ strategy:
     train_loop:
         n_epochs: &nepochs 2
         n_mbs: &nmbs 8
-        n_aux_epochs: &naepochs 9
-        n_pi: &npi 16
-        n_segs: &nsegs 16
-        n_aux_mbs_per_seg: &nambs 2
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
         # (once reuse null)

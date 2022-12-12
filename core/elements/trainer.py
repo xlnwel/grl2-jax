@@ -37,7 +37,7 @@ class TrainerBase(ParamsCheckpointBase):
     def add_attributes(self):
         pass
 
-    def raw_train(self):
+    def theta_train(self):
         raise NotImplementedError
 
     def build_optimizers(self):
@@ -48,7 +48,15 @@ class TrainerBase(ParamsCheckpointBase):
         )
 
     def compile_train(self):
-        self.jit_train = jax.jit(self.raw_train)
+        _jit_train = jax.jit(self.theta_train)
+        def jit_train(*args, **kwargs):
+            self.rng, rng = jax.random.split(self.rng)
+            return _jit_train(*args, rng=rng, **kwargs)
+        self.jit_train = jit_train
+        self.haiku_tabulate()
+
+    def haiku_tabulate(self, data=None):
+        pass
 
     def train(self, data):
         raise NotImplementedError

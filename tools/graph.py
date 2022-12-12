@@ -11,6 +11,7 @@ plt.switch_backend('Agg')
 import pandas as pd
 import seaborn as sns
 
+from core.log import do_logging
 from tools.utils import squarest_grid_size
 
 
@@ -240,7 +241,7 @@ def save_video(name, video, fps=30, out_dir='results'):
     path = f'{out_dir}/{name}.gif'
     f1.save(fp=path, format='GIF', append_images=frames,
          save_all=True, duration=1000//fps, loop=0)
-    print(f"video is saved to '{path}'")
+    do_logging(f"video is saved to '{path}'")
 
 
 """ summaries useful for core.log.graph_summary"""
@@ -281,6 +282,6 @@ def video_summary(name, video, size=None, fps=30, step=None):
         summary.value.add(tag=name, image=image)
         tf.summary.experimental.write_raw_pb(summary.SerializeToString(), step)
     except (IOError, OSError) as e:
-        print('GIF summaries require ffmpeg in $PATH.', e)
+        do_logging(f'GIF summaries require ffmpeg in $PATH. {e}')
         frames = video.transpose((0, 2, 1, 3, 4)).reshape((1, B * H, T * W, C))
         tf.summary.image(name + '/image', frames, step)

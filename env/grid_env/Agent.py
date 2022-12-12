@@ -1,9 +1,8 @@
 """Base class for an agent that defines the possible actions. """
 
-from gym.spaces import Box
+#from gym.spaces import Box
 from gym.spaces import Discrete
 import numpy as np
-#import utils.utility_funcs as util
 
 # basic moves every agent should do
 AGENT_ACTIONS = {0: 'MOVE_LEFT',  # Move left
@@ -16,7 +15,7 @@ AGENT_ACTIONS = {0: 'MOVE_LEFT',  # Move left
 
 class Agent(object):
 
-    def __init__(self, agent_id, start_pos, grid, env_name, num_agents, representation):
+    def __init__(self, agent_id, start_pos, grid, env_name):
         """Superclass for all agents.
 
         Parameters
@@ -42,16 +41,12 @@ class Agent(object):
         self.env_name = env_name
         self.update_agent_pos(start_pos)
         self.action_space = Discrete(5)
-
-        if 'StagHunt' in self.env_name:
-            if representation == 'one_hot':
-                self.observation_space = Box(
-                    0, 1, [(10+2*(num_agents-2)) * grid.shape[0]])
-            else:
-                self.observation_space = Box(0, 5, [(10+2*(num_agents-2))])
-            self.gore_num = 0
-            self.hare_num = 0
-
+        if 'Harvest' in self.env_name:
+            self.observation_space = [3, self.grid.shape[0], self.grid.shape[1]]
+        elif 'StagHunt' in self.env_name:
+            self.observation_space = [10] 
+        elif 'Escalation' in self.env_name:
+            self.observation_space = [6]       
 
     def action_map(self, action_number):
         """Maps action_number to a desired action in the map"""
@@ -77,10 +72,27 @@ class Agent(object):
 
     def update_agent_pos(self, new_pos):
         """Updates the agents internal positions
+
+        Returns
+        -------
+        new_pos: (np.ndarray)
+            2 element array describing the agent positions
+        old_pos: (np.ndarray)
+            2 element array describing where the agent used to be
         """
         ego_new_pos = new_pos  # self.translate_pos_to_egocentric_coord(new_pos)
         new_row, new_col = ego_new_pos
-
+        '''
+        if new_row >= self.grid.shape[0]:
+            new_row = self.grid.shape[0] - new_row
+        elif new_row<0:
+            new_row = self.grid.shape[0] + new_row
+        if new_col >= self.grid.shape[1]:
+            new_col = self.grid.shape[1] - new_col
+        elif new_col<0:
+            new_col = self.grid.shape[1] + new_col
+        temp_pos = [new_row, new_col]
+        '''
         # you can't walk through walls
         temp_pos = new_pos.copy()
         if new_row < 0 or new_row >= self.grid.shape[0] or new_col < 0 or new_col >= self.grid.shape[1]:

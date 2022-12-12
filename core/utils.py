@@ -21,7 +21,7 @@ def configure_gpu(idx=-1):
     import tensorflow as tf
     if idx is None:
         tf.config.experimental.set_visible_devices([], 'GPU')
-        do_logging('No gpu is used', level='pwt')
+        do_logging('No gpu is used', backtrack=3)
         return False
     gpus = tf.config.list_physical_devices('GPU')
     n_gpus = len(gpus)
@@ -35,19 +35,17 @@ def configure_gpu(idx=-1):
             for gpu in gpus:
                 tf.config.experimental.set_memory_growth(gpu, True)
             logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-            do_logging(
-                f'{n_gpus} Physical GPUs, {len(logical_gpus)} Logical GPU', 
-                level='pwt'
-            )
+            do_logging(f'{n_gpus} Physical GPUs, {len(logical_gpus)} Logical GPU')
         except RuntimeError as e:
             # visible devices must be set before GPUs have been initialized
-            do_logging(e, level='pwt')
+            do_logging(e)
         return True
 
 def set_seed(seed: int=None):
     if seed is not None:
         random.seed(seed)
         np.random.seed(seed)
+    do_logging(f'seed={seed}', backtrack=3)
 
 def save_code(model_path: ModelPath):
     """ Saves the code so that we can check the chagnes latter """
@@ -59,7 +57,7 @@ def save_code(model_path: ModelPath):
         ignore=shutil.ignore_patterns(
             '*logs*', '*data*', '.*', '*.md',
             '*pycache*', '*.pyc', '*test*', '*outs*', 
-            '*results*', '*env*'))
+            '*results*', '*env*', '*.tar', '*__*'))
     do_logging(
         f'Save code: {model_path}', 
         level='print', 

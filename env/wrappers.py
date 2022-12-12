@@ -1078,7 +1078,7 @@ class MASimEnvStats(EnvStatsBase):
     def observation(self, obs):
         if isinstance(obs, dict):
             obs = [obs]
-        assert isinstance(obs, list) and len(obs) == self.n_agents, obs
+        assert isinstance(obs, list) and len(obs) == self.n_agents, (self.n_agents, obs)
         assert isinstance(obs[0], dict), obs[0]
         return obs
 

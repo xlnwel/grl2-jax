@@ -6,8 +6,9 @@ import random
 import uuid
 import numpy as np
 
-from core.decorator import config
+from core.elements.model import Model
 from core.log import do_logging
+from core.typing import AttrDict, dict2AttrDict
 from replay.local import EnvEpisodicBuffer, EnvFixedEpisodicBuffer
 from replay.utils import load_data, print_buffer, save_data
 
@@ -15,8 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 class EpisodicReplay:
-    @config
-    def __init__(self, state_keys=[]):
+    def __init__(
+        self, 
+        config: AttrDict, 
+        env_stats: AttrDict, 
+        model: Model, 
+        aid: int=0, 
+    ):
+        self.config = dict2AttrDict(config)
+        self.aid = aid
         self._dir = Path(self._dir).expanduser()
         self._save = getattr(self, '_save', False)
         if self._save:

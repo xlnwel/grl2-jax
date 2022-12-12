@@ -5,7 +5,7 @@ source activate grl
 algos=(zero)
 suite=magw
 envs=(staghunt)
-config=magw_a2c
+config=magw
 args1=(3)
 args2=(10 20)
 args3=(40 60)
@@ -88,7 +88,7 @@ done
 
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
-        for ((s=1; s<=4; s++)); do
+        for ((s=1; s<=6; s++)); do
             env="${suite}-${e}"
             ld="$suite-logs"
             if [ 0 != $# ]; then

@@ -5,9 +5,9 @@ import jax.numpy as jnp
 from jax_tools import jax_assert
 
 
-def tree_map(f, x):
+def tree_map(f, x, is_leaf=None):
     x = tree_util.tree_map(
-        lambda x: x if x is None else f(x), x)
+        lambda x: x if x is None else f(x), x, is_leaf=is_leaf)
     return x
 
 def random_generator(seed):

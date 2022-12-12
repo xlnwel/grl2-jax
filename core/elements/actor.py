@@ -91,7 +91,7 @@ class Actor:
         """
         if self.rms is not None:
             inp = self.rms.process_obs_with_rms(
-                inp, mask=inp.life_mask, 
+                inp, mask=inp.sample_mask, 
                 update_rms=self.config.get('update_obs_rms_at_execution', False)
             )
         return inp
@@ -102,8 +102,7 @@ class Actor:
         out: Tuple[Dict[str, jnp.DeviceArray]], 
         evaluation: bool
     ):
-        """ Post-processes output. By default, 
-        we convert tf.Tensor to np.ndarray
+        """ Post-processes output.
         
         Args:
             inp: Pre-processed inputs
@@ -112,13 +111,12 @@ class Actor:
             (action, stats, rnn_state)
         """
         action, stats, state = out
-        if state is not None:
-            prev_state = inp['state']
-            if not evaluation:
-                stats.update({
-                    'mask': inp['mask'], 
-                    **prev_state._asdict(),
-                })
+        if state is not None and not evaluation:
+            prev_state = inp.state
+            stats.update({
+                'state_reset': inp['state_reset'], 
+                'state': prev_state,
+            })
         if self.config.get('update_obs_at_execution', True) \
             and not evaluation and self.rms is not None \
                 and self.rms.is_obs_normalized:

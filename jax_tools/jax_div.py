@@ -13,11 +13,15 @@ def kl_from_distributions(
     q_mean=None, 
     p_std=None,  
     q_std=None,  
+    action_mask=None, 
 ):
     if p_logits is None:
         kl = rlax.multivariate_normal_kl_divergence(
             p_mean, p_std, q_mean, q_std)
     else:
+        if action_mask is not None:
+            p_logits = jnp.where(action_mask, p_logits, 1e-8)
+            q_logits = jnp.where(action_mask, q_logits, 1e-8)
         kl = rlax.categorical_kl_divergence(p_logits, q_logits)
 
     return kl

@@ -7,12 +7,12 @@ import optax
 
 from core.log import do_logging
 from core.typing import AttrDict
-from jax_tools.jax_utils import compute_norms
 from tools.utils import add_prefix, flatten_dict, is_empty
-from jax_tools import jax_assert
+from jax_tools.jax_utils import compute_norms
 
 
 logger = logging.getLogger(__name__)
+
 
 def select_optimizer(name):
     # add custom optimizers here
@@ -84,6 +84,7 @@ def build_optimizer(
         return opt, state
     return opt
 
+
 def compute_gradients(
     loss_fn, 
     params: Dict, 
@@ -96,6 +97,7 @@ def compute_gradients(
     stats = _record_grads(stats, grads, name=name, debug=debug)
     return grads, stats
 
+
 def compute_meta_gradients(
     loss_fn, 
     params: Dict, 
@@ -107,6 +109,7 @@ def compute_meta_gradients(
         loss_fn, has_aux=True)(params, **kwargs)
     stats = _record_grads(stats, grads, name=name, debug=debug)
     return grads, (state, stats)
+
 
 def compute_updates(
     grads: Dict, 
@@ -131,9 +134,11 @@ def compute_updates(
 
     return updates[-1], state, stats
 
+
 def apply_updates(params, updates):
     params = optax.apply_updates(params, updates)
     return params
+
 
 def optimize(
     loss_fn, 
@@ -152,6 +157,7 @@ def optimize(
         grads, state, opt, stats, name=name, debug=debug)
     params = apply_updates(params, updates)
     return params, state, stats
+
 
 def _record_grads(stats, grads, name, debug):
     if debug:

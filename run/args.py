@@ -5,13 +5,11 @@ from datetime import datetime
 def parse_train_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--algorithms', '-a', 
-                        type=str,
-                        nargs='*',
+                        type=str, 
+                        nargs='*', 
                         default=[])
-    parser.add_argument('--environments', '-e',
-                        type=str,
-                        nargs='*',
-                        default=[])
+    parser.add_argument('--environment', '-e',
+                        type=str)
     parser.add_argument('--configs', '-c',
                         type=str,
                         nargs='*',
@@ -27,6 +25,11 @@ def parse_train_args():
                         help='directory where checkpoints and "config.yaml" exist')
     parser.add_argument('--kwargs', '-kw',
                         type=str,
+                        nargs='*',
+                        default=[],
+                        help="key-values in config.yaml needed to be overwrite")
+    parser.add_argument('--kwidx', '-ki',
+                        type=int,
                         nargs='*',
                         default=[],
                         help="key-values in config.yaml needed to be overwrite")
@@ -63,6 +66,9 @@ def parse_train_args():
                         default=None)
     parser.add_argument('--multiprocess', '-mp', 
                         action='store_true')
+    parser.add_argument('--n_agents', '-na', 
+                        type=int,
+                        default=1)
     args = parser.parse_args()
 
     return args

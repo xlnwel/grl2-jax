@@ -64,6 +64,7 @@ class MultiAgentEnv(gym.Env):
         self.observation_spaces = []
         self.shared_state_spaces = []
         share_obs_dim = 0
+        self.n_agents = len(self.agents)
         for agent in self.agents:
             total_action_space = []
             
@@ -216,12 +217,15 @@ class MultiAgentEnv(gym.Env):
             'game_over': done_n[0]
         })
 
-        obs_dict = dict(
-            obs=obs_n,
-            global_state=self._get_global_state(obs_n),
-        )
+        global_state = self._get_global_state(obs_n)
+        obs = []
+        for o, gs in zip(obs_n, global_state):
+            obs.append({
+                'obs': o, 
+                'global_state': gs
+            })
 
-        return obs_dict, reward_n, done_n, info
+        return obs, reward_n, done_n, info
 
     def reset(self):
         self.current_step = 0
@@ -238,12 +242,15 @@ class MultiAgentEnv(gym.Env):
         for agent in self.agents:
             obs_n.append(self._get_obs(agent))
 
-        obs_dict = dict(
-            obs=obs_n,
-            global_state=self._get_global_state(obs_n),
-        )
+        global_state = self._get_global_state(obs_n)
+        obs = []
+        for o, gs in zip(obs_n, global_state):
+            obs.append({
+                'obs': o, 
+                'global_state': gs
+            })
 
-        return obs_dict
+        return obs
 
     def _get_global_state(self, obs_n):
         if self.use_global_state:
@@ -251,6 +258,7 @@ class MultiAgentEnv(gym.Env):
             global_state = [global_state for _ in range(self.n_units)]
         else:
             global_state = obs_n
+        global_state = np.stack(global_state)
         return global_state
 
     # get info used for benchmarking

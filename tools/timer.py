@@ -1,4 +1,5 @@
-from time import strftime, gmtime, time
+import time
+import datetime
 from collections import defaultdict
 
 from core.log import do_logging
@@ -6,18 +7,31 @@ from core.typing import AttrDict
 from tools.aggregator import Aggregator
 
 
+def get_current_datetime():
+    t = int(time.time())
+    t = datetime.datetime.fromtimestamp(t)
+    return t
+
+
+def compute_time_left(elapsed_time, curr_step, remaining_steps):
+    if remaining_steps <= 0:
+        return datetime.timedelta(0)
+    time_left = remaining_steps / curr_step * elapsed_time
+    return time_left
+
+
 def timeit(func, *args, name=None, to_print=True, 
         return_duration=False, **kwargs):
-    start_time = gmtime()
-    start = time()
+    start_time = time.gmtime()
+    start = time.time()
     result = func(*args, **kwargs)
-    end = time()
-    end_time = gmtime()
+    end = time.time()
+    end_time = time.gmtime()
 
     if to_print:
         do_logging(f'{name if name else func.__name__}: '
-            f'Start "{strftime("%d %b %H:%M:%S", start_time)}"' 
-            f'End "{strftime("%d %b %H:%M:%S", end_time)}" ' 
+            f'Start "{time.strftime("%d %b %H:%M:%S", start_time)}"' 
+            f'End "{time.strftime("%d %b %H:%M:%S", end_time)}" ' 
             f'Duration "{end - start:.3g}s"')
 
     return end - start, result if return_duration else result
@@ -40,12 +54,12 @@ class Timer:
 
     def __enter__(self):
         if self._to_log:
-            self._start = time()
+            self._start = time.time()
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
         if self._to_log:
-            duration = time() - self._start
+            duration = time.time() - self._start
             aggregator = self.aggregators[self._summary_name]
             aggregator.add(duration)
             if self._period is not None and aggregator.count >= self._period:
@@ -113,13 +127,13 @@ class TBTimer:
 
     def __enter__(self):
         if self._to_log:
-            self._start = time()
+            self._start = time.time()
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
         import tensorflow as tf
         if self._to_log:
-            duration = time() - self._start
+            duration = time.time() - self._start
             aggregator = self.aggregators[self._summary_name]
             aggregator.add(duration)
             if aggregator.count >= self._period:
@@ -140,20 +154,20 @@ class LoggerTimer:
 
     def __enter__(self):
         if self._to_log:
-            self._start = time()
+            self._start = time.time()
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
         if self._to_log:
-            duration = time() - self._start
+            duration = time.time() - self._start
             self._logger.store(**{self._summary_name: duration})
 
 
 class Every:
-    def __init__(self, period, start=0, final=None):
+    def __init__(self, period, start=0, init_next=False, final=None):
         self._period = period
         self._curr = start
-        self._next = start
+        self._next = start + period if init_next and period is not None else start
         self._final = final
         self._diff = 0
     
@@ -162,8 +176,8 @@ class Every:
         if self._period is None:
             return False
         if step >= self._next or (self._final is not None and step >= self._final):
-            self._curr = step
-            self._next = step + self._period
+            self._curr = self._next
+            self._next = self._curr + self._period
             return True
         return False
 

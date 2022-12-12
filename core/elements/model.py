@@ -6,13 +6,7 @@ from core.log import do_logging
 from core.ckpt.base import ParamsCheckpointBase
 from core.ensemble import Ensemble, constructor
 from core.typing import AttrDict, dict2AttrDict
-
-
-def construct_components(config, name):
-    from nn.func import create_network
-    networks = {k: create_network(v, name=f'{name}/{k}') 
-        for k, v in config.items() if isinstance(v, dict)}
-    return networks
+from nn.func import create_network
 
 
 class Model(ParamsCheckpointBase):
@@ -43,11 +37,20 @@ class Model(ParamsCheckpointBase):
             if self.config.seed is None:
                 self.config.seed = 42
             seed = self.config.seed
-        do_logging(f'Model seed: {seed}')
+        do_logging(f'Model({self.name}) seed: {seed}')
         return jax.random.PRNGKey(seed)
 
     def add_attributes(self):
         pass
+
+    def build_net(self, *args, name, **kwargs):
+        def build(*args, **kwargs):
+            net = create_network(self.config[name], name)
+            return net(*args, **kwargs)
+        net = hk.transform(build)
+        self.rng, rng = jax.random.split(self.rng)
+        self.act_rng = self.rng
+        return net.init(rng, *args, **kwargs), net.apply
 
     def build_nets(self):
         raise NotImplementedError
@@ -57,7 +60,7 @@ class Model(ParamsCheckpointBase):
         self.jit_action = jax.jit(self.raw_action, static_argnums=(3))
 
     def action(self, data, evaluation):
-        self.act_rng, act_rng = jax.random.split(self.act_rng) 
+        self.act_rng, act_rng = jax.random.split(self.act_rng)
         return self.jit_action(
             self.params, act_rng, data, evaluation)
 

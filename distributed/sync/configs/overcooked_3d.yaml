@@ -47,10 +47,10 @@ runner:
 
 env:
     env_name: &env_name overcooked-asymmetric_advantages
-    max_episode_steps: 10
+    max_episode_steps: 400
     n_envs: &nenvs 4
     dense_reward: False
-    featurize: *irms
+    featurize: True
     uid2aid: [0, 1]
     # layout_params:
     #     rew_shaping_params:
@@ -133,7 +133,7 @@ actor:
     rms:
         obs_names: []
         normalize_obs: *irms
-        normalize_reward: True
+        normalize_reward: False
         obs_normalized_axis: [0, 1]
         reward_normalized_axis: [0, 1]
         update_reward_rms_in_time: True

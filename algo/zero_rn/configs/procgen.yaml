@@ -1,0 +1,193 @@
+---
+# NOTE: root_dir and model_name will be specified to all configs in run.train.py
+algorithm: &algo ppo
+name: ppo
+
+precision: 16
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be re-specified in the entry point
+root_dir: *algo
+model_name: *algo
+
+routine:
+    algorithm: *algo
+
+    MAX_STEPS: 1e7
+    n_steps: &nsteps 16
+    LOG_PERIOD: 200
+    EVAL_PERIOD: 200
+
+    RECORD_VIDEO: False
+    N_EVAL_EPISODES: 1
+
+    timeout_done: &td True
+
+env:
+    env_name: &env_name procgen-coinrun
+    n_runners: &nrunners 1
+    n_envs: &nenvs 64
+    frame_skip: 1
+    frame_stack: 1
+    # num_levels: 200
+    distribution_mode: easy
+
+agent: {}
+
+strategy:
+    train_loop:
+        n_epochs: &nepochs 1
+        N_VALUE_EPOCHS: &nval_epochs 0
+        n_mbs: &nmbs 1
+        K: &K null
+        L: &L 0
+        extra_meta_step: &ems 1 # 0/1
+
+    RECORD_VIDEO: False
+
+model:
+    rnn_type: &rnn null
+    sample_size: &ss 16
+    K: *K
+    L: *L
+
+    encoder: 
+        nn_id: cnn_impala
+        block: resv2
+        out_size: 256
+    rnn:
+        nn_id: *rnn
+        units: 256
+        kernel_initializer: orthogonal
+        recurrent_initializer: orthogonal
+        use_ln: True
+    policy:
+        nn_id: policy
+        units_list: []
+        norm: null
+        kernel_initializer: orthogonal
+        activation: relu
+        out_gain: .01
+        eval_act_temp: 1
+    value:
+        nn_id: value
+        units_list: []
+        norm: null
+        kernel_initializer: orthogonal
+        activation: relu
+    embed: 
+        nn_id: hpembed
+        out_size: 16
+    meta:
+        nn_id: meta
+        pg_coef:
+            outer: 1
+            default: 1
+            init: null
+            act: sigmoid
+        entropy_coef:
+            outer: 0
+            default: 0
+            init: null
+            act: sigmoid
+        value_coef:
+            outer: 1
+            default: 1
+            scale: 1
+            bias: 0
+            init: null
+            act: sigmoid
+        gamma: 
+            outer: &gamma .99
+            default: 1
+            scale: 1
+            bias: 0
+            init: 4.5
+            act: sigmoid
+        lam:
+            outer: .95
+            default: 1
+            scale: 1
+            bias: 0
+            init: 3
+            act: sigmoid
+
+loss:
+    # hyperparams for loss
+    c_clip: 1
+    rho_clip: 1
+    use_dice: False
+    dice_axis: null
+    dice_lam: 1
+    kl: reverse
+    kl_coef: 1
+
+    life_mask: False
+
+    value_loss: mse
+    life_mask: False
+
+trainer:
+    algorithm: *algo
+    sample_size: *ss         # BPTT length
+    timeout_done: *td
+    meta_type: plain
+    K: *K
+    L: *L
+    extra_meta_step: *ems
+    store_state: True
+    
+    optimizer:
+        opt_name: adam
+        schedule_lr: False
+        lr: 5e-4
+        clip_norm: .5
+        epsilon: 1.e-5
+    meta_opt:
+        opt_name: adam
+        schedule_lr: False
+        lr: 1e-3
+        clip_norm: .5
+        epsilon: 1e-4
+
+actor:
+    rms:
+        normalize_obs: False
+        normalize_reward: True
+        update_reward_rms_in_time: False
+        gamma: *gamma
+
+buffer:
+    use_dataset: False
+    type: ac
+
+    adv_type: gae     # nae or gae
+    gamma: *gamma
+    lam: .95
+    n_runners: *nrunners
+    n_envs: *nenvs
+    n_steps: *nsteps
+    n_epochs: *nepochs
+    N_VALUE_EPOCHS: *nval_epochs
+    n_mbs: *nmbs        # number of minibatches
+    queue_size: 2
+    K: *K
+    L: *L
+    extra_meta_step: *ems
+    timeout_done: *td
+    rnn_type: *rnn
+
+    sample_keys: 
+        - obs
+        - action
+        - value
+        - reward
+        - discount
+        - reset
+        - mu_logprob
+        - mu_mean
+        - mu_std
+        - mask
+        - h
+        - c

@@ -1,22 +1,24 @@
 import os, atexit
 import logging
 from collections import defaultdict
-from typing import Union
 import numpy as np
 import jax.numpy as jnp
-import tensorflow as tf
+from tools.display import print_dict_info
 
 from core.log import do_logging
 from core.typing import ModelPath
-from tools import graph
 from tools.utils import isscalar
+from tools.timer import get_current_datetime, compute_time_left
 
 logger = logging.getLogger(__name__)
 
 
 """ Recorder """
 class Recorder:
-    def __init__(self, model_path: ModelPath=None, record_file='record.txt'):
+    def __init__(self, model_path: ModelPath=None, record_file='record.txt', max_steps=None):
+        self._model_path = model_path
+        self._max_steps = max_steps
+
         record_file = record_file if record_file.endswith('record.txt') \
             else record_file + '/record.txt'
         if model_path is not None:
@@ -47,6 +49,10 @@ class Recorder:
         self._current_row = {}
         self._store_dict = defaultdict(list)
 
+        self._start_time = get_current_datetime()
+        self._last_time = self._start_time
+        self._start_step = 0
+
     def __contains__(self, item):
         return item in self._store_dict and self._store_dict[item] != []
 
@@ -57,9 +63,12 @@ class Recorder:
         for k, v in kwargs.items():
             if v is None:
                 continue
-            if np.any(np.isnan(v)):
-                do_logging(f'{k}: {v}')
-                assert False
+            try:
+                if np.any(np.isnan(v)):
+                    do_logging(f'{k}: {v}')
+                    assert False
+            except:
+                print(k, v)
             if isinstance(v, (jnp.DeviceArray)):
                 v = np.array(v)
             if v is None:
@@ -130,7 +139,7 @@ class Recorder:
                         do_logging(k)
                     stats[k] = np.mean(v).astype(np.float32)
                 except:
-                    print(k)
+                    print(k, v)
                     assert False
             if k_std:
                 stats[f'{k}_std'] = np.std(v).astype(np.float32)
@@ -150,10 +159,10 @@ class Recorder:
 
     def record_stats(self, stats, print_terminal_info=True):
         if not self._first_row and not set(stats).issubset(set(self._headers)):
-            if self._first_row:
+            if self._headers and not set(stats).issubset(set(self._headers)):
                 do_logging(f'All previous records are erased because stats does not match the first row\n'
-                    f'stats = {set(stats)}\nfirst row = {set(self._headers)}', 
-                    logger=logger, level='pwt')
+                    f'difference = {set(stats) - set(self._headers)}', 
+                    logger=logger)
             self._out_file.seek(0)
             self._out_file.truncate()
             self._first_row = True
@@ -210,19 +219,40 @@ class Recorder:
                     key.startswith('metrics/') 
                     or key.startswith('run/') 
                     or '/' not in key)
-        
+
+        def get_val_str(val):
+            return f"{val:8.3g}" if hasattr(val, "__float__") else str(val)
+
         vals = []
-        key_lens = [len(key) for key in self._headers]
-        max_key_len = max(15,max(key_lens))
-        n_slashes = 22 + max_key_len
+        key_lens = [len(key) for key in self._headers if is_print_keys(key)]
+        val_lens = [len(get_val_str(self._current_row[key]) )
+            for key in self._headers if is_print_keys(key)]
+        max_key_len = max(15, max(key_lens))
+        max_val_len = max(35, max(val_lens))
+        n_slashes = 7 + max_key_len + max_val_len
         if print_terminal_info:
             print("-"*n_slashes)
+            print(f'| {"model_name":>{max_key_len}s} | {self._model_path.model_name:>{max_val_len}s} |')
+        
+            steps = self._current_row['steps']
+            current_time = get_current_datetime()
+            elapsed_time = current_time - self._start_time
+            print(f'| {"elapsed_time":>{max_key_len}s} | {str(elapsed_time):>{max_val_len}s} |')
+            
+            duration = current_time - self._last_time
+            elapsed_steps = max(steps - self._start_step, 1)
+            if self._max_steps is not None:
+                remain_steps = self._max_steps - self._start_step
+                time_left = compute_time_left(duration, elapsed_steps, remain_steps)
+                time_left = str(time_left).split('.')[0]
+                print(f'| {"time_left":>{max_key_len}s} | {time_left:>{max_val_len}s} |')
+
         for key in self._headers:
             val = self._current_row.get(key, "")
             # print(key, np.array(val).dtype)
-            valstr = f"{val:8.3g}" if hasattr(val, "__float__") else val
-            if is_print_keys(key) and print_terminal_info:
-                print(f'| {key:>{max_key_len}s} | {valstr:>15s} |')
+            if print_terminal_info and is_print_keys(key):
+                valstr = get_val_str(val)
+                print(f'| {key:>{max_key_len}s} | {valstr:>{max_val_len}s} |')
             vals.append(val)
         if print_terminal_info:
             print("-"*n_slashes)
@@ -235,75 +265,8 @@ class Recorder:
         self._store_dict.clear()
         self._first_row = False
 
-
-""" Tensorboard Writer """
-class TensorboardWriter:
-    def __init__(self, model_path: ModelPath, name):
-        self._writer = create_tb_writer(model_path)
-        self.name = name
-        tf.summary.experimental.set_step(0)
-    
-    def set_summary_step(self, step):
-        """ Sets tensorboard step """
-        set_summary_step(step)
-
-    def scalar_summary(self, stats, prefix=None, step=None):
-        """ Adds scalar summary to tensorboard """
-        scalar_summary(self._writer, stats, prefix=prefix, step=step)
-
-    def histogram_summary(self, stats, prefix=None, step=None):
-        """ Adds histogram summary to tensorboard """
-        histogram_summary(self._writer, stats, prefix=prefix, step=step)
-
-    def image_summary(self, images, name, prefix=None, step=None):
-        image_summary(self._writer, images, name, prefix=prefix, step=step)
-
-    def graph_summary(self, sum_type, *args, step=None):
-        """ Adds graph summary to tensorboard
-        This should only be called inside @tf.function
-        Args:
-            sum_type str: either "video" or "image"
-            args: Args passed to summary function defined in utility.graph,
-                of which the first must be a str to specify the tag in Tensorboard
-        """
-        assert isinstance(args[0], str), f'args[0] is expected to be a name string, but got "{args[0]}"'
-        args = list(args)
-        args[0] = f'{self.name}/{sum_type}/{args[0]}'
-        graph_summary(self._writer, sum_type, args, step=step)
-
-    def video_summary(self, video, step=None, fps=30):
-        graph.video_summary(f'{self.name}/sim', video, fps=fps, step=step)
-
-    def matrix_summary(
-        self, 
-        *, 
-        model, 
-        matrix, 
-        label_top=True, 
-        label_bottom=False, 
-        xlabel, 
-        ylabel, 
-        xticklabels, 
-        yticklabels,
-        name, 
-        step=None, 
-    ):
-        matrix_summary(
-            model=model, 
-            matrix=matrix, 
-            label_top=label_top, 
-            label_bottom=label_bottom, 
-            xlabel=xlabel, 
-            ylabel=ylabel, 
-            xticklabels=xticklabels, 
-            yticklabels=yticklabels,
-            name=name, 
-            writer=self._writer, 
-            step=step, 
-        )
-
-    def flush(self):
-        self._writer.flush()
+        self._last_time = current_time
+        self._start_step = steps
 
 
 """ Recorder Ops """
@@ -333,91 +296,3 @@ def create_recorder(model_path: ModelPath):
     # recorder save stats in f'{root_dir}/{model_name}/logs/record.txt'
     recorder = Recorder(model_path)
     return recorder
-
-
-""" Tensorboard Ops """
-def set_summary_step(step):
-    tf.summary.experimental.set_step(step)
-
-def scalar_summary(writer, stats, prefix=None, step=None):
-    if step is not None:
-        tf.summary.experimental.set_step(step)
-    prefix = prefix or 'stats'
-    with writer.as_default():
-        for k, v in stats.items():
-            if isinstance(v, str):
-                continue
-            if '/' not in k:
-                k = f'{prefix}/{k}'
-            # print(k, np.array(v).dtype)
-            tf.summary.scalar(k, tf.reduce_mean(v), step=step)
-
-def histogram_summary(writer, stats, prefix=None, step=None):
-    if step is not None:
-        tf.summary.experimental.set_step(step)
-    prefix = prefix or 'stats'
-    with writer.as_default():
-        for k, v in stats.items():
-            if isinstance(v, (str, int, float)):
-                continue
-            if '/' not in k:
-                k = f'{prefix}/{k}'
-            tf.summary.histogram(k, v, step=step)
-
-def graph_summary(writer, sum_type, args, step=None):
-    """ This function should only be called inside a tf.function """
-    fn = {'image': graph.image_summary, 'video': graph.video_summary}[sum_type]
-    if step is None:
-        step = tf.summary.experimental.get_step()
-    def inner(*args):
-        tf.summary.experimental.set_step(step)
-        with writer.as_default():
-            fn(*args)
-    return tf.numpy_function(inner, args, [])
-
-def image_summary(writer, images, name, prefix=None, step=None):
-    if step is not None:
-        tf.summary.experimental.set_step(step)
-    if len(images.shape) == 3:
-        images = images[None]
-    if prefix:
-        name = f'{prefix}/{name}'
-    with writer.as_default():
-        tf.summary.image(name, images, step=step)
-
-def matrix_summary(
-    *, 
-    model: ModelPath, 
-    matrix: np.ndarray, 
-    label_top=True, 
-    label_bottom=False, 
-    xlabel: str, 
-    ylabel: str, 
-    xticklabels: Union[str, int, np.ndarray], 
-    yticklabels: Union[str, int, np.ndarray],
-    name, 
-    writer, 
-    step=None, 
-):
-    save_path = None if model is None else '/'.join([*model, name])
-    image = graph.matrix_plot(
-        matrix, 
-        label_top=label_top, 
-        label_bottom=label_bottom, 
-        save_path=save_path, 
-        xlabel=xlabel, 
-        ylabel=ylabel, 
-        xticklabels=xticklabels, 
-        yticklabels=yticklabels
-    )
-    image_summary(writer, image, name, step=step)
-
-def create_tb_writer(model_path: ModelPath):
-    # writer for tensorboard summary
-    # stats are saved in directory f'{root_dir}/{model_name}'
-    writer = tf.summary.create_file_writer('/'.join(model_path))
-    writer.set_as_default()
-    return writer
-
-def create_tensorboard_writer(model_path: ModelPath, name):
-    return TensorboardWriter(model_path, name)

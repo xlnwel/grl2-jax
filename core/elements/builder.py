@@ -9,8 +9,8 @@ from core.elements.actor import Actor
 from core.elements.model import Model
 from core.elements.strategy import Strategy
 from core.elements.trainer import TrainerBase
+from core.elements.monitor import Monitor, create_monitor
 from core.log import do_logging
-from core.monitor import Monitor, create_monitor
 from core.typing import *
 from core.utils import save_code, save_config
 from env.func import get_env_stats
@@ -28,12 +28,14 @@ class ElementsBuilder:
         config: dict, 
         env_stats: dict=None, 
         to_save_code: bool=False,
-        name='builder'
+        name='builder', 
+        max_steps=None, 
     ):
         self.config = dict2AttrDict(config, to_copy=True)
         self.env_stats = dict2AttrDict(
             get_env_stats(self.config.env) if env_stats is None else env_stats)
         self._name = name
+        self._max_steps = max_steps
 
         self._model_path = ModelPath(self.config.root_dir, self.config.model_name)
 
@@ -196,9 +198,16 @@ class ElementsBuilder:
     ):
         if save_to_disk:
             config = dict2AttrDict(config or self.config)
-            return create_monitor(ModelPath(config.root_dir, config.model_name))
+            config.setdefault('monitor', {})
+            return create_monitor(
+                **config.monitor, 
+                max_steps=self._max_steps
+            )
         else:
-            return create_monitor(None, use_tensorboard=False)
+            return create_monitor(
+                use_tensorboard=False, 
+                max_steps=self._max_steps
+            )
     
     def build_agent(
         self, 
@@ -419,7 +428,7 @@ class ElementsBuilder:
         elements = self.build_strategy_from_scratch(
             config=config, 
             env_stats=env_stats, 
-            save_monitor_stats_to_disk=save_monitor_stats_to_disk,
+            save_monitor_stats_to_disk=save_monitor_stats_to_disk, 
             save_config=save_config, 
         )
         elements.agent = self.build_agent(

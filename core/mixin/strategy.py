@@ -6,6 +6,7 @@ import numpy as np
 from core.typing import ModelPath
 from jax_tools import jax_utils
 
+
 class StepCounter:
     def __init__(self, model_path: ModelPath, name='step_counter'):
         self._env_step = 0
@@ -57,16 +58,15 @@ class Memory:
             inp: dict, reset: np.ndarray, state: NamedTuple=None):
         """ Adds memory state and mask to the input. """
         if state is None and self._state is None:
-            self._state = self.model.get_initial_state(inp)
+            self._state = self.model.get_initial_state(inp.obs.shape[0])
 
         if state is None:
             state = self._state
 
-        mask = self.get_mask(reset)
-        state = self.apply_mask_to_state(state, mask)
+        state = self.apply_reset_to_state(state, reset)
         inp.update({
+            'state_reset': reset, 
             'state': state,
-            'mask': mask,   # mask is applied in RNN
         })
 
         return inp
@@ -74,11 +74,11 @@ class Memory:
     def get_mask(self, reset):
         return np.float32(1. - reset)
 
-    def apply_mask_to_state(self, state: NamedTuple, mask: np.ndarray):
+    def apply_reset_to_state(self, state: NamedTuple, reset: np.ndarray):
         assert state is not None, state
-        mask_reshaped = mask.reshape(-1, 1)
-        state = jax_utils.tree_map(lambda x: x*mask_reshaped, state)
-        return state 
+        reset = reset.reshape(-1, 1)
+        state = jax_utils.tree_map(lambda x: x*(1-reset), state)
+        return state
 
     def reset_states(self):
         self._state = None

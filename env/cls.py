@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 
 from core.typing import dict2AttrDict
+from tools.display import print_dict_info
 from tools.utils import batch_dicts, convert_batch_with_func
 from env import make_env
 from env.typing import EnvOutput
@@ -153,8 +154,8 @@ class VecEnv(VecEnvBase):
     def reset(self, idxes=None, convert_batch=True, **kwargs):
         idxes = self._get_idxes(idxes)
         out = [self.envs[i].reset() for i in idxes]
-
-        return self.process_output(out, convert_batch=convert_batch)
+        out = self.process_output(out, convert_batch=convert_batch)
+        return out
 
     def step(self, actions, convert_batch=True, **kwargs):
         if isinstance(actions, (tuple, list)):

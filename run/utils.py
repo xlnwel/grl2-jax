@@ -22,7 +22,9 @@ def get_configs_dir(algo):
 
 def get_filename_with_env(env):
     env_split = env.split('-', 1)
-    if len(env_split) == 1:
+    if len(env_split) > 1:
+        filename = env_split[0]
+    elif len(env_split) == 1:
         filename = 'gym'
     else:
         raise ValueError(f'Cannot extract filename from env: {env}')
@@ -64,7 +66,7 @@ def change_config_with_key_value(config, key, value, prefix=''):
     return modified_configs
 
 
-def change_config_with_kw_string(kw, config, model_name=''):
+def change_config_with_kw_string(kw, config):
     """ Changes configs based on kw. model_name will
     be modified accordingly to embody changes 
     """
@@ -72,23 +74,27 @@ def change_config_with_kw_string(kw, config, model_name=''):
         for s in kw:
             key, value = s.split('=', 1)
             value = eval_str(value)
-            if model_name != '':
-                model_name += '-'
-            model_name += s
 
             # change kwargs in config
             modified_configs = change_config_with_key_value(config, key, value)
             do_logging(
-                f'All "{key}" appeared in the following configs will be changed to "{value}": {modified_configs}', 
-                level='print', 
+                f'Algo({config.algorithm}): All "{key}" appeared in the following configs will be changed to "{value}": {modified_configs}', 
+                backtrack=3, 
                 color='cyan'
             )
-            assert modified_configs != [], modified_configs
+            # assert modified_configs != [], modified_configs
 
+def get_model_name_from_kw_string(kw, model_name=''):
+    if kw:
+        for s in kw:
+            _, value = s.split('=', 1)
+            value = eval_str(value)
+            if model_name != '':
+                model_name += '-'
+            model_name += s
     return model_name
 
-
-def read_config(algo, env, filename):
+def read_config(algo, env, filename=None):
     configs_dir = get_configs_dir(algo)
     if filename is None:
         filename = get_filename_with_env(env)

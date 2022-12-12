@@ -19,7 +19,7 @@ controller:
     restart_runners_priod: null
     max_version_iterations: 10
     max_steps_per_iteration: 1000
-    initialize_rms: &irms True
+    initialize_rms: &irms False
 
 parameter_server:
     root_dir: *algo
@@ -30,7 +30,10 @@ parameter_server:
 
     payoff:
         step_size: .1
-        sampling_strategy: fsp
+        update_interval: 180
+        sampling_strategy:
+            type: pfsp
+            p: 1
 
 ray_config:
     runner:
@@ -49,8 +52,8 @@ env:
     env_name: &env_name overcooked-asymmetric_advantages
     max_episode_steps: 10
     n_envs: &nenvs 4
-    dense_reward: False
-    featurize: *irms
+    dense_reward: True
+    featurize: True
     uid2aid: [0, 1]
     # layout_params:
     #     rew_shaping_params:
@@ -175,7 +178,7 @@ actor:
     rms:
         obs_names: [obs, global_state]
         normalize_obs: *irms
-        normalize_reward: True
+        normalize_reward: False
         obs_normalized_axis: [0, 1]
         reward_normalized_axis: [0, 1]
         update_reward_rms_in_time: True

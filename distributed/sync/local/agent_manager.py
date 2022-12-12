@@ -4,7 +4,7 @@ import ray
 from ..remote.agent import Agent
 from ..remote.parameter_server import ParameterServer
 from ..common.typing import ModelWeights
-from core.monitor import Monitor
+from core.elements.monitor import Monitor
 from core.remote.base import ManagerBase
 from core.typing import AttrDict, AttrDict2dict
 

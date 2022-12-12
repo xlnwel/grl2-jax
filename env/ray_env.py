@@ -24,7 +24,7 @@ class RayVecEnv:
                 config['seed'] += i * self.envsperworker
             if 'eid' in config:
                 config['eid'] = i * self.envsperworker
-            self.envs.append(RayEnvType.remote(config))
+            self.envs.append(RayEnvType.remote(config, env_fn))
 
         self.env = EnvType(config, env_fn)
         self.max_episode_steps = self.env.max_episode_steps

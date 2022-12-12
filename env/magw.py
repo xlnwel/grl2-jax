@@ -1,6 +1,7 @@
-from .grid_env.magw import MultiAgentGridWorldEnv
+from .grid_env.magw import GridWorldEnv
 
 env_map = {
-    'staghunt': MultiAgentGridWorldEnv,
-    'escalation': MultiAgentGridWorldEnv,
+    'staghunt': GridWorldEnv,
+    'escalation': GridWorldEnv,
+    'harvest': GridWorldEnv,
 }
