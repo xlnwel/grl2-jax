@@ -475,14 +475,59 @@ def product_flatten_dict(**kwargs):
 
     return result
 
-def batch_dicts(x, func=np.stack, to_attrdict=False):
+def batch_dicts(x, func=np.stack):
     res = AttrDict()
+    
     for k, v in x[0].items():
         if isinstance(v, dict):
-            res[k] = batch_dicts([xx[k] for xx in x])
+            v = batch_dicts([xx[k] for xx in x], func=func)
+            if v:
+                res[k] = v
+        elif v is None:
+            continue
+        elif hasattr(v, '_fields'):
+            res[k] = type(v)(*[
+                batch_dicts([getattr(xx[k], tk) for xx in x]) 
+                if isinstance(tk, dict) else 
+                func([getattr(xx[k], tk) for xx in x]) 
+                for tk in v._fields
+            ])
         else:
             res[k] = func([xx[k] for xx in x])
+
     return res
+
+def stack_data_with_state(buffer, keys=None, seq_axis=1):
+    if keys is None:
+        keys = buffer.keys()
+
+    data = AttrDict()
+    for k in keys:
+        if k not in buffer:
+            continue
+        if k == 'state':
+            if isinstance(buffer[k][0], dict):
+                # state is a dictionary, e.g., both actor and critic have their states
+                v = AttrDict()
+                for name in buffer[k][0].keys():
+                    if hasattr(buffer[k][0][name], '_fields'):
+                        t = type(buffer[k][0][name])
+                        v[name] = [d[name] for d in buffer[k]]
+                        v[name] = t(*[np.stack(x, seq_axis) for x in zip(*v[name])])
+                    else:
+                        v[name] = np.stack([x[name] for x in buffer[k]], seq_axis)
+            else:
+                # state is 
+                if hasattr(buffer[k][0], '_fields'):
+                    t = type(buffer[k][0])
+                    v = t(*[np.stack(x, seq_axis) for x in zip(*buffer[k])])
+                else:
+                    v = np.stack([x for x in buffer[k]], seq_axis)
+        else:
+            v = np.stack(buffer[k], seq_axis)
+        data[k] = v
+
+    return data
 
 def convert_batch_with_func(data, func=np.stack):
     if data != []:
@@ -513,14 +558,3 @@ def get_frame(backtrack):
         frame = frame.f_back
     return frame
 
-class TempStore:
-    def __init__(self, get_fn, set_fn):
-        self._get_fn = get_fn
-        self._set_fn = set_fn
-
-    def __enter__(self):
-        self.state = self._get_fn()
-        return self
-    
-    def __exit__(self, exc_type, exc_value, traceback):
-        self._set_fn(self.state)

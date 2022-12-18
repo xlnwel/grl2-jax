@@ -24,17 +24,6 @@ class Strategy(StrategyBase):
         inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
         value = self.model.compute_value(inp)
         return value
-    
-    def reset_states(self):
-        self._memory.reset_states()
-
-    def set_states(self, state):
-        self._memory.set_states(state)
-    
-    def get_states(self):
-        state = self._memory.get_states()
-        self._memory.reset_states()
-        return state
 
 
 create_strategy = functools.partial(create_strategy, strategy_cls=Strategy)

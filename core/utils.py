@@ -3,9 +3,8 @@ import random
 import numpy as np
 
 from core.log import do_logging
-from core.typing import ModelPath
+from core.typing import ModelPath, AttrDict
 from tools import yaml_op
-from core.typing import AttrDict
 
 
 def configure_gpu(idx=-1):

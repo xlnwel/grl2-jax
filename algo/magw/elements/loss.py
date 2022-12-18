@@ -34,13 +34,12 @@ class Loss(LossBase):
         stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
 
         loss, stats = compute_model_loss(self.config, ensemble_next_obs, stats)
-        if self.model.config.learn_reward_fn:
-            rng = random.split(rng, 1)[0]
-            reward_dist = self.modules.reward(theta.reward, rng, obs, data.action)
-            reward_loss, stats = compute_reward_loss(
-                self.config, reward_dist, data.reward, stats)
-            loss = loss + reward_loss
-            stats.loss = loss
+        rng = random.split(rng, 1)[0]
+        reward_dist = self.modules.reward(theta.reward, rng, obs, data.action)
+        reward_loss, stats = compute_reward_loss(
+            self.config, reward_dist, data.reward, stats)
+        loss = loss + reward_loss
+        stats.loss = loss
         stats.exp_consistency = exp_consistency
         stats.elite_indices = jnp.argsort(stats.mean_loss)
         stats = prefix_name(stats, name, filter=['elite_indices'])

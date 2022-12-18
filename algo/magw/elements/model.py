@@ -61,10 +61,7 @@ class Model(ModelBase):
 
     @property
     def theta(self):
-        if self.config.learn_reward_fn:
-            return self.params.subdict('emodels', 'reward')
-        else:
-            return self.params.subdict('emodels')
+        return self.params.subdict('emodels', 'reward')
 
     def rank_elites(self, elite_indices):
         self.elite_indices = elite_indices

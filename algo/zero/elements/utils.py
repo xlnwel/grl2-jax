@@ -16,10 +16,6 @@ def _reshape_for_bptt(*args, bptt):
         lambda x: x.reshape(-1, bptt, *x.shape[2:]), args
     )
 
-def _restore_shape(*args, shape):
-    return jax_utils.tree_map(
-        lambda x: x.reshape(*shape, -1), args
-    )
 
 def compute_values(
     func, 

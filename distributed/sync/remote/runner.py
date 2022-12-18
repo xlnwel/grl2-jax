@@ -111,9 +111,8 @@ class MultiAgentSimRunner(RayBase):
                     elements.model, 
                     config=config, 
                     env_stats=self.env_stats, 
-                    runner_id=self.id, 
                     aid=aid, 
-                    n_units=self.n_units_per_agent[aid], 
+                    runner_id=self.id, 
                 )
                 self.buffers.append(buffer)
         assert len(self.agents) == len(self.rms) == self.n_agents, (

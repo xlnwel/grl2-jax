@@ -1,15 +1,13 @@
 import collections
 import logging
 import time
-from typing import NamedTuple
 import numpy as np
-import jax
 
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
-from tools.utils import standardize, batch_dicts
+from tools.utils import standardize, stack_data_with_state
 from .utils import collect
 
 logger = logging.getLogger(__name__)
@@ -26,21 +24,12 @@ class LocalBuffer(Buffer):
         config: AttrDict,
         env_stats: AttrDict,  
         model: Model,
-        runner_id: int,
         aid: int, 
+        runner_id: int,
     ):
-        self.config = config
+        super().__init__(config, env_stats, model, aid)
+
         self.runner_id = runner_id
-        self.aid = aid
-        self.n_units = len(env_stats.aid2uids[aid])
-
-        self._add_attributes(env_stats, model)
-
-    def _add_attributes(self, env_stats, model):
-        self._obs_keys = env_stats.obs_keys[self.aid]
-        self.state_keys, self.state_type, \
-            self.sample_keys, self.sample_size = \
-                extract_sampling_keys(self.config, env_stats, model)
 
         self.n_steps = self.config.n_steps
         self.n_envs = self.config.n_envs
@@ -59,8 +48,6 @@ class LocalBuffer(Buffer):
     def reset(self):
         self._size = 0
         self._buffer = collections.defaultdict(list)
-        # self._train_steps = [[None for _ in range(self.n_units)] 
-        #     for _ in range(self.n_envs)]
 
     def collect(self, env, **kwargs):
         collect(self, env, 0, **kwargs)
@@ -77,46 +64,26 @@ class LocalBuffer(Buffer):
             for k, v in latest_piece.items():
                 self._buffer[k].append(v)
 
-        data = {}
-        for k in self.sample_keys:
-            if k not in self._buffer:
-                continue
-            if k == 'state':
-                v = AttrDict()
-                for name, t in self.state_type.items():
-                    if t is None:
-                        v[name] = np.stack([x[name] for x in self._buffer[k]], 1)
-                    else:
-                        v[name] = [x[name] for x in self._buffer[k]]
-                        v[name] = t(*[np.stack(x, 1) for x in zip(*v[name])])
-            else:
-                v = np.stack(self._buffer[k], 1)
-            # if self.config.timeout_done and k in self._obs_keys:
-            #     assert v.shape[:3] == (self.n_envs, self.n_steps+1, self.n_units), \
-            #         (k, v.shape, (self.n_envs, self.n_steps+1, self.n_units))
-            # else:
-            #     assert v.shape[:3] == (self.n_envs, self.n_steps, self.n_units), \
-            #         (k, v.shape, (self.n_envs, self.n_steps, self.n_units))
-            data[k] = v
+        data = stack_data_with_state(self._buffer, self.sample_keys)
         self.reset()
 
         return self.runner_id, data, self.n_envs * self.n_steps
 
     def _replace_obs_with_next_obs(self, data):
-        if f'next_{self._obs_keys[0]}' not in data:
+        if f'next_{self.obs_keys[0]}' not in data:
             return
         if self.config.timeout_done:
             # for environments that treat timeout as done, 
             # we do not separately record obs and next obs
             # instead, we record n+1 obs 
             if self._size == 0:
-                for k in self._obs_keys:
+                for k in self.obs_keys:
                     assert data[k].shape == data[f'next_{k}'].shape, (data[k].shape, data[f'next_{k}'].shape)
                     # add the first obs when buffer is empty
                     self._buffer[k].append(data[k])
                     data[k] = data.pop(f'next_{k}')
             else:
-                for k in self._obs_keys:
+                for k in self.obs_keys:
                     data[k] = data.pop(f'next_{k}')
 
 
@@ -128,14 +95,7 @@ class ACBuffer(Buffer):
         model: Model, 
         aid: int=0, 
     ):
-        self.config = dict2AttrDict(config)
-        self.aid = aid
-        self._add_attributes(env_stats, model)
-
-    def _add_attributes(self, env_stats, model):
-        self.state_keys, self.state_type, \
-            self.sample_keys, self.sample_size = \
-                extract_sampling_keys(self.config, env_stats, model)
+        super().__init__(config, env_stats, model, aid)
 
         self.n_runners = self.config.n_runners
         self.n_envs = self.n_runners * self.config.n_envs
@@ -317,18 +277,20 @@ def extract_sampling_keys(
     sample_keys = set(sample_keys)
     if state_keys is None:
         sample_keys.remove('state')
+    else:
+        sample_keys.add('state')
     obs_keys = env_stats.obs_keys[model.config.aid] if 'aid' in model.config else env_stats.obs_keys
     for k in obs_keys:
         sample_keys.add(k)
     if not config.timeout_done:
         for k in obs_keys:
             sample_keys.add(f'next_{k}')
-    # if env_stats.use_action_mask:
-    #     self.sample_keys.append('action_mask')
-    # elif 'action_mask' in self.sample_keys:
-    #     self.sample_keys.remove('action_mask')
-    # if env_stats.use_life_mask:
-    #     self.sample_keys.append('life_mask')
-    # elif 'life_mask' in self.sample_keys:
-    #     self.sample_keys.remove('life_mask')
+    if env_stats.use_action_mask:
+        sample_keys.append('action_mask')
+    elif 'action_mask' in sample_keys:
+        sample_keys.remove('action_mask')
+    if env_stats.use_life_mask:
+        sample_keys.append('sample_mask')
+    elif 'life_mask' in sample_keys:
+        sample_keys.remove('sample_mask')
     return state_keys, state_type, sample_keys, sample_size

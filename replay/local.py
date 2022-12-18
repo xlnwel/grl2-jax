@@ -1,21 +1,30 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import logging
 import collections
 import math
 import numpy as np
 
-from core.decorator import config
-from tools.utils import batch_dicts
+from core.elements.buffer import Buffer
+from tools.utils import batch_dicts, stack_data_with_state
 from replay.utils import *
 
 logger = logging.getLogger(__name__)
 
 
-class LocalBuffer(ABC):
-    @config
-    def __init__(self):
-        self._memory = {}
-        self._idx = 0
+class LocalBuffer(Buffer):
+    def __init__(
+        self, 
+        config, 
+        env_stats, 
+        model, 
+        aid, 
+        runner_id,
+    ):
+        super().__init__(config, env_stats, model, aid)
+        self.runner_id = runner_id
+
+        self._buffer = collections.defaultdict(list)
+        self._size = 0
 
         self._add_attributes()
     
@@ -23,23 +32,35 @@ class LocalBuffer(ABC):
         pass
 
     def name(self):
-        return self._replay_type
+        return self.config.type
 
     def is_full(self):
-        assert self._idx <= self._memlen, (self._idx, self._memlen)
-        return self._idx == self._memlen
-
-    @property
-    def seqlen(self):
-        return self._seqlen
+        return self._size >= self.config.n_steps
 
     @abstractmethod
-    def sample(self):
+    def retrieve_all_data(self):
         raise NotImplementedError
 
     @abstractmethod
     def add(self, **data):
         raise NotImplementedError
+
+
+class EnvEpisodicBuffer(LocalBuffer):
+    def reset(self):
+        self._buffer.clear()
+        self._size = 0
+
+    def retrieve_all_data(self):
+        data = stack_data_with_state(self._buffer, seq_axis=0)
+        self.reset()
+
+        return data
+
+    def add(self, **data):
+        for k, v in data.items():
+            self._buffer[k].append(v)
+        self._size += 1
 
 
 class NStepBuffer(LocalBuffer):
@@ -54,36 +75,36 @@ class EnvNStepBuffer(NStepBuffer):
     def reset(self):
         assert self.is_full(), self._idx
         self._idx = self._extra_len
-        for v in self._memory.values():
+        for v in self._buffer.values():
             v[:self._extra_len] = v[self._seqlen:]
 
     def add(self, **data):
         """ Add experience to local memory """
-        if self._memory == {}:
+        if self._buffer == {}:
             del data['next_obs']
-            init_buffer(self._memory, pre_dims=self._memlen, has_steps=self._n_steps>1, **data)
-            print_buffer(self._memory, 'Local')
+            init_buffer(self._buffer, pre_dims=self._memlen, has_steps=self._n_steps>1, **data)
+            print_buffer(self._buffer, 'Local')
             
-        add_buffer(self._memory, self._idx, self._n_steps, self._gamma, **data)
+        add_buffer(self._buffer, self._idx, self._n_steps, self._gamma, **data)
         self._idx = self._idx + 1
 
-    def sample(self):
+    def retrieve_all_data(self):
         assert self.is_full(), self._idx
         return self.retrieve(self._seqlen)
 
     def retrieve(self, seqlen=None):
         seqlen = seqlen or self._idx
         results = {}
-        for k, v in self._memory.items():
+        for k, v in self._buffer.items():
             results[k] = v[:seqlen]
-        if 'next_obs' not in self._memory:
+        if 'next_obs' not in self._buffer:
             idxes = np.arange(seqlen)
             steps = results.get('steps', 1)
             next_idxes = idxes + steps
-            if isinstance(self._memory['obs'], np.ndarray):
-                results['next_obs'] = self._memory['obs'][next_idxes]
+            if isinstance(self._buffer['obs'], np.ndarray):
+                results['next_obs'] = self._buffer['obs'][next_idxes]
             else:
-                results['next_obs'] = [np.array(self._memory['obs'][i], copy=False) 
+                results['next_obs'] = [np.array(self._buffer['obs'][i], copy=False) 
                     for i in next_idxes]
         if 'steps' in results:
             results['steps'] = results['steps'].astype(np.float32)
@@ -96,37 +117,37 @@ class VecEnvNStepBuffer(NStepBuffer):
     def reset(self):
         assert self.is_full(), self._idx
         self._idx = self._extra_len
-        for v in self._memory.values():
+        for v in self._buffer.values():
             v[:, :self._extra_len] = v[:, self._seqlen:]
 
     def add(self, env_ids=None, **data):
         """ Add experience to local memory """
-        if self._memory == {}:
+        if self._buffer == {}:
             # initialize memory
-            init_buffer(self._memory, pre_dims=(self._n_envs, self._memlen), 
+            init_buffer(self._buffer, pre_dims=(self._n_envs, self._memlen), 
                         has_steps=self._extra_len>1, **data)
-            print_buffer(self._memory, 'Local Buffer')
+            print_buffer(self._buffer, 'Local Buffer')
 
         idx = self._idx
         
         for k, v in data.items():
-            if isinstance(self._memory[k], np.ndarray):
-                self._memory[k][:, idx] = v
+            if isinstance(self._buffer[k], np.ndarray):
+                self._buffer[k][:, idx] = v
             else:
                 for i in range(self._n_envs):
-                    self._memory[k][i][idx] = v[i]
+                    self._buffer[k][i][idx] = v[i]
         if self._extra_len > 1:
-            self._memory['steps'][:, idx] = 1
+            self._buffer['steps'][:, idx] = 1
 
         self._idx += 1
 
-    def sample(self):
+    def retrieve_all_data(self):
         assert self.is_full(), self._idx
         return self.retrieve(self._seqlen)
     
     def retrieve(self, seqlen=None):
         seqlen = seqlen or self._idx
-        results = adjust_n_steps_envvec(self._memory, seqlen, 
+        results = adjust_n_steps_envvec(self._buffer, seqlen, 
             self._n_steps, self._max_steps, self._gamma)
         value = None
         for k, v in results.items():
@@ -159,17 +180,17 @@ class SequentialBuffer(LocalBuffer):
         self._memlen = self._sample_size + self._extra_len
 
     def add(self, **data):
-        if self._memory == {}:
+        if self._buffer == {}:
             for k in data:
                 if k in self._state_keys:
-                    self._memory[k] = collections.deque(
+                    self._buffer[k] = collections.deque(
                         maxlen=math.ceil(self._memlen / self._reset_shift))
                 else:
-                    self._memory[k] = collections.deque(maxlen=self._memlen)
+                    self._buffer[k] = collections.deque(maxlen=self._memlen)
 
         for k, v in data.items():
             if k not in self._state_keys or self._idx % self._reset_shift == 0:
-                self._memory[k].append(v)
+                self._buffer[k].append(v)
         
         self._idx += 1
     
@@ -178,10 +199,10 @@ class SequentialBuffer(LocalBuffer):
 
 
 class EnvSequentialBuffer(SequentialBuffer):
-    def sample(self):
+    def retrieve_all_data(self):
         assert self.is_full(), self._idx
         results = {}
-        for k, v in self._memory.items():
+        for k, v in self._buffer.items():
             if k in self._state_keys:
                 results[k] = v[0]
             elif k in self._extra_keys:
@@ -193,10 +214,10 @@ class EnvSequentialBuffer(SequentialBuffer):
 
 
 class VecEnvSequentialBuffer(SequentialBuffer):
-    def sample(self):
+    def retrieve_all_data(self):
         assert self.is_full(), self._idx
         results = {}
-        for k, v in self._memory.items():
+        for k, v in self._buffer.items():
             if k in self._state_keys:
                 results[k] = v[0]
             elif k in self._extra_keys:
@@ -215,81 +236,4 @@ class VecEnvSequentialBuffer(SequentialBuffer):
                     assert v.shape[0] == self._sample_size, (k, v.shape)
         assert len(results) == self._n_envs, results
         
-        return results
-
-
-class EnvEpisodicBuffer(LocalBuffer):
-    def _add_attributes(self):
-        super()._add_attributes()
-        self._memory = collections.defaultdict(list)
-    
-    def reset(self):
-        self._memory.clear()
-        self._idx = 0
-
-    def sample(self):
-        results = {k: batch_dicts(v) if isinstance(v[0], dict) else np.array(v) 
-            for k, v in self._memory.items()}
-        self.reset()
-        return results
-
-    def add(self, **data):
-        for k, v in data.items():
-            self._memory[k].append(v)
-        self._idx += 1
-
-
-class EnvFixedEpisodicBuffer(EnvEpisodicBuffer):
-    """ Fix the length of episodes """
-    def _add_attributes(self):
-        super()._add_attributes()
-        self._memlen = self._seqlen + 1 # one for the last observation
-
-    def sample(self):
-        assert self.is_full(), self._idx
-        results = {k: np.array(v) for k, v in self._memory.items()}
-        for k, v in results.items():
-            assert v.shape[0] >= self._seqlen, [
-                (kk, vv.shape) for kk, vv in results.items()
-            ]
-        return results
-
-
-class VecEnvFixedEpisodicBuffer(EnvFixedEpisodicBuffer):
-    def _add_attributes(self):
-        super()._add_attributes()
-        self.reset()
-
-    def reset(self, idxes=None):
-        if idxes is None:
-            self._memory = [
-                collections.defaultdict(list) 
-                for _ in range(self._n_envs)]
-            self._idx = 0
-        elif isinstance(idxes, (list, tuple)):
-            # do not reset self._idx here; 
-            # we only drop the bad episodes given by idxes
-            [self._memory[i].clear() for i in idxes]
-        else:
-            raise ValueError(idxes)
-
-    def add(self, **data):
-        # we do not add all data at once since 
-        # some environments throw errors and 
-        # we need to drop these data accordingly
-        for k, v in data.items():
-            for i in range(self._n_envs):
-                self._memory[i][k].append(v[i])
-        self._idx += 1
-
-    def sample(self, batch_data=False):
-        assert self.is_full(), (self._idx, self._memlen)
-        results = [d for d in self._memory if d]
-        if batch_data:
-            results = batch_dicts(results)
-            for k, v in results.items():
-                assert v.shape[1] >= self._seqlen, [
-                    (kk, vv.shape) for kk, vv in results.items()
-                ]
-
         return results

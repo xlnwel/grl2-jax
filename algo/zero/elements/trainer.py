@@ -5,7 +5,7 @@ from jax import lax
 import jax.numpy as jnp
 import haiku as hk
 
-from core.log import do_logging, pwc
+from core.log import do_logging
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
@@ -28,7 +28,6 @@ def construct_fake_data(env_stats, aid):
     data.setdefault('global_state', data.obs)
     data.action = jnp.zeros(basic_shape, jnp.int32)
     data.value = jnp.zeros(basic_shape, jnp.float32)
-    data.next_value = jnp.zeros(basic_shape, jnp.float32)
     data.reward = jnp.zeros(basic_shape, jnp.float32)
     data.discount = jnp.zeros(basic_shape, jnp.float32)
     data.reset = jnp.zeros(basic_shape, jnp.float32)
@@ -56,6 +55,16 @@ class Trainer(TrainerBase):
             name='theta'
         )
         self.imaginary_opt_state = self.params.theta
+
+    def compile_train(self):
+        _jit_train = jax.jit(self.theta_train)
+        def jit_train(*args, **kwargs):
+            self.rng, rng = jax.random.split(self.rng)
+            return _jit_train(*args, rng=rng, **kwargs)
+        self.jit_train = jit_train
+        self.jit_img_train = jit_train
+
+        self.haiku_tabulate()
 
     def train(self, data: AttrDict):
         theta = self.model.theta.copy()
@@ -93,10 +102,10 @@ class Trainer(TrainerBase):
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == True, is_imaginary
         opt_state = self.imaginary_opt_state
-        for _ in range(self.config.n_epochs):
+        for _ in range(self.config.n_imaginary_epochs):
             with Timer('imaginary_train'):
                 theta, opt_state, _ = \
-                    self.jit_train(
+                    self.jit_img_train(
                         theta, 
                         opt_state=opt_state, 
                         data=data, 

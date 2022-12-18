@@ -6,8 +6,8 @@ from core.elements.actor import Actor
 from core.elements.model import Model
 from core.elements.trainer import TrainerBase, TrainerEnsemble
 from core.elements.trainloop import TrainingLoop
-from core.mixin.strategy import StepCounter
-from core.typing import ModelPath, AttrDict
+from core.mixin.strategy import StepCounter, Memory
+from core.typing import ModelPath, AttrDict, dict2AttrDict
 from env.typing import EnvOutput
 from tools.utils import set_path
 from tools import pkg
@@ -122,11 +122,34 @@ class Strategy:
         self.step_counter.add_train_step(n)
         return stats
 
-    def reset_states(self, states=None):
-        pass
+    """ Memory Management """
+    def build_memory(self, for_self=False):
+        memory = Memory(self.model)
+        if for_self:
+            self._memory = memory
+        return memory
 
     def get_states(self):
-        pass
+        return self._memory.get_states()
+
+    def reset_states(self):
+        state = self._memory.get_states()
+        self._memory.reset_states()
+        return state
+
+    def set_states(self, state=None):
+        self._memory.set_states(state=state)
+    
+    def get_memory(self):
+        return self._memory
+    
+    def reset_memory(self):
+        memory = self._memory
+        self._memory = Memory(self.model)
+        return memory
+    
+    def set_memory(self, memory: Memory):
+        self._memory = memory
 
     """ Call """
     def __call__(
@@ -147,7 +170,7 @@ class Strategy:
             inp = env_output.obs[0]
         else:
             inp = env_output.obs
-        inp = copy.deepcopy(inp)
+        inp = dict2AttrDict(inp, to_copy=True)
         return inp
 
     def _record_output(self, out: Tuple):

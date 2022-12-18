@@ -2,13 +2,63 @@ import collections
 import logging
 import numpy as np
 
+from core.typing import dict2AttrDict
 from tools.utils import batch_dicts
+from env.func import create_env
 
 logger = logging.getLogger(__name__)
+
 
 class RunMode:
     NSTEPS='nsteps'
     TRAJ='traj'
+
+
+class RunnerWithState:
+    def __init__(self, env_config, seed_interval=1000):
+        self._env_config = dict2AttrDict(env_config, to_copy=True)
+        self._seed_interval = seed_interval
+        self.build_env(for_self=True)
+    
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(
+                "attempted to get missing private attribute '{}'".format(name)
+            )
+        return getattr(self.env, name)
+
+    def env_config(self):
+        return dict2AttrDict(self._env_config, to_copy=True)
+
+    def env_stats(self):
+        return self.env.stats()
+
+    def build_env(self, env_config=None, for_self=False):
+        env_config = env_config or self._env_config
+        env = create_env(env_config)
+        env_output = env.output()
+        self._env_config.seed += self._seed_interval
+        if for_self:
+            self.env = env
+            self.env_output = env_output
+        return env, env_output
+
+    def get_states(self):
+        return self.env, self.env_output
+    
+    def reset_states(self):
+        env = self.env
+        env_output = self.env_output
+        self.env = create_env(self._env_config)
+        self.env_output = self.env.output()
+        self._env_config.seed += self._seed_interval
+        return env, env_output
+
+    def set_states(self, state):
+        self.env, self.env_output = state
+
+    def run(self):
+        raise NotImplementedError
 
 
 class Runner:

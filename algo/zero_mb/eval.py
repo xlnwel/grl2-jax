@@ -30,8 +30,7 @@ def evaluate(
     n_windows=4
 ):
     for a in agents:
-        assert a.strategy.model.params.imaginary == False, a.strategy.model.params.imaginary
-        assert a.strategy.model.imaginary_params.imaginary == True, a.strategy.model.imaginary_params.imaginary
+        a.strategy.model.check_params(False)
 
     n_done_eps = 0
     n_run_eps = env.n_envs
@@ -142,6 +141,8 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
     # build acting agents
     agents = []
     for config in configs:
+        if config.name == 'model':
+            continue
         config = dict2AttrDict(config, to_copy=True)
         builder = ElementsBuilder(config, env_stats, to_save_code=False)
         elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)

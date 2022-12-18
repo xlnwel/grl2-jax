@@ -101,28 +101,22 @@ class Model(ParamsCheckpointBase):
         pass
     
     def reset_states(self, state=None):
-        if hasattr(self, 'rnn'):
-            self.rnn.reset_states(state)
+        pass
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
-        if hasattr(self, 'rnn'):
-            state = self.rnn.get_initial_state(
-                inputs, batch_size=batch_size, dtype=dtype)
-        else:
-            state = None
-        return state
+        return None
 
     @property
     def state_size(self):
-        return self.rnn.state_size if hasattr(self, 'rnn') else None
+        return None
 
     @property
     def state_keys(self):
-        return self.rnn.state_keys if hasattr(self, 'rnn') else () # Empty tuple so that it can be iterable
+        return None
 
     @property
     def state_type(self):
-        return self.rnn.state_type if hasattr(self, 'rnn') else None
+        return None
 
 
 class ModelEnsemble(Ensemble):

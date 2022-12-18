@@ -37,9 +37,6 @@ def construct_fake_data(env_stats, aid):
 
 
 class Trainer(TrainerBase):
-    def add_attributes(self):
-        self.indices = np.arange(self.config.n_envs)
-
     def build_optimizers(self):
         theta = self.model.theta.copy()
         self.opts.theta, self.params.theta = optimizer.build_optimizer(
@@ -50,17 +47,13 @@ class Trainer(TrainerBase):
 
     def train(self, data):
         theta = self.model.theta.copy()
-        for _ in range(self.config.n_epochs):
-            np.random.shuffle(self.indices)
-            indices = np.split(self.indices, self.config.n_mbs)
-            for idx in indices:
-                with Timer('model_train'):
-                    theta, self.params.theta, stats = \
-                        self.jit_train(
-                            theta, 
-                            opt_state=self.params.theta, 
-                            data=data.slice(idx), 
-                        )
+        with Timer('model_train'):
+            theta, self.params.theta, stats = \
+                self.jit_train(
+                    theta, 
+                    opt_state=self.params.theta, 
+                    data=data, 
+                )
         self.model.set_weights(theta)
         self.model.rank_elites(stats.elite_indices)
 

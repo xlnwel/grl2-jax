@@ -1,1 +1,1 @@
-from core.elements.actor import Actor, create_actor
+from algo.zero.elements.actor import *

@@ -78,7 +78,7 @@ class Model(ModelBase):
         evaluation=False, 
     ):
         rngs = random.split(rng, 3)
-        state = data.pop('state')
+        state = data.pop('state', AttrDict())
         data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
         act_out, policy_state = self.modules.policy(
             params.policy, 
@@ -118,6 +118,8 @@ class Model(ModelBase):
             stats.update({'mu_logprob': logprob, 'value': value})
         action, stats = jax.tree_util.tree_map(
             lambda x: jnp.squeeze(x, 1), (action, stats))
+        if state.policy is None and state.value is None:
+            state = None
         
         return action, stats, state
 

@@ -1,6 +1,6 @@
 import time
 import datetime
-from collections import defaultdict
+import collections
 
 from core.log import do_logging
 from core.typing import AttrDict
@@ -38,7 +38,7 @@ def timeit(func, *args, name=None, to_print=True,
 
 
 class Timer:
-    aggregators = defaultdict(Aggregator)
+    aggregators = collections.defaultdict(Aggregator)
 
     def __init__(self, summary_name, period=None, mode='average', to_record=True):
         self._to_log = to_record
@@ -116,7 +116,7 @@ class Timer:
 
 
 class TBTimer:
-    aggregators = defaultdict(Aggregator)
+    aggregators = collections.defaultdict(Aggregator)
 
     def __init__(self, summary_name, period=1, to_record=True, print_terminal_info=False):
         self._to_log = to_record

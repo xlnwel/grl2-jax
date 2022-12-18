@@ -6,7 +6,7 @@ from core.typing import dict2AttrDict
 from nn.func import nn_registry
 from nn.mlp import MLP
 from nn.utils import get_activation
-from jax_tools import jax_assert, jax_dist
+from jax_tools import jax_assert
 """ Source this file to register Networks """
 
 

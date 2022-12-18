@@ -1,21 +1,11 @@
-from jax import lax, nn, random
+from jax import lax, random
 import jax.numpy as jnp
-import chex
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict
-from jax_tools import jax_loss, jax_math
+from jax_tools import jax_loss, jax_math, jax_utils
 from tools.utils import prefix_name
 from .utils import compute_values, compute_policy
-
-
-ACTIONS = [
-    [0, -1],  # Move left
-    [0, 1],  # Move right
-    [-1, 0],  # Move up
-    [1, 0],  # Move down
-    [0, 0]  # don't move
-]
 
 
 class Loss(LossBase):
@@ -40,12 +30,9 @@ class Loss(LossBase):
             rngs[0], 
             data.global_state, 
             data.next_global_state, 
-            sid=data.sid, 
-            next_sid=data.next_sid, 
-            idx=data.idx, 
-            next_idx=data.next_idx, 
-            event=data.event, 
-            next_event=data.next_event, 
+            data.state_reset, 
+            None if data.state is None else data.state.value, 
+            bptt=self.config.vrnn_bptt, 
             seq_axis=1, 
         )
 
@@ -58,14 +45,11 @@ class Loss(LossBase):
                 data.next_obs, 
                 data.action, 
                 data.mu_logprob, 
-                sid=data.sid, 
-                next_sid=data.next_sid, 
-                idx=data.idx, 
-                next_idx=data.next_idx, 
-                event=data.event, 
-                next_event=data.next_event, 
+                data.state_reset[:, :-1], 
+                None if data.state is None else data.state.policy, 
                 action_mask=data.action_mask, 
                 next_action_mask=data.next_action_mask, 
+                bptt=self.config.prnn_bptt, 
                 seq_axis=1, 
             )
         stats = record_policy_stats(data, stats, act_dist)
@@ -103,9 +87,8 @@ class Loss(LossBase):
             stats, 
             act_dist=act_dist, 
         )
-        stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
-            kl_type=self.config.kl_type, 
-            kl_coef=self.config.kl_coef, 
+
+        kl_stats = dict(
             logp=data.mu_logprob, 
             logq=stats.pi_logprob, 
             sample_prob=data.mu_logprob, 
@@ -118,6 +101,12 @@ class Loss(LossBase):
             action_mask=data.action_mask, 
             sample_mask=data.sample_mask, 
             n=data.n
+        )
+        kl_stats = jax_utils.tree_map(lambda x: jnp.split(x, 2)[1], kl_stats)
+        stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
+            kl_type=self.config.kl_type, 
+            kl_coef=self.config.kl_coef, 
+            **kl_stats
         )
         value_loss, stats = compute_vf_loss(
             self.config, 
@@ -202,10 +191,7 @@ def compute_vf_loss(
     config, 
     data, 
     stats, 
-    new_stats=None, 
 ):
-    if new_stats is None:
-        new_stats = stats
     if config.get('value_life_mask', False):
         sample_mask = data.sample_mask
     else:
@@ -221,10 +207,10 @@ def compute_vf_loss(
     elif value_loss_type == 'mse':
         raw_value_loss = .5 * (stats.value - stats.v_target)**2
     elif value_loss_type == 'clip' or value_loss_type == 'clip_huber':
-        raw_value_loss, new_stats.v_clip_frac = jax_loss.clipped_value_loss(
+        raw_value_loss, stats.v_clip_frac = jax_loss.clipped_value_loss(
             stats.value, 
             stats.v_target, 
-            data.old_value, 
+            data.value, 
             config.value_clip_range, 
             huber_threshold=config.huber_threshold, 
             mask=sample_mask, 
@@ -232,7 +218,7 @@ def compute_vf_loss(
         )
     else:
         raise ValueError(f'Unknown value loss type: {value_loss_type}')
-    new_stats.raw_v_loss = raw_value_loss
+    stats.raw_v_loss = raw_value_loss
     scaled_value_loss, value_loss = jax_loss.to_loss(
         raw_value_loss, 
         coef=stats.value_coef, 
@@ -240,31 +226,10 @@ def compute_vf_loss(
         n=data.n
     )
     
-    new_stats.scaled_v_loss = scaled_value_loss
-    new_stats.v_loss = value_loss
+    stats.scaled_v_loss = scaled_value_loss
+    stats.v_loss = value_loss
 
-    return value_loss, new_stats
-
-
-def compute_model_loss(
-    config, 
-    data, 
-    stats
-):
-    if config.model_loss_type == 'mbpo':
-        mean_loss, var_loss = jax_loss.mbpo_model_loss(
-            stats.model_mean, 
-            stats.model_logvar, 
-            data.next_obs
-        )
-
-        mean_loss = jnp.mean(mean_loss, [0, 1, 2])
-        var_loss = jnp.mean(var_loss, [0, 1, 2])
-        chex.assert_rank([mean_loss, var_loss], 1)
-    else:
-        raise NotImplementedError
-
-    return mean_loss, var_loss
+    return value_loss, stats
 
 
 def record_target_adv(stats):

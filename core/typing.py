@@ -63,14 +63,13 @@ class AttrDict(dict):
         return res
     
     def subdict(self, *args):
-        res = AttrDict()
-        for k in args:
-            assert k in self, (k, list(self))
-            res[k] = self[k]
-        return res
+        return subdict(self, *args)
     
+    def exclude_subdict(self, *args):
+        return exclude_subdict(self, *args)
+
     def slice(self, loc):
-        return jax_utils.tree_map(lambda x: x[loc], self)
+        return tree_slice(self, loc)
 
 
 def subdict(d, *args):
@@ -87,6 +86,9 @@ def exclude_subdict(d, *args):
             continue
         res[k] = d[k]
     return res
+
+def tree_slice(d, loc):
+    return jax_utils.tree_map(lambda x: x[loc], d)
 
 def dict2AttrDict(d: dict, shallow=False, to_copy=False):
     if isinstance(d, AttrDict) and not to_copy:

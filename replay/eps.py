@@ -4,18 +4,21 @@ import logging
 from pathlib import Path
 import random
 import uuid
+from typing import List
 import numpy as np
 
+from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
-from core.typing import AttrDict, dict2AttrDict
-from replay.local import EnvEpisodicBuffer, EnvFixedEpisodicBuffer
-from replay.utils import load_data, print_buffer, save_data
+from core.typing import AttrDict, tree_slice
+from replay.local import EnvEpisodicBuffer
+from replay.utils import load_data, save_data
+from tools.utils import batch_dicts
 
 logger = logging.getLogger(__name__)
 
 
-class EpisodicReplay:
+class EpisodicReplay(Buffer):
     def __init__(
         self, 
         config: AttrDict, 
@@ -23,68 +26,51 @@ class EpisodicReplay:
         model: Model, 
         aid: int=0, 
     ):
-        self.config = dict2AttrDict(config)
-        self.aid = aid
-        self._dir = Path(self._dir).expanduser()
-        self._save = getattr(self, '_save', False)
+        super().__init__(config, env_stats, model, aid)
+
+        self.n_runners = self.config.n_runners
+        self.n_envs = self.n_runners * self.config.n_envs
+
+        directory = '/'.join([self.config.root_dir, self.config.model_name])
+        self._dir = Path(directory).expanduser()
+        self._save = self.config.save
         if self._save:
             self._dir.mkdir(parents=True, exist_ok=True)
 
         self._filenames = collections.deque()
         self._memory = {}
 
-        self._max_episodes = getattr(self, '_max_episodes', 1000)
+        self.max_episodes = self.config.get('max_episodes', 1000)
+        self.min_episodes = self.config.get('min_episodes', 10)
+        self.batch_size = self.config.batch_size
 
         # Store and retrieve entire episodes if sample_size is None
-        self._sample_size = getattr(self, '_sample_size', None)
-        self._state_keys = state_keys
-        self._tmp_bufs = []
-
-        self._local_buffer_type = getattr(self, '_local_buffer_type', 'eps')
-        # if self._n_envs > 1 and self._local_buffer_type.startswith('env_'):
-        #     self._local_buffer_type = 'vec_' + self._local_buffer_type
-        self.TempBufferType = {
-            'eps': EnvEpisodicBuffer, 
-            'fixed_eps': EnvFixedEpisodicBuffer,
-            # 'vec_fixed_eps': VecEnvFixedEpisodicBuffer,
-        }.get(self._local_buffer_type)
-
-        self._info_printed = False
-
-    def name(self):
-        return self._replay_type
+        self._tmp_bufs: List[EnvEpisodicBuffer] = [
+            EnvEpisodicBuffer(config, env_stats, model, aid, 0) 
+            for _ in range(self.n_envs)
+        ]
 
     def good_to_learn(self):
-        return len(self._memory) >= self._min_episodes
+        return len(self._memory) >= self.min_episodes
 
     def __len__(self):
         return len(self._memory)
 
     def add(self, idxes=None, **data):
-        if self._n_envs > 1:
-            if self._n_envs != len(self._tmp_bufs):
-                do_logging(f'Initialize {self._n_envs} temporary buffer', logger=logger)
-                self._tmp_bufs = [
-                    self.TempBufferType({'seqlen': self._seqlen}) 
-                    for _ in range(self._n_envs)]
+        if self.n_envs > 1:
             if idxes is None:
-                idxes = range(self._n_envs)
+                idxes = range(self.n_envs)
             for i in idxes:
-                d = {k: v[i] for k, v in data.items()}
+                d = tree_slice(data, i)
                 self._tmp_bufs[i].add(**d)
         else:
-            if self._tmp_bufs == []:
-                self._tmp_bufs = self.TempBufferType({'seqlen': self._seqlen})
-            self._tmp_bufs.add(**data)
+            self._tmp_bufs[0].add(**data)
 
     def reset_local_buffer(self, i=None):
         if i is None:
-            if self._n_envs > 1:
-                [buf.reset() for buf in self._tmp_bufs]
-            else:
-                self._tmp_bufs.reset()
+            [buf.reset() for buf in self._tmp_bufs]
         elif isinstance(i, (list, tuple)):
-            [self._tmp_bufs[ii].reset() for ii in range(i)]
+            [self._tmp_bufs[ii].reset() for ii in i]
         elif isinstance(i, int):
             self._tmp_bufs[i].reset()
         else:
@@ -93,10 +79,7 @@ class EpisodicReplay:
     def is_local_buffer_full(self, i=None):
         """ Returns if all local buffers are full """
         if i is None:
-            if self._n_envs > 1:
-                is_full = np.all([buf.is_full() for buf in self._tmp_bufs])
-            else:
-                is_full = self._tmp_bufs.is_full()
+            is_full = np.all([buf.is_full() for buf in self._tmp_bufs])
         elif isinstance(i, (list, tuple)):
             is_full = np.all([self._tmp_bufs[ii].is_full() for ii in i])
         elif isinstance(i, int):
@@ -108,17 +91,13 @@ class EpisodicReplay:
     def finish_episodes(self, i=None):
         """ Adds episodes in local buffers to memory """
         if i is None:
-            if self._n_envs > 1:
-                episodes = [buf.sample() for buf in self._tmp_bufs]
-                [buf.reset() for buf in self._tmp_bufs]
-            else:
-                episodes = self._tmp_bufs.sample()
-                self._tmp_bufs.reset()
+            episodes = [buf.retrieve_all_data() for buf in self._tmp_bufs]
+            [buf.reset() for buf in self._tmp_bufs]
         elif isinstance(i, (list, tuple)):
-            episodes = [self._tmp_bufs[ii].sample() for ii in i]
+            episodes = [self._tmp_bufs[ii].retrieve_all_data() for ii in i]
             [self._tmp_bufs[ii].reset() for ii in i]
         elif isinstance(i, int):
-            episodes = self._tmp_bufs[i].sample()
+            episodes = self._tmp_bufs[i].retrieve_all_data()
             self._tmp_bufs[i].reset()
         else:
             raise ValueError(f'{i} of type {type(i)} is not supported')
@@ -129,13 +108,10 @@ class EpisodicReplay:
             return
         if isinstance(episodes, dict):
             episodes = [episodes]
-        if not self._info_printed and episodes[0] is not None:
-            print_buffer(episodes[0], 'Episodict')
-            self._info_printed = True
         timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         for eps in episodes:
-            if eps is None or (self._sample_size 
-                and len(next(iter(eps.values()))) < self._sample_size):
+            if eps is None or (self.sample_size 
+                and len(next(iter(eps.values()))) < self.sample_size):
                 continue    # ignore None/short episodes
             identifier = str(uuid.uuid4().hex)
             length = len(eps['reward'])
@@ -174,50 +150,76 @@ class EpisodicReplay:
                 if filename not in self._memory:
                     data = load_data(filename)
                     if data is not None:
+                        self._filenames.append(filename)
                         self._memory[filename] = data
             do_logging(f'{len(self)} episodes are loaded', logger=logger)
         else:
             logger.warning(f'There are already {len(self)} episodes in the memory. No further loading is performed')
 
-    def sample(self, batch_size=None):
-        batch_size = batch_size or self._batch_size
-        if batch_size > 1:
-            samples = [self._sample() for _ in range(batch_size)]
-            data = {k: np.stack([t[k] for t in samples], 0)
-                for k in samples[0].keys()}
-        else:
-            data = self._sample()
+    def sample(
+        self, 
+        batch_size=None, 
+        sample_keys=None, 
+        sample_size=None, 
+        squeeze=False
+    ):
+        batch_size = batch_size or self.batch_size
+        samples = [self._sample(sample_keys, sample_size, squeeze)
+            for _ in range(batch_size)]
+        data = batch_dicts(samples)
+
+        return data
+    
+    def sample_from_recency(
+        self, 
+        batch_size=None, 
+        sample_keys=None, 
+        sample_size=None, 
+        squeeze=None, 
+        n=None
+    ):
+        """ Sample from the most n recent trajectories. 
+        """
+        batch_size = batch_size or self.batch_size
+        samples = [self._sample(sample_keys, sample_size, squeeze, n) 
+            for _ in range(batch_size)]
+        data = batch_dicts(samples)
 
         return data
 
-    def _sample(self):
+    def _sample(self, sample_keys=None, sample_size=None, squeeze=False, n=None):
         """ Samples a sequence """
-        filename = random.choice(list(self._memory))
-        episode = self._memory[filename]
-        if self._sample_size:
-            total = len(next(iter(episode.values())))
-            available = total - self._sample_size
-            assert available > 0, f'Skipped short episode of length {total}.' \
-                f'{[(k, np.array(v).shape) for e in self._memory.values() for k, v in e.items()]}'
-
-            i = int(random.randint(0, available))
-            episode = {k: v[i] if k in self._state_keys 
-                        else v[i: i + self._sample_size] 
-                        for k, v in episode.items()}
+        assert set(self._filenames) == set(self._memory), (set(self._memory) - set(self._filenames))
+        sample_keys = sample_keys or self.sample_keys
+        sample_size = sample_size or self.sample_size
+        n = n or len(self._filenames)
+        if n is None:
+            filename = random.choice(self._filenames)
         else:
-            episode = {k: v[0] if k in self._state_keys
-                        else v for k, v in episode.items()}
+            filename = random.choice(list(self._filenames)[-n:])
+        episode = self._memory[filename]
+        total = len(next(iter(episode.values())))
+        available = total - self.sample_size
+        assert available > 0, f'Skipped short episode of length {total}.' \
+            f'{[(k, np.array(v).shape) for e in self._memory.values() for k, v in e.items()]}'
 
-        return episode
+        i = int(random.randint(0, available))
+        if sample_size == 1 and squeeze:
+            sample = episode.subdict(*sample_keys).slice(i)
+        else:
+            sample = episode.subdict(*sample_keys).slice(
+                np.arange(i, i+sample_size))
+
+        return sample
 
     def _pop_episode(self):
-        if len(self._memory) > self._max_episodes:
+        if len(self._memory) > self.max_episodes:
             filename = self._filenames.popleft()
             assert(filename in self._memory)
             del self._memory[filename]
 
     def _remove_file(self):
-        if len(self._memory) > self._max_episodes:
+        if len(self._memory) > self.max_episodes:
             filename = self._filenames.popleft()
             assert(filename in self._memory)
             del self._memory[filename]

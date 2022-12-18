@@ -5,7 +5,7 @@ from jax import lax
 import jax.numpy as jnp
 
 from core.typing import AttrDict
-from jax_tools import jax_assert, jax_dist, jax_loss, jax_utils
+from tools.utils import batch_dicts
 
 
 def prefix_name(terms, name):
@@ -113,15 +113,12 @@ def collect(buffer, env, env_step, reset, obs, next_obs, **kwargs):
     for k, v in obs.items():
         if k not in kwargs:
             kwargs[k] = v
-    if buffer.config.timeout_done:
-        for k, v in next_obs.items():
-            kwargs[f'next_{k}'] = v
-    else:
-        for k, v in next_obs.items():
-            kwargs[f'next_{k}'] = np.where(
-                np.expand_dims(reset, -1), 
-                env.prev_obs()[buffer.aid][k], 
-                next_obs[k]
-            )
-
+    new_next_obs = batch_dicts(env.prev_obs(), func=lambda x: np.concatenate(x, -2))
+    for k, v in new_next_obs.items():
+        kwargs[f'next_{k}'] = v
     buffer.add(**kwargs, reset=reset)
+    for i, r in enumerate(reset):
+        if np.all(r):
+            buffer.finish_episodes(i)
+        for k in next_obs.keys():
+            np.testing.assert_allclose(next_obs[k], new_next_obs[k])

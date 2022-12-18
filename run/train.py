@@ -50,11 +50,16 @@ def _get_algo_env_config(cmd_args):
         configs = [get_filename_with_env(env) for env in envs]
     elif len(configs) < len(envs):
         configs = [configs[0] for _ in envs]
+    assert len(algos) == len(envs) == len(configs), (algos, envs, configs)
+
     if len(algos) == 1 and cmd_args.n_agents > 1:
         algos = [algos[0] for _ in range(cmd_args.n_agents)]
         envs = [envs[0] for _ in range(cmd_args.n_agents)]
         configs = [configs[0] for _ in range(cmd_args.n_agents)]
+    else:
+        cmd_args.n_agents = len(algos)
     assert len(algos) == len(envs) == len(configs) == cmd_args.n_agents, (algos, envs, configs, cmd_args.n_agents)
+    
     algo_env_config = list(zip(algos, envs, configs))
     
     return algo_env_config

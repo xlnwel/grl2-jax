@@ -30,8 +30,7 @@ def evaluate(
     n_windows=4
 ):
     for a in agents:
-        assert a.strategy.model.params.imaginary == False, a.strategy.model.params.imaginary
-        assert a.strategy.model.imaginary_params.imaginary == True, a.strategy.model.imaginary_params.imaginary
+        a.strategy.model.check_params(False)
 
     n_done_eps = 0
     n_run_eps = env.n_envs

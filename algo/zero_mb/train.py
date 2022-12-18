@@ -6,12 +6,10 @@ from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code
 from core.typing import ModelPath
-from tools.utils import modify_config, TempStore
+from tools.store import StateStore, TempStore
+from tools.utils import modify_config
 from tools.timer import Every, Timer
-from tools import graph
 from tools import pkg
-from env.func import create_env
-from env.typing import EnvOutput
 from algo.zero_mb.run import *
 
 
@@ -19,11 +17,27 @@ def train(
     configs, 
     agents, 
     model, 
-    env, 
-    eval_env, 
+    runner, 
     buffers, 
     model_buffer
 ):
+    def state_constructor():
+        agent_states = [a.build_memory() for a in agents]
+        runner_states = runner.build_env()
+        return agent_states, runner_states
+    
+    def get_state():
+        agent_states = [a.get_memory() for a in agents]
+        runner_states = runner.get_states()
+        return agent_states, runner_states
+    
+    def set_states(states):
+        agent_states, runner_states = states
+        assert len(agents) == len(agent_states)
+        for a, s in zip(agents, agent_states):
+            a.set_memory(s)
+        runner.set_states(runner_states)
+        
     config = configs[0]
     routine_config = config.routine.copy()
     collect_fn = pkg.import_module(
@@ -44,36 +58,47 @@ def train(
     rt = Timer('run')
     tt = Timer('train')
 
-    env_output = env.output()
-    env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
-
     for agent in agents:
         agent.store(**{'time/log_total': 0, 'time/log': 0})
 
     do_logging('Training starts...')
     train_step = agents[0].get_train_step()
-    steps_per_iter = env.n_envs * routine_config.n_steps
+    env_stats = runner.env_stats()
+    steps_per_iter = env_stats.n_envs * routine_config.n_steps
+    eval_info = {}
+    diff_info = {}
+    with StateStore('comp', state_constructor, get_state, set_states):
+        prev_info = run_comparisons(runner, agents)
     while step < routine_config.MAX_STEPS:
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
         assert buffers[0].size() == 0, buffers[0].size()
         assert buffers[1].size() == 0, buffers[1].size()
         with rt:
-            env_outputs = run(
-                env, routine_config.n_steps, 
-                agents, collects, model_collect, 
-                env_outputs, [1], [0])
-            env_outputs = run(
-                env, routine_config.n_steps, 
-                agents, collects, model_collect, 
-                env_outputs, [0], [1])
-
+            env_outputs = [None, None]
+            with StateStore('real1', 
+                state_constructor, 
+                get_state, set_states
+            ):
+                env_outputs[0] = runner.run(
+                    routine_config.n_steps, 
+                    agents, collects, 
+                    model_collect, 
+                    [1], [0])[0]
+            with StateStore('real2', 
+                state_constructor, 
+                get_state, set_states
+            ):
+                env_outputs[1] = runner.run(
+                    routine_config.n_steps, 
+                    agents, collects, 
+                    model_collect, 
+                    [0], [1])[1]
         for i, buffer in enumerate(buffers):
             data = buffer.get_data({
                 'state_reset': env_outputs[i].reset
             })
             buffer.move_to_queue(data)
-        model_buffer.move_to_queue()
 
         assert buffers[0].ready(), (buffers[0].size(), len(buffers[0]._queue))
         assert buffers[1].ready(), (buffers[1].size(), len(buffers[1]._queue))
@@ -81,7 +106,8 @@ def train(
         
         time2record = to_record(step)
         if time2record:
-            before_info = run_comparisons(eval_env, agents)
+            with StateStore('comp', state_constructor, get_state, set_states):
+                before_info = run_comparisons(runner, agents)
 
         # train agents
         for agent in agents:
@@ -95,25 +121,26 @@ def train(
             agent.trainer.sync_imaginary_params()
 
         if time2record:
-            after_info = run_comparisons(eval_env, agents)
+            with StateStore('comp', state_constructor, get_state, set_states):
+                after_info = run_comparisons(runner, agents)
 
         # train the model
         model.train_record()
 
-        def get_states():
+        def get_agent_states():
             state = [a.get_states() for a in agents]
             return state
         
-        def set_states(states):
+        def set_agent_states(states):
             for a, s in zip(agents, states):
                 a.set_states(s)
 
         # train imaginary agents
-        with TempStore(get_states, set_states):
+        with TempStore(get_agent_states, set_agent_states):
             for _ in range(routine_config.n_imaginary_runs):
                 with Timer('imaginary_run'):
                     img_eos = run_on_model(
-                        model, agents, collects, routine_config)
+                        model, model_buffer, agents, collects, routine_config)
                 for i, buffer in enumerate(buffers):
                     data = buffer.get_data({
                         'state_reset': img_eos[i].reset
@@ -124,14 +151,30 @@ def train(
                         agent.imaginary_train()
 
         if time2record:
-            info = {k: np.mean(after_info[k]) - np.mean(before_info[k]) for k in before_info.keys()}
+            info = {
+                f'diff_{k}': after_info[k] - before_info[k] 
+                for k in before_info.keys()
+            }
+            info.update({
+                f'dist_diff_{k}': after_info[k] - prev_info[k] 
+                for k in before_info.keys()
+            })
+            if eval_info:
+                eval_info = batch_dicts([eval_info, after_info])
+            else:
+                eval_info = after_info
+            if diff_info:
+                diff_info = batch_dicts([diff_info, info])
+            else:
+                diff_info = info
+            prev_info = after_info
             with Timer('log'):
                 for agent in agents:
                     agent.store(**{
                         'stats/train_step': train_step,
                         'time/fps': (step-start_env_step)/rt.last(), 
                         'time/tps': (train_step-start_train_step)/tt.last(),
-                    }, **info, **Timer.all_stats())
+                    }, **eval_info, **diff_info, **Timer.all_stats())
                     agent.record(step=step)
                     agent.save()
                 model.record(step=step)
@@ -142,7 +185,7 @@ def train(
 def main(configs, train=train):
     config = configs[0]
     seed = config.get('seed')
-    do_logging(f'seed={seed}', level='print')
+    do_logging(f'seed={seed}')
     set_seed(seed)
 
     configure_gpu()
@@ -152,18 +195,11 @@ def main(configs, train=train):
         ray.init(num_cpus=config.env.n_runners)
         sigint_shutdown_ray()
 
-    def build_envs():
-        env = create_env(config.env, force_envvec=True)
-        config.env.seed += 1000
-        eval_env = create_env(config.env, force_envvec=True)
-        
-        return env, eval_env
-    
-    env, eval_env = build_envs()
+    runner = Runner(config.env)
 
     configs, model_config = configs[:-1], configs[-1]
     # load agents
-    env_stats = env.stats()
+    env_stats = runner.env_stats()
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
     agents = []
     buffers = []
@@ -197,8 +233,11 @@ def main(configs, train=train):
         max_layer=1, 
         aid=0,
         algorithm='magw', 
+        n_runners=configs[0].env.n_runners, 
+        n_envs=configs[0].env.n_envs, 
         root_dir=root_dir, 
         model_name=new_model_name, 
+        overwrite_existed_only=True, 
         seed=seed+1000
     )
     builder = ElementsBuilder(
@@ -212,8 +251,8 @@ def main(configs, train=train):
     model_buffer = elements.buffer
 
     train(
-        configs, agents, model, env, 
-        eval_env, buffers, model_buffer
+        configs, agents, model, 
+        runner, buffers, model_buffer
     )
 
     do_logging('Training completed')

@@ -1,6 +1,5 @@
-from jax import lax, nn, random, tree_util
+from jax import lax, random
 import jax.numpy as jnp
-import chex
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict
@@ -55,11 +54,6 @@ class Loss(LossBase):
             )
         stats = record_policy_stats(data, stats, act_dist)
 
-        # is_gae = self.config.target_type == 'gae'
-        # if is_gae:
-        # value = jnp.concatenate([data.value, next_value[:, -1:]], 1)
-        # value, next_value = jax_utils.split_data(value, None, 1)
-        data.old_value = data.value
         v_target, stats.raw_adv = jax_loss.compute_target_advantage(
             config=self.config, 
             reward=data.reward, 
@@ -86,8 +80,6 @@ class Loss(LossBase):
         else:
             stats.advantage = stats.raw_adv
         stats.advantage = lax.stop_gradient(stats.advantage)
-        # stats.v_target = data.v_target
-        # stats.advantage = data.advantage
 
         actor_loss, stats = compute_actor_loss(
             self.config, 
@@ -95,9 +87,8 @@ class Loss(LossBase):
             stats, 
             act_dist=act_dist, 
         )
-        stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
-            kl_type=self.config.kl_type, 
-            kl_coef=self.config.kl_coef, 
+
+        kl_stats = dict(
             logp=data.mu_logprob, 
             logq=stats.pi_logprob, 
             sample_prob=data.mu_logprob, 
@@ -110,6 +101,12 @@ class Loss(LossBase):
             action_mask=data.action_mask, 
             sample_mask=data.sample_mask, 
             n=data.n
+        )
+        kl_stats = jax_utils.tree_map(lambda x: jnp.split(x, 2)[1], kl_stats)
+        stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
+            kl_type=self.config.kl_type, 
+            kl_coef=self.config.kl_coef, 
+            **kl_stats
         )
         value_loss, stats = compute_vf_loss(
             self.config, 
