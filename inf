@@ -5,7 +5,7 @@ source activate inf
 suite=magw
 ld="${suite}-logs"
 
-cmd="sh ./$1"
+cmd="sh ./$@"
 inf_mac job run python --exec-command "$cmd" \
     --working-dir . --num-nodes 6 --user chenxw --use-env chenxw \
     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw

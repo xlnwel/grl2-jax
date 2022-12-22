@@ -1,4 +1,4 @@
-#!/bin/bash
+ 12##!/bin/bash
 
 source activate grl
 

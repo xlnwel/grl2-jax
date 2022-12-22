@@ -1,0 +1,81 @@
+#!/bin/bash
+export PYTHONPATH=.
+
+algos=(zero_oc)
+suite=magw
+envs=(staghunt escalation)
+args1=(0)
+args2=(reverse forward reverse_approx forward_approx)
+args2=(reverse)
+args3=(256)
+date=$(date +"%m%d")
+info=""
+ld="${suite}-logs"
+# for x in $(seq 1 3); do
+#     shift
+# done
+
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
+
+for e in "${envs[@]}"; do
+    config=$e
+    for a in "${algos[@]}"; do
+        for s in {1..10}; do
+            la1=${#args1[@]}
+            idx=$(($INF_MAC_NODE_RANK % $la1))
+            a1=${args1[$idx]}
+            la2=${#args2[@]}
+            idx=$(($INF_MAC_NODE_RANK % $la2))
+            a2=${args2[$idx]}
+            kws="kl_type=$a2 kl_coef=$a1"
+            env="${suite}-${e}"
+            if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+                gpu=$(($i % $gpus))
+                py_script="python run/train.py -a ${a} ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -kw $kws &"
+            else
+                py_script="python run/train.py -a ${a} ${a} -e $env -c $config -ld $ld -n $n -s $s -kw $kws &"
+            fi
+            echo $py_script
+            eval $py_script
+            ((i=(i+1) ))
+        done
+    done
+done
+wait
+echo "Script completed"
+# for e in "${envs[@]}"; do
+#     config=$e
+#     for a in "${algos[@]}"; do
+#         for a1 in "${args1[@]}"; do
+#             for a2 in "${args2[@]}"; do
+#                 for a3 in "${args3[@]}"; do
+#                     for s in {0..9}; do
+#                         # la1=${#args1[@]}
+#                         # idx=$(($INF_MAC_NODE_RANK % $la1))
+#                         # a1=${args1[$idx]}
+#                         # la2=${#args2[@]}
+#                         # idx=$(($INF_MAC_NODE_RANK % $la2))
+#                         # a2=${args2[$idx]}
+#                         kws="kl_coef=$a1"
+#                         env="${suite}-${e}"
+#                         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+#                             gpu=$(($i % $gpus))
+#                             py_script="python run/train.py -a ${a} ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -kw $kws &"
+#                         else
+#                             py_script="python run/train.py -a ${a} ${a} -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 0 1 &"
+#                         fi
+#                         echo $py_script
+#                         eval $py_script
+#                         ((i=(i+1) ))
+#                     done
+#                 done
+#             done
+#         done
+#     done
+# done
+# wait
+# echo "Script completed"

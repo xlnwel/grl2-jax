@@ -160,11 +160,11 @@ def train(
                 for k in before_info.keys()
             })
             if eval_info:
-                eval_info = batch_dicts([eval_info, after_info])
+                eval_info = batch_dicts([eval_info, after_info], sum)
             else:
                 eval_info = after_info
             if diff_info:
-                diff_info = batch_dicts([diff_info, info])
+                diff_info = batch_dicts([diff_info, info], sum)
             else:
                 diff_info = info
             prev_info = after_info
