@@ -1,6 +1,6 @@
 from .environment import MultiAgentEnv
 from .scenarios import load
-
+from .pretrained import PretrainedTag, RandomTag, FrozenTag
 
 def MPEEnv(config):
     '''
@@ -33,5 +33,14 @@ def MPEEnv(config):
         scenario.observation, 
         scenario.info,
         **config)
+
+    if config["pretrained_wrapper"] == "pretrained_tag":
+        env = PretrainedTag(env)
+    elif config["pretrained_wrapper"] == "random_tag":
+        env = RandomTag(env)
+    elif config["pretrained_wrapper"] == "frozen_tag":
+        env = FrozenTag(env)
+    else:
+        assert 0
 
     return env

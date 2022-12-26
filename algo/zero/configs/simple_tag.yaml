@@ -29,15 +29,18 @@ env:
     env_name: &env_name mpe-simple_tag
     n_runners: &nrunners 1
     num_good_agents: 1
-    num_adversaries: 3
+    num_adversaries: 2
+    # num_adversaries: 3
     num_landmarks: 2
     n_envs: &nenvs 64
     max_episode_steps: 50
     reward_scale: .1
     population_size: 1
     timeout_done: &td False
+    pretrained_wrapper: frozen_tag
 
-    uid2aid: [0, 1, 2, 3]
+    # uid2aid: [0, 1, 2, 3]
+    uid2aid: [0, 1]
 
 agent: {}
 

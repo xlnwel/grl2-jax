@@ -127,6 +127,8 @@ class MultiAgentEnv(gym.Env):
         self.use_life_mask = False
         self.use_action_mask = False
 
+        self.raw_env = False
+
     def random_action(self):
         actions = [a.sample() for a in self.action_spaces]
         return actions
@@ -188,7 +190,7 @@ class MultiAgentEnv(gym.Env):
             np.random.seed(seed)
 
     # step  this is  env.step()
-    def step(self, action_n):
+    def step(self, action_n, **kwargs):
         self.current_step += 1
         obs_n = []
         reward_n = []
@@ -238,12 +240,14 @@ class MultiAgentEnv(gym.Env):
         for o, gs in zip(obs_n, global_state):
             obs['obs'].append(o)
             obs['global_state'].append(gs)
-        obs['obs'] = np.stack(obs['obs'])
-        obs['global_state'] = np.stack(obs['global_state'])
-        done_n = np.stack(done_n)
+        
+        if not self.raw_env:
+            obs['obs'] = np.stack(obs['obs'])
+            obs['global_state'] = np.stack(obs['global_state'])
+            done_n = np.stack(done_n)
         return obs, reward_n, done_n, info
 
-    def reset(self):
+    def reset(self, **kwargs):
         self.current_step = 0
         # reset world
         self.reset_callback(self.world)
@@ -267,8 +271,11 @@ class MultiAgentEnv(gym.Env):
         for o, gs in zip(obs_n, global_state):
             obs['obs'].append(o)
             obs['global_state'].append(gs)
-        obs['obs'] = np.stack(obs['obs'])
-        obs['global_state'] = np.stack(obs['global_state'])
+
+        self.raw_env = kwargs.get("raw_env", False)
+        if not self.raw_env:
+            obs['obs'] = np.stack(obs['obs'])
+            obs['global_state'] = np.stack(obs['global_state'])
 
         return obs
 
