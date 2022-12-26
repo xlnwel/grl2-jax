@@ -22,7 +22,7 @@ def retrieve_all_make_env():
                 for attr in dir(m):
                     if attr.startswith('make'):
                         env_dict[attr.split('_', maxsplit=1)[1]] = getattr(m, attr)
-    
+                
     return env_dict
 
 

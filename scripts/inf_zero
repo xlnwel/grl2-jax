@@ -1,0 +1,60 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+algos=(zero)
+suite=magw
+# envs=(escalation staghunt harvest)
+# envs=(staghunt escalation)
+envs=(escalation)
+config=magw
+# args1=(uni sim)
+args1=(sim)
+# args2=(3 5 8)
+# args2=(3 5)
+args2=(3)
+args3=(5e-4)
+date=$(date +"%m%d")
+info=""
+ld="${suite}-logs"
+gpus=$(nvidia-smi -L | wc -l)
+# for x in $(seq 1 1); do
+#     shift
+# done
+
+if [ -z "$info" ]; then
+    n=$date
+    echo $n
+else
+    n="$date-$info"
+    echo $n
+fi
+
+# INF_MAC_NODE_RANK=$1
+for e in "${envs[@]}"; do
+    config=$e
+    for a in "${algos[@]}"; do
+        for a1 in "${args1[@]}"; do
+            for a2 in "${args1[@]}"; do
+                # for s in {0..9}; do
+                for s in {0..4}; do
+                    kws="imaginary_rollout=$a1 n_imaginary_runs=$a2"
+                    env="${suite}-${e}"
+                    if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+                        gpu=$(($i % $gpus))
+                        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na 2 -kw $kws &"
+                    else
+                        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na 2 -kw $kws &"
+                    fi
+                    echo $py_script
+                    eval $py_script
+                    ((i=(i+1) ))
+                done
+            done
+        done
+        wait
+    done
+    wait
+done
+wait
+echo "Script completed"

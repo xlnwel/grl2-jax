@@ -212,6 +212,8 @@ class Model(ModelBase):
 
 
 def setup_config_from_envstats(config, env_stats):
+    import pprint
+
     if 'aid' in config:
         aid = config['aid']
         config.policy.action_dim = env_stats.action_dim[aid]

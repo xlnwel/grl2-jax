@@ -14,9 +14,9 @@ from algo.zero.run import *
 
 
 def train(
-    configs, 
-    agents, 
-    runner, 
+    configs,
+    agents,
+    runner,
     buffers
 ):
     def state_constructor():
@@ -166,9 +166,6 @@ def train(
         if time2record:
             with StateStore('comp', state_constructor, get_state, set_states):
                 after_info = run_comparisons(runner, agents)
-        # if step > 1e6:
-        #     print(config.seed, np.random.randint(10000))
-        #     exit()
         
         if time2record:
             info = {
@@ -216,6 +213,7 @@ def main(configs, train=train):
     buffers = []
     root_dir = config.root_dir
     model_name = config.model_name
+
     for i, c in enumerate(configs):
         assert c.aid == i, (c.aid, i)
         if f'a{i}' in model_name:

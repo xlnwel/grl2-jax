@@ -5,10 +5,14 @@ export PYTHONPATH=.
 algos=(zero)
 suite=magw
 # envs=(escalation staghunt harvest)
-envs=(staghunt escalation)
+# envs=(staghunt escalation)
+envs=(escalation)
 config=magw
-args1=(uni sim)
-args2=(3 5 8)
+# args1=(uni sim)
+args1=(sim)
+# args2=(3 5 8)
+# args2=(3 5)
+args2=(3)
 args3=(5e-4)
 date=$(date +"%m%d")
 info=""
@@ -20,24 +24,21 @@ gpus=$(nvidia-smi -L | wc -l)
 
 if [ -z "$info" ]; then
     n=$date
+    echo $n
 else
     n="$date-$info"
+    echo $n
 fi
 
-# INF_MAC_NODE_RANK=$1
+i=0
+n=debug
 for e in "${envs[@]}"; do
     config=$e
     for a in "${algos[@]}"; do
         for a1 in "${args1[@]}"; do
-            for s in {0..9}; do
-                # la1=${#args1[@]}
-                # idx=$(($INF_MAC_NODE_RANK % $la1))
-                # a1=${args1[$idx]}
-                la2=${#args2[@]}
-                idx=$(($INF_MAC_NODE_RANK % $la2))
-                a2=${args2[$idx]}
+            for a2 in "${args2[@]}"; do
+                s=0
                 kws="imaginary_rollout=$a1 n_imaginary_runs=$a2"
-                # echo $kws
                 env="${suite}-${e}"
                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
                     gpu=$(($i % $gpus))

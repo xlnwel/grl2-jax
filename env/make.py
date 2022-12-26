@@ -122,6 +122,7 @@ def make_mpe(config):
     assert 'mpe' in config['env_name'], config['env_name']
     config = _change_env_name(config)
     env = MPEEnv(config)
+    env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
 

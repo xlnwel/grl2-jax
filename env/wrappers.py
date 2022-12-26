@@ -609,7 +609,6 @@ class MultiAgentUnitsDivision(gym.Wrapper):
         obs = self._convert_obs(obs)
         reward = [reward[uids] for uids in self.aid2uids]
         done = [done[uids] for uids in self.aid2uids]
-
         return obs, reward, done, info
     
     def _convert_obs(self, obs):

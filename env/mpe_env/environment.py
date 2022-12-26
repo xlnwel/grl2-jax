@@ -43,8 +43,13 @@ class MultiAgentEnv(gym.Env):
         # environment parameters
         # self.is_action_discrete = True
         self.is_action_discrete = discrete_action
+        assert self.is_action_discrete, "not discrete action"
 
         self.use_global_state = use_global_state
+
+        # design for grl
+        if "uid2aid" in kwargs:
+            self.uid2aid = kwargs["uid2aid"]
 
         # if true, action is a number 0...N, otherwise action is a one-hot N-dimensional vector
         self.discrete_action_input = True
@@ -127,24 +132,24 @@ class MultiAgentEnv(gym.Env):
         return actions
 
     @property
-    def is_multiagent(self):
+    def is_multi_agent(self):
         return True
 
     @property
     def action_space(self):
-        return self.action_spaces[0]
+        return self.action_spaces
 
     @property
     def action_shape(self):
-        return self.action_space.shape
+        return [a.shape for a in self.action_spaces]
     
     @property
     def action_dim(self):
-        return self.action_space.n
+        return [a.n for a in self.action_spaces]
     
     @property
     def action_dtype(self):
-        return np.int32
+        return [np.int32 for _ in self.action_spaces]
     
     @property
     def observation_space(self):
@@ -152,19 +157,25 @@ class MultiAgentEnv(gym.Env):
     
     @property
     def obs_shape(self):
-        return self.observation_space.shape
-    
+        return [dict(
+                obs=o.shape,
+                global_state=self.shared_state_spaces[idx].shape,
+            ) for idx, o in enumerate(self.observation_spaces)]
+        
     @property
     def obs_dtype(self):
-        return np.float32
+        return [dict(
+            obs=np.float32,
+            global_state=np.float32, 
+        ) for _ in range(len(self.observation_spaces))]
     
-    @property
-    def shared_state_space(self):
-        return self.shared_state_spaces[0]
+    # @property
+    # def shared_state_space(self):
+    #     return self.shared_state_spaces[0]
 
-    @property
-    def global_state_shape(self):
-        return self.shared_state_space.shape
+    # @property
+    # def global_state_shape(self):
+    #     return self.shared_state_space.shape
     
     @property
     def global_state_dtype(self):
@@ -210,21 +221,26 @@ class MultiAgentEnv(gym.Env):
         
         info = batch_dicts(info_n)
         self._score += reward
+        self._dense_score += reward
         self._episode_steps += 1
         info.update({
             'score': self._score,
+            'dense_score': self._dense_score,
             'epslen': self._episode_steps,
             'game_over': done_n[0]
         })
 
         global_state = self._get_global_state(obs_n)
-        obs = []
+        obs = {
+            'obs': [],
+            'global_state': [],
+        }
         for o, gs in zip(obs_n, global_state):
-            obs.append({
-                'obs': o, 
-                'global_state': gs
-            })
-
+            obs['obs'].append(o)
+            obs['global_state'].append(gs)
+        obs['obs'] = np.stack(obs['obs'])
+        obs['global_state'] = np.stack(obs['global_state'])
+        done_n = np.stack(done_n)
         return obs, reward_n, done_n, info
 
     def reset(self):
@@ -237,18 +253,22 @@ class MultiAgentEnv(gym.Env):
         obs_n = []
         self.agents = self.world.policy_agents
         self._score = 0
+        self._dense_score = 0
         self._episode_steps = 0
 
         for agent in self.agents:
             obs_n.append(self._get_obs(agent))
 
         global_state = self._get_global_state(obs_n)
-        obs = []
+        obs = {
+            'obs': [],
+            'global_state': [],
+        }
         for o, gs in zip(obs_n, global_state):
-            obs.append({
-                'obs': o, 
-                'global_state': gs
-            })
+            obs['obs'].append(o)
+            obs['global_state'].append(gs)
+        obs['obs'] = np.stack(obs['obs'])
+        obs['global_state'] = np.stack(obs['global_state'])
 
         return obs
 
