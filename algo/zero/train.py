@@ -68,34 +68,17 @@ def train(
         # train imaginary agents
         for _ in range(routine_config.n_imaginary_runs):
             with Timer('imaginary_run'):
-                if routine_config.imaginary_rollout == 'sim':
-                    with StateStore('sim', 
-                        state_constructor, 
-                        get_state, set_states
-                    ):
-                        env_outputs = runner.run(
-                            routine_config.n_steps, 
-                            agents, collects, 
-                            [0, 1], [0, 1], False)
-                elif routine_config.imaginary_rollout == 'uni':
-                    with StateStore('uni1', 
-                        state_constructor, 
-                        get_state, set_states
-                    ):
-                        env_outputs = runner.run(
-                            routine_config.n_steps, 
-                            agents, collects, 
-                            [0], [0], False)
-                    with StateStore('uni2', 
-                        state_constructor, 
-                        get_state, set_states
-                    ):
-                        env_outputs = runner.run(
-                            routine_config.n_steps, 
-                            agents, collects, 
-                            [1], [1], False)
-                else:
-                    raise NotImplementedError
+                assert routine_config.imaginary_rollout == "sim"
+                with StateStore('sim',
+                    state_constructor,
+                    get_state, set_states
+                ):
+                    env_outputs = runner.run(
+                        routine_config.n_steps,
+                        agents, collects,
+                        [i for i in range(len(agents))], [i for i in range(len(agents))],
+                        False
+                    )
             for i, buffer in enumerate(buffers):
                 data = buffer.get_data({
                     'state_reset': env_outputs[i].reset
@@ -107,44 +90,39 @@ def train(
 
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
-        assert buffers[0].size() == 0, buffers[0].size()
-        assert buffers[1].size() == 0, buffers[1].size()
+        for i, buffer in enumerate(buffers):
+            assert buffer.size() == 0, f"buffer i: {buffer.size()}"
         with rt:
             if routine_config.n_imaginary_runs:
-                env_outputs = [None, None]
-                with StateStore('real1', 
-                    state_constructor, 
-                    get_state, set_states
-                ):
-                    env_outputs[0] = runner.run(
-                        routine_config.n_steps, 
-                        agents, collects, 
-                        [1], [0])[0]
-                with StateStore('real2', 
-                    state_constructor, 
-                    get_state, set_states
-                ):
-                    env_outputs[1] = runner.run(
-                        routine_config.n_steps, 
-                        agents, collects, 
-                        [0], [1])[1]
+                env_outputs = [None for _ in range(len(agents))]
+                for idx in range(len(agents)):
+                    with StateStore(f'real{idx}',
+                        state_constructor,
+                        get_state, set_states
+                    ):
+                        env_outputs[idx] = runner.run(
+                            routine_config.n_steps,
+                            agents, collects,
+                            [i for i in range(len(agents)) if i != idx], [idx]
+                        )[idx]
             else:
-                with StateStore('real', 
-                    state_constructor, 
+                with StateStore('real',
+                    state_constructor,
                     get_state, set_states
                 ):
                     env_outputs = runner.run(
                         routine_config.n_steps, 
                         agents, collects, 
-                        [], [0, 1])
+                        [], [i for i in range(len(agents))])
             for i, buffer in enumerate(buffers):
                 data = buffer.get_data({
                     'state_reset': env_outputs[i].reset
                 })
                 buffer.move_to_queue(data)
-
-        assert buffers[0].ready(), (buffers[0].size(), len(buffers[0]._queue))
-        assert buffers[1].ready(), (buffers[1].size(), len(buffers[1]._queue))
+        
+        for buffer in buffers:
+            assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
+            
         step += steps_per_iter
 
         time2record = to_record(step)
