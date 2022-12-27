@@ -2,7 +2,7 @@
 
 export PYTHONPATH=.
 
-algos=(zero)
+algos=(lka_v2)
 suite=mpe
 # envs=(escalation staghunt harvest)
 # envs=(staghunt escalation)
