@@ -34,13 +34,13 @@ def MPEEnv(config):
         scenario.info,
         **config)
 
-    if config["pretrained_wrapper"] == "pretrained_tag":
+    if config.get("pretrained_wrapper", None) == "pretrained_tag":
         env = PretrainedTag(env)
-    elif config["pretrained_wrapper"] == "random_tag":
+    elif config.get("pretrained_wrapper", None) == "random_tag":
         env = RandomTag(env)
-    elif config["pretrained_wrapper"] == "frozen_tag":
+    elif config.get("pretrained_wrapper", None) == "frozen_tag":
         env = FrozenTag(env)
     else:
-        assert 0
+        pass
 
     return env

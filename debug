@@ -3,11 +3,12 @@
 export PYTHONPATH=.
 
 algos=(zero)
-suite=magw
+suite=mpe
 # envs=(escalation staghunt harvest)
 # envs=(staghunt escalation)
-envs=(escalation)
-config=magw
+envs=(simple_spread)
+# config=magw
+config=mpe
 # args1=(uni sim)
 args1=(sim)
 # args2=(3 5 8)
@@ -15,6 +16,7 @@ args1=(sim)
 args2=(3)
 args3=(5e-4)
 date=$(date +"%m%d")
+na=3
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
@@ -42,12 +44,12 @@ for e in "${envs[@]}"; do
                 env="${suite}-${e}"
                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
                     gpu=$(($i % $gpus))
-                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na 2 -kw $kws &"
+                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
                 else
-                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na 2 -kw $kws &"
+                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
                 fi
                 echo $py_script
-                # eval $py_script
+                eval $py_script
                 ((i=(i+1) ))
             done
         done

@@ -26,17 +26,17 @@ routine:
     imaginary_rollout: sim
 
 env:
-    env_name: &env_name mpe-simple_tag
+    env_name: &env_name mpe-simple_spread
     n_runners: &nrunners 1
-    n_units: 2
-    num_landmarks: 2
+    n_units: 3
+    num_landmarks: 3
     n_envs: &nenvs 64
     max_episode_steps: 50
     reward_scale: .1
     population_size: 1
     timeout_done: &td False
 
-    uid2aid: [0, 1]
+    uid2aid: [0, 1, 2]
 
 agent: {}
 
