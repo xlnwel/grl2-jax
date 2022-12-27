@@ -107,7 +107,7 @@ class Trainer(TrainerBase):
                 theta, opt_state, _ = \
                     self.jit_img_train(
                         theta, 
-                        opt_state=opt_state, 
+                        opt_state=opt_state,
                         data=data, 
                     )
         

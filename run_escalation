@@ -2,7 +2,8 @@
 
 export PYTHONPATH=.
 
-algos=(zero)
+# algos=(zero)
+algos=(lka_v2)
 suite=magw
 # envs=(escalation staghunt harvest)
 # envs=(staghunt escalation)
@@ -12,7 +13,7 @@ config=magw
 args1=(sim)
 # args2=(3 5 8)
 # args2=(3 5)
-args2=(0 1 3 5)
+args2=(3 5)
 args3=(5e-4)
 date=$(date +"%m%d")
 info=""
