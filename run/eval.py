@@ -115,12 +115,21 @@ if __name__ == '__main__':
     for d, config in zip(directories, configs):
         if not d.startswith(config.root_dir):
             i = d.find(config.root_dir)
-            root_dir = d[:i] + config.root_dir
+            if i == -1:
+                names = d.split('/')
+                root_dir = '/'.join([n for n in names if n not in config.model_name])
+                model_name = '/'.join([n for n in names if n in config.model_name])
+                model_name = config.model_name[config.model_name.find(model_name):]
+            else:
+                root_dir = d[:i] + config.root_dir
+                model_name = config.model_name
             do_logging(f'root dir: {root_dir}')
+            do_logging(f'model name: {model_name}')
             config = modify_config(
                 config, 
                 overwrite_existed_only=True, 
-                root_dir=root_dir
+                root_dir=root_dir, 
+                model_name=model_name
             )
         n = args.n_episodes
         if args.n_runners:

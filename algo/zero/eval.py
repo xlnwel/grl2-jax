@@ -170,6 +170,7 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
     do_logging(f'\tTime: {time.time()-start:.3g}', color='cyan')
 
     if out_dir is None:
+        print('model name', config.model_name)
         model_name = get_basic_model_name(config.model_name)
         do_logging(f'model name: {model_name}')
         filename = f'{config.root_dir}/{model_name}'

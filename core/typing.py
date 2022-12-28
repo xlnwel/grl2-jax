@@ -350,8 +350,8 @@ def get_all_ids(model_name: str):
 def get_basic_model_name(model_name: str):
     """ Basic model name excludes aid and vid """
     name = '/'.join([n for n in model_name.split('/') 
-        if (not n.startswith('a') and n[1:].isdigit()) 
-        and (not n.startswith('v') and n[1:].isdigit())])
+        if not (n.startswith('a') and n[1:].isdigit()) 
+        and not (n.startswith('v') and n[1:].isdigit())])
 
     return name
 
