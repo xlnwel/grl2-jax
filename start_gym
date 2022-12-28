@@ -1,0 +1,67 @@
+#!/bin/zsh
+
+source activate grl
+
+algos=(
+    # ppo
+    # gpo
+    ppo
+)
+suite=gym
+envs=(
+    Ant-v4
+    HalfCheetah-v4
+    # Hopper-v4
+    # Humanoid-v4
+    # Swimmer-v4
+    # Walker2d-v4
+)
+config=gym
+seeds=(0 1 2 3)
+args1=(10)
+args2=(4)
+args3=(None)
+args4=(0)
+date=$(date +"%m%d")
+info=""
+
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
+
+kws="$@"
+shift
+kw1=""
+kwstr=""
+for item in $@; do
+    if [ -z != $kwstr ]; then
+        kwstr="$kwstr-$item"
+    else
+        kwstr="$item"
+    fi
+done
+
+i=0
+for e in "${envs[@]}"; do
+    for a in "${algos[@]}"; do
+        for ((s=1; s<=4; s++)); do
+            env="${suite}-${e}"
+            ld="$suite-logs"
+            if [ 0 != $# ]; then
+                dir="$ld/$env/$a/$n-$kwstr/seed=$s"
+            else
+                dir="$ld/$env/$a/$n/seed=$s"
+            fi
+            mkdir -p $dir
+            gpus=$(nvidia-smi -L | wc -l)
+            gpu=$(($s % $gpus))
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $s $kws 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
+            echo $py_script
+            eval $py_script
+            sleep 3
+        done
+        ((i=(i+1) ))
+    done
+done

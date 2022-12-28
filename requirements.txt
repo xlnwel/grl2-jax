@@ -1,0 +1,13 @@
+tensorflow-gpu
+tensorflow-probability
+ray
+scipy
+pandas
+Pillow
+matplotlib
+plotly
+opencv-python
+gym
+atari_py
+pysc2
+gfootball

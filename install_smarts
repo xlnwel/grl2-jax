@@ -1,0 +1,7 @@
+#!/bin/bash
+
+brew install --cask xquartz
+
+git clone https://github.com/huawei-noah/SMARTS.git
+cd SMARTS
+

@@ -1,0 +1,71 @@
+#!/bin/zsh
+
+source activate grl
+
+algos=(
+    ppo
+)
+suite=procgen
+envs=(
+    leaper
+    ninja
+    chaser
+    bigfish
+    plunder
+    heist
+    starpilot
+    miner
+    # climber
+    # dodgeball
+    # caveflyer
+    # jumper
+    # fruitbot
+    # bossfight
+    # maze
+    # coinrun
+)
+config=procgen
+seeds=(0)
+args1=(1)
+args2=(pr)
+args3=(.2)
+args4=(.2)
+args5=()
+date=$(date +"%m%d")
+
+i=0
+j=1
+for e in "${envs[@]}"; do
+    for a in "${algos[@]}"; do
+        for a1 in "${args1[@]}"; do
+            for a2 in "${args2[@]}"; do
+                for a3 in "${args3[@]}"; do
+                    for a4 in "${args4[@]}"; do
+                        for seed in "${seeds[@]}"; do
+                            # kw1="aux_$1_coef=$a1"
+                            # kw2="target_type=$a2"
+                            # kw3="pr_lower_clip=$a3"
+                            # kw4="pr_upper_clip=$a4"
+                            # kws="$kw1-$kw2-$kw3-$kw4"
+                            env="${suite}-${e}"
+                            n="$date"
+                            ld="logs-$suite"
+                            gpus=$(nvidia-smi -L | wc -l)
+                            gpu=$(($i % $gpus))
+                            # dir="$ld/$env/$a/$n-$kws-seed=$seed"
+                            # dir="$ld/$env/$a/$n-seed=$seed"
+                            # mkdir -p $dir
+                            # py_script="python run/train.py -a ${a} -e $env -c $config -kw $kw1 $kw2 $kw3 $kw4 -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
+                            # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
+                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $seed $@ &"
+                            echo $py_script
+                            eval $py_script
+                            sleep 1
+                        done
+                    done
+                done
+            done
+        done
+    done
+    ((i=(i+1) ))
+done
