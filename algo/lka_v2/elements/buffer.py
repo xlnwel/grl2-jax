@@ -290,8 +290,8 @@ def extract_sampling_keys(
         sample_keys.append('action_mask')
     elif 'action_mask' in sample_keys:
         sample_keys.remove('action_mask')
-    if env_stats.use_life_mask:
+    if env_stats.use_sample_mask:
         sample_keys.append('sample_mask')
-    elif 'life_mask' in sample_keys:
+    elif 'sample_mask' in sample_keys:
         sample_keys.remove('sample_mask')
     return state_keys, state_type, sample_keys, sample_size

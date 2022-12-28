@@ -133,7 +133,7 @@ def compute_actor_loss(
     stats, 
     act_dist, 
 ):
-    if not config.get('policy_life_mask', True):
+    if not config.get('policy_sample_mask', True):
         sample_mask = data.sample_mask
     else:
         sample_mask = None
@@ -192,7 +192,7 @@ def compute_vf_loss(
     data, 
     stats, 
 ):
-    if config.get('value_life_mask', False):
+    if config.get('value_sample_mask', False):
         sample_mask = data.sample_mask
     else:
         sample_mask = None
