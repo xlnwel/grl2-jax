@@ -93,10 +93,10 @@ def config_info(config, info, model_name):
         info = model_name.split('/', 1)[0]
     else:
         info = f'{info}-{model_name.split("/", 1)[0]}'
-    if not config['info'] or config['info'] in info:
-        config['info'] = info
+    if not config.info or config.info in info:
+        config.info = info
     else:
-        config['info'] = f'{config["info"]}-{info}'
+        config.info = f'{config.info}-{info}'
     return config
 
 

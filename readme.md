@@ -44,6 +44,7 @@ python run/eval.py magw-logs/n_envs=64-n_steps=20-n_epochs=1/seed=4/ -n 1 -ne 1 
 
 The above code presents a way for evaluating a trained model, where
 
+- `magw-logs/n_envs=64-n_steps=20-n_epochs=1/seed=4/` is the model path
 - `-n` specifies the number of eposodes to run
 - `-ne` specifies the number of environments running in parallel
 - `-nr` specifies the number of ray actors are devoted for runniing
