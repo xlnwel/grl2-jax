@@ -58,7 +58,7 @@ env:
     timeout_done: True
     add_agent_id: True
     do_evaluation: False
-    life_mask_at_done: 0
+    sample_mask_at_done: 0
     use_action_mask: True
 
     use_idx: True
@@ -228,12 +228,12 @@ loss:
     dice_lam: 1
     kl: reverse
     kl_coef: 1
-    policy_life_mask: True
+    policy_sample_mask: True
 
     # hyperparams for value learning
     value_loss: mse
     value_clip_range: .2
-    value_life_mask: False
+    value_sample_mask: False
     stop_target_grads: False
 
     # hyperparams for meta-learning

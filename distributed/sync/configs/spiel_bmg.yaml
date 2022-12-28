@@ -150,12 +150,12 @@ loss:
     kl_prior_coef: 1
     kl: forward
     kl_coef: 1
-    policy_life_mask: True
+    policy_sample_mask: True
 
     # hyperparams for value learning
     value_loss: mse
     value_clip_range: .2
-    value_life_mask: False
+    value_sample_mask: False
     stop_target_grads: False
 
     # hyperparams for meta-learning

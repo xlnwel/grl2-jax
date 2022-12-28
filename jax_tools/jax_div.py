@@ -2,27 +2,29 @@ from jax import lax
 import jax.numpy as jnp
 import rlax
 import chex
+import distrax
 
 
-""" TODO: applying mask to logits instead of probs """
 def kl_from_distributions(
     *, 
     p_logits=None, 
     q_logits=None, 
-    p_mean=None, 
-    q_mean=None, 
-    p_std=None,  
-    q_std=None,  
+    p_loc=None, 
+    q_loc=None, 
+    p_scale=None,  
+    q_scale=None,  
     action_mask=None, 
 ):
     if p_logits is None:
-        kl = rlax.multivariate_normal_kl_divergence(
-            p_mean, p_std, q_mean, q_std)
+        pd = distrax.MultivariateNormalDiag(p_loc, p_scale)
+        qd = distrax.MultivariateNormalDiag(q_loc, q_scale)
     else:
         if action_mask is not None:
             p_logits = jnp.where(action_mask, p_logits, 1e-8)
             q_logits = jnp.where(action_mask, q_logits, 1e-8)
-        kl = rlax.categorical_kl_divergence(p_logits, q_logits)
+        pd = distrax.Categorical(p_logits)
+        qd = distrax.Categorical(q_logits)
+    kl =pd.kl_divergence(qd)
 
     return kl
 

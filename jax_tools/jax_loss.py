@@ -2,7 +2,6 @@ import jax
 from jax import lax
 import jax.numpy as jnp
 import chex
-import rlax
 
 from . import jax_assert, jax_div, jax_math, jax_utils
 
@@ -285,6 +284,8 @@ def v_trace_from_ratio(
     advs = jnp.array(errors[::-1])
     vs = advs + value
 
+    # Following https://github.com/deepmind/rlax/blob/44ef3f04c8286bc9df51c85a0ec2475e85136294/rlax/_src/vtrace.py#L208
+    # we the lambda-mixture for the bootstrapped value
     next_vs = jnp.concatenate([
         lam * vs[1:] + (1-lam) * value[1:], 
         next_value[-1:]
@@ -292,8 +293,10 @@ def v_trace_from_ratio(
     clipped_rho_pg = jax_math.upper_clip(ratio, rho_clip_pg)
     if adv_type == 'vtrace':
         advs = clipped_rho_pg * (reward + discount * next_vs - value)
-    else:
+    elif adv_type == 'gae':
         advs = clipped_rho_pg * advs
+    else:
+        raise ValueError(adv_type)
 
     vs, advs = jax_utils.undo_time_major(vs, advs, dims=dims, axis=axis)
     
@@ -358,11 +361,9 @@ def pg_loss(
     *, 
     advantage, 
     logprob, 
-    ratio=1., 
 ):
     jax_assert.assert_shape_compatibility([advantage, logprob])
-    ratio = lax.stop_gradient(ratio)
-    pg = - (advantage * ratio * logprob)
+    pg = - advantage * logprob
 
     return pg
 
@@ -503,14 +504,18 @@ def compute_kl(
     sample_prob=1., 
     p_logits=None,
     q_logits=None,
-    p_mean=None,
-    p_std=None,
-    q_mean=None,
-    q_std=None,
+    p_loc=None,
+    p_scale=None,
+    q_loc=None,
+    q_scale=None,
     action_mask=None, 
     sample_mask=None,
     n=None, 
 ):
+    """ Compute the KL divergence between p and q,
+    where p is the distribution to be optimize and 
+    q is the target distribution
+    """
     if kl_coef is not None:
         if kl_type == 'forward_approx':
             kl = jax_div.kl_from_samples(
@@ -528,20 +533,20 @@ def compute_kl(
             kl = jax_div.kl_from_distributions(
                 p_logits=q_logits, 
                 q_logits=p_logits, 
-                p_mean=q_mean, 
-                p_std=q_std, 
-                q_mean=p_mean, 
-                q_std=p_std, 
+                p_loc=q_loc, 
+                p_scale=q_scale, 
+                q_loc=p_loc, 
+                q_scale=p_scale, 
                 action_mask=action_mask, 
             )
         elif kl_type == 'reverse':
             kl = jax_div.kl_from_distributions(
                 p_logits=p_logits, 
                 q_logits=q_logits, 
-                p_mean=p_mean, 
-                p_std=p_std, 
-                q_mean=q_mean, 
-                q_std=q_std, 
+                p_loc=p_loc, 
+                p_scale=p_scale, 
+                q_loc=q_loc, 
+                q_scale=q_scale, 
                 action_mask=action_mask, 
             )
         else:
@@ -610,10 +615,10 @@ def compute_tsallis(
     sample_prob=None, 
     pi1=None,
     pi2=None,
-    p_mean=None,
-    q_mean=None,
-    p_std=None,
-    q_std=None,
+    p_loc=None,
+    q_loc=None,
+    p_scale=None,
+    q_scale=None,
     pi_mask=None, 
     sample_mask=None,
     n=None, 
@@ -637,10 +642,10 @@ def compute_tsallis(
             tsallis = jax_div.tsallis_from_distributions(
                 pi1=pi1, 
                 pi2=pi2, 
-                p_mean=p_mean, 
-                p_std=p_std, 
-                q_mean=q_mean, 
-                q_std=q_std, 
+                p_loc=p_loc, 
+                p_scale=p_scale, 
+                q_loc=q_loc, 
+                q_scale=q_scale, 
                 pi_mask=pi_mask, 
                 tsallis_q=tsallis_q, 
             )
@@ -648,10 +653,10 @@ def compute_tsallis(
             tsallis = jax_div.tsallis_from_distributions(
                 pi1=pi2, 
                 pi2=pi1, 
-                p_mean=q_mean, 
-                p_std=q_std, 
-                q_mean=p_mean,
-                q_std=p_std, 
+                p_loc=q_loc, 
+                p_scale=q_scale, 
+                q_loc=p_loc,
+                q_scale=p_scale, 
                 pi_mask=pi_mask, 
                 tsallis_q=tsallis_q
             )

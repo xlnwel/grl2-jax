@@ -2,7 +2,7 @@ import pathlib
 
 import gym
 
-from smarts import sstudio
+import smarts
 
 gym.logger.set_level(40)
 
@@ -12,6 +12,15 @@ from typing import Dict, Sequence, Tuple
 import argparse
 
 from smarts import sstudio
+from smarts.core.agent_interface import (
+    OGM,
+    RGB,
+    AgentInterface,
+    DoneCriteria,
+    DrivableAreaGridMap,
+    NeighborhoodVehicles,
+    Waypoints,
+)
 from smarts.core.agent import Agent
 from smarts.core.agent_interface import AgentInterface
 from smarts.core.controllers import ActionSpaceType
@@ -20,7 +29,68 @@ from smarts.env.hiway_env import HiWayEnv
 from smarts.env.wrappers.frame_stack import FrameStack
 from smarts.env.wrappers.parallel_env import ParallelEnv
 from smarts.zoo.agent_spec import AgentSpec
+from env.smarts_rc.wrappers import baseline
+from tools import pkg
 
+
+SCENARIO_DIR = 'env/smarts_rc/scenarios'
+
+def get_scenario(config):
+    scenario = '/'.join([SCENARIO_DIR, config["scenario"]])
+    scenario = pathlib.Path(scenario).absolute()
+    return scenario
+
+
+def build_agent_specs(config):
+    scenario_path = '/'.join([SCENARIO_DIR, config["scenario"]])
+    pkg_name = scenario_path.replace('/', '.')
+    scenario_module = pkg.import_module('scenario', pkg_name)
+
+    # total_mission = Scenario.discover_agent_missions_count(scenario)
+    missions = scenario_module.missions
+    total_mission = len(missions)
+    
+    agent_ids = [f'AGENT-{i}' for i in range(total_mission)]
+
+    interface = {
+        "max_episode_steps": config.setdefault('max_episode_steps', 1000), 
+        "neighborhood_vehicles": NeighborhoodVehicles(
+            **config.setdefault("neighborhood_vehicles", {'radius': 50})
+        ), 
+        "waypoints": Waypoints(**config.setdefault("waypoints", {'lookahead': 50})), 
+        "action": ActionSpaceType(config.setdefault('action_type', 1))
+    }
+
+    if config.get("rgb"):
+        interface["rgb"] = RGB(**config["rgb"])
+
+    if config.get("ogm"):
+        interface["ogm"] = OGM(**config["ogm"])
+
+    agent_specs = {
+        aid: AgentSpec(
+            interface=AgentInterface(**interface),
+        )
+        for aid in agent_ids
+    }
+    return agent_specs
+
+
+def make(config):
+    scenario = get_scenario(config)
+    agent_specs = build_agent_specs(config)
+    sim_name = f'{config.env_name}_{config.seed}'
+    env = HiWayEnv(
+        scenarios=[scenario], 
+        agent_specs=agent_specs, 
+        sim_name=sim_name, 
+        headless=config.get('headless', True), 
+        sumo_headless=config.get('sumo_headless', True), 
+    )
+    env = baseline.FrameStack(env, config)
+    env = baseline.NormalizeAndFlatten(env)
+
+    return env
 
 class ChaseViaPointsAgent(Agent):
     def act(self, obs: Sequence[Observation]) -> Tuple[float, int]:
@@ -28,7 +98,6 @@ class ChaseViaPointsAgent(Agent):
         newest_obs = obs[-1]
         speed_limit = newest_obs.waypoint_paths[0][0].speed_limit
         return (speed_limit, 0)
-
 
 def main(
     scenarios: Sequence[str],
@@ -43,51 +112,27 @@ def main(
     num_steps: int = 1280,
     num_episodes: int = 10,
 ):
-
-    # Agents' name
-    agent_ids = [f"Agent_{i}" for i in range(num_agents)]
-    breakpoint()
-
-    # Define agent specification
-    agent_specs = {
-        agent_id: AgentSpec(
-            interface=AgentInterface(
-                rgb=True,
-                waypoints=True,
-                action=ActionSpaceType.LaneWithContinuousSpeed,
-                max_episode_steps=max_episode_steps,
-            ),
-            agent_builder=ChaseViaPointsAgent,
-        )
-        for agent_id in agent_ids
-    }
-
-    # Create a callable env constructor. Here, for illustration purposes, each
-    # environment is wrapped with a FrameStack wrapper which returns stacked
-    # observations for each environment.
-    env_frame_stack = lambda env: FrameStack(
-        env=env,
-        num_stack=num_stack,
-    )
-    # Unique `sim_name` is required by each HiWayEnv in order to be displayed
-    # in Envision.
-    env_constructor = lambda sim_name: env_frame_stack(
-        HiWayEnv(
-            scenarios=scenarios,
-            agent_specs=agent_specs,
-            sim_name=sim_name,
-            headless=headless,
-        )
-    )
+    from core.typing import AttrDict, dict2AttrDict
+    config = AttrDict({
+        'env_name': 'smarts-intersections', 
+        'scenario': 'intersections/4lane', 
+    })
+    def _make(i):
+        new_config = dict2AttrDict(config, to_copy=True)
+        new_config.seed = i
+        env = make(config)
+        return env
+    
     # A list of env constructors of type `Callable[[], gym.Env]`
     env_constructors = [
-        partial(env_constructor, sim_name=f"{sim_name}_{ind}") for ind in range(num_env)
+        partial(_make, i) for i in range(num_env)
     ]
 
     # Build multiple agents
+    agent_ids = [f"Agent_{i}" for i in range(num_agents)]
     agents = {
-        agent_id: agent_spec.build_agent()
-        for agent_id, agent_spec in agent_specs.items()
+        agent_id: ChaseViaPointsAgent()
+        for agent_id in agent_ids
     }
 
     # Create parallel environments
@@ -102,7 +147,7 @@ def main(
     else:
         parallel_env_sync(agents, env, num_env, num_episodes)
 
-
+import numpy as np
 def parallel_env_async(
     agents: Dict[str, Agent], env: gym.Env, num_env: int, num_steps: int
 ):
@@ -121,17 +166,17 @@ def parallel_env_async(
 
     for _ in range(num_steps):
         # Compute actions for all active(i.e., not done) agents
-        batched_actions = []
-        for observations, dones in zip(batched_observations, batched_dones):
-            actions = {
-                agent_id: agents[agent_id].act(agent_obs)
-                for agent_id, agent_obs in observations.items()
-                if not dones.get(agent_id, False)
-                or dones[
-                    "__all__"
-                ]  # `dones[__all__]==True` implies the env was auto-reset in previous iteration
-            }
-            batched_actions.append(actions)
+        batched_actions = [np.random.randint(0, 4, (4)) for _ in batched_observations]
+        # for observations, dones in zip(batched_observations, batched_dones):
+        #     actions = {
+        #         agent_id: agents[agent_id].act(agent_obs)
+        #         for agent_id, agent_obs in observations.items()
+        #         if not dones.get(agent_id, False)
+        #         or dones[
+        #             "__all__"
+        #         ]  # `dones[__all__]==True` implies the env was auto-reset in previous iteration
+        #     }
+        #     batched_actions.append(actions)
 
         # Step all environments in parallel
         batched_observations, batched_rewards, batched_dones, batched_infos = env.step(
@@ -185,10 +230,26 @@ def parallel_env_sync(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--scenarios",
+        default=[],
+        type=list,
+    )
+    parser.add_argument(
+        "--sim_name",
+        default='par_env',
+        type=str,
+    )
+    parser.add_argument(
+        "--headless",
+        default=True,
+        type=bool,
+        help="Number of ego agents to simulate in each environment.",
+    )
+    parser.add_argument(
         "--num-agents",
         default=2,
         type=int,
-        help="Number of ego agents to simulate in each environment.",
+        help="Number of consecutive frames to stack in each environment's observation.",
     )
     parser.add_argument(
         "--num-stack",
@@ -214,20 +275,31 @@ if __name__ == "__main__":
         type=int,
         help="Total number of steps to simulate per environment in parallel asynchronous simulation.",
     )
+    parser.add_argument(
+        "--seed",
+        default=0,
+        type=int,
+    )
     args = parser.parse_args()
 
     if not args.sim_name:
         args.sim_name = "par_env"
 
     if not args.scenarios:
+        print(pathlib.Path('env/smarts_rc').absolute())
+        print(pathlib.Path(smarts.__file__).parents[0])
+        # breakpoint()
         args.scenarios = [
             str(
-                pathlib.Path(__file__).absolute().parents[1]
+                pathlib.Path('env/smarts_rc').absolute()
                 / "scenarios"
                 / "sumo"
-                / "figure_eight"
+                / "intersections"
+                / "2lane"
             )
         ]
+        print(args.scenarios)
+        # breakpoint()
 
     sstudio.build_scenario(args.scenarios)
 

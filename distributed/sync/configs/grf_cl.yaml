@@ -153,14 +153,14 @@ loss:
     policy:
         ppo_clip_range: .2
         entropy_coef: .001
-        life_mask: False
+        sample_mask: False
     value:
         value_loss: clip
         value_clip_range: .2
         value_coef: 1
         vna_coef: 1
         vna_clip_range: .2
-        life_mask: False
+        sample_mask: False
 
 trainer:
     algorithm: *algo

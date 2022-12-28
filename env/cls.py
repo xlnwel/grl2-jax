@@ -48,7 +48,7 @@ class Env:
     def manual_reset(self):
         self.env.manual_reset()
 
-    """ the following code is needed for ray """
+    """ the following code is required by ray """
     def score(self, *args):
         return self.env.score()
 
@@ -90,7 +90,7 @@ class Env:
             self.env.close()
 
 
-class VecEnvBase():
+class VecEnvBase:
     def __init__(self, config, env_fn=make_env, agents={}):
         self.n_envs = n_envs = config.pop('n_envs', 1)
         self.name = config['env_name']

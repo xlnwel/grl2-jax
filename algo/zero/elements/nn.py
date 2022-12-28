@@ -31,7 +31,8 @@ class Policy(hk.Module):
     def __call__(self, x, reset=None, state=None, action_mask=None):
         net = self.build_net()
         x = net(x, reset, state)
-        if len(x) == 2:
+        if isinstance(x, tuple):
+            assert len(x) == 2, x
             x, state = x
         
         if self.is_action_discrete:
@@ -48,7 +49,8 @@ class Policy(hk.Module):
                 shape=(self.action_dim,), 
                 init=logstd_init
             )
-            return (x, logstd), state
+            scale = lax.exp(logstd)
+            return (x, scale), state
 
     @hk.transparent
     def build_net(self):
@@ -77,7 +79,8 @@ class Value(hk.Module):
     def __call__(self, x, reset=None, state=None):
         net = self.build_net()
         x = net(x, reset, state)
-        if len(x) == 2:
+        if isinstance(x, tuple):
+            assert len(x) == 2, x
             x, state = x
         if x.shape[-1] == 1:
             x = jnp.squeeze(x, -1)

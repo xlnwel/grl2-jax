@@ -68,10 +68,10 @@ def train(
     train_step = agents[0].get_train_step()
     env_stats = runner.env_stats()
     steps_per_iter = env_stats.n_envs * routine_config.n_steps
-    eval_info = {}
-    diff_info = {}
-    with StateStore('comp', state_constructor, get_state, set_states):
-        prev_info = run_comparisons(runner, agents)
+    # eval_info = {}
+    # diff_info = {}
+    # with StateStore('comp', state_constructor, get_state, set_states):
+    #     prev_info = run_comparisons(runner, agents)
     while step < routine_config.MAX_STEPS:
         # train imaginary agents
         for _ in range(routine_config.n_imaginary_runs):
@@ -115,8 +115,8 @@ def train(
 
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
-        assert buffers[0].size() == 0, buffers[0].size()
-        assert buffers[1].size() == 0, buffers[1].size()
+        for b in buffers:
+            assert b.size() == 0, b.size()
         with rt:
             all_data = [[None, None], [None, None]]
             with StateStore('real1', 
@@ -149,8 +149,8 @@ def train(
             for d in data:
                 buffer.move_to_queue(d)
 
-        assert buffers[0].ready(), (buffers[0].size(), len(buffers[0]._queue))
-        assert buffers[1].ready(), (buffers[1].size(), len(buffers[1]._queue))
+        for b in buffers:
+            assert b.ready(), (b.size(), len(b._queue))
         step += steps_per_iter
 
         time2record = to_record(step)
@@ -174,24 +174,32 @@ def train(
                 after_info = run_comparisons(runner, agents)
 
         if time2record:
-            info = {
-                f'diff_{k}': after_info[k] - before_info[k] 
-                for k in before_info.keys()
-            }
-            info.update({
-                f'dist_diff_{k}': after_info[k] - prev_info[k] 
-                for k in before_info.keys()
-            })
-            eval_info = batch_dicts([eval_info, after_info])
-            diff_info = batch_dicts([diff_info, info])
-            prev_info = after_info
+            # info = {
+            #     f'diff_{k}': after_info[k] - before_info[k] 
+            #     for k in before_info.keys()
+            # }
+            # info.update({
+            #     f'dist_diff_{k}': after_info[k] - prev_info[k] 
+            #     for k in before_info.keys()
+            # })
+            # if eval_info:
+            #     eval_info = batch_dicts([eval_info, after_info], sum)
+            # else:
+            #     eval_info = after_info
+            # if diff_info:
+            #     diff_info = batch_dicts([diff_info, info], sum)
+            # else:
+            #     diff_info = info
+            # prev_info = after_info
             with Timer('log'):
                 for agent in agents:
                     agent.store(**{
                         'stats/train_step': train_step,
                         'time/fps': (step-start_env_step)/rt.last(), 
                         'time/tps': (train_step-start_train_step)/tt.last(),
-                    }, **eval_info, **diff_info, **Timer.all_stats())
+                    }, 
+                    # **eval_info, **diff_info, 
+                    **Timer.all_stats())
                     agent.record(step=step)
                     agent.save()
         # do_logging(f'finish the iteration with step: {step}')

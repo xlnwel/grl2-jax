@@ -1,25 +1,59 @@
+from pathlib import Path
+import collections
 import numpy as np
-import matplotlib.pyplot as plt
 
-import gym
-
-env_name = "Pendulum-v1"
-env = gym.make(env_name)
-print(env)
-# print("init env state: ", env.state)
-
-obs = env.reset()
-print("init env state: ", env.state)
+from env.make import make_smarts
+from tools.display import print_dict_info
+from core.typing import AttrDict
 
 
-theta, thetadot = np.pi / 2, 0.
-# env.set_state(theta, thetadot)
-env.state = np.array([theta, thetadot])
-print("env.state: ", env.state)
-print("env.env.state: ", env.env.state)
-# env.print_addr()
+
+def main(config):
+    env = make_smarts(config)
+    all_obs = collections.defaultdict(list)
+    obs = env.reset()
+    # for aid, o in obs.items():
+    #     # for o in oo:
+    #     for k, v in o.items():
+    #         all_obs[k].append(v)
+
+    for i in range(1000):
+        action = env.random_action()
+        obs, reward, discount, reset = env.step(action)
+        # for o in obs.values():
+        #     for k, v in o.items():
+        #         all_obs[k].append(v)
+        if np.all(reset):
+            print(i, 'reset', discount)
+            print(env.info())
+            env.reset()
+    all_obs = {k: np.stack(v) for k, v in all_obs.items()}
+
+    print_dict_info(obs)
+    print(env.info())
 
 
-# img = env.render(mode='rgb_array')
-# # plt.imshow(img)
-# plt.savefig('pendulum.png', bbox_inches='tight')
+if __name__ == '__main__':
+    config = AttrDict({
+        'env_name': 'smarts', 
+        'scenario': 'intersections/4lane', 
+
+        'neighborhood_vehicles': {'radius': 50}, 
+        'waypoints': {'lookahead': 50}, 
+        # 'frame_stack': 3, 
+
+        # 'goal_relative_pos': True, 
+        # # distance to the center of lane
+        # 'distance_to_center': True, 
+        # # speed
+        # 'speed': True, 
+        # # steering
+        # 'steering': True, 
+        # # a list of heading errors
+        # 'heading_errors': [20, 'continuous'], 
+        # # at most eight neighboring vehicles' driving states
+        # 'neighbor': 8, 
+
+        # 'action_type': 1, 
+    })
+    main(config)

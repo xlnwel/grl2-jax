@@ -517,7 +517,7 @@ def stack_data_with_state(buffer, keys=None, seq_axis=1):
                     else:
                         v[name] = np.stack([x[name] for x in buffer[k]], seq_axis)
             else:
-                # state is 
+                # state is a single namedtuple
                 if hasattr(buffer[k][0], '_fields'):
                     t = type(buffer[k][0])
                     v = t(*[np.stack(x, seq_axis) for x in zip(*buffer[k])])

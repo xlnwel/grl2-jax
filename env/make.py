@@ -204,6 +204,16 @@ def make_magw(config):
 
     return env
 
+def make_smarts(config):
+    assert 'smarts' in config['env_name'], config['env_name']
+    from env.hn_smarts import make
+    config = _change_env_name(config)
+    env = make(config)
+    env = wrappers.DataProcess(env)
+    env = wrappers.MASimEnvStats(env)
+
+    return env
+
 def make_grf(config):
     assert 'grf' in config['env_name'], config['env_name']
     from env.grf import GRF

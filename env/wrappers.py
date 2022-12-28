@@ -9,7 +9,7 @@ from core.log import do_logging
 from env.utils import compute_aid2uids
 from tools.display import print_dict, print_dict_info
 from tools.feature import one_hot
-from tools.utils import infer_dtype, convert_dtype
+from tools.utils import infer_dtype, convert_dtype, batch_dicts
 from core.typing import AttrDict, dict2AttrDict
 from env.typing import EnvOutput, GymOutput
 
@@ -494,6 +494,50 @@ class TurnBasedProcess(gym.Wrapper):
         )
 
 
+class Dict2List(gym.Wrapper):
+    """ Convert Dict of observations ({agent, obs}) to List of observations ([obs]) 
+    """
+    def __init__(self, env, sorted_agents=None, obs_only=True):
+        super().__init__(env)
+
+        self.sorted_agents = sorted_agents
+        self.obs_only = obs_only
+    
+    def reset(self):
+        obs = super().reset()
+        obs = self._dict2list(obs)
+        return obs
+    
+    def random_action(self):
+        action = self.env.random_action()
+        action = self._dict2list(action)
+        return action
+
+    def step(self, action):
+        action = self._list2dict(action)
+        obs, reward, done, info = super().step(action)
+        obs = self._dict2list(obs)
+        if not self.obs_only:
+            reward = self._dict2list(reward)
+            done = self._dict2list(done)
+            info = self._dict2list(info)
+            if isinstance(info, list):
+                info = batch_dicts(info)
+
+        return obs, reward, done, info
+    
+    def _dict2list(self, x):
+        if isinstance(x, dict):
+            if self.sorted_agents is None:
+                self.sorted_agents = sorted(list(x))
+            x = [x[a] for a in self.sorted_agents]
+        return x
+
+    def _list2dict(self, x):
+        x = {k: v for k, v in zip(self.sorted_agents, x)}
+        return x
+
+
 class Single2MultiAgent(gym.Wrapper):
     """ Add unit dimension """
     def __init__(self, env, obs_only=False):
@@ -520,7 +564,7 @@ class Single2MultiAgent(gym.Wrapper):
             n_units=getattr(env, 'n_units', 1),
             uid2aid=getattr(env, 'uid2aid', [0]),
             aid2uids=getattr(env, 'aid2uids', [[0]]),
-            use_life_mask=[False],
+            use_sample_mask=[False],
             use_action_mask=[getattr(env, 'use_action_mask', False)],
             is_multi_agent=True,
             is_simultaneous_move=True,
@@ -535,14 +579,14 @@ class Single2MultiAgent(gym.Wrapper):
         return [action]
 
     def reset(self):
-        obs = self.env.reset()
+        obs = super().reset()
         obs = self._get_obs(obs)
 
         return obs
 
     def step(self, action, **kwargs):
         action = np.squeeze(action)
-        obs, reward, done, info = self.env.step(action, **kwargs)
+        obs, reward, done, info = super().step(action, **kwargs)
         obs = self._get_obs(obs)
         if not self._obs_only:
             reward = np.expand_dims(reward, 0)
@@ -808,7 +852,7 @@ class EnvStatsBase(gym.Wrapper):
                 n_units=self.n_units,
                 uid2aid=self.uid2aid,
                 aid2uids=self.aid2uids,
-                use_life_mask=getattr(env, 'use_life_mask', False),
+                use_sample_mask=getattr(env, 'use_sample_mask', False),
                 use_action_mask=getattr(env, 'use_action_mask', False),
                 is_multi_agent=getattr(env, 'is_multi_agent', len(self.uid2aid) > 1),
                 is_simultaneous_move=getattr(env, 'is_simultaneous_move', True),
@@ -1047,6 +1091,8 @@ class MASimEnvStats(EnvStatsBase):
         self._score = info['score']
         self._dense_score = info['dense_score']
         self._epslen = info['epslen']
+        if isinstance(self._epslen, (np.ndarray, list, tuple)):
+            self._epslen = np.max(self._epslen)
         self._game_over = info.pop('game_over')
         if self._epslen >= self.max_episode_steps:
             self._game_over = True

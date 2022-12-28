@@ -33,11 +33,12 @@ class RunnerWithState:
     def env_stats(self):
         return self.env.stats()
 
-    def build_env(self, env_config=None, for_self=False):
+    def build_env(self, env_config=None, for_self=True):
         env_config = env_config or self._env_config
         env = create_env(env_config)
         env_output = env.output()
-        self._env_config.seed += self._seed_interval
+        if self._env_config.seed is not None:
+            self._env_config.seed += self._seed_interval
         if for_self:
             self.env = env
             self.env_output = env_output

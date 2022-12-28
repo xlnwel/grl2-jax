@@ -119,7 +119,7 @@ class GRF:
         self.max_episode_steps = max_episode_steps
 
         self.use_action_mask = use_action_mask  # if action mask is used
-        self.use_life_mask = False              # if life mask is used
+        self.use_sample_mask = False              # if life mask is used
         self.use_idx = use_idx
         self.use_hidden = use_hidden
         self.use_event = use_event

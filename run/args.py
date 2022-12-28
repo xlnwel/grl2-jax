@@ -16,8 +16,7 @@ def parse_train_args():
                         default=[])
     parser.add_argument('--info', '-i',
                         type=str,
-                        nargs='*',
-                        default=[])
+                        default=None)
     parser.add_argument('--directory', '-d',
                         type=str,
                         default='',

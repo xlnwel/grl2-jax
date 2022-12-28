@@ -124,7 +124,7 @@ class MultiAgentEnv(gym.Env):
         self._reset_render()
 
         # some properties for multi-agent environments
-        self.use_life_mask = False
+        self.use_sample_mask = False
         self.use_action_mask = False
 
         self.raw_env = False

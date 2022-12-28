@@ -265,7 +265,7 @@ class MultiAgentSimRunner(RayBase):
                 for aid, (agent, out, buffer) in enumerate(
                         zip(self.agents, env_outs, self.buffers)):
                     if self.is_agent_active[aid] and buffer.is_full():
-                        obs = agent.actor.process_obs_with_rms(out.obs, mask=out.obs.get('life_mask'))
+                        obs = agent.actor.process_obs_with_rms(out.obs, mask=out.obs.get('sample_mask'))
                         rid, data, n = buffer.retrieve_all_data(latest_obs=obs)
                         self.remote_buffers[aid].merge_data.remote(rid, data, n)
                         sent = True
@@ -321,7 +321,7 @@ class MultiAgentSimRunner(RayBase):
                             'reset': next_env_out.reset,
                         }
                         stats.update(agent_terms[aid])
-                        obs = agent.actor.process_obs_with_rms(env_out.obs, mask=env_out.obs.get('life_mask'))
+                        obs = agent.actor.process_obs_with_rms(env_out.obs, mask=env_out.obs.get('sample_mask'))
                         np.testing.assert_allclose(obs['obs'], stats['obs'])
                         buffer.add(stats)
 
@@ -428,7 +428,7 @@ class MultiAgentSimRunner(RayBase):
 
         def update_rms(aid, data):
             self.rms[aid].update_obs_rms(
-                data, 'obs', mask=data.get('life_mask'))
+                data, 'obs', mask=data.get('sample_mask'))
             self.rms[aid].update_obs_rms(
                 data, 'global_state')
             self.rms[aid].update_reward_rms(
@@ -582,7 +582,7 @@ class MultiAgentSimRunner(RayBase):
                 self.rms[0].update_obs_rms(
                     agent_env_outs.obs, 
                     name, 
-                    mask=agent_env_outs.obs.get('life_mask')
+                    mask=agent_env_outs.obs.get('sample_mask')
                 )
             self.rms[0].update_reward_rms(agent_env_outs.reward, agent_env_outs.discount)
         else:
@@ -592,7 +592,7 @@ class MultiAgentSimRunner(RayBase):
                     continue
                 for name in self.rms[0].obs_names:
                     rms.update_obs_rms(
-                        out.obs, name, mask=out.obs.get('life_mask'))
+                        out.obs, name, mask=out.obs.get('sample_mask'))
                 rms.update_reward_rms(out.reward, out.discount)
 
     def _log_for_done(self, reset):

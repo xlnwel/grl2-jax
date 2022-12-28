@@ -98,7 +98,7 @@ class Runner(RunnerWithState):
                 collects[i](self.env, 0, new_env_outputs[i].reset, **kwargs)
 
             if store_info:
-                done_env_ids = [i for i, r in enumerate(new_env_outputs[0].reset) if r]
+                done_env_ids = [i for i, r in enumerate(new_env_outputs[0].reset) if np.all(r)]
 
                 if done_env_ids:
                     info = self.env.info(done_env_ids)

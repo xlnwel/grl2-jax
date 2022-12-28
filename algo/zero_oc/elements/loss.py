@@ -89,15 +89,15 @@ class Loss(LossBase):
         )
 
         kl_stats = dict(
-            logp=data.mu_logprob, 
-            logq=stats.pi_logprob, 
+            logp=stats.pi_logprob, 
+            logq=data.mu_logprob, 
             sample_prob=data.mu_logprob, 
-            p_logits=data.mu_logits, 
-            q_logits=stats.pi_logits, 
-            p_mean=data.mu_mean,  
-            p_std=data.mu_std, 
-            q_mean=stats.pi_mean,  
-            q_std=stats.pi_std, 
+            p_logits=stats.pi_logits, 
+            q_logits=data.mu_logits, 
+            p_loc=stats.pi_loc,  
+            p_scale=stats.pi_scale, 
+            q_loc=data.mu_loc,  
+            q_scale=data.mu_scale, 
             action_mask=data.action_mask, 
             sample_mask=data.sample_mask, 
             n=data.n
@@ -133,7 +133,7 @@ def compute_actor_loss(
     stats, 
     act_dist, 
 ):
-    if not config.get('policy_life_mask', True):
+    if not config.get('policy_sample_mask', True):
         sample_mask = data.sample_mask
     else:
         sample_mask = None
@@ -192,7 +192,7 @@ def compute_vf_loss(
     data, 
     stats, 
 ):
-    if config.get('value_life_mask', False):
+    if config.get('value_sample_mask', False):
         sample_mask = data.sample_mask
     else:
         sample_mask = None

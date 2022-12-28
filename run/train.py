@@ -88,19 +88,15 @@ def _grid_search(config, main, cmd_args):
     [p.join() for p in processes]
 
 
-def config_info(config, infos, model_name):
-    if len(infos) > 1:
-        for i, info in enumerate(infos):
-            config[f'info{i}'] = info
-    elif len(infos) == 1:
-        config['info'] = infos[0]
+def config_info(config, info, model_name):
+    if info is None:
+        info = model_name.split('/', 1)[0]
     else:
-        config['info'] = None
-    info = model_name.split('/', 1)[0]
-    if not config['info'] or config['info'] in info:
-        config['info'] = info
+        info = f'{info}-{model_name.split("/", 1)[0]}'
+    if not config.info or config.info in info:
+        config.info = info
     else:
-        config['info'] = config['info'] + info
+        config.info = f'{config.info}-{info}'
     return config
 
 

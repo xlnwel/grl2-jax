@@ -94,19 +94,17 @@ class Model(ModelBase):
         if self.is_action_discrete:
             stats = {'mu_logits': act_dist.logits}
         else:
-            mean = act_dist.mean()
-            std = lax.exp(act_dist.logstd)
+            loc = act_dist.loc()
             stats = {
-                'mu_mean': mean,
-                'mu_std': jnp.broadcast_to(std, mean.shape), 
+                'mu_loc': loc,
+                'mu_scale': act_dist.scale_diag, 
             }
 
         if evaluation:
             action = act_dist.mode()
             stats['action'] = action
         else:
-            action = act_dist.sample(rng=rngs[1])
-            logprob = act_dist.log_prob(action)
+            action, logprob = act_dist.sample_and_log_prob(seed=rngs[1])
             value, value_state = self.modules.value(
                 params.value, 
                 rngs[2], 
@@ -139,12 +137,12 @@ class Model(ModelBase):
         if self.is_action_discrete:
             if evaluation and self.config.get('eval_act_temp', 0) > 0:
                 act_out = act_out / self.config.eval_act_temp
-            dist = jax_dist.Categorical(act_out)
+            dist = jax_dist.Categorical(logits=act_out)
         else:
-            mu, logstd = act_out
+            loc, scale = act_out
             if evaluation and self.config.get('eval_act_temp', 0) > 0:
-                logstd = logstd + math.log(self.config.eval_act_temp)
-            dist = jax_dist.MultivariateNormalDiag(mu, logstd)
+                scale = scale * self.config.eval_act_temp
+            dist = jax_dist.MultivariateNormalDiag(loc, scale)
 
         return dist
 
@@ -212,8 +210,6 @@ class Model(ModelBase):
 
 
 def setup_config_from_envstats(config, env_stats):
-    import pprint
-
     if 'aid' in config:
         aid = config['aid']
         config.policy.action_dim = env_stats.action_dim[aid]

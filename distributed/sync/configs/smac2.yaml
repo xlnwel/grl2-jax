@@ -57,7 +57,7 @@ env:
     timeout_done: True
     add_agent_id: True
     do_evaluation: False
-    life_mask_at_done: 0
+    sample_mask_at_done: 0
 
 agent: {}
 
@@ -160,12 +160,12 @@ loss:
     policy:
         ppo_clip_range: .2
         entropy_coef: .01
-        life_mask: True
+        sample_mask: True
     value:
         value_loss: mse
         value_clip_range: .2
         value_coef: 1
-        life_mask: False
+        sample_mask: False
 
 trainer:
     algorithm: *algo
@@ -227,7 +227,11 @@ buffer:
         - prev_reward
         - prev_action
         - action_mask
+<<<<<<< HEAD
         - life_mask
+=======
+        - sample_mask
+>>>>>>> e751fe84adf3cc9fc0d86bae8bd2aff0f0a866d5
         - action
         - reward
         - discount

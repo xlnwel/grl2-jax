@@ -352,13 +352,13 @@ class SMAC(gym.Env):
             obs=(self.observation_space[0],),
             global_state=(self.global_state_space[0],),
             action_mask=(self.action_dim,),
-            life_mask=()
+            sample_mask=()
         )
         self.obs_dtype = dict(
             obs=np.float32,
             global_state=np.float32,
             action_mask=bool,
-            life_mask=np.float32
+            sample_mask=np.float32
         )
         if self.use_stacked_frames:
             self.stacked_local_obs = np.zeros((self.n_units, self.stacked_frames, int(self.get_obs_size()[0]/self.stacked_frames)), dtype=np.float32)
@@ -368,10 +368,10 @@ class SMAC(gym.Env):
             obs=np.zeros((self.n_units, *self.obs_shape), dtype=np.float32),
             global_state=np.zeros((self.n_units, *self.global_state_shape), dtype=np.float32),
             action_mask=np.zeros((self.n_units, self.n_actions), bool),
-            life_mask=np.zeros(self.n_units, dtype=np.float32)
+            sample_mask=np.zeros(self.n_units, dtype=np.float32)
         )
         # some properties for multi-agent environments
-        self.use_life_mask = True
+        self.use_sample_mask = True
         self.use_action_mask = True
 
     def random_action(self):
@@ -533,7 +533,7 @@ class SMAC(gym.Env):
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, bool),
-            life_mask=self.mask
+            sample_mask=self.mask
         )
 
         return obs_dict
@@ -636,7 +636,7 @@ class SMAC(gym.Env):
                 obs=local_obs,
                 global_state=np.array(global_state, np.float32),
                 action_mask=np.array(available_actions, bool),
-                life_mask=self.mask
+                sample_mask=self.mask
             )
             rewards = np.zeros(self.n_units, np.float32)
             info = batch_dicts(infos)
@@ -742,7 +742,7 @@ class SMAC(gym.Env):
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, bool),
-            life_mask=self.mask
+            sample_mask=self.mask
         )
         info = batch_dicts(infos)
         info.update({

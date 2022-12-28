@@ -36,6 +36,23 @@ python run/train.py -a sync-hm -e unity-combat2d -kw lr=0.0001
 
 This change will automatically be embodied in Tensorboard, making it a recommanded way to do some simple hyperparameter tuning. Alternatively, you can modify configurations in `*.yaml` and specify `model_name` manually using command argument `-n your_model_name`.
 
+#### Evaluation
+
+```shell
+python run/eval.py magw-logs/n_envs=64-n_steps=20-n_epochs=1/seed=4/ -n 1 -ne 1 -nr 1 -r -i eval -s 256 256 --fps 1
+```
+
+The above code presents a way for evaluating a trained model, where
+
+- `magw-logs/n_envs=64-n_steps=20-n_epochs=1/seed=4/` is the model path
+- `-n` specifies the number of eposodes to run
+- `-ne` specifies the number of environments running in parallel
+- `-nr` specifies the number of ray actors are devoted for runniing
+- `-r` visualizes the video and save it as a `*.gif` file
+- `-i` specifies the video name
+- `-s` specifies the screen size of the video
+- `--fps` specifies the fps of the saved `*.gif` file
+
 #### Training Multiple Agents with Different Configurations
 
 In some multi-agent settings, we may prefer using different configurations for different agents. The following code demonstrates an example of running multi-agent algorithms with multiple configurations, one for each agent.

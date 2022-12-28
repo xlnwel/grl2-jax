@@ -31,7 +31,7 @@ DEFAULT_COLOURS = {' ': [0, 0, 0],  # Black background
 TRUN_MATURE = 0.3
 TRUN_DEATH = 0.3 
 
-class GridWorldEnv(object):
+class GridWorldEnv(gym.Env):
     def __init__(
         self, 
         env_name,

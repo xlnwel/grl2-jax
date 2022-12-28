@@ -1,0 +1,118 @@
+#!/bin/zsh
+
+source activate inf
+
+suite=magw
+ld="${suite}-logs"
+
+n_nodes=$1
+shift
+cmd="sh ./$@"
+inf_mac job run python --exec-command "$cmd" \
+    --working-dir . --num-nodes $n_nodes --user chenxw --use-env chenxw \
+    --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero run_with_future_opponents=True n_imaginary_runs=3"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero run_with_future_opponents=True n_imaginary_runs=5"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero run_with_future_opponents=True n_imaginary_runs=10"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero has_hare=False"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero has_hare=False run_with_future_opponents=True n_imaginary_runs=3"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_ov run_with_future_opponents=True n_imaginary_runs=3 alpha=0"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_ov run_with_future_opponents=True n_imaginary_runs=3 alpha=.5"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero run_with_future_opponents=True n_imaginary_runs=3"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb n_imaginary_runs=1"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb n_imaginary_runs=3"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb n_imaginary_runs=1 n=7 n_elites=5"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb n_imaginary_runs=3 n=7 n_elites=5"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb n_imaginary_runs=1"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb n_imaginary_runs=3"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb n_imaginary_runs=5"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb n_imaginary_runs=10"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb False False 5 gs"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_mb 12 2 gs"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
+
+# cmd="sh ./inf_zero_rn gs"
+# inf_mac job run python --exec-command "$cmd" \
+#     --working-dir . --num-nodes 1 --user chenxw --use-env chenxw \
+#     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw

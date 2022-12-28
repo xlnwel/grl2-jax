@@ -32,7 +32,7 @@ def print_dict_info(d, prefix='', level='pwt', backtrack=3):
             print_dict_info(v, f'{prefix} {i}', level=level, backtrack=backtrack+1)
     elif isinstance(d, (np.ndarray, jnp.DeviceArray, jax.ShapedArray)):
         _print_array(d, prefix, level, backtrack=backtrack)
-    else:
+    elif isinstance(d, dict):
         for k, v in d.items():
             if isinstance(v, dict):
                 do_logging(f'{prefix} {k}', level=level, backtrack=backtrack)
@@ -48,3 +48,5 @@ def print_dict_info(d, prefix='', level='pwt', backtrack=3):
                 _print_array(v, f'{prefix} {k}', level, backtrack=backtrack)
             else:
                 do_logging(f'{prefix} {k}: {v} {type(v)}', level=level, backtrack=backtrack+1)
+    else:
+        do_logging(f'{d}', level=level, backtrack=backtrack)

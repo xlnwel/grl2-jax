@@ -141,12 +141,20 @@ loss:
     policy:
         ppo_clip_range: .2
         entropy_coef: .001
+<<<<<<< HEAD
         life_mask: False
+=======
+        sample_mask: False
+>>>>>>> e751fe84adf3cc9fc0d86bae8bd2aff0f0a866d5
     value:
         value_loss: clip
         value_clip_range: .2
         value_coef: 1
+<<<<<<< HEAD
         life_mask: False
+=======
+        sample_mask: False
+>>>>>>> e751fe84adf3cc9fc0d86bae8bd2aff0f0a866d5
 
 trainer:
     algorithm: *algo

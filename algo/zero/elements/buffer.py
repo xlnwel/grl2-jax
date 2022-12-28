@@ -94,7 +94,7 @@ class ACBuffer(Buffer):
         env_stats: AttrDict, 
         model: Model, 
         aid: int=0, 
-    ):  
+    ):
         super().__init__(config, env_stats, model, aid)
 
         self.n_runners = self.config.n_runners
@@ -209,7 +209,6 @@ class ACBuffer(Buffer):
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
         sample = self._queue.popleft()
-
         assert len(self._queue) == 0, len(self._queue)
         assert set(sample) == set(self.sample_keys), set(self.sample_keys) - set(sample)
 
@@ -290,8 +289,8 @@ def extract_sampling_keys(
         sample_keys.append('action_mask')
     elif 'action_mask' in sample_keys:
         sample_keys.remove('action_mask')
-    if env_stats.use_life_mask:
+    if env_stats.use_sample_mask:
         sample_keys.append('sample_mask')
-    elif 'life_mask' in sample_keys:
+    elif 'sample_mask' in sample_keys:
         sample_keys.remove('sample_mask')
     return state_keys, state_type, sample_keys, sample_size

@@ -26,6 +26,7 @@ do
     today=$(date +"%m%d")
     yesterday=$(date -v-1d "+%m%d")
     dby=$(date -v-2d "+%m%d")
+    tda=$(date -v-3d "+%m%d")
 
     # rm -rf html-logs
     python run/html_plt.py $@ -p a0 model -n $today $yesterday $dby

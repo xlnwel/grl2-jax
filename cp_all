@@ -1,20 +1,25 @@
 #!/bin/zsh
 
-for item in `ls logs-gym-meta`; do 
-    # item=${item%?}
-    # echo $item
-    cp -r logs-gym-meta/$item/zero/0723 gym-logs/$item/zero
-    # for item2 in `ls gym-logs/${item}/zero`; do
-    #     # echo $item2
-    #     mv gym-logs/${item}/zero/$item2 logs-gym-meta/$item/zero
-    # # mv $item logs-gym-meta/
-    # # mkdir -p tmp-logs/$item
-    # # ls $item | grep even | xargs -t -I {} cp $item/{} tmp-logs/$item
-    # done
-done
+# for item in `ls logs-gym-meta`; do 
+#     # item=${item%?}
+#     # echo $item
+#     cp -r logs-gym-meta/$item/zero/0723 gym-logs/$item/zero
+#     # for item2 in `ls gym-logs/${item}/zero`; do
+#     #     # echo $item2
+#     #     mv gym-logs/${item}/zero/$item2 logs-gym-meta/$item/zero
+#     # # mv $item logs-gym-meta/
+#     # # mkdir -p tmp-logs/$item
+#     # # ls $item | grep even | xargs -t -I {} cp $item/{} tmp-logs/$item
+#     # done
+# done
 
 # for item in `ls logs-spiel-old/spiel-leduc_poker/sync-gpo`; do 
 #     echo $item
 #     mkdir -p tmp-logs/$item
 #     ls logs-spiel-old/spiel-leduc_poker/sync-gpo/$item | grep even | xargs -t -I {} cp logs-spiel-old/spiel-leduc_poker/sync-gpo/$item/{} tmp-logs/$item/ 
 # done
+
+for item in `sudo find /opt/homebrew -name 'gcc*'`; do
+    echo "sudo $item --version"
+    sudo $item --version | grep -v 'command not found'
+done
