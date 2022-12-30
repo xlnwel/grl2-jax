@@ -68,6 +68,9 @@ def parse_train_args():
     parser.add_argument('--n_agents', '-na', 
                         type=int,
                         default=1)
+    parser.add_argument('--train_entry', '-te', 
+                        type=str, 
+                        default='train')
     args = parser.parse_args()
 
     return args

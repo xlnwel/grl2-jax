@@ -1,4 +1,4 @@
-from collections import deque
+from collections import deque, defaultdict
 from typing import Sequence
 import copy
 import numpy as np
@@ -83,6 +83,10 @@ class FrameStack(gym.Wrapper):
             self.is_action_discrete = [False
                 for _ in range(self.n_agents)]
 
+        # reward tracker
+        self._reward_tracker = defaultdict(list)
+
+
     def random_action(self):
         if self.config.action_type == 1:
             return {aid: np.random.randint(4) for aid in self.agent_keys}
@@ -159,9 +163,13 @@ class FrameStack(gym.Wrapper):
     def _get_rewards(self, env_observations, env_rewards):
         agent_ids = list(env_rewards.keys())
         rewards = dict.fromkeys(agent_ids, None)
+        reward_info = {}
 
         for k in agent_ids:
-            rewards[k] = self.reward_adapter(list(self.frames[k]), env_rewards[k])
+            rewards[k], reward_info[k] = self.reward_adapter(list(self.frames[k]), env_rewards[k])
+            for kk in reward_info[k]:
+                self._reward_tracker[k][kk].append(reward_info[k][kk])
+
         return rewards
 
     def _get_infos(self, env_obs, rewards, infos):
@@ -187,6 +195,8 @@ class FrameStack(gym.Wrapper):
         observations = self._get_observations(env_observations)
         rewards = self._get_rewards(env_observations, env_rewards)
         infos = self._get_infos(env_observations, env_rewards, infos)
+        for k in infos.keys():
+            infos[k].update({k: np.mean(v) for k, v in self._reward_tracker[k].items()})
         # self._update_last_observation(self.frames)
 
         return observations, rewards, dones, infos
@@ -196,6 +206,9 @@ class FrameStack(gym.Wrapper):
         for k, observation in observations.items():
             _ = [self.frames[k].append(observation) for _ in range(self.num_stack)]
         # self._update_last_observation(self.frames)
+        # reward tracker
+        self._reward_tracker = defaultdict(lambda: defaultdict(list))
+
         return self._get_observations(observations)
 
     @staticmethod
@@ -209,6 +222,7 @@ class FrameStack(gym.Wrapper):
             # otherwise, get bonus
             last_env_obs = env_obs_seq[-1]
             neighbor_features_np = np.asarray([e.get("neighbor") for e in obs_seq])
+            too_close_reward = 0
             if neighbor_features_np is not None:
                 new_neighbor_feature_np = neighbor_features_np[-1].reshape((-1, 5))
                 mean_dist = np.mean(new_neighbor_feature_np[:, 0])
@@ -218,25 +232,28 @@ class FrameStack(gym.Wrapper):
                 mean_dist2 = np.mean(last_neighbor_feature_np[:, 0])
                 # mean_speed2 = np.mean(last_neighbor_feature[:, 1])
                 mean_ttc2 = np.mean(last_neighbor_feature_np[:, 2])
-                penalty += (
+                too_close_reward = (
                     0.03 * (mean_dist - mean_dist2)
                     # - 0.01 * (mean_speed - mean_speed2)
                     + 0.01 * (mean_ttc - mean_ttc2)
                 )
+                penalty += too_close_reward
 
             # ======== Penalty: distance to goal =========
             goal = last_env_obs.ego_vehicle_state.mission.goal
             ego_2d_position = last_env_obs.ego_vehicle_state.position[:2]
             goal_position = getattr(goal, "position", ego_2d_position)[:2]
             goal_dist = distance.euclidean(ego_2d_position, goal_position)
-            penalty += -0.01 * goal_dist
+            goal_dist_reward = -0.01 * goal_dist
+            penalty += goal_dist_reward
 
             old_obs = env_obs_seq[-2]
             old_goal = old_obs.ego_vehicle_state.mission.goal
             old_ego_2d_position = old_obs.ego_vehicle_state.position[:2]
             old_goal_position = getattr(old_goal, "position", old_ego_2d_position)[:2]
             old_goal_dist = distance.euclidean(old_ego_2d_position, old_goal_position)
-            penalty += 0.1 * (old_goal_dist - goal_dist)  # 0.05
+            step_goal_dist_reward = 0.1 * (old_goal_dist - goal_dist)
+            penalty += step_goal_dist_reward  # 0.05
 
             # ======== Penalty: distance to the center
             distance_to_center_np = np.asarray(
@@ -245,23 +262,26 @@ class FrameStack(gym.Wrapper):
             diff_dist_to_center_penalty = np.abs(distance_to_center_np[-2]) - np.abs(
                 distance_to_center_np[-1]
             )
-            penalty += 0.01 * diff_dist_to_center_penalty[0]
+            diff_dist_to_center_reward = 0.01 * diff_dist_to_center_penalty[0]
+            penalty += diff_dist_to_center_reward
 
             # ======== Penalty & Bonus: event (collision, off_road, reached_goal, reached_max_episode_steps)
             ego_events = last_env_obs.events
             # ::collision
-            penalty += config.collision_penalty if len(ego_events.collisions) > 0 else 0.0
+            collisioin_reward = config.collision_penalty if len(ego_events.collisions) > 0 else 0.0
+            penalty += collisioin_reward
             # ::off road
-            penalty += config.offroad_penalty if ego_events.off_road else 0.0
+            offroad_reward = config.offroad_penalty if ego_events.off_road else 0.0
+            penalty += offroad_reward
             # ::reach goal
-            if ego_events.reached_goal:
-                bonus += config.goal_reward
+            goal_reward = config.goal_reward if ego_events.reached_goal else 0
+            bonus += goal_reward
 
             # ::reached max_episode_step
             if ego_events.reached_max_episode_steps:
                 penalty += -0.5
-            else:
-                bonus += 0.5
+            # else:
+            #     bonus += 0.5
 
             # ======== Penalty: heading error penalty
             # if obs.get("heading_errors", None):
@@ -274,7 +294,7 @@ class FrameStack(gym.Wrapper):
 
             # ======== Penalty: penalise sharp turns done at high speeds =======
             if last_env_obs.ego_vehicle_state.speed > 60:
-                steering_penalty = -pow(
+                steering_penalty = 0.1 * -pow(
                     (last_env_obs.ego_vehicle_state.speed - 60)
                     / 20
                     * last_env_obs.ego_vehicle_state.steering
@@ -283,11 +303,25 @@ class FrameStack(gym.Wrapper):
                 )
             else:
                 steering_penalty = 0
-            penalty += 0.1 * steering_penalty
+            penalty += steering_penalty
 
             # ========= Bonus: environment reward (distance travelled) ==========
-            bonus += 0.05 * env_reward
-            return bonus + penalty
+            env_reward = 0.05 * env_reward
+            bonus += env_reward
+
+            reward_info = {
+                'too_close_reward': too_close_reward, 
+                'goal_dist_reward': goal_dist_reward, 
+                'step_goal_dist_reward': step_goal_dist_reward, 
+                'diff_dist_to_center_reward': diff_dist_to_center_reward, 
+                'collisioin_reward': collisioin_reward, 
+                'offroad_reward': offroad_reward, 
+                'goal_reward': goal_reward, 
+                'steering_penalty': steering_penalty, 
+                'env_reward': env_reward
+            }
+
+            return bonus + penalty, reward_info
 
         return func
 

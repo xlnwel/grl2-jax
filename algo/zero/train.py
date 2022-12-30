@@ -21,8 +21,7 @@ def train(
 ):
     def state_constructor():
         agent_states = [a.build_memory() for a in agents]
-        # runner_states = runner.build_env()
-        runner_states = runner.get_states()
+        runner_states = runner.build_env()
         return agent_states, runner_states
     
     def get_state():

@@ -58,7 +58,8 @@ def import_main(module, algo=None, *, config=None):
     if '-' in algo:
         m = importlib.import_module(f'distributed.{module}')
     else:
-        pkg = get_package_from_algo(algo, place={'train': 0, 'eval': -1}[module])
+        place = 0 if module.startswith('train') else -1
+        pkg = get_package_from_algo(algo, place=place)
         m = importlib.import_module(f'{pkg}.{module}')
 
     return m.main

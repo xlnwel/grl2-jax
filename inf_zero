@@ -6,12 +6,16 @@ algos=(zero)
 suite=magw
 # envs=(escalation staghunt harvest)
 envs=(escalation)
-config=magw
-args1=(1)
-args2=(3)
-args3=(forward reverse)
+e=${envs[0]}
+configs=(
+    "${e}_a2c"
+    "${e}"
+)
+args1=(20 10 20 20 10)
+args2=(gae gae gae vtrace vtrace)
+args3=(32 64 64 32 64)
 date=$(date +"%m%d")
-info="ppo"
+info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
 # for x in $(seq 1 1); do
@@ -26,7 +30,7 @@ fi
 
 # INF_MAC_NODE_RANK=$1
 for e in "${envs[@]}"; do
-    config=$e
+    config="${e}_a2c"
     for a in "${algos[@]}"; do
         # for a1 in "${args1[@]}"; do
         for s in {0..9}; do
@@ -36,7 +40,10 @@ for e in "${envs[@]}"; do
             la2=${#args2[@]}
             idx=$(($INF_MAC_NODE_RANK % $la2))
             a2=${args2[$idx]}
-            kws="n_imaginary_runs=$a2 "
+            la3=${#args3[@]}
+            idx=$(($INF_MAC_NODE_RANK % $la3))
+            a3=${args3[$idx]}
+            kws="adv_type=$a2 n_envs=$a3 n_steps=$a1"
             # echo $kws
             env="${suite}-${e}"
             if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
@@ -49,7 +56,6 @@ for e in "${envs[@]}"; do
             eval $py_script
             ((i=(i+1) ))
         done
-        # done
         wait
     done
     wait
@@ -57,35 +63,38 @@ done
 wait
 echo "Script completed"
 # for e in "${envs[@]}"; do
-#     config=$e
-#     for a in "${algos[@]}"; do
-#         for s in {10..19}; do
-#             # la1=${#args1[@]}
-#             # idx=$(($INF_MAC_NODE_RANK % $la1))
-#             # a1=${args1[$idx]}
-#             # la2=${#args2[@]}
-#             # idx=$(($INF_MAC_NODE_RANK % $la2))
-#             # a2=${args2[$idx]}
-#             la3=${#args3[@]}
-#             idx=$(($INF_MAC_NODE_RANK % $la3))
-#             a3=${args3[$idx]}
-#             kws="kl_type=$a3 kl_coef=1"
-#             # echo $kws
-#             env="${suite}-${e}"
-#             if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
-#                 gpu=$(($i % $gpus))
-#                 py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na 2 -kw $kws &"
-#             else
-#                 py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na 2 -kw $kws &"
-#             fi
-#             echo $py_script
-#             eval $py_script
-#             ((i=(i+1) ))
-#         done
-#         # done
-#         wait
+# le=${#envs[@]}
+# idx=$(($INF_MAC_NODE_RANK % $le))
+# e=${envs[$idx]}
+# lc=${#configs[@]}
+# idx=$(($INF_MAC_NODE_RANK % $lc))
+# config=${configs[$idx]}
+# # config="${e}"
+# for a in "${algos[@]}"; do
+#     for s in {0..9}; do
+#         # la1=${#args1[@]}
+#         # idx=$(($INF_MAC_NODE_RANK % $la1))
+#         # a1=${args1[$idx]}
+#         la2=${#args2[@]}
+#         idx=$(($INF_MAC_NODE_RANK % $la2))
+#         a2=${args2[$idx]}
+#         # la3=${#args3[@]}
+#         # idx=$(($INF_MAC_NODE_RANK % $la3))
+#         # a3=${args3[$idx]}
+#         kws="n_imaginary_runs=$a2 "
+#         # echo $kws
+#         env="${suite}-${e}"
+#         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+#             gpu=$(($i % $gpus))
+#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na 2 -kw $kws &"
+#         else
+#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na 2 -kw $kws &"
+#         fi
+#         echo $py_script
+#         # eval $py_script
+#         ((i=(i+1) ))
 #     done
-#     wait
+#     # wait
 # done
 # wait
 # echo "Script completed"

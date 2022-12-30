@@ -284,15 +284,16 @@ def v_trace_from_ratio(
     advs = jnp.array(errors[::-1])
     vs = advs + value
 
-    # Following https://github.com/deepmind/rlax/blob/44ef3f04c8286bc9df51c85a0ec2475e85136294/rlax/_src/vtrace.py#L208
-    # we the lambda-mixture for the bootstrapped value
-    next_vs = jnp.concatenate([
-        lam * vs[1:] + (1-lam) * value[1:], 
-        next_value[-1:]
-    ], axis=0)
     clipped_rho_pg = jax_math.upper_clip(ratio, rho_clip_pg)
     if adv_type == 'vtrace':
-        advs = clipped_rho_pg * (reward + discount * next_vs - value)
+        # Following https://github.com/deepmind/rlax/blob/44ef3f04c8286bc9df51c85a0ec2475e85136294/rlax/_src/vtrace.py#L208
+        # we the lambda-mixture for the bootstrapped value
+        next_vs = jnp.concatenate([
+            lam * vs[1:] + (1-lam) * value[1:], 
+            next_value[-1:]
+        ], axis=0)
+        vs = reward + discount * next_vs
+        advs = clipped_rho_pg * (vs - value)
     elif adv_type == 'gae':
         advs = clipped_rho_pg * advs
     else:

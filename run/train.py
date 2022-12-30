@@ -88,16 +88,14 @@ def _grid_search(config, main, cmd_args):
     [p.join() for p in processes]
 
 
-def config_info(config, info, model_name):
+def make_info(config, info, model_name):
     if info is None:
         info = model_name.split('/', 1)[0]
     else:
         info = f'{info}-{model_name.split("/", 1)[0]}'
-    if not config.info or config.info in info:
-        config.info = info
-    else:
-        config.info = f'{config.info}-{info}'
-    return config
+    if config.info and config.info not in info:
+        info = f'{config.info}-{info}'
+    return info
 
 
 def setup_configs(cmd_args, algo_env_config):
@@ -132,6 +130,8 @@ def setup_configs(cmd_args, algo_env_config):
         if model_name == '':
             model_name = 'baseline'
 
+        config.info = make_info(config, cmd_args.info, model_name)
+        model_name = config.info
         if not cmd_args.grid_search and not cmd_args.trials > 1:
             model_name = f'{model_name}/seed={cmd_args.seed}'
         
@@ -147,7 +147,6 @@ def setup_configs(cmd_args, algo_env_config):
         config.date = date
         config.buffer.root_dir = config.buffer.root_dir.replace('logs', 'data')
 
-        config = config_info(config, cmd_args.info, model_name)
         config.launch_time = current_time
         configs.append(config)
     
@@ -174,7 +173,7 @@ def setup_configs(cmd_args, algo_env_config):
 
 def _run_with_configs(cmd_args):
     algo_env_config = _get_algo_env_config(cmd_args)
-    main = pkg.import_main('train', cmd_args.algorithms[0])
+    main = pkg.import_main(cmd_args.train_entry, cmd_args.algorithms[0])
 
     configs = setup_configs(cmd_args, algo_env_config)
 

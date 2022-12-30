@@ -72,6 +72,7 @@ def train(
     # diff_info = {}
     # with StateStore('comp', state_constructor, get_state, set_states):
     #     prev_info = run_comparisons(runner, agents)
+    all_aids = list(range(len(agents)))
     while step < routine_config.MAX_STEPS:
         # train imaginary agents
         for _ in range(routine_config.n_imaginary_runs):
@@ -84,24 +85,18 @@ def train(
                         env_outputs = runner.run(
                             routine_config.n_steps, 
                             agents, collects, 
-                            [0, 1], [0, 1], False)
+                            all_aids, all_aids, False)
                 elif routine_config.imaginary_rollout == 'uni':
-                    with StateStore('uni1', 
-                        state_constructor, 
-                        get_state, set_states
-                    ):
-                        env_outputs = runner.run(
-                            routine_config.n_steps, 
-                            agents, collects, 
-                            [0], [0], False)
-                    with StateStore('uni2', 
-                        state_constructor, 
-                        get_state, set_states
-                    ):
-                        env_outputs = runner.run(
-                            routine_config.n_steps, 
-                            agents, collects, 
-                            [1], [1], False)
+                    env_outputs = [None for _ in all_aids]
+                    for i in all_aids:
+                        with StateStore(f'uni{i}', 
+                            state_constructor, 
+                            get_state, set_states
+                        ):
+                            env_outputs[i] = runner.run(
+                                routine_config.n_steps, 
+                                agents, collects, 
+                                [i], [i], False)[i]
                 else:
                     raise NotImplementedError
             for i, buffer in enumerate(buffers):
@@ -154,9 +149,9 @@ def train(
         step += steps_per_iter
 
         time2record = to_record(step)
-        if time2record:
-            with StateStore('comp', state_constructor, get_state, set_states):
-                before_info = run_comparisons(runner, agents)
+        # if time2record:
+        #     with StateStore('comp', state_constructor, get_state, set_states):
+        #         before_info = run_comparisons(runner, agents)
 
         # train agents
         for agent in agents:
@@ -169,9 +164,9 @@ def train(
             agent.set_env_step(step)
             agent.trainer.sync_imaginary_params()
 
-        if time2record:
-            with StateStore('comp', state_constructor, get_state, set_states):
-                after_info = run_comparisons(runner, agents)
+        # if time2record:
+        #     with StateStore('comp', state_constructor, get_state, set_states):
+        #         after_info = run_comparisons(runner, agents)
 
         if time2record:
             # info = {
@@ -208,7 +203,6 @@ def train(
 def main(configs, train=train):
     config = configs[0]
     seed = config.get('seed')
-    do_logging(f'seed={seed}')
     set_seed(seed)
 
     configure_gpu()

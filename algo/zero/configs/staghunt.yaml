@@ -1,6 +1,7 @@
 ---
 algorithm: &algo zero
 name: zero
+info: ppo
 
 precision: 32
 

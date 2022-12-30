@@ -74,7 +74,7 @@ loss:
     c_clip: 1
     rho_clip: 1
     adv_type: vtrace
-    norm_adv: False
+    norm_adv: True
 
     prnn_bptt: 10
     vrnn_bptt: 10

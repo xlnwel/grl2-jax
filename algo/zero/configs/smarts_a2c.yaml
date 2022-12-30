@@ -15,8 +15,8 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 5e7
-    n_steps: &nsteps 50
+    MAX_STEPS: 5e6
+    n_steps: &nsteps 20
     LOG_PERIOD: 5e4
     EVAL_PERIOD: null
 
@@ -29,7 +29,7 @@ routine:
 
 env:
     env_name: &env_name smarts
-    n_runners: &nrunners 32
+    n_runners: &nrunners 16
     n_envs: &nenvs 1
     timeout_done: &td False
 
@@ -79,7 +79,7 @@ loss:
     c_clip: 1
     rho_clip: 1
     adv_type: vtrace
-    norm_adv: False
+    norm_adv: True
 
     prnn_bptt: 10
     vrnn_bptt: 10
@@ -115,7 +115,7 @@ trainer:
 
     theta_opt:
         opt_name: adam
-        lr: 1e-3
+        lr: 5e-4
         clip_norm: .5
         eps: 1e-5
 
