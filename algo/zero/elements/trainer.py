@@ -11,7 +11,7 @@ from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.timer import Timer
-from tools.utils import flatten_dict
+from tools.utils import flatten_dict, prefix_name
 
 
 def construct_fake_data(env_stats, aid):
@@ -49,11 +49,24 @@ class Trainer(TrainerBase):
     def build_optimizers(self):
         theta = self.model.theta.copy()
         theta.pop('imaginary')
-        self.opts.theta, self.params.theta = optimizer.build_optimizer(
-            params=theta, 
-            **self.config.theta_opt, 
-            name='theta'
-        )
+        if self.config.get('theta_opt'):
+            self.opts.theta, self.params.theta = optimizer.build_optimizer(
+                params=theta, 
+                **self.config.theta_opt, 
+                name='theta'
+            )
+        else:
+            self.params.theta = AttrDict()
+            self.opts.policy, self.params.theta.policy = optimizer.build_optimizer(
+                params=theta.policy, 
+                **self.config.policy_opt, 
+                name='policy'
+            )
+            self.opts.value, self.params.theta.value = optimizer.build_optimizer(
+                params=theta.value, 
+                **self.config.value_opt, 
+                name='value'
+            )
         self.imaginary_opt_state = self.params.theta
 
     def compile_train(self):
@@ -138,30 +151,56 @@ class Trainer(TrainerBase):
         data, 
     ):
         do_logging('train is traced', backtrack=4)
-        theta, opt_state, stats = optimizer.optimize(
-            self.loss.loss, 
-            theta, 
-            opt_state, 
-            kwargs={
-                'rng': rng, 
-                'data': data, 
-            }, 
-            opt=self.opts.theta, 
-            name='train/theta'
-        )
+        if self.config.get('theta_opt'):
+            theta, opt_state, stats = optimizer.optimize(
+                self.loss.loss, 
+                theta, 
+                opt_state, 
+                kwargs={
+                    'rng': rng, 
+                    'data': data, 
+                }, 
+                opt=self.opts.theta, 
+                name='train/theta'
+            )
+        else:
+            theta.value, opt_state.value, stats = optimizer.optimize(
+                self.loss.value_loss, 
+                theta.value, 
+                opt_state.value, 
+                kwargs={
+                    'rng': rng, 
+                    'data': data, 
+                }, 
+                opt=self.opts.value, 
+                name='train/value'
+            )
+            theta.policy, opt_state.policy, stats = optimizer.optimize(
+                self.loss.policy_loss, 
+                theta.policy, 
+                opt_state.policy, 
+                kwargs={
+                    'rng': rng, 
+                    'data': data, 
+                    'stats': stats
+                }, 
+                opt=self.opts.policy, 
+                name='train/policy'
+            )
+            stats = prefix_name(stats, 'train')
 
         return theta, opt_state, stats
 
-    # def haiku_tabulate(self, data=None):
-    #     rng = jax.random.PRNGKey(0)
-    #     if data is None:
-    #         data = construct_fake_data(self.env_stats, 0)
-    #     theta = self.model.theta.copy()
-    #     is_imaginary = theta.pop('imaginary')
-    #     print(hk.experimental.tabulate(self.theta_train)(
-    #         theta, rng, self.params.theta, data
-    #     ))
-    #     breakpoint()
+    def haiku_tabulate(self, data=None):
+        rng = jax.random.PRNGKey(0)
+        if data is None:
+            data = construct_fake_data(self.env_stats, 0)
+        theta = self.model.theta.copy()
+        is_imaginary = theta.pop('imaginary')
+        print(hk.experimental.tabulate(self.theta_train)(
+            theta, rng, self.params.theta, data
+        ))
+        breakpoint()
 
 
 create_trainer = partial(create_trainer,

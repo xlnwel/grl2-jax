@@ -169,6 +169,19 @@ def make_smac2(config):
 
     return env
 
+
+def make_ma_mujoco(config):
+    from env.multiagent_mujoco.mujoco_multi import MujocoMulti
+    config = _change_env_name(config)
+    config.env_args.scenario = f'{config.env_name}-v2'
+    config.env_args.episode_limit = config.max_episode_steps
+    env = MujocoMulti(**config)
+    env = wrappers.DataProcess(env)
+    env = wrappers.MASimEnvStats(env)
+
+    return env
+
+
 def make_overcooked(config):
     assert 'overcooked' in config['env_name'], config['env_name']
     from env.overcooked import Overcooked
@@ -241,8 +254,8 @@ def make_unity(config):
 
 if __name__ == '__main__':
     from tools import yaml_op
-    config = yaml_op.load_config('algo/zero/configs/mpe')
-    env = make_mpe(config.env)
+    config = yaml_op.load_config('algo/zero/configs/ma_mujoco')
+    env = make_ma_mujoco(config.env)
     print(env.action_shape)
     for _ in range(1):
         a = env.random_action()

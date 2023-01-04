@@ -1,7 +1,6 @@
 ---
 algorithm: &algo zero
 name: zero
-aid: 0
 info: ppo
 
 precision: 32
@@ -15,12 +14,12 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 5e6
-    n_steps: &nsteps 50
-    LOG_PERIOD: 5e4
+    MAX_STEPS: 1e7
+    n_steps: &nsteps 100
+    LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
-    RECORD_VIDEO: True
+    RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
@@ -28,19 +27,14 @@ routine:
     imaginary_rollout: sim
 
 env:
-    env_name: &env_name smarts
-    n_runners: &nrunners 32
-    n_envs: &nenvs 1
-    timeout_done: &td False
-
-    scenario: intersections/4lane
-
+    env_name: &env_name ma_mujoco-HalfCheetah
+    n_runners: &nrunners 1
+    n_envs: &nenvs 40
     max_episode_steps: 1000
-    collision_penalty: -50
-    offroad_penalty: -50
-    goal_reward: 50
-
-    uid2aid: [0, 0, 0, 0]
+    timeout_done: &td False
+    env_args:
+        agent_conf: 2x3
+        agent_obsk: 0
 
 agent: {}
 
@@ -64,6 +58,7 @@ model:
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
+        init_std: .35
     value:
         nn_id: value
         units_list: [64, 64]
@@ -78,7 +73,7 @@ loss:
     target_type: gae
     c_clip: 1
     rho_clip: 1
-    adv_type: gae
+    adv_type: vtrace
     norm_adv: True
 
     prnn_bptt: 10
@@ -100,7 +95,7 @@ loss:
         gamma: *gamma
         lam: &lam .95
         pg_coef: 1
-        entropy_coef: .01
+        entropy_coef: .001
         value_coef: 1
 
 trainer:
@@ -108,15 +103,20 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 4
-    n_imaginary_epochs: 4
+    n_epochs: &nepochs 5
+    n_imaginary_epochs: 5
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 
-    theta_opt:
+    policy_opt:
         opt_name: adam
-        lr: 5e-4
-        clip_norm: .5
+        lr: 5e-6
+        clip_norm: 10
+        eps: 1e-5
+    value_opt:
+        opt_name: adam
+        lr: 5e-3
+        clip_norm: 10
         eps: 1e-5
 
 actor:
@@ -152,6 +152,7 @@ buffer:
         - discount
         - reset
         - mu_logprob
-        - mu_logits
+        - mu_loc
+        - mu_scale
         - state_reset
         - state

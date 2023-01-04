@@ -1,0 +1,100 @@
+---
+algorithm: &algo model
+name: model
+
+precision: 32
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be re-specified in the entry point
+root_dir: *algo
+model_name: *algo
+
+routine:
+    algorithm: *algo
+
+    MAX_STEPS: 1e8
+    n_steps: &nsteps 1
+    LOG_PERIOD: 2e5
+    EVAL_PERIOD: null
+
+    run_with_future_opponents: True
+    n_imaginary_runs: 1
+    n_imaginary_envs: 64
+    n_imaginary_steps: 8
+
+env:
+    env_name: &env_name magw-escalatioin
+    n_runners: &nrunners 1
+    n_envs: &nenvs 32
+    max_episode_steps: 50
+    reward_scale: .1
+    population_size: 1
+
+    uid2aid: [0, 1]
+
+agent: {}
+
+monitor:
+    use_tensorboard: True
+
+strategy:
+    algorithm: *algo
+    train_loop: {}
+
+model:
+    aid: 0
+    n_elites: 1
+    rn_std: .1
+
+    emodels:
+        nn_id: emodels
+        n: &n 1
+        one_hot: True
+        units_list: [256, 256]
+        activation: relu
+        norm: null
+    reward:
+        nn_id: reward
+        one_hot: True
+        out_size: 1
+        units_list: [256, 256]
+        activation: relu
+        out_scale: .01
+
+loss:
+    model_loss_type: discrete
+    n: *n
+
+trainer:
+    algorithm: *algo
+    aid: 0
+    n_runners: *nrunners
+    n_envs: *nenvs
+    n_epochs: &nepochs 50
+    timeout_done: &td True
+
+    model_opt:
+        opt_name: adam
+        lr: 5e-4
+        clip_norm: null
+        eps: 1e-5
+
+actor: {}
+
+
+buffer:
+    type: ac
+
+    n_runners: *nrunners
+    n_envs: *nenvs
+    n_steps: *nsteps
+    batch_size: 128
+
+    auto_state: False
+
+    sample_keys: 
+        - obs
+        - action
+        - reward
+        - reset

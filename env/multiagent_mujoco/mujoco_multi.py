@@ -73,6 +73,7 @@ class MujocoMulti(MultiAgentEnv):
 
         # load scenario from script
         self.episode_limit = self.args.episode_limit
+        self.max_episode_steps = self.args.episode_limit
 
         self.env_version = kwargs["env_args"].get("env_version", 2)
         if self.env_version == 2:
@@ -100,14 +101,34 @@ class MujocoMulti(MultiAgentEnv):
         self.n = self.n_agents
         self.observation_space = [Box(low=np.array([-10]*self.n_agents), high=np.array([10]*self.n_agents)) for _ in range(self.n_agents)]
 
+        self.obs_shape = [{
+            'obs': (self.obs_size, ), 
+            'global_state': (self.get_state_size(), )
+        } for _ in range(self.n)]
+        self.obs_dtype = [{
+            'obs': np.float32, 
+            'global_state': np.float32
+        } for _ in range(self.n)]
+        self.uid2aid = list(range(self.n_agents))
+
         acdims = [len(ap) for ap in self.agent_partitions]
         self.action_space = tuple([Box(self.env.action_space.low[sum(acdims[:a]):sum(acdims[:a+1])],
                                        self.env.action_space.high[sum(acdims[:a]):sum(acdims[:a+1])]) for a in range(self.n_agents)])
-        pass
+        
+        self.reward_range = None
+        self.metadata = None
+        self._score = np.zeros(self.n)
+        self._dense_score = np.zeros(self.n)
+        self._epslen = 0
+
+    def random_action(self):
+        action = [a.sample() for a in self.action_space]
+        return action
 
     def step(self, actions):
 
         # we need to map actions back into MuJoCo action space
+        actions = np.reshape(actions, (self.n, -1))
         env_actions = np.zeros((sum([self.action_space[i].low.shape[0] for i in range(self.n_agents)]),)) + np.nan
         for a, partition in enumerate(self.agent_partitions):
             for i, body_part in enumerate(partition):
@@ -119,24 +140,34 @@ class MujocoMulti(MultiAgentEnv):
             raise Exception("FATAL: At least one env action is undefined!")
 
         obs_n, reward_n, done_n, info_n = self.wrapped_env.step(env_actions)
+        reward = [np.ones(1) * reward_n for _ in range(self.n)]
         self.steps += 1
+        self._score += reward_n
+        self._dense_score += reward_n
+        self._epslen = self.steps
 
-        info = {}
-        info.update(info_n)
+        info = {
+            'score': self._score, 
+            'dense_score': self._dense_score, 
+            'epslen': self._epslen, 
+            'game_over': self._epslen == self.max_episode_steps
+        }
 
-        if done_n:
-            if self.steps < self.episode_limit:
-                info["episode_limit"] = False   # the next state will be masked out
-            else:
-                info["episode_limit"] = True    # the next state will not be masked out
+        if done_n and self._epslen == self.max_episode_steps:
+            done = [np.zeros(1) for _ in range(self.n)]
+        else:
+            done = [np.ones(1) * done_n for _ in range(self.n)]
 
-        return reward_n, done_n, info
+        return self.get_obs(), reward, done, info
 
     def get_obs(self):
         """ Returns all agent observat3ions in a list """
         obs_n = []
         for a in range(self.n_agents):
-            obs_n.append(self.get_obs_agent(a))
+            obs_n.append({
+                'obs': np.expand_dims(self.get_obs_agent(a), 0), 
+                'global_state': np.expand_dims(self.get_state(), 0)
+            })
         return obs_n
 
     def get_obs_agent(self, agent_id):
@@ -188,11 +219,18 @@ class MujocoMulti(MultiAgentEnv):
     def reset(self, **kwargs):
         """ Returns initial observations and states"""
         self.steps = 0
+        self._score = np.zeros(self.n)
+        self._dense_score = np.zeros(self.n)
+        self._epslen = self.steps
         self.timelimit_env.reset()
         return self.get_obs()
 
     def render(self, **kwargs):
-        self.env.render(**kwargs)
+        self.env.render()
+    
+    def get_screen(self):
+        img = self.env.render(mode='rgb_array')
+        return img
 
     def close(self):
         raise NotImplementedError
