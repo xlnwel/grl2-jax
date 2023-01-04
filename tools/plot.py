@@ -64,7 +64,7 @@ def plot_data(
             y = None
         else:
             # return
-            raise ValueError(f'Error data dimension: {data.shape}')
+            raise ValueError(f'Error data dimension: {y} {data.shape}')
     assert isinstance(data, pd.DataFrame), type(data)
     
     if fig is None:

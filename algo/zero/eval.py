@@ -115,13 +115,12 @@ def plot(data: dict, outdir: str, figname: str):
     #     title=f'{figname}-reward', avg_data=False)
 
 
-def main(configs, n, record=False, size=(128, 128), video_len=1000, 
+def main(configs, n, record=False, size=(256, 256), video_len=1000, 
         fps=30, out_dir=None, info=''):
     configure_gpu()
 
     configs = [dict2AttrDict(config, to_copy=True) for config in configs]
     config = configs[0]
-    print('config', config.root_dir, config.model_name)
 
     # build environment
     use_ray = config.env.get('n_runners', 0) > 1
@@ -140,7 +139,6 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         make_env = None
     
     env = create_env(config.env, env_fn=make_env)
-    assert env.n_envs == 1, env.n_envs
     env_stats = env.stats()
 
     # build acting agents
@@ -170,7 +168,6 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
     do_logging(f'\tTime: {time.time()-start:.3g}', color='cyan')
 
     if out_dir is None:
-        print('model name', config.model_name)
         model_name = get_basic_model_name(config.model_name)
         do_logging(f'model name: {model_name}')
         filename = f'{config.root_dir}/{model_name}'

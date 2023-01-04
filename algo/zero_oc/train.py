@@ -58,8 +58,28 @@ def train(
         start=step, 
         init_next=step != 0, 
         final=routine_config.MAX_STEPS)
+    to_eval = Every(
+        routine_config.EVAL_PERIOD, 
+        start=step, 
+        final=routine_config.MAX_STEPS)
     rt = Timer('run')
     tt = Timer('train')
+
+    def evaluate_agent(step):
+        if to_eval(step):
+            eval_main = pkg.import_main('eval', config=config)
+            eval_main = ray.remote(eval_main)
+            p = eval_main.remote(
+                configs, 
+                routine_config.N_EVAL_EPISODES, 
+                record=routine_config.RECORD_VIDEO, 
+                fps=1, 
+                info=step // routine_config.EVAL_PERIOD * routine_config.EVAL_PERIOD
+            )
+            return p
+        else:
+            return None
+    eval_process = evaluate_agent(step)
 
     for agent in agents:
         agent.store(**{'time/log_total': 0, 'time/log': 0})
@@ -113,36 +133,21 @@ def train(
         for b in buffers:
             assert b.size() == 0, b.size()
         with rt:
-            all_data = [[None, None], [None, None]]
-            with StateStore('real1', 
-                state_constructor_with_half_envs, 
-                get_state, set_states
-            ):
-                env_outputs = runner.run(
-                    routine_config.n_steps, 
-                    agents, collects, 
-                    [1], [0, 1])
-            for i, buffer in enumerate(buffers):
-                data = buffer.get_data({
-                    'state_reset': env_outputs[i].reset
-                })
-                all_data[i][i] = data
-            with StateStore('real2', 
-                state_constructor_with_half_envs, 
-                get_state, set_states
-            ):
-                env_outputs = runner.run(
-                    routine_config.n_steps, 
-                    agents, collects, 
-                    [0], [0, 1])
-            for i, buffer in enumerate(buffers):
-                data = buffer.get_data({
-                    'state_reset': env_outputs[i].reset
-                })
-                all_data[i][1-i] = data
-        for data, buffer in zip(all_data, buffers):
-            for d in data:
-                buffer.move_to_queue(d)
+            for i in all_aids:
+                img_aids = [aid for aid in all_aids if aid != i]
+                with StateStore(f'real{i}', 
+                    state_constructor_with_half_envs, 
+                    get_state, set_states
+                ):
+                    env_outputs = runner.run(
+                        routine_config.n_steps, 
+                        agents, collects, 
+                        img_aids, all_aids)
+                for i, buffer in enumerate(buffers):
+                    data = buffer.get_data({
+                        'state_reset': env_outputs[i].reset
+                    })
+                    buffer.move_to_queue(data)
 
         for b in buffers:
             assert b.ready(), (b.size(), len(b._queue))
@@ -186,6 +191,15 @@ def train(
             # else:
             #     diff_info = info
             # prev_info = after_info
+            if eval_process is not None:
+                scores, epslens, video = ray.get(eval_process)
+                for agent in agents:
+                    agent.store(**{
+                        'metrics/eval_score': np.mean(scores), 
+                        'metrics/eval_epslen': np.mean(epslens), 
+                    })
+                agent.video_summary(video, step=step, fps=1)
+            eval_process = evaluate_agent(step)
             with Timer('log'):
                 for agent in agents:
                     agent.store(**{

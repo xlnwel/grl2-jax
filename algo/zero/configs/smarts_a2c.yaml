@@ -75,10 +75,10 @@ model:
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
-    adv_type: vtrace
+    adv_type: gae
     norm_adv: True
 
     prnn_bptt: 10

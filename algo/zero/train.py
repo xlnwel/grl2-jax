@@ -50,8 +50,28 @@ def train(
         start=step, 
         init_next=step != 0, 
         final=routine_config.MAX_STEPS)
+    to_eval = Every(
+        routine_config.EVAL_PERIOD, 
+        start=step, 
+        final=routine_config.MAX_STEPS)
     rt = Timer('run')
     tt = Timer('train')
+
+    def evaluate_agent(step):
+        if to_eval(step):
+            eval_main = pkg.import_main('eval', config=config)
+            eval_main = ray.remote(eval_main)
+            p = eval_main.remote(
+                configs, 
+                routine_config.N_EVAL_EPISODES, 
+                record=routine_config.RECORD_VIDEO, 
+                fps=1, 
+                info=step // routine_config.EVAL_PERIOD * routine_config.EVAL_PERIOD
+            )
+            return p
+        else:
+            return None
+    eval_process = evaluate_agent(step)
 
     for agent in agents:
         agent.store(**{'time/log_total': 0, 'time/log': 0})
@@ -177,6 +197,15 @@ def train(
             # else:
             #     diff_info = info
             # prev_info = after_info
+            if eval_process is not None:
+                scores, epslens, video = ray.get(eval_process)
+                for agent in agents:
+                    agent.store(**{
+                        'metrics/eval_score': np.mean(scores), 
+                        'metrics/eval_epslen': np.mean(epslens), 
+                    })
+                agent.video_summary(video, step=step, fps=1)
+            eval_process = evaluate_agent(step)
             with Timer('log'):
                 for agent in agents:
                     agent.store(**{
@@ -214,7 +243,7 @@ def main(configs, train=train):
     model_name = config.model_name
     for i, c in enumerate(configs):
         assert c.aid == i, (c.aid, i)
-        if f'a{i}' in model_name:
+        if model_name.endswith(f'a{i}'):
             new_model_name = model_name
         else:
             new_model_name = '/'.join([model_name, f'a{i}'])

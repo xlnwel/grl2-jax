@@ -225,7 +225,7 @@ class Recorder:
 
         vals = []
         key_lens = [len(key) for key in self._headers if is_print_keys(key)]
-        val_lens = [len(get_val_str(self._current_row[key]) )
+        val_lens = [len(get_val_str(self._current_row.get(key, "")))
             for key in self._headers if is_print_keys(key)]
         max_key_len = max(15, max(key_lens))
         max_val_len = max(35, max(val_lens))

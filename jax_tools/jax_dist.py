@@ -186,6 +186,6 @@ class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
             }
         else:
             return {
-                f'{prefix}_mean': self._loc, 
-                f'{prefix}_std': self._scale_diag, 
+                f'{prefix}_loc': self._loc, 
+                f'{prefix}_scale': self._scale_diag, 
             }

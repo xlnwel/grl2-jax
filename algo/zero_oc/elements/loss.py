@@ -142,7 +142,6 @@ def compute_actor_loss(
         raw_pg_loss = jax_loss.pg_loss(
             advantage=stats.advantage, 
             logprob=stats.pi_logprob, 
-            ratio=stats.ratio, 
         )
     elif config.pg_type == 'ppo':
         ppo_pg_loss, ppo_clip_loss, raw_pg_loss = \

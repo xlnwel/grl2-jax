@@ -14,7 +14,7 @@ from core.typing import dict2AttrDict, get_basic_model_name
 from tools.plot import plot_data, plot_data_dict
 from tools.ray_setup import sigint_shutdown_ray
 from tools.graph import save_video
-from tools.utils import batch_dicts
+from tools.utils import batch_dicts, flatten_dict
 from tools import pkg
 from env.func import create_env
 from env.typing import EnvOutput
@@ -53,17 +53,19 @@ def evaluate(
                 for i in range(len(frames)):
                     frames[i].append(img[i])
 
-        acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
+        acts, stats = zip(*[a(eo, evaluation=True) for a, eo in zip(agents, env_outputs)])
 
         new_stats = {}
         for i, s in enumerate(stats):
             for k, v in s.items():
                 new_stats[f'{k}_{i}'] = v
-        stats_list.append(new_stats)
 
         action = np.concatenate(acts, axis=-1)
         env_output = env.step(action)
         env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
+        for i, eo in enumerate(env_outputs):
+            new_stats[f'reward_{i}'] = eo.reward
+        stats_list.append(new_stats)
 
         done = env.game_over()
         done_env_ids = [i for i, (d, pd) in 
@@ -103,20 +105,21 @@ def evaluate(
 
 
 def plot(data: dict, outdir: str, figname: str):
-    data = {k: np.squeeze(v) for k, v in data.items()}
-    data = {k: np.swapaxes(v, 0, 1) for k, v in data.items() if v.ndim == 2}
+    data = flatten_dict(data)
+    data = {k: np.squeeze(v) for k, v in data.items() if v is not None}
+    # data = {k: np.swapaxes(v, 0, 1) for k, v in data.items() if v.ndim == 2}
     plot_data_dict(data, outdir=outdir, figname=figname)
     # reward = data['reward']
     # plot_data(reward, y='reward', outdir=outdir, 
     #     title=f'{figname}-reward', avg_data=False)
 
 
-def main(configs, n, record=False, size=(128, 128), video_len=1000, 
+def main(configs, n, record=False, size=(256, 256), video_len=1000, 
         fps=30, out_dir=None, info=''):
     configure_gpu()
 
-    for config in configs:
-        config = dict2AttrDict(config, to_copy=True)
+    configs = [dict2AttrDict(config, to_copy=True) for config in configs]
+    config = configs[0]
 
     # build environment
     use_ray = config.env.get('n_runners', 0) > 1
@@ -135,7 +138,6 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         make_env = None
     
     env = create_env(config.env, env_fn=make_env)
-    assert env.n_envs == 1, env.n_envs
     env_stats = env.stats()
 
     # build acting agents

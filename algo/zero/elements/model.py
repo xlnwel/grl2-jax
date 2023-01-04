@@ -102,7 +102,7 @@ class Model(ModelBase):
 
         if evaluation:
             action = act_dist.mode()
-            stats['action'] = action
+            stats = {}
         else:
             action, logprob = act_dist.sample_and_log_prob(seed=rngs[1])
             value, value_state = self.modules.value(

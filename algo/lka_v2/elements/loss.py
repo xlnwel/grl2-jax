@@ -89,20 +89,19 @@ class Loss(LossBase):
         )
 
         kl_stats = dict(
-            logp=data.mu_logprob, 
-            logq=stats.pi_logprob, 
+            logp=stats.pi_logprob, 
+            logq=data.mu_logprob, 
             sample_prob=data.mu_logprob, 
-            p_logits=data.mu_logits, 
-            q_logits=stats.pi_logits, 
-            p_mean=data.mu_mean,  
-            p_std=data.mu_std, 
-            q_mean=stats.pi_mean,  
-            q_std=stats.pi_std, 
+            p_logits=stats.pi_logits, 
+            q_logits=data.mu_logits, 
+            p_loc=stats.pi_loc,  
+            p_scale=stats.pi_scale, 
+            q_loc=data.mu_loc,  
+            q_scale=data.mu_scale, 
             action_mask=data.action_mask, 
             sample_mask=data.sample_mask, 
             n=data.n
         )
-        kl_stats = jax_utils.tree_map(lambda x: jnp.split(x, 2)[1], kl_stats)
         stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
             kl_type=self.config.kl_type, 
             kl_coef=self.config.kl_coef, 
@@ -142,7 +141,6 @@ def compute_actor_loss(
         raw_pg_loss = jax_loss.pg_loss(
             advantage=stats.advantage, 
             logprob=stats.pi_logprob, 
-            ratio=stats.ratio, 
         )
     elif config.pg_type == 'ppo':
         ppo_pg_loss, ppo_clip_loss, raw_pg_loss = \
