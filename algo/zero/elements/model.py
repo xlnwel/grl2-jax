@@ -94,7 +94,7 @@ class Model(ModelBase):
         if self.is_action_discrete:
             stats = {'mu_logits': act_dist.logits}
         else:
-            loc = act_dist.loc()
+            loc = act_dist.loc
             stats = {
                 'mu_loc': loc,
                 'mu_scale': act_dist.scale_diag, 

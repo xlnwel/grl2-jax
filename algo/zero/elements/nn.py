@@ -17,7 +17,7 @@ class Policy(hk.Module):
         is_action_discrete, 
         action_dim, 
         out_act=None, 
-        init_std=1, 
+        init_std=1., 
         name='policy', 
         **config
     ):

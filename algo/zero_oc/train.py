@@ -198,7 +198,8 @@ def train(
                         'metrics/eval_score': np.mean(scores), 
                         'metrics/eval_epslen': np.mean(epslens), 
                     })
-                agent.video_summary(video, step=step, fps=1)
+                if video is not None:
+                    agent.video_summary(video, step=step, fps=1)
             eval_process = evaluate_agent(step)
             with Timer('log'):
                 for agent in agents:
