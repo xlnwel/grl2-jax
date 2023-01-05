@@ -83,7 +83,6 @@ class ElementsBuilder:
         env_stats = dict2AttrDict(env_stats or self.env_stats)
         model = constructors.model(
             config.model, env_stats, name=config.name)
-        
         return model
 
     def build_actor(
@@ -111,7 +110,7 @@ class ElementsBuilder:
         loss = constructors.loss(config.loss, model, name=config.name)
         trainer = constructors.trainer(
             config.trainer, env_stats, loss, name=config.name)
-        
+
         return trainer
     
     def build_buffer(

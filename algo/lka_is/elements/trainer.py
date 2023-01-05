@@ -80,6 +80,12 @@ class Trainer(TrainerBase):
         self.haiku_tabulate()
 
     def train(self, data: AttrDict):
+        print("*"*20)
+        print(data.__class__)
+        # print(data)
+        print(data["reward"].shape)
+        print("="*20)
+        assert 0
         theta = self.model.theta.copy()
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == False, is_imaginary
@@ -204,7 +210,7 @@ class Trainer(TrainerBase):
 
 
 create_trainer = partial(create_trainer,
-    name='zero', trainer_cls=Trainer
+    name='lka_is', trainer_cls=Trainer
 )
 
 

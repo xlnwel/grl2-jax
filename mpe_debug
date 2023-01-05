@@ -2,7 +2,7 @@
 
 export PYTHONPATH=.
 
-algos=(zero)
+algos=(lka_is)
 suite=mpe
 # envs=(escalation staghunt harvest)
 # envs=(staghunt escalation)
@@ -21,6 +21,7 @@ date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
+na=3
 # for x in $(seq 1 1); do
 #     shift
 # done
@@ -46,9 +47,9 @@ for e in "${envs[@]}"; do
                     env="${suite}-${e}"
                     if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
                         gpu=$(($i % $gpus))
-                        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s --gpu $gpu -na 2 -kw $kws &"
+                        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s --gpu $gpu -na $na -kw $kws &"
                     else
-                        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s -na 2 -kw $kws &"
+                        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s -na $na -kw $kws &"
                     fi
                     echo $py_script
                     eval $py_script

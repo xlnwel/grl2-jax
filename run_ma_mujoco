@@ -5,7 +5,9 @@ export PYTHONPATH=.
 algos=(zero)
 suite=ma_mujoco
 # envs=(escalation staghunt harvest)
-envs=(HalfCheetah)
+# envs=(HalfCheetah)
+envs=(Ant)
+# envs=(Hopper)
 e="${suite}"
 configs=(
     "${e}"
@@ -17,6 +19,7 @@ configs=(
     "${e}"
     "${e}"
 )
+na=3
 args1=(.2 .35)
 args2=(32 64 64 32 64 64 64 64)
 args3=(20 10 20 20 10 20 50 50)
@@ -55,9 +58,9 @@ for e in "${envs[@]}"; do
                 env="${suite}-${e}"
                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
                     gpu=$(($i % $gpus))
-                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na 2 -kw $kws &"
+                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
                 else
-                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na 2 -kw $kws &"
+                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
                 fi
                 echo $py_script
                 eval $py_script

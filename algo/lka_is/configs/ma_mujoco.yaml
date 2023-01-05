@@ -1,6 +1,6 @@
 ---
-algorithm: &algo zero
-name: zero
+algorithm: &algo lka_is
+name: lka_is
 info: ppo
 
 precision: 32
