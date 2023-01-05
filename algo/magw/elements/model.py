@@ -131,11 +131,11 @@ class Model(ModelBase):
     def next_obs(self, params, rng, obs, action, evaluation):
         rngs = random.split(rng, 2)
         dist = self.modules.model(params, rngs[0], obs, action)
-        next_obs = dist.mode() if evaluation else dist.sample(rng=rngs[1])
+        next_obs = dist.mode() if evaluation else dist.sample(seed=rngs[1])
         
         stats = dict2AttrDict(dist.get_stats('model'))
-        action2 = action[..., ::-1, :]
-        action = jnp.stack([action, action2], -2)
+        action2 = action[..., ::-1]
+        action = jnp.stack([action, action2], -1)
         action_vec = jnp.reshape(ACTIONS[action], (-1, 2, 4))
         exp_obs = jnp.clip(obs[..., :4] + action_vec, 0, 4)
         stats.oa_consistency = jnp.mean(next_obs[..., :4] == exp_obs)

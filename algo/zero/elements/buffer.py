@@ -248,12 +248,14 @@ def compute_gae(
 ):
     if reset is not None:
         assert next_value is not None, f'next_value is required when reset is given'
+    if next_value.ndim < value.ndim:
+        next_value = np.expand_dims(next_value, 1)
+        next_value = np.concatenate([value[:, 1:], next_value], 1)
     assert reward.shape == discount.shape == value.shape == next_value.shape, (reward.shape, discount.shape, value.shape, next_value.shape)
     assert np.all(discount == 1), discount
     delta = (reward + discount * gamma * next_value - value).astype(np.float32)
     discount = (discount if reset is None else (1 - reset)) * gae_discount
     assert np.all(discount[:, :-1] == gae_discount), discount
-    assert np.all(discount[:, -1] == 0), discount
     next_adv = 0
     advs = np.zeros_like(reward, dtype=np.float32)
     for i in reversed(range(advs.shape[1])):

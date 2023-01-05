@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict
 from jax_tools import jax_loss, jax_math, jax_utils
+from tools.rms import denormalize, normalize
 from tools.utils import prefix_name
 from .utils import compute_values, compute_policy
 
@@ -53,33 +54,37 @@ class Loss(LossBase):
                 seq_axis=1, 
             )
         stats = record_policy_stats(data, stats, act_dist)
-
-        v_target, stats.raw_adv = jax_loss.compute_target_advantage(
-            config=self.config, 
-            reward=data.reward, 
-            discount=data.discount, 
-            reset=data.reset, 
-            value=lax.stop_gradient(stats.value), 
-            next_value=next_value, 
-            ratio=lax.stop_gradient(stats.ratio), 
-            gamma=stats.gamma, 
-            lam=stats.lam, 
-            axis=1
-        )
-        stats.v_target = lax.stop_gradient(v_target)
-        stats = record_target_adv(stats)
-
-        if self.config.norm_adv:
-            stats.advantage = jax_math.standard_normalization(
-                stats.raw_adv, 
-                zero_center=self.config.get('zero_center', True), 
-                mask=data.sample_mask, 
-                n=data.n, 
-                epsilon=self.config.get('epsilon', 1e-8), 
-            )
+        
+        if 'advantage' in data:
+            stats.advantage = data.pop('advantage')
+            stats.v_target = data.pop('v_target')
         else:
-            stats.advantage = stats.raw_adv
-        stats.advantage = lax.stop_gradient(stats.advantage)
+            v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+                config=self.config, 
+                reward=data.reward, 
+                discount=data.discount, 
+                reset=data.reset, 
+                value=lax.stop_gradient(stats.value), 
+                next_value=next_value, 
+                ratio=lax.stop_gradient(stats.ratio), 
+                gamma=stats.gamma, 
+                lam=stats.lam, 
+                axis=1
+            )
+            stats.v_target = lax.stop_gradient(v_target)
+            stats = record_target_adv(stats)
+
+            if self.config.norm_adv:
+                stats.advantage = jax_math.standard_normalization(
+                    stats.raw_adv, 
+                    zero_center=self.config.get('zero_center', True), 
+                    mask=data.sample_mask, 
+                    n=data.n, 
+                    epsilon=self.config.get('epsilon', 1e-8), 
+                )
+            else:
+                stats.advantage = stats.raw_adv
+            stats.advantage = lax.stop_gradient(stats.advantage)
 
         actor_loss, stats = compute_actor_loss(
             self.config, 
@@ -115,7 +120,78 @@ class Loss(LossBase):
         loss = actor_loss + value_loss + stats.kl_loss
         stats.loss = loss
 
-        stats = prefix_name(stats, name)
+        return loss, stats
+
+    def value_loss(
+        self, 
+        theta, 
+        rng, 
+        data, 
+        name='train/value', 
+    ):
+        rngs = random.split(rng, 2)
+        stats = dict2AttrDict(self.config.stats, to_copy=True)
+
+        if data.action_mask is not None:
+            stats.n_avail_actions = jnp.sum(data.action_mask, -1)
+        if data.sample_mask is not None:
+            stats.n_alive_units = jnp.sum(data.sample_mask, -1)
+
+        stats.value, next_value = compute_values(
+            self.modules.value, 
+            theta, 
+            rngs[0], 
+            data.global_state, 
+            data.next_global_state, 
+            data.state_reset, 
+            None if data.state is None else data.state.value, 
+            bptt=self.config.vrnn_bptt, 
+            seq_axis=1, 
+        )
+        if self.config.popart:
+            value = lax.stop_gradient(denormalize(
+                stats.value, data.popart_mean, data.popart_std))
+            next_value = denormalize(next_value, data.popart_mean, data.popart_std)
+        else:
+            value = lax.stop_gradient(stats.value)
+
+        if 'advantage' in data:
+            stats.advantage = data.pop('advantage')
+            stats.v_target = data.pop('v_target')
+        else:
+            v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+                config=self.config, 
+                reward=data.reward, 
+                discount=data.discount, 
+                reset=data.reset, 
+                value=value, 
+                next_value=next_value, 
+                ratio=lax.stop_gradient(stats.ratio), 
+                gamma=stats.gamma, 
+                lam=stats.lam, 
+                axis=1
+            )
+            stats.v_target = lax.stop_gradient(v_target)
+            stats = record_target_adv(stats)
+
+            if self.config.norm_adv:
+                stats.advantage = jax_math.standard_normalization(
+                    stats.raw_adv, 
+                    zero_center=self.config.get('zero_center', True), 
+                    mask=data.sample_mask, 
+                    n=data.n, 
+                    epsilon=self.config.get('epsilon', 1e-8), 
+                )
+            else:
+                stats.advantage = stats.raw_adv
+            stats.advantage = lax.stop_gradient(stats.advantage)
+
+        value_loss, stats = compute_vf_loss(
+            self.config, 
+            data, 
+            stats, 
+        )
+        loss = value_loss
 
         return loss, stats
 
@@ -175,69 +251,6 @@ class Loss(LossBase):
             **kl_stats
         )
         loss = actor_loss + stats.kl_loss
-
-        return loss, stats
-
-    def value_loss(
-        self, 
-        theta, 
-        rng, 
-        data, 
-        name='train/value', 
-    ):
-        rngs = random.split(rng, 2)
-        stats = dict2AttrDict(self.config.stats, to_copy=True)
-
-        if data.action_mask is not None:
-            stats.n_avail_actions = jnp.sum(data.action_mask, -1)
-        if data.sample_mask is not None:
-            stats.n_alive_units = jnp.sum(data.sample_mask, -1)
-
-        stats.value, next_value = compute_values(
-            self.modules.value, 
-            theta, 
-            rngs[0], 
-            data.global_state, 
-            data.next_global_state, 
-            data.state_reset, 
-            None if data.state is None else data.state.value, 
-            bptt=self.config.vrnn_bptt, 
-            seq_axis=1, 
-        )
-
-        v_target, stats.raw_adv = jax_loss.compute_target_advantage(
-            config=self.config, 
-            reward=data.reward, 
-            discount=data.discount, 
-            reset=data.reset, 
-            value=lax.stop_gradient(stats.value), 
-            next_value=next_value, 
-            ratio=lax.stop_gradient(stats.ratio), 
-            gamma=stats.gamma, 
-            lam=stats.lam, 
-            axis=1
-        )
-        stats.v_target = lax.stop_gradient(v_target)
-        stats = record_target_adv(stats)
-
-        if self.config.norm_adv:
-            stats.advantage = jax_math.standard_normalization(
-                stats.raw_adv, 
-                zero_center=self.config.get('zero_center', True), 
-                mask=data.sample_mask, 
-                n=data.n, 
-                epsilon=self.config.get('epsilon', 1e-8), 
-            )
-        else:
-            stats.advantage = stats.raw_adv
-        stats.advantage = lax.stop_gradient(stats.advantage)
-
-        value_loss, stats = compute_vf_loss(
-            self.config, 
-            data, 
-            stats, 
-        )
-        loss = value_loss
 
         return loss, stats
 
@@ -316,20 +329,26 @@ def compute_vf_loss(
         sample_mask = data.sample_mask
     else:
         sample_mask = None
+    
+    if config.popart:
+        v_target = normalize(
+            stats.v_target, data.popart_mean, data.popart_std)
+    else:
+        v_target = stats.v_target
 
     value_loss_type = config.value_loss
     if value_loss_type == 'huber':
         raw_value_loss = jax_loss.huber_loss(
             stats.value, 
-            stats.v_target, 
+            y=v_target, 
             threshold=config.huber_threshold
         )
     elif value_loss_type == 'mse':
-        raw_value_loss = .5 * (stats.value - stats.v_target)**2
+        raw_value_loss = .5 * (stats.value - v_target)**2
     elif value_loss_type == 'clip' or value_loss_type == 'clip_huber':
         raw_value_loss, stats.v_clip_frac = jax_loss.clipped_value_loss(
             stats.value, 
-            stats.v_target, 
+            v_target, 
             data.value, 
             config.value_clip_range, 
             huber_threshold=config.huber_threshold, 
@@ -338,7 +357,7 @@ def compute_vf_loss(
         )
     else:
         raise ValueError(f'Unknown value loss type: {value_loss_type}')
-    stats.raw_v_loss = raw_value_loss
+    stats.raw_value_loss = raw_value_loss
     scaled_value_loss, value_loss = jax_loss.to_loss(
         raw_value_loss, 
         coef=stats.value_coef, 
@@ -346,8 +365,8 @@ def compute_vf_loss(
         n=data.n
     )
     
-    stats.scaled_v_loss = scaled_value_loss
-    stats.v_loss = value_loss
+    stats.scaled_value_loss = scaled_value_loss
+    stats.value_loss = value_loss
 
     return value_loss, stats
 

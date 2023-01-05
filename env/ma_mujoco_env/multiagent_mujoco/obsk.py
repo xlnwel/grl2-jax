@@ -171,6 +171,8 @@ def get_parts_and_edges(label, partitioning):
                      (ffoot, fshin, fthigh)]
         elif partitioning == "6x1":
             parts = [(bfoot,), (bshin,), (bthigh,), (ffoot,), (fshin,), (fthigh,)]
+        elif partitioning == "3x2":
+            parts = [(bfoot, bshin,), (bthigh, ffoot,), (fshin, fthigh,)]
         else:
             raise Exception("UNKNOWN partitioning config: {}".format(partitioning))
 
@@ -225,6 +227,11 @@ def get_parts_and_edges(label, partitioning):
                      (hip2, ankle2),
                      (hip3, ankle3),
                      (hip4, ankle4)]
+        elif partitioning == "8x1":
+            parts = [(hip1,), (ankle1,),
+                     (hip2,), (ankle2,),
+                     (hip3,), (ankle3,),
+                     (hip4,), (ankle4,)]
         else:
             raise Exception("UNKNOWN partitioning config: {}".format(partitioning))
 
@@ -304,7 +311,12 @@ def get_parts_and_edges(label, partitioning):
                       right_hip_x, right_hip_y, right_hip_z,
                       right_knee, left_knee)]
             # TODO: There could be tons of decompositions here
-
+        elif partitioning == "17x1": # 17 in total, so one action is a dummy (to be handled by pymarl)
+            # isolate upper and lower body
+            parts = [(left_shoulder1,), (left_shoulder2,), (abdomen_x,), (abdomen_y,), (abdomen_z,),
+                     (right_shoulder1,), (right_shoulder2,), (right_elbow,), (left_elbow,),
+                     (left_hip_x,), (left_hip_y,), (left_hip_z,), (right_hip_x,), (right_hip_y,), (right_hip_z,),
+                     (right_knee,), (left_knee,)]
         else:
             raise Exception("UNKNOWN partitioning config: {}".format(partitioning))
 
@@ -386,7 +398,14 @@ def get_parts_and_edges(label, partitioning):
             parts = [(foot_joint, leg_joint, thigh_joint),
                      (foot_left_joint, leg_left_joint, thigh_left_joint,)]
             # TODO: There could be tons of decompositions here
-
+        elif partitioning == "6x1":
+            # isolate upper and lower body
+            parts = [(foot_joint,), (leg_joint,), (thigh_joint,),
+                     (foot_left_joint,), (leg_left_joint,), (thigh_left_joint,)]
+        elif partitioning == "3x2":
+            # isolate upper and lower body
+            parts = [(foot_joint, leg_joint,), (thigh_joint, foot_left_joint,),
+                     (leg_left_joint, thigh_left_joint,)]
         else:
             raise Exception("UNKNOWN partitioning config: {}".format(partitioning))
 

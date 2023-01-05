@@ -32,7 +32,6 @@ class Model(hk.Module):
         super().__init__(name=name)
         self.config = dict2AttrDict(config, to_copy=True)
         self.one_hot = one_hot
-        self.n_grids = 5
         self.action_dim = action_dim
         self.out_size = out_size
 
@@ -42,8 +41,10 @@ class Model(hk.Module):
         x = combine_sa(x, action, self.one_hot, self.action_dim)
 
         x = net(x)
-        logits = jnp.reshape(x, (*x.shape[:-1], self.out_size, self.n_grids))
-        dist = jax_dist.Categorical(logits)
+        # reward, x = jnp.split(x, [1], -1)
+        loc, logstd = jnp.split(x, 2, -1)
+        scale = lax.exp(logstd)
+        dist = jax_dist.MultivariateNormalDiag(loc, scale)
 
         return dist
 
@@ -51,7 +52,7 @@ class Model(hk.Module):
     def build_net(self):
         net = mlp(
             **self.config, 
-            out_size=self.n_grids * self.out_size, 
+            out_size=2 * self.out_size, 
         )
         return net
 
@@ -81,8 +82,10 @@ class EnsembleModels(hk.Module):
         x = combine_sa(x, action, self.one_hot, self.action_dim)
 
         x = jnp.stack([net(x) for net in nets], -2)
-        logits = jnp.reshape(x, (*x.shape[:-1], self.out_size, self.n_grids))
-        dist = jax_dist.Categorical(logits)
+        # reward, x = jnp.split(x, [1], -1)
+        loc, logstd = jnp.split(x, 2, -1)
+        scale = lax.exp(logstd)
+        dist = jax_dist.MultivariateNormalDiag(loc, scale)
 
         return dist
 
@@ -90,7 +93,7 @@ class EnsembleModels(hk.Module):
     def build_net(self):
         nets = [mlp(
             **self.config,
-            out_size=self.n_grids * self.out_size, 
+            out_size=2 * self.out_size, 
             name=f'model{i}'
         ) for i in range(self.n)]
         return nets

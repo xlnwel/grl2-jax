@@ -15,7 +15,7 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 1e7
-    n_steps: &nsteps 1000
+    n_steps: &nsteps 100
     LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
@@ -23,17 +23,17 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 0
+    n_imaginary_runs: 3
     imaginary_rollout: sim
 
 env:
-    env_name: &env_name ma_mujoco-Ant
+    env_name: &env_name ma_mujoco-HalfCheetah
     n_runners: &nrunners 1
-    n_envs: &nenvs 16
+    n_envs: &nenvs 40
     max_episode_steps: 1000
     timeout_done: &td False
     env_args:
-        agent_conf: 2x4
+        agent_conf: 2x3
         agent_obsk: 0
 
 agent: {}
@@ -59,10 +59,6 @@ model:
         rnn_type: &prnn null
         rnn_units: 64
         init_std: .2
-        sigmoid_scale: False
-        std_x_coef: 1.
-        std_y_coef: .5
-        use_feature_norm: True
     value:
         nn_id: value
         units_list: [64, 64]
@@ -71,7 +67,6 @@ model:
         norm: null
         rnn_type: &vrnn null
         rnn_units: 64
-        use_feature_norm: True
 
 loss:
     # hyperparams for value target and advantage

@@ -171,11 +171,9 @@ def make_smac2(config):
 
 
 def make_ma_mujoco(config):
-    from env.multiagent_mujoco.mujoco_multi import MujocoMulti
+    from env.ma_mujoco import MAMujoco
     config = _change_env_name(config)
-    config.env_args.scenario = f'{config.env_name}-v2'
-    config.env_args.episode_limit = config.max_episode_steps
-    env = MujocoMulti(**config)
+    env = MAMujoco(config)
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
 

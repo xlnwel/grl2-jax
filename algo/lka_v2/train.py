@@ -212,10 +212,9 @@ def main(configs, train=train):
     buffers = []
     root_dir = config.root_dir
     model_name = config.model_name
-
     for i, c in enumerate(configs):
         assert c.aid == i, (c.aid, i)
-        if f'a{i}' in model_name:
+        if model_name.endswith(f'a{i}'):
             new_model_name = model_name
         else:
             new_model_name = '/'.join([model_name, f'a{i}'])
