@@ -103,7 +103,7 @@ class MujocoMulti(MultiAgentEnv):
 
         self.obs_shape = [{
             'obs': (self.obs_size, ), 
-            'global_state': (self.get_state_size(), )
+            'global_state': (self.obs_size, )
         } for _ in range(self.n)]
         self.obs_dtype = [{
             'obs': np.float32, 
@@ -163,11 +163,14 @@ class MujocoMulti(MultiAgentEnv):
     def get_obs(self):
         """ Returns all agent observat3ions in a list """
         obs_n = []
+        state = self.env._get_obs()
         for a in range(self.n_agents):
-            obs_n.append({
-                'obs': np.expand_dims(self.get_obs_agent(a), 0), 
-                'global_state': np.expand_dims(self.get_state(), 0)
-            })
+            agent_id_feats = np.zeros(self.n_agents, dtype=np.float32)
+            agent_id_feats[a] = 1.0
+            obs_i = np.concatenate([state, agent_id_feats])
+            obs_i = (obs_i - np.mean(obs_i)) / np.std(obs_i)
+            obs_i = np.expand_dims(obs_i, 0)
+            obs_n.append({'obs': obs_i, 'global_state': obs_i})
         return obs_n
 
     def get_obs_agent(self, agent_id):
@@ -183,10 +186,11 @@ class MujocoMulti(MultiAgentEnv):
 
     def get_obs_size(self):
         """ Returns the shape of the observation """
-        if self.agent_obsk is None:
-            return self.get_obs_agent(0).size
-        else:
-            return max([len(self.get_obs_agent(agent_id)) for agent_id in range(self.n_agents)])
+        return len(self.env._get_obs()) + self.n_agents
+        # if self.agent_obsk is None:
+        #     return self.get_obs_agent(0).size
+        # else:
+        #     return max([len(self.get_obs_agent(agent_id)) for agent_id in range(self.n_agents)])
 
 
     def get_state(self, team=None):

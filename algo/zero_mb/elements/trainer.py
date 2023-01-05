@@ -31,18 +31,42 @@ class Trainer(TrainerBase):
         data, 
     ):
         do_logging('train is traced', backtrack=4)
-        theta, opt_state, stats = optimizer.optimize(
-            self.loss.img_loss, 
-            theta, 
-            opt_state, 
-            kwargs={
-                'rng': rng, 
-                'data': data, 
-            }, 
-            opt=self.opts.theta, 
-            name='train/theta'
-        )
-
+        if self.config.get('theta_opt'):
+            theta, opt_state, stats = optimizer.optimize(
+                self.loss.img_loss, 
+                theta, 
+                opt_state, 
+                kwargs={
+                    'rng': rng, 
+                    'data': data, 
+                }, 
+                opt=self.opts.theta, 
+                name='train/theta'
+            )
+        else:
+            theta.value, opt_state.value, stats = optimizer.optimize(
+                self.loss.img_value_loss, 
+                theta.value, 
+                opt_state.value, 
+                kwargs={
+                    'rng': rng, 
+                    'data': data, 
+                }, 
+                opt=self.opts.value, 
+                name='train/value'
+            )
+            theta.policy, opt_state.policy, stats = optimizer.optimize(
+                self.loss.img_policy_loss, 
+                theta.policy, 
+                opt_state.policy, 
+                kwargs={
+                    'rng': rng, 
+                    'data': data, 
+                    'stats': stats
+                }, 
+                opt=self.opts.policy, 
+                name='train/policy'
+            )
         return theta, opt_state, stats
 
 create_trainer = partial(create_trainer,

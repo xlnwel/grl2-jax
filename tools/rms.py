@@ -28,6 +28,29 @@ def combine_rms(rms1, rms2):
     return Stats(new_mean, new_var, total_count)
 
 
+def denormalize(x, mean, std, zero_center=True, mask=None):
+    x_new = x * std
+    if zero_center:
+        x_new = x_new + mean
+    if mask is not None:
+        mask = expand_dims_match(mask, x_new)
+        x_new = np.where(mask, x_new, x)
+    return x_new
+
+
+def normalize(x, mean, std, zero_center=True, clip=None, mask=None):
+    x_new = x
+    if zero_center:
+        x_new = x_new - mean
+    x_new = x_new / std
+    if clip:
+        x_new = np.clip(x_new, -clip, clip)
+    if mask is not None:
+        mask = expand_dims_match(mask, x_new)
+        x_new = np.where(mask, x_new, x)
+    return x_new
+
+
 class RunningMeanStd:
     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
     def __init__(self, axis, epsilon=1e-8, clip=None, name=None, ndim=None):
@@ -140,14 +163,8 @@ class RunningMeanStd:
         # assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
         #     (x.shape, self._var.shape, self._axis)
         x_new = x.astype(np.float32)
-        if zero_center:
-            x_new -= self._mean
-        x_new /= self._std
-        if self._clip:
-            x_new = np.clip(x_new, -self._clip, self._clip)
-        if mask is not None:
-            mask = expand_dims_match(mask, x_new)
-            x_new = np.where(mask, x_new, x)
+        x_new = normalize(x_new, self._mean, self._std,
+            zero_center=zero_center, clip=self._clip, mask=mask)
         return x_new
 
     def denormalize(self, x, zero_center=True, mask=None):
@@ -158,14 +175,8 @@ class RunningMeanStd:
         if self._count == self._epsilon:
             return x
         x_new = x.astype(np.float32)
-        if mask is not None:
-            assert mask.ndim == len(self._axis), (mask.shape, self._axis)
-        x_new *= self._std
-        if zero_center:
-            x_new += self._mean
-        if mask is not None:
-            mask = expand_dims_match(mask, x_new)
-            x_new = np.where(mask, x_new, x)
+        x_new = denormalize(x_new, self._mean, self._std, 
+            zero_center=zero_center, mask=mask)
         return x_new
 
 

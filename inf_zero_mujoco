@@ -17,7 +17,7 @@ configs=(
     "${e}"
     "${e}"
 )
-args1=(.2 .35)
+args1=(.2)
 args2=(32 64 64 32 64 64 64 64)
 args3=(20 10 20 20 10 20 50 50)
 date=$(date +"%m%d")
@@ -49,7 +49,7 @@ for e in "${envs[@]}"; do
                 # la3=${#args3[@]}
                 # idx=$(($INF_MAC_NODE_RANK % $la3))
                 # a3=${args3[$idx]}
-                kws="init_std=$a1 normalize_obs=True"
+                kws="init_std=$a1 $@"
                 # echo $kws
                 env="${suite}-${e}"
                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then

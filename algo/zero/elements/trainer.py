@@ -10,6 +10,7 @@ from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
+from tools.rms import RunningMeanStd
 from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
 
@@ -44,6 +45,7 @@ def construct_fake_data(env_stats, aid):
 class Trainer(TrainerBase):
     def add_attributes(self):
         self.imaginary_theta = self.model.theta
+        self.popart = RunningMeanStd((0, 1, 2))
         self.indices = np.arange(self.config.n_runners * self.config.n_envs)
 
     def build_optimizers(self):
@@ -88,16 +90,23 @@ class Trainer(TrainerBase):
             indices = np.split(self.indices, self.config.n_mbs)
             for idx in indices:
                 with Timer('theta_train'):
+                    d = data.slice(idx)
+                    if self.config.popart:
+                        d.popart_mean = self.popart.mean
+                        d.popart_std = self.popart.std
                     theta, self.params.theta, stats = \
                         self.jit_train(
                             theta, 
                             opt_state=self.params.theta, 
-                            data=data.slice(idx), 
+                            data=d, 
                         )
         self.model.set_weights(theta)
+        if self.config.popart:
+            self.popart.update(stats.v_target)
 
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
+        stats = prefix_name(data, 'train')
         stats.update(data)
         with Timer('stats_subsampling'):
             stats = sample_stats(
@@ -115,14 +124,24 @@ class Trainer(TrainerBase):
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == True, is_imaginary
         opt_state = self.imaginary_opt_state
+        if self.config.popart:
+            data.popart_mean = self.popart.mean
+            data.popart_std = self.popart.std
         for _ in range(self.config.n_imaginary_epochs):
-            with Timer('imaginary_train'):
-                theta, opt_state, _ = \
-                    self.jit_img_train(
-                        theta, 
-                        opt_state=opt_state, 
-                        data=data, 
-                    )
+            np.random.shuffle(self.indices)
+            indices = np.split(self.indices, self.config.n_mbs)
+            for idx in indices:
+                with Timer('imaginary_train'):
+                    d = data.slice(idx)
+                    if self.config.popart:
+                        d.popart_mean = self.popart.mean
+                        d.popart_std = self.popart.std
+                    theta, opt_state, _ = \
+                        self.jit_img_train(
+                            theta, 
+                            opt_state=opt_state, 
+                            data=data, 
+                        )
         
         for k, v in theta.items():
             self.model.imaginary_params[k] = v
@@ -187,20 +206,19 @@ class Trainer(TrainerBase):
                 opt=self.opts.policy, 
                 name='train/policy'
             )
-            stats = prefix_name(stats, 'train')
 
         return theta, opt_state, stats
 
-    def haiku_tabulate(self, data=None):
-        rng = jax.random.PRNGKey(0)
-        if data is None:
-            data = construct_fake_data(self.env_stats, 0)
-        theta = self.model.theta.copy()
-        is_imaginary = theta.pop('imaginary')
-        print(hk.experimental.tabulate(self.theta_train)(
-            theta, rng, self.params.theta, data
-        ))
-        breakpoint()
+    # def haiku_tabulate(self, data=None):
+    #     rng = jax.random.PRNGKey(0)
+    #     if data is None:
+    #         data = construct_fake_data(self.env_stats, 0)
+    #     theta = self.model.theta.copy()
+    #     is_imaginary = theta.pop('imaginary')
+    #     print(hk.experimental.tabulate(self.theta_train)(
+    #         theta, rng, self.params.theta, data
+    #     ))
+    #     breakpoint()
 
 
 create_trainer = partial(create_trainer,

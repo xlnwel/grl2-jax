@@ -11,6 +11,7 @@ from core.elements.model import Model as ModelBase
 from core.typing import AttrDict, dict2AttrDict
 from tools.file import source_file
 from jax_tools import jax_dist
+from tools.display import print_dict_info
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -29,6 +30,8 @@ def construct_fake_data(env_stats, aid, batch_size=1):
     data.setdefault('hidden_state', data.obs)
     data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
     data.state_reset = jnp.zeros(basic_shape, jnp.float32)
+
+    # print_dict_info(data)
 
     return data
 

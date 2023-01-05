@@ -23,7 +23,7 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 0
+    n_imaginary_runs: 3
     imaginary_rollout: sim
 
 env:
