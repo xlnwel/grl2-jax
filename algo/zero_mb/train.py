@@ -139,30 +139,31 @@ def train(
         #         after_info = run_comparisons(runner, agents)
 
         # train the model
-        model.train_record()
+        if model_buffer.good_to_learn():
+            model.train_record()
 
-        def get_agent_states():
-            state = [a.get_states() for a in agents]
-            return state
-        
-        def set_agent_states(states):
-            for a, s in zip(agents, states):
-                a.set_states(s)
+            def get_agent_states():
+                state = [a.get_states() for a in agents]
+                return state
+            
+            def set_agent_states(states):
+                for a, s in zip(agents, states):
+                    a.set_states(s)
 
-        # train imaginary agents
-        with TempStore(get_agent_states, set_agent_states):
-            for _ in range(routine_config.n_imaginary_runs):
-                with Timer('imaginary_run'):
-                    img_eos = run_on_model(
-                        model, model_buffer, agents, collects, routine_config)
-                for i, buffer in enumerate(buffers):
-                    data = buffer.get_data({
-                        'state_reset': img_eos[i].reset
-                    })
-                    buffer.move_to_queue(data)
-                for agent in agents:
-                    with Timer('imaginary_train'):
-                        agent.imaginary_train()
+            # train imaginary agents
+            with TempStore(get_agent_states, set_agent_states):
+                for _ in range(routine_config.n_imaginary_runs):
+                    with Timer('imaginary_run'):
+                        img_eos = run_on_model(
+                            model, model_buffer, agents, collects, routine_config)
+                    for i, buffer in enumerate(buffers):
+                        data = buffer.get_data({
+                            'state_reset': img_eos[i].reset
+                        })
+                        buffer.move_to_queue(data)
+                    for agent in agents:
+                        with Timer('imaginary_train'):
+                            agent.imaginary_train()
 
         if time2record:
             # info = {
@@ -247,7 +248,7 @@ def main(configs, train=train):
         model_config, 
         max_layer=1, 
         aid=0,
-        algorithm='magw', 
+        algorithm=configs[0].dynamics_name, 
         n_runners=configs[0].env.n_runners, 
         n_envs=configs[0].env.n_envs, 
         root_dir=root_dir, 

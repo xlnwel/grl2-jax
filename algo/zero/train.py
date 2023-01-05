@@ -13,6 +13,21 @@ from tools import pkg
 from algo.zero.run import *
 
 
+def transfer_data(agents, buffers, env_outputs, config):
+    for agent, buffer, env_output in zip(agents, buffers, env_outputs):
+        data = buffer.get_data({
+            'state_reset': env_output.reset
+        })
+        if config.compute_return_at_once:
+            next_value = agent.model.compute_value({
+                'global_state': env_output.obs['global_state'], 
+                'state_reset': env_output.reset, 
+                'state': data.state.value if 'state' in data else None
+            })
+            data = buffer.compute_advantages(data, next_value)
+
+        buffer.move_to_queue(data)
+
 def train(
     configs, 
     agents, 
@@ -111,11 +126,7 @@ def train(
                                 [i], [i], False)[i]
                 else:
                     raise NotImplementedError
-            for i, buffer in enumerate(buffers):
-                data = buffer.get_data({
-                    'state_reset': env_outputs[i].reset
-                })
-                buffer.move_to_queue(data)
+            transfer_data(agents, buffers, env_outputs, routine_config)
             for agent in agents:
                 with Timer('imaginary_train'):
                     agent.imaginary_train()
@@ -146,11 +157,7 @@ def train(
                         routine_config.n_steps, 
                         agents, collects, 
                         [], all_aids)
-            for i, buffer in enumerate(buffers):
-                data = buffer.get_data({
-                    'state_reset': env_outputs[i].reset
-                })
-                buffer.move_to_queue(data)
+            transfer_data(agents, buffers, env_outputs, routine_config)
 
         for b in buffers:
             assert b.ready(), (b.size(), len(b._queue))
@@ -252,6 +259,8 @@ def main(configs, train=train):
             configs[i], 
             model_name=new_model_name, 
         )
+        if c.routine.compute_return_at_once:
+            c.buffer.sample_keys += ['advantage', 'v_target']
         builder = ElementsBuilder(
             configs[i], 
             env_stats, 

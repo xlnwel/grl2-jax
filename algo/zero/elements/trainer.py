@@ -27,7 +27,7 @@ def construct_fake_data(env_stats, aid):
         for k, v in shapes.items()}
     data = dict2AttrDict(data)
     data.setdefault('global_state', data.obs)
-    data.action = jnp.zeros(basic_shape, jnp.int32)
+    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
     data.value = jnp.zeros(basic_shape, jnp.float32)
     data.reward = jnp.zeros(basic_shape, jnp.float32)
     data.discount = jnp.zeros(basic_shape, jnp.float32)
@@ -106,7 +106,7 @@ class Trainer(TrainerBase):
 
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
-        stats = prefix_name(data, 'train')
+        stats = prefix_name(stats, 'train')
         stats.update(data)
         with Timer('stats_subsampling'):
             stats = sample_stats(

@@ -54,33 +54,37 @@ class Loss(LossBase):
                 seq_axis=1, 
             )
         stats = record_policy_stats(data, stats, act_dist)
-
-        v_target, stats.raw_adv = jax_loss.compute_target_advantage(
-            config=self.config, 
-            reward=data.reward, 
-            discount=data.discount, 
-            reset=data.reset, 
-            value=lax.stop_gradient(stats.value), 
-            next_value=next_value, 
-            ratio=lax.stop_gradient(stats.ratio), 
-            gamma=stats.gamma, 
-            lam=stats.lam, 
-            axis=1
-        )
-        stats.v_target = lax.stop_gradient(v_target)
-        stats = record_target_adv(stats)
-
-        if self.config.norm_adv:
-            stats.advantage = jax_math.standard_normalization(
-                stats.raw_adv, 
-                zero_center=self.config.get('zero_center', True), 
-                mask=data.sample_mask, 
-                n=data.n, 
-                epsilon=self.config.get('epsilon', 1e-8), 
-            )
+        
+        if 'advantage' in data:
+            stats.advantage = data.pop('advantage')
+            stats.v_target = data.pop('v_target')
         else:
-            stats.advantage = stats.raw_adv
-        stats.advantage = lax.stop_gradient(stats.advantage)
+            v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+                config=self.config, 
+                reward=data.reward, 
+                discount=data.discount, 
+                reset=data.reset, 
+                value=lax.stop_gradient(stats.value), 
+                next_value=next_value, 
+                ratio=lax.stop_gradient(stats.ratio), 
+                gamma=stats.gamma, 
+                lam=stats.lam, 
+                axis=1
+            )
+            stats.v_target = lax.stop_gradient(v_target)
+            stats = record_target_adv(stats)
+
+            if self.config.norm_adv:
+                stats.advantage = jax_math.standard_normalization(
+                    stats.raw_adv, 
+                    zero_center=self.config.get('zero_center', True), 
+                    mask=data.sample_mask, 
+                    n=data.n, 
+                    epsilon=self.config.get('epsilon', 1e-8), 
+                )
+            else:
+                stats.advantage = stats.raw_adv
+            stats.advantage = lax.stop_gradient(stats.advantage)
 
         actor_loss, stats = compute_actor_loss(
             self.config, 
@@ -151,32 +155,36 @@ class Loss(LossBase):
         else:
             value = lax.stop_gradient(stats.value)
 
-        v_target, stats.raw_adv = jax_loss.compute_target_advantage(
-            config=self.config, 
-            reward=data.reward, 
-            discount=data.discount, 
-            reset=data.reset, 
-            value=value, 
-            next_value=next_value, 
-            ratio=lax.stop_gradient(stats.ratio), 
-            gamma=stats.gamma, 
-            lam=stats.lam, 
-            axis=1
-        )
-        stats.v_target = lax.stop_gradient(v_target)
-        stats = record_target_adv(stats)
-
-        if self.config.norm_adv:
-            stats.advantage = jax_math.standard_normalization(
-                stats.raw_adv, 
-                zero_center=self.config.get('zero_center', True), 
-                mask=data.sample_mask, 
-                n=data.n, 
-                epsilon=self.config.get('epsilon', 1e-8), 
-            )
+        if 'advantage' in data:
+            stats.advantage = data.pop('advantage')
+            stats.v_target = data.pop('v_target')
         else:
-            stats.advantage = stats.raw_adv
-        stats.advantage = lax.stop_gradient(stats.advantage)
+            v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+                config=self.config, 
+                reward=data.reward, 
+                discount=data.discount, 
+                reset=data.reset, 
+                value=value, 
+                next_value=next_value, 
+                ratio=lax.stop_gradient(stats.ratio), 
+                gamma=stats.gamma, 
+                lam=stats.lam, 
+                axis=1
+            )
+            stats.v_target = lax.stop_gradient(v_target)
+            stats = record_target_adv(stats)
+
+            if self.config.norm_adv:
+                stats.advantage = jax_math.standard_normalization(
+                    stats.raw_adv, 
+                    zero_center=self.config.get('zero_center', True), 
+                    mask=data.sample_mask, 
+                    n=data.n, 
+                    epsilon=self.config.get('epsilon', 1e-8), 
+                )
+            else:
+                stats.advantage = stats.raw_adv
+            stats.advantage = lax.stop_gradient(stats.advantage)
 
         value_loss, stats = compute_vf_loss(
             self.config, 

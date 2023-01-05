@@ -8,12 +8,17 @@ from jax_tools import jax_dist
 """ Source this file to register Networks """
 
 
-def combine_sa(x, a, one_hot, action_dim):
-    a2 = a[..., ::-1, :]
-    a = jnp.stack([a, a2], -2)
+def joint_actions(actions, one_hot, action_dim):
+    actions2 = actions[..., ::-1]
+    actions = jnp.stack([actions, actions2], -1)
+    assert actions.shape[-2:] == (2, 2), actions.shape
     if one_hot:
-        a = nn.one_hot(a, action_dim)
-        a = jnp.reshape(a, (*a.shape[:-2], -1))
+        actions = nn.one_hot(actions, action_dim)
+        actions = jnp.reshape(actions, (*actions.shape[:-2], -1))
+    return actions
+
+def combine_sa(x, a, one_hot, action_dim):
+    a = joint_actions(a, one_hot, action_dim)
     x = jnp.concatenate([x, a], -1)
 
     return x
@@ -120,7 +125,7 @@ class Reward(hk.Module):
         
         x = net(x)
         if self.out_size == 1:
-            dist = jax_dist.MultivariateNormalDiag(x, 0.)
+            dist = jax_dist.MultivariateNormalDiag(x, jnp.ones(1))
         else:
             dist = jax_dist.Categorical(x)
 

@@ -2,12 +2,14 @@
 
 source activate inf
 
-suite=magw
+suite=ma_mujoco
 ld="${suite}-logs"
 
-cmd="sh ./$@"
+n_nodes=$1
+shift
+cmd="sh ./scripts/$@"
 inf_mac job run python --exec-command "$cmd" \
-    --working-dir . --num-nodes 6 --user chenxw --use-env chenxw \
+    --working-dir . --num-nodes $n_nodes --user chenxw --use-env chenxw \
     --sync-dir ./$ld:/System/Volumes/Data/mnt/公共区/cxw
 
 # cmd="sh ./inf_zero run_with_future_opponents=True n_imaginary_runs=3"

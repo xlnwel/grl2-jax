@@ -1,8 +1,0 @@
-rsync -a --exclude algo3 \
-    --exclude papers.py --exclude plot.ipynb \
-    --exclude tftest --exclude pg --exclude rename \
-    --exclude sync --exclude __pycache__ \
-    --exclude .gitignore --exclude .git --exclude .vscode \
-    --exclude .ipynb_checkpoints --exclude .pytest_cache \
-    --exclude logs --exclude plots --exclude pytest \
-    --exclude cfr.py --exclude test.py . ~/github/g2rl

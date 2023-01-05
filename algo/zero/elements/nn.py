@@ -18,6 +18,10 @@ class Policy(hk.Module):
         action_dim, 
         out_act=None, 
         init_std=1., 
+        sigmoid_scale=False, 
+        std_x_coef=1., 
+        std_y_coef=.5, 
+        use_feature_norm=False, 
         name='policy', 
         **config
     ):
@@ -27,8 +31,15 @@ class Policy(hk.Module):
         self.is_action_discrete = is_action_discrete
         self.out_act = out_act
         self.init_std = init_std
+        self.sigmoid_scale = sigmoid_scale
+        self.std_x_coef = std_x_coef
+        self.std_y_coef = std_y_coef
+        self.use_feature_norm = use_feature_norm
 
     def __call__(self, x, reset=None, state=None, action_mask=None):
+        if self.use_feature_norm:
+            ln = hk.LayerNorm(-1, True, True)
+            x = ln(x)
         net = self.build_net()
         x = net(x, reset, state)
         if isinstance(x, tuple):
@@ -43,13 +54,20 @@ class Policy(hk.Module):
         else:
             if self.out_act == 'tanh':
                 x = jnp.tanh(x)
-            logstd_init = hk.initializers.Constant(lax.log(self.init_std))
+            if self.sigmoid_scale:
+                logstd_init = self.std_x_coef
+            else:
+                logstd_init = lax.log(self.init_std)
+            logstd_init = hk.initializers.Constant(logstd_init)
             logstd = hk.get_parameter(
                 'logstd', 
                 shape=(self.action_dim,), 
                 init=logstd_init
             )
-            scale = lax.exp(logstd)
+            if self.sigmoid_scale:
+                scale = nn.sigmoid(logstd / self.std_x_coef) * self.std_y_coef
+            else:
+                scale = lax.exp(logstd)
             return (x, scale), state
 
     @hk.transparent
@@ -69,19 +87,25 @@ class Value(hk.Module):
         out_act=None, 
         out_size=1, 
         name='value', 
+        use_feature_norm=False, 
         **config
     ):
         super().__init__(name=name)
         self.config = dict2AttrDict(config, to_copy=True)
         self.out_act = get_activation(out_act)
         self.out_size = out_size
+        self.use_feature_norm = use_feature_norm
 
     def __call__(self, x, reset=None, state=None):
+        if self.use_feature_norm:
+            ln = hk.LayerNorm(-1, True, True)
+            x = ln(x)
         net = self.build_net()
         x = net(x, reset, state)
         if isinstance(x, tuple):
             assert len(x) == 2, x
             x, state = x
+
         if x.shape[-1] == 1:
             x = jnp.squeeze(x, -1)
         value = self.out_act(x)
