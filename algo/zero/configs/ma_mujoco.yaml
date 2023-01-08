@@ -23,11 +23,11 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 0
+    n_imaginary_runs: 1
     imaginary_rollout: sim
 
 env:
-    env_name: &env_name ma_mujoco-HalfCheetah
+    env_name: &env_name ma_mujoco-HalfCheetah_2x3
     n_runners: &nrunners 1
     n_envs: &nenvs 40
     max_episode_steps: 1000

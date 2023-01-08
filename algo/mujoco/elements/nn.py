@@ -8,12 +8,17 @@ from jax_tools import jax_dist
 """ Source this file to register Networks """
 
 
-def combine_sa(x, a, one_hot, action_dim):
-    a2 = a[..., ::-1, :]
-    a = jnp.stack([a, a2], -2)
-    if one_hot:
-        a = nn.one_hot(a, action_dim)
-        a = jnp.reshape(a, (*a.shape[:-2], -1))
+def joint_actions(actions):
+    all_actions = [actions]
+    for _ in range(actions.shape[-2]-1):
+        actions = jnp.roll(actions, 1, -2)
+        all_actions.append(actions)
+    all_actions = jnp.concatenate(all_actions, -1)
+
+    return all_actions
+
+def combine_sa(x, a):
+    a = joint_actions(a)
     x = jnp.concatenate([x, a], -1)
 
     return x
@@ -38,7 +43,7 @@ class Model(hk.Module):
     def __call__(self, x, action):
         net = self.build_net()
 
-        x = combine_sa(x, action, self.one_hot, self.action_dim)
+        x = combine_sa(x, action)
 
         x = net(x)
         # reward, x = jnp.split(x, [1], -1)
@@ -79,7 +84,7 @@ class EnsembleModels(hk.Module):
     def __call__(self, x, action):
         nets = self.build_net()
 
-        x = combine_sa(x, action, self.one_hot, self.action_dim)
+        x = combine_sa(x, action)
 
         x = jnp.stack([net(x) for net in nets], -2)
         # reward, x = jnp.split(x, [1], -1)
@@ -119,11 +124,11 @@ class Reward(hk.Module):
     def __call__(self, x, action):
         net = self.build_net()
 
-        x = combine_sa(x, action, self.one_hot, self.action_dim)
+        x = combine_sa(x, action)
         
         x = net(x)
         if self.out_size == 1:
-            dist = jax_dist.MultivariateNormalDiag(x, 0.)
+            dist = jax_dist.MultivariateNormalDiag(x, jnp.ones(1))
         else:
             dist = jax_dist.Categorical(x)
 

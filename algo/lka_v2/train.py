@@ -13,6 +13,21 @@ from tools import pkg
 from algo.lka_v2.run import *
 
 
+def transfer_data(agents, buffers, env_outputs, config):
+    for agent, buffer, env_output in zip(agents, buffers, env_outputs):
+        data = buffer.get_data({
+            'state_reset': env_output.reset
+        })
+        if config.compute_return_at_once:
+            next_value = agent.model.compute_value({
+                'global_state': env_output.obs['global_state'], 
+                'state_reset': env_output.reset, 
+                'state': data.state.value if 'state' in data else None
+            })
+            data = buffer.compute_advantages(data, next_value)
+
+        buffer.move_to_queue(data)
+
 def train(
     configs,
     agents,
@@ -84,26 +99,23 @@ def train(
     # diff_info = {}
     # with StateStore('comp', state_constructor, get_state, set_states):
     #     prev_info = run_comparisons(runner, agents)
+    all_aids = list(range(len(agents)))
     while step < routine_config.MAX_STEPS:
         # train imaginary agents
         for _ in range(routine_config.n_imaginary_runs):
             with Timer('imaginary_run'):
-                env_outputs = [None for _ in range(len(agents))]
-                for idx in range(len(agents)):
-                    with StateStore(f'img{idx}',
+                env_outputs = [None for _ in all_aids]
+                for i in all_aids:
+                    with StateStore(f'img{i}',
                         state_constructor,
                         get_state, set_states
                     ):
-                        env_outputs[idx] = runner.run(
+                        env_outputs[i] = runner.run(
                             routine_config.n_steps,
                             agents, collects,
-                            [i for i in range(len(agents)) if i != idx], [idx]
-                        )[idx]
-            for i, buffer in enumerate(buffers):
-                data = buffer.get_data({
-                    'state_reset': env_outputs[i].reset
-                })
-                buffer.move_to_queue(data)
+                            [j for j in all_aids if j != i], [i]
+                        )[i]
+            transfer_data(agents, buffers, env_outputs, routine_config)
             for agent in agents:
                 with Timer('imaginary_train'):
                     agent.imaginary_train()
@@ -113,22 +125,20 @@ def train(
         for i, buffer in enumerate(buffers):
             assert buffer.size() == 0, f"buffer i: {buffer.size()}"
         with rt:
-            env_outputs = [None for _ in range(len(agents))]
-            for idx in range(len(agents)):
-                with StateStore(f'real{idx}',
+            env_outputs = [None for _ in all_aids]
+            for i in all_aids:
+                img_aids = [aid for aid in all_aids if aid != i]
+                with StateStore(f'real{i}',
                     state_constructor,
                     get_state, set_states
                 ):
-                    env_outputs[idx] = runner.run(
+                    env_outputs[i] = runner.run(
                         routine_config.n_steps,
                         agents, collects,
-                        [i for i in range(len(agents)) if i != idx], [idx]
-                    )[idx]
-            for i, buffer in enumerate(buffers):
-                data = buffer.get_data({
-                    'state_reset': env_outputs[i].reset
-                })
-                buffer.move_to_queue(data)
+                        img_aids, [i]
+                    )[i]
+            transfer_data(agents, buffers, env_outputs, routine_config)
+
         
         for buffer in buffers:
             assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
@@ -222,6 +232,8 @@ def main(configs, train=train):
             configs[i], 
             model_name=new_model_name, 
         )
+        if c.routine.compute_return_at_once:
+            c.buffer.sample_keys += ['advantage', 'v_target']
         builder = ElementsBuilder(
             configs[i], 
             env_stats, 

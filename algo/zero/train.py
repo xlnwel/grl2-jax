@@ -133,8 +133,8 @@ def train(
 
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
-        for b in buffers:
-            assert b.size() == 0, b.size()
+        for i, buffer in enumerate(buffers):
+            assert buffer.size() == 0, f"buffer i: {buffer.size()}"
         with rt:
             if routine_config.n_imaginary_runs:
                 env_outputs = [None for _ in all_aids]
@@ -159,8 +159,9 @@ def train(
                         [], all_aids)
             transfer_data(agents, buffers, env_outputs, routine_config)
 
-        for b in buffers:
-            assert b.ready(), (b.size(), len(b._queue))
+        for buffer in buffers:
+            assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
+
         step += steps_per_iter
 
         time2record = to_record(step)

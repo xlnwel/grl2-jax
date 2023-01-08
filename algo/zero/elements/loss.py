@@ -126,6 +126,7 @@ class Loss(LossBase):
         self, 
         theta, 
         rng, 
+        policy_theta, 
         data, 
         name='train/value', 
     ):
@@ -155,6 +156,22 @@ class Loss(LossBase):
         else:
             value = lax.stop_gradient(stats.value)
 
+        _, _, _, ratio = compute_policy(
+                self.modules.policy, 
+                policy_theta, 
+                rngs[1], 
+                data.obs, 
+                data.next_obs, 
+                data.action, 
+                data.mu_logprob, 
+                data.state_reset[:, :-1], 
+                None if data.state is None else data.state.policy, 
+                action_mask=data.action_mask, 
+                next_action_mask=data.next_action_mask, 
+                bptt=self.config.prnn_bptt, 
+                seq_axis=1, 
+            )
+
         if 'advantage' in data:
             stats.advantage = data.pop('advantage')
             stats.v_target = data.pop('v_target')
@@ -166,7 +183,7 @@ class Loss(LossBase):
                 reset=data.reset, 
                 value=value, 
                 next_value=next_value, 
-                ratio=lax.stop_gradient(stats.ratio), 
+                ratio=lax.stop_gradient(ratio), 
                 gamma=stats.gamma, 
                 lam=stats.lam, 
                 axis=1

@@ -42,10 +42,7 @@ class Trainer(TrainerBase):
         theta = self.model.params.copy()
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == False, is_imaginary
-        opt_state = self.imaginary_opt_state
-        if self.config.popart:
-            data.popart_mean = self.popart.mean
-            data.popart_std = self.popart.std
+        opt_state = self.params.theta
         for _ in range(self.config.n_imaginary_epochs):
             np.random.shuffle(self.indices)
             indices = np.split(self.indices, self.config.n_mbs)
@@ -65,7 +62,6 @@ class Trainer(TrainerBase):
         # NOTE: the updated parameters are valued to imaginary parameters
         for k, v in theta.items():
             self.model.imaginary_params[k] = v
-        self.imaginary_opt_state = opt_state
 
 
 create_trainer = partial(create_trainer,

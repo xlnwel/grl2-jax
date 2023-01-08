@@ -5,10 +5,9 @@ import optax
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict, AttrDict
-from jax_tools import jax_loss, jax_math, jax_utils
+from jax_tools import jax_dist, jax_loss, jax_math, jax_utils
 from tools.utils import prefix_name
 from tools.display import print_dict_info
-from algo.magw.elements.model import ACTIONS
 
 
 class Loss(LossBase):
@@ -20,10 +19,6 @@ class Loss(LossBase):
         name='theta'
     ):
         obs, next_obs = jax_utils.split_data(data.obs, data.next_obs, 1)
-        action_vec = ACTIONS[data.action].reshape(*data.action.shape[:-1], -1)
-        obs_pred = jnp.clip(obs[..., 0, :4] + action_vec, 0, 4)
-        exp_consistency = jnp.mean(next_obs[..., 0, :4] == obs_pred, -1)
-        exp_consistency = jnp.where(data.reset[..., 0], 1, exp_consistency)
         ensemble_next_obs = jnp.expand_dims(next_obs, -2)
         ensemble_next_obs = jnp.tile(ensemble_next_obs, [self.config.n, 1])
         ensemble_next_obs = jnp.array(ensemble_next_obs, dtype=jnp.int32)
@@ -40,7 +35,6 @@ class Loss(LossBase):
             self.config, reward_dist, data.reward, stats)
         loss = loss + reward_loss
         stats.loss = loss
-        stats.exp_consistency = exp_consistency
         stats.elite_indices = jnp.argsort(stats.mean_loss)
         stats = prefix_name(stats, name, filter=['elite_indices'])
 
@@ -60,8 +54,8 @@ def compute_model_loss(
 ):
     if config.model_loss_type == 'mbpo':
         mean_loss, var_loss = jax_loss.mbpo_model_loss(
-            stats.model_mean, 
-            stats.model_logstd * 2, 
+            stats.model_loc, 
+            lax.log(stats.model_scale) * 2., 
             next_obs
         )
 
@@ -71,6 +65,10 @@ def compute_model_loss(
         stats.var_loss = var_loss
         loss = jnp.sum(mean_loss) + jnp.sum(var_loss)
         chex.assert_rank([mean_loss, var_loss], 1)
+    elif config.model_loss_type == 'mse':
+        loss = (stats.model_loc - next_obs) ** 2
+        stats.mean_loss = jnp.mean(loss, [0, 1, 2, 4])
+        loss = jnp.mean(stats.mean_loss)
     elif config.model_loss_type == 'discrete':
         loss = optax.softmax_cross_entropy_with_integer_labels(
             stats.model_logits, next_obs)
