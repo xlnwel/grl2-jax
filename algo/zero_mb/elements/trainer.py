@@ -48,7 +48,7 @@ class Trainer(TrainerBase):
                         self.jit_img_train(
                             theta, 
                             opt_state=opt_state, 
-                            data=data, 
+                            data=d, 
                         )
         
         for k, v in theta.items():
@@ -82,6 +82,7 @@ class Trainer(TrainerBase):
                 opt_state.value, 
                 kwargs={
                     'rng': rng, 
+                    'policy_theta': theta.policy, 
                     'data': data, 
                 }, 
                 opt=self.opts.value, 

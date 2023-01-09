@@ -77,7 +77,6 @@ class EnsembleModels(hk.Module):
         self.config = dict2AttrDict(config, to_copy=True)
         self.n = n
         self.one_hot = one_hot
-        self.n_grids = 5
         self.action_dim = action_dim
         self.out_size = out_size
 

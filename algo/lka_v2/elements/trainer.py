@@ -26,7 +26,7 @@ def construct_fake_data(env_stats, aid):
         for k, v in shapes.items()}
     data = dict2AttrDict(data)
     data.setdefault('global_state', data.obs)
-    data.action = jnp.zeros(basic_shape, jnp.int32)
+    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
     data.value = jnp.zeros(basic_shape, jnp.float32)
     data.reward = jnp.zeros(basic_shape, jnp.float32)
     data.discount = jnp.zeros(basic_shape, jnp.float32)

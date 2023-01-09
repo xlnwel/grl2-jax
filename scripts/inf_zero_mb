@@ -26,7 +26,7 @@ for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
         # for a2 in "${args2[@]}"; do
         for a3 in "${args3[@]}"; do
-            for s in {0..0}; do
+            for s in {0..9}; do
                 la1=${#args1[@]}
                 idx=$(($INF_MAC_NODE_RANK % $la1))
                 a1=${args1[$idx]}

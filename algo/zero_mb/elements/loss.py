@@ -56,32 +56,36 @@ class Loss(LossBase):
             )
         stats = record_policy_stats(data, stats, act_dist)
 
-        v_target, stats.raw_adv = jax_loss.compute_target_advantage(
-            config=self.config, 
-            reward=data.reward, 
-            discount=data.discount, 
-            reset=data.reset, 
-            value=lax.stop_gradient(stats.value), 
-            next_value=next_value, 
-            ratio=lax.stop_gradient(stats.ratio), 
-            gamma=stats.gamma, 
-            lam=stats.lam, 
-            axis=1
-        )
-        stats.v_target = lax.stop_gradient(v_target)
-        stats = record_target_adv(stats)
-
-        if self.config.norm_adv:
-            stats.advantage = jax_math.standard_normalization(
-                stats.raw_adv, 
-                zero_center=self.config.get('zero_center', True), 
-                mask=data.sample_mask, 
-                n=data.n, 
-                epsilon=self.config.get('epsilon', 1e-8), 
-            )
+        if 'advantage' in data:
+            stats.advantage = data.pop('advantage')
+            stats.v_target = data.pop('v_target')
         else:
-            stats.advantage = stats.raw_adv
-        stats.advantage = lax.stop_gradient(stats.advantage)
+            v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+                config=self.config, 
+                reward=data.reward, 
+                discount=data.discount, 
+                reset=data.reset, 
+                value=lax.stop_gradient(stats.value), 
+                next_value=next_value, 
+                ratio=lax.stop_gradient(stats.ratio), 
+                gamma=stats.gamma, 
+                lam=stats.lam, 
+                axis=1
+            )
+            stats.v_target = lax.stop_gradient(v_target)
+            stats = record_target_adv(stats)
+
+            if self.config.norm_adv:
+                stats.advantage = jax_math.standard_normalization(
+                    stats.raw_adv, 
+                    zero_center=self.config.get('zero_center', True), 
+                    mask=data.sample_mask, 
+                    n=data.n, 
+                    epsilon=self.config.get('epsilon', 1e-8), 
+                )
+            else:
+                stats.advantage = stats.raw_adv
+            stats.advantage = lax.stop_gradient(stats.advantage)
 
         actor_loss, stats = compute_actor_loss(
             self.config, 
@@ -123,6 +127,7 @@ class Loss(LossBase):
         self, 
         theta, 
         rng, 
+        policy_theta, 
         data, 
         name='train/value', 
     ):
@@ -152,18 +157,38 @@ class Loss(LossBase):
         else:
             value = lax.stop_gradient(stats.value)
 
-        v_target, stats.raw_adv = jax_loss.compute_target_advantage(
-            config=self.config, 
-            reward=data.reward, 
-            discount=data.discount, 
-            reset=data.reset, 
-            value=value, 
-            next_value=next_value, 
-            ratio=lax.stop_gradient(stats.ratio), 
-            gamma=stats.gamma, 
-            lam=stats.lam, 
-            axis=1
-        )
+        _, _, _, ratio = compute_policy(
+                self.modules.policy, 
+                policy_theta, 
+                rngs[1], 
+                data.obs, 
+                data.next_obs, 
+                data.action, 
+                data.mu_logprob, 
+                data.state_reset[:, :-1], 
+                None if data.state is None else data.state.policy, 
+                action_mask=data.action_mask, 
+                next_action_mask=data.next_action_mask, 
+                bptt=self.config.prnn_bptt, 
+                seq_axis=1, 
+            )
+
+        if 'advantage' in data:
+            stats.advantage = data.pop('advantage')
+            stats.v_target = data.pop('v_target')
+        else:
+            v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+                config=self.config, 
+                reward=data.reward, 
+                discount=data.discount, 
+                reset=data.reset, 
+                value=value, 
+                next_value=next_value, 
+                ratio=lax.stop_gradient(ratio), 
+                gamma=stats.gamma, 
+                lam=stats.lam, 
+                axis=1
+            )
         stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
 

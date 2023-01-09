@@ -93,8 +93,8 @@ def train(
     while step < routine_config.MAX_STEPS:
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
-        for b in buffers:
-            assert b.size() == 0, b.size()
+        for i, buffer in enumerate(buffers):
+            assert buffer.size() == 0, f"buffer i: {buffer.size()}"
         with rt:
             env_outputs = [None for _ in all_aids]
             for i in all_aids:
