@@ -10,20 +10,9 @@ import haiku as hk
 from core.log import do_logging
 from core.elements.model import Model as ModelBase
 from core.typing import dict2AttrDict, AttrDict
-from nn.func import create_network
 from tools.file import source_file
-from tools.display import print_dict_info
 from jax_tools import jax_dist
 from env.typing import EnvOutput
-
-
-ACTIONS = jnp.array([
-    [0, -1],  # Move left
-    [0, 1],  # Move right
-    [-1, 0],  # Move up
-    [1, 0],  # Move down
-    [0, 0]  # don't move
-])
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -34,12 +23,14 @@ def construct_fake_data(env_stats, aid):
     basic_shape = (1, 1, env_stats.n_units)
     shapes = env_stats.obs_shape[aid]
     dtypes = env_stats.obs_dtype[aid]
+    action_dim = env_stats.action_dim[aid]
     data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
         for k, v in shapes.items()}
     data = dict2AttrDict(data)
-    data.action = jnp.zeros(basic_shape, jnp.float32)
+    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
 
     return data
+
 
 class Model(ModelBase):
     def add_attributes(self):
@@ -120,10 +111,7 @@ class Model(ModelBase):
         reward = self.reward(params.reward, rngs[1], data.obs, data.action)
         discount = jnp.ones_like(reward, dtype=jnp.float32)
         reset = jnp.zeros_like(reward, dtype=jnp.float32)
-        global_state = jnp.expand_dims(next_obs, -3)
-        global_state = jnp.reshape(global_state, (*global_state.shape[:-2], -1))
-        global_state = jnp.tile(global_state, (self.env_stats.n_units, 1))
-        obs = {'obs': next_obs, 'global_state': global_state}
+        obs = {'obs': next_obs, 'global_state': next_obs}
         env_out = EnvOutput(obs, reward, discount, reset)
 
         return env_out, stats, data.state
@@ -131,14 +119,9 @@ class Model(ModelBase):
     def next_obs(self, params, rng, obs, action, evaluation):
         rngs = random.split(rng, 2)
         dist = self.modules.model(params, rngs[0], obs, action)
-        next_obs = dist.mode() if evaluation else dist.sample(rng=rngs[1])
+        next_obs = dist.mode() if evaluation else dist.sample(seed=rngs[1])
         
         stats = dict2AttrDict(dist.get_stats('model'))
-        action2 = action[..., ::-1, :]
-        action = jnp.stack([action, action2], -2)
-        action_vec = jnp.reshape(ACTIONS[action], (-1, 2, 4))
-        exp_obs = jnp.clip(obs[..., :4] + action_vec, 0, 4)
-        stats.oa_consistency = jnp.mean(next_obs[..., :4] == exp_obs)
 
         return next_obs, stats
 
@@ -182,16 +165,3 @@ def create_model(
         name=name,
         **kwargs
     )
-
-
-if __name__ == '__main__':
-    from tools.yaml_op import load_config
-    from env.func import create_env
-    from tools.display import pwc
-    config = load_config('algo/zero_mr/configs/magw_a2c')
-    
-    env = create_env(config.env)
-    model = create_model(config.model, env.stats())
-    data = construct_fake_data(env.stats(), 0)
-    print(model.action(model.params, data))
-    pwc(hk.experimental.tabulate(model.raw_action)(model.params, data), color='yellow')

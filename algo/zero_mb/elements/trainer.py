@@ -35,15 +35,9 @@ class Trainer(TrainerBase):
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == True, is_imaginary
         opt_state = self.imaginary_opt_state
-        if self.config.popart:
-            data.popart_mean = self.popart.mean
-            data.popart_std = self.popart.std
         for _ in range(self.config.n_imaginary_epochs):
             np.random.shuffle(self.img_indices)
             indices = np.split(self.img_indices, self.config.n_imaginary_mbs)
-            print(len(indices))
-            from tools.display import print_dict_info
-            print_dict_info(data)
             for idx in indices:
                 with Timer('imaginary_train'):
                     d = data.slice(idx)

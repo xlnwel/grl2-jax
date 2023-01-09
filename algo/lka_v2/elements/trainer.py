@@ -114,7 +114,7 @@ class Trainer(TrainerBase):
         theta = self.model.params.copy()
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == False, is_imaginary
-        opt_state = self.imaginary_opt_state
+        opt_state = self.params.theta
         for _ in range(self.config.n_imaginary_epochs):
             with Timer('imaginary_train'):
                 theta, opt_state, _ = \
@@ -127,7 +127,6 @@ class Trainer(TrainerBase):
         # NOTE: the updated parameters are valued to imaginary parameters
         for k, v in theta.items():
             self.model.imaginary_params[k] = v
-        self.imaginary_opt_state = opt_state
 
     def sync_imaginary_params(self):
         self.model.sync_imaginary_params()

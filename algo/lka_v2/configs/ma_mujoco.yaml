@@ -23,11 +23,11 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 3
+    n_imaginary_runs: 1
     imaginary_rollout: sim
 
 env:
-    env_name: &env_name ma_mujoco-HalfCheetah
+    env_name: &env_name ma_mujoco-HalfCheetah_2x3
     n_runners: &nrunners 1
     n_envs: &nenvs 40
     max_episode_steps: 1000
@@ -59,6 +59,10 @@ model:
         rnn_type: &prnn null
         rnn_units: 64
         init_std: .2
+        sigmoid_scale: False
+        std_x_coef: 1.
+        std_y_coef: .5
+        use_feature_norm: True
     value:
         nn_id: value
         units_list: [64, 64]
@@ -67,6 +71,7 @@ model:
         norm: null
         rnn_type: &vrnn null
         rnn_units: 64
+        use_feature_norm: True
 
 loss:
     # hyperparams for value target and advantage

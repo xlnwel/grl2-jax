@@ -124,9 +124,6 @@ class Trainer(TrainerBase):
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == True, is_imaginary
         opt_state = self.imaginary_opt_state
-        if self.config.popart:
-            data.popart_mean = self.popart.mean
-            data.popart_std = self.popart.std
         for _ in range(self.config.n_imaginary_epochs):
             np.random.shuffle(self.indices)
             indices = np.split(self.indices, self.config.n_mbs)
@@ -140,7 +137,7 @@ class Trainer(TrainerBase):
                         self.jit_img_train(
                             theta, 
                             opt_state=opt_state, 
-                            data=data, 
+                            data=d, 
                         )
         
         for k, v in theta.items():
@@ -189,6 +186,7 @@ class Trainer(TrainerBase):
                 opt_state.value, 
                 kwargs={
                     'rng': rng, 
+                    'policy_theta': theta.policy, 
                     'data': data, 
                 }, 
                 opt=self.opts.value, 
