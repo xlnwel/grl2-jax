@@ -64,7 +64,11 @@ class LocalBuffer(Buffer):
             for k, v in latest_piece.items():
                 self._buffer[k].append(v)
 
-        data = stack_data_with_state(self._buffer, self.sample_keys)
+        if "future_mu_logprob" in self._buffer.keys():
+            sample_keys = self.sample_keys | {"future_mu_logprob"}
+        else:
+            sample_keys = self.sample_keys
+        data = stack_data_with_state(self._buffer, sample_keys)
         self.reset()
 
         return self.runner_id, data, self.n_envs * self.n_steps
@@ -148,10 +152,15 @@ class ACBuffer(Buffer):
             self._buffers[rid][k].append(v)
         self._current_size += n
 
+        if "future_mu_logprob" in data:
+            sample_keys = self.sample_keys | {"future_mu_logprob"}
+            assert 0
+        else:
+            sample_keys = self.sample_keys
         if self._current_size >= self.max_size:
             data = {k: np.concatenate(
                 [np.concatenate(b[k]) for b in self._buffers if b]
-                )[-self.batch_size:] for k in self.sample_keys
+                )[-self.batch_size:] for k in sample_keys
             }
             self._queue.append(data)
             self._buffers = [collections.defaultdict(list) for _ in range(self.n_runners)]
@@ -173,6 +182,7 @@ class ACBuffer(Buffer):
         ready = self._wait_to_sample()
         if not ready:
             return None
+        
         sample = self._sample(sample_keys)
         sample = dict2AttrDict(sample, shallow=True)
 
@@ -210,7 +220,7 @@ class ACBuffer(Buffer):
         sample_keys = sample_keys or self.sample_keys
         sample = self._queue.popleft()
         assert len(self._queue) == 0, len(self._queue)
-        assert set(sample) == set(self.sample_keys), set(self.sample_keys) - set(sample)
+        # assert set(sample) == set(self.sample_keys), set(self.sample_keys) - set(sample)
 
         return sample
 

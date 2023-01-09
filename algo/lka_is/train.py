@@ -153,7 +153,7 @@ def train(
                 env_outputs = runner.run(
                     routine_config.n_steps,
                     agents, collects,
-                    [], all_aids)
+                    [], all_aids, extra_pi=True)
             for i, buffer in enumerate(buffers):
                 data = buffer.get_data({
                     'state_reset': env_outputs[i].reset

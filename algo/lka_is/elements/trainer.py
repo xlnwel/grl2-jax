@@ -1,4 +1,5 @@
 from functools import partial
+from random import sample
 import numpy as np
 import jax
 from jax import lax
@@ -80,12 +81,15 @@ class Trainer(TrainerBase):
         self.haiku_tabulate()
 
     def train(self, data: AttrDict):
-        print("*"*20)
-        print(data.__class__)
-        # print(data)
-        print(data["reward"].shape)
-        print("="*20)
-        assert 0
+        sample_logprob, future_logprob = np.zeros_like(data["mu_logprob"]), np.zeros_like(data["mu_logprob"])
+        accumulated_logprob1 = np.zeros((sample_logprob.shape[0], sample_logprob.shape[2]))
+        accumulated_logprob2 = np.zeros((future_logprob.shape[0], future_logprob.shape[2]))
+        for i in range(sample_logprob.shape[1]):
+            accumulated_logprob1 += data["mu_logprob"][:, i]
+            accumulated_logprob2 += data["future_mu_logprob"][:, i]
+            sample_logprob[:, i, :] = accumulated_logprob1
+            future_logprob[:, i, :] = accumulated_logprob2
+        data["reward"] = data["reward"] * np.exp(future_logprob - sample_logprob)
         theta = self.model.theta.copy()
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == False, is_imaginary

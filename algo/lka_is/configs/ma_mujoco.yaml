@@ -15,7 +15,7 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 1e7
-    n_steps: &nsteps 1000
+    n_steps: &nsteps 100
     LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
@@ -29,11 +29,11 @@ routine:
 env:
     env_name: &env_name ma_mujoco-Ant
     n_runners: &nrunners 1
-    n_envs: &nenvs 16
+    n_envs: &nenvs 40
     max_episode_steps: 1000
     timeout_done: &td False
     env_args:
-        agent_conf: 2x4
+        agent_conf: 4x2
         agent_obsk: 0
 
 agent: {}

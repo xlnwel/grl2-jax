@@ -75,7 +75,7 @@ loss:
     rho_clip: 1
     adv_type: gae
     norm_adv: True
-    popart: &popart True
+    popart: &popart False
 
     prnn_bptt: 10
     vrnn_bptt: 10

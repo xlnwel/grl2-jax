@@ -68,8 +68,11 @@ class Runner(RunnerWithState):
         collects, 
         img_aids, 
         collect_ids, 
-        store_info=True
-    ):
+        store_info=True,
+        extra_pi=False,
+    ):  
+        if extra_pi:
+            assert len(img_aids) == 0
         for aid, agent in enumerate(agents):
             if aid in img_aids:
                 agent.strategy.model.switch_params(True)
@@ -80,11 +83,15 @@ class Runner(RunnerWithState):
         env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
         for _ in range(n_steps):
             acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
-
-            print("--->>>"*20)
-            print(stats)
-            assert 0
-
+            if extra_pi:
+                for agent in agents:
+                    agent.strategy.model.switch_params(True)
+                _, extra_stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
+                for idx in range(len(stats)):
+                    stats[idx]["future_mu_logprob"] = extra_stats[idx]["mu_logprob"]
+                for agent in agents:
+                    agent.strategy.model.switch_params(False)
+                
             action = np.concatenate(acts, axis=-1)
             env_output = self.env.step(action)
             new_env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
