@@ -14,7 +14,7 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 3e7
-    n_steps: &nsteps 1
+    n_steps: &nsteps 10
     LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 

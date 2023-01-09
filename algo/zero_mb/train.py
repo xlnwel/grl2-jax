@@ -13,6 +13,22 @@ from tools import pkg
 from algo.zero_mb.run import *
 
 
+def transfer_data(agents, buffers, env_outputs, config):
+    for agent, buffer, env_output in zip(agents, buffers, env_outputs):
+        data = buffer.get_data({
+            'state_reset': env_output.reset
+        })
+        if config.compute_return_at_once:
+            next_value = agent.model.compute_value({
+                'global_state': env_output.obs['global_state'], 
+                'state_reset': env_output.reset, 
+                'state': data.state.value if 'state' in data else None
+            })
+            data = buffer.compute_advantages(data, next_value)
+        from tools.display import print_dict_info
+        print_dict_info(data)
+        buffer.move_to_queue(data)
+
 def train(
     configs, 
     agents, 
@@ -108,14 +124,11 @@ def train(
                         agents, collects, 
                         model_collect, 
                         img_aids, [i])[i]
-        for i, buffer in enumerate(buffers):
-            data = buffer.get_data({
-                'state_reset': env_outputs[i].reset
-            })
-            buffer.move_to_queue(data)
+        transfer_data(agents, buffers, env_outputs, routine_config)
 
-        for b in buffers:
-            assert b.ready(), (b.size(), len(b._queue))
+        for buffer in buffers:
+            assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
+
         step += steps_per_iter
         
         time2record = to_record(step)
@@ -156,11 +169,7 @@ def train(
                     with Timer('imaginary_run'):
                         img_eos = run_on_model(
                             model, model_buffer, agents, collects, routine_config)
-                    for i, buffer in enumerate(buffers):
-                        data = buffer.get_data({
-                            'state_reset': img_eos[i].reset
-                        })
-                        buffer.move_to_queue(data)
+                    transfer_data(agents, buffers, img_eos, routine_config)
                     for agent in agents:
                         with Timer('imaginary_train'):
                             agent.imaginary_train()
@@ -183,6 +192,16 @@ def train(
             # else:
             #     diff_info = info
             # prev_info = after_info
+            if eval_process is not None:
+                scores, epslens, video = ray.get(eval_process)
+                for agent in agents:
+                    agent.store(**{
+                        'metrics/eval_score': np.mean(scores), 
+                        'metrics/eval_epslen': np.mean(epslens), 
+                    })
+                if video is not None:
+                    agent.video_summary(video, step=step, fps=1)
+            eval_process = evaluate_agent(step)
             with Timer('log'):
                 for agent in agents:
                     agent.store(**{
