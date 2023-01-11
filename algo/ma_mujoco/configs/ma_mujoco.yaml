@@ -50,13 +50,13 @@ model:
     emodels:
         nn_id: emodels
         n: &n 1
-        one_hot: False
         units_list: [200, 200, 200, 200]
         activation: relu
         norm: null
+        max_logvar: .5
+        min_logvar: -10
     reward:
         nn_id: reward
-        one_hot: False
         out_size: 1
         units_list: [200, 200, 200, 200]
         activation: relu

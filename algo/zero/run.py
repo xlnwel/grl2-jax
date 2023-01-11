@@ -1,6 +1,5 @@
 import numpy as np
 
-from core.typing import dict2AttrDict
 from tools.run import RunnerWithState
 from tools.utils import batch_dicts
 from env.typing import EnvOutput

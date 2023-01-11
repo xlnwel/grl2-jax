@@ -25,6 +25,7 @@ routine:
 
     n_imaginary_runs: 0
     imaginary_rollout: sim
+    compute_return_at_once: False
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -33,8 +34,9 @@ env:
     max_episode_steps: 1000
     timeout_done: &td False
     env_args:
-        agent_conf: 2x4
+        agent_conf: 2x3
         agent_obsk: 0
+    single_agent: False
 
 agent: {}
 

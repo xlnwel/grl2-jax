@@ -160,13 +160,12 @@ def setup_configs(cmd_args, algo_env_config):
     else:
         raise NotImplementedError
 
-    if cmd_args.n_agents > 1:
-        for i, c in enumerate(configs):
-            modify_config(
-                c, 
-                aid=i,
-                seed=i*100 if cmd_args.seed is None else cmd_args.seed+i*100
-            )
+    for i, c in enumerate(configs):
+        modify_config(
+            c, 
+            aid=i,
+            seed=i*100 if cmd_args.seed is None else cmd_args.seed+i*100
+        )
     
     return configs
 

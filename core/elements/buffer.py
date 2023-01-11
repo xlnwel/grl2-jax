@@ -33,28 +33,28 @@ def extract_sampling_keys(
     state_keys = model.state_keys
     state_type = model.state_type
     sample_keys = config.sample_keys
-    sample_size = config.get('sample_size', config.n_steps)
+    sample_size = config.n_steps
     sample_keys = set(sample_keys)
-    if config.get('auto_state', True):
-        if state_keys is None:
-            if 'state' in sample_keys:
-                sample_keys.remove('state')
-        else:
-            sample_keys.add('state')
+    if state_keys is None:
+        if 'state' in sample_keys:
+            sample_keys.remove('state')
+        if 'state_reset' in sample_keys:
+            sample_keys.remove('state_reset')
+    else:
+        sample_keys.add('state')
+        sample_keys.add('state_reset')
     obs_keys = env_stats.obs_keys[model.config.aid] if 'aid' in model.config else env_stats.obs_keys
     for k in obs_keys:
         sample_keys.add(k)
     if not config.timeout_done:
         for k in obs_keys:
             sample_keys.add(f'next_{k}')
-
     if env_stats.use_action_mask:
-        sample_keys.add('action_mask')
+        sample_keys.append('action_mask')
     elif 'action_mask' in sample_keys:
         sample_keys.remove('action_mask')
     if env_stats.use_sample_mask:
-        sample_keys.add('sample_mask')
+        sample_keys.append('sample_mask')
     elif 'sample_mask' in sample_keys:
         sample_keys.remove('sample_mask')
-
     return state_keys, state_type, sample_keys, sample_size

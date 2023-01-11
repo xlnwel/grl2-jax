@@ -137,13 +137,9 @@ class Model(ModelBase):
 def setup_config_from_envstats(config, env_stats):
     if 'aid' in config:
         aid = config['aid']
-        config.emodels.action_dim = env_stats.action_dim[aid]
         config.emodels.out_size = env_stats.obs_shape[aid]['obs'][0]
-        config.reward.action_dim = env_stats.action_dim[aid]
     else:
-        config.emodels.action_dim = env_stats.action_dim
         config.emodels.out_size = env_stats.obs_shape['obs'][0]
-        config.reward.action_dim = env_stats.action_dim
     config.model = config.emodels.copy()
     config.model.nn_id = 'model'
     config.model.pop('n')

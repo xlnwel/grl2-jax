@@ -5,6 +5,7 @@ from jax import lax
 import jax.numpy as jnp
 import haiku as hk
 
+from core.ckpt.pickle import save, restore
 from core.log import do_logging
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
@@ -13,6 +14,7 @@ from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
 from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
+from jax_tools import jax_utils
 
 
 def construct_fake_data(env_stats, aid):
@@ -82,12 +84,18 @@ class Trainer(TrainerBase):
         self.haiku_tabulate()
 
     def train(self, data: AttrDict):
+        if self.config.n_runners * self.config.n_envs < self.config.n_mbs:
+            self.indices = np.arange(self.config.n_mbs)
+            data = jax_utils.tree_map(
+                lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[2:])), data)
+
         theta = self.model.theta.copy()
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == False, is_imaginary
         for _ in range(self.config.n_epochs):
             np.random.shuffle(self.indices)
             indices = np.split(self.indices, self.config.n_mbs)
+            v_target = []
             for idx in indices:
                 with Timer('theta_train'):
                     d = data.slice(idx)
@@ -100,14 +108,18 @@ class Trainer(TrainerBase):
                             opt_state=self.params.theta, 
                             data=d, 
                         )
+                v_target.append(stats.v_target)
         self.model.set_weights(theta)
         if self.config.popart:
-            self.popart.update(stats.v_target)
+            v_target = np.concatenate(v_target)
+            self.popart.update(v_target)
 
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
         stats = prefix_name(stats, 'train')
         stats.update(data)
+        stats['popart/mean'] = self.popart.mean
+        stats['popart/std'] = self.popart.std
         with Timer('stats_subsampling'):
             stats = sample_stats(
                 stats, 
@@ -206,6 +218,34 @@ class Trainer(TrainerBase):
             )
 
         return theta, opt_state, stats
+
+    def save_optimizer(self):
+        super().save_optimizer()
+        self.save_popart()
+    
+    def restore_optimizer(self):
+        super().restore_optimizer()
+        self.restore_popart()
+
+    def save(self):
+        super().save()
+        self.save_popart()
+    
+    def restore(self):
+        super().restore()
+        self.restore_popart()
+
+    def get_popart_dir(self):
+        path = '/'.join([self.config.root_dir, self.config.model_name])
+        return path
+
+    def save_popart(self):
+        filedir = self.get_popart_dir()
+        save(self.popart, filedir=filedir, filename='popart')
+
+    def restore_popart(self):
+        filedir = self.get_popart_dir()
+        self.popart = restore(filedir=filedir, filename='popart', default=RunningMeanStd((0, 1, 2)))
 
     # def haiku_tabulate(self, data=None):
     #     rng = jax.random.PRNGKey(0)

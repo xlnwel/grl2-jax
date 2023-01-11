@@ -61,6 +61,7 @@ def compute_model_loss(
 
         mean_loss = jnp.mean(mean_loss, [0, 1, 2])
         var_loss = jnp.mean(var_loss, [0, 1, 2])
+        stats.model_mae = lax.abs(stats.model_loc - next_obs)
         stats.mean_loss = mean_loss
         stats.var_loss = var_loss
         loss = jnp.sum(mean_loss) + jnp.sum(var_loss)
@@ -89,7 +90,7 @@ def compute_reward_loss(
     pred_reward = jnp.squeeze(reward_dist.mode(), -1)
     reward_loss = jnp.mean(.5 * (pred_reward - reward)**2)
     stats.pred_reward = pred_reward
-    stats.reward_mae = jnp.abs(pred_reward - reward)
+    stats.reward_mae = lax.abs(pred_reward - reward)
     stats.reward_consistency = jnp.mean(stats.reward_mae < .1)
     stats.reward_loss = reward_loss
 

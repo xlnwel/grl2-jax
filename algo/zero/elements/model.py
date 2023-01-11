@@ -83,7 +83,7 @@ class Model(ModelBase):
         rngs = random.split(rng, 3)
         state = data.pop('state', AttrDict())
         data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
-        act_out, policy_state = self.modules.policy(
+        act_out, state.policy = self.modules.policy(
             params.policy, 
             rngs[0], 
             data.obs, 
@@ -91,31 +91,21 @@ class Model(ModelBase):
             state.policy, 
             action_mask=data.action_mask, 
         )
-        state.policy = policy_state
         act_dist = self.policy_dist(act_out, evaluation)
-
-        if self.is_action_discrete:
-            stats = {'mu_logits': act_dist.logits}
-        else:
-            loc = act_dist.loc
-            stats = {
-                'mu_loc': loc,
-                'mu_scale': act_dist.scale_diag, 
-            }
 
         if evaluation:
             action = act_dist.mode()
             stats = {}
         else:
+            stats = act_dist.get_stats('mu')
             action, logprob = act_dist.sample_and_log_prob(seed=rngs[1])
-            value, value_state = self.modules.value(
+            value, state.value = self.modules.value(
                 params.value, 
                 rngs[2], 
                 data.global_state, 
                 data.state_reset, 
                 state.value
             )
-            state.value = value_state
             stats.update({'mu_logprob': logprob, 'value': value})
         action, stats = jax.tree_util.tree_map(
             lambda x: jnp.squeeze(x, 1), (action, stats))

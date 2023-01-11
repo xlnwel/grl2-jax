@@ -28,17 +28,18 @@ def combine_sa(x, a):
 class Model(hk.Module):
     def __init__(
         self, 
-        one_hot, 
-        action_dim, 
         out_size, 
+        max_logvar, 
+        min_logvar, 
         name='model', 
         **config, 
     ):
         super().__init__(name=name)
         self.config = dict2AttrDict(config, to_copy=True)
-        self.one_hot = one_hot
-        self.action_dim = action_dim
         self.out_size = out_size
+
+        self.max_logvar = max_logvar
+        self.min_logvar = min_logvar
 
     def __call__(self, x, action):
         net = self.build_net()
@@ -46,9 +47,8 @@ class Model(hk.Module):
         x = combine_sa(x, action)
 
         x = net(x)
-        # reward, x = jnp.split(x, [1], -1)
-        loc, logstd = jnp.split(x, 2, -1)
-        scale = lax.exp(logstd)
+        loc, logvar = compute_mean_logvar(x, self.max_logvar, self.min_logvar)
+        scale = lax.exp(logvar / 2)
         dist = jax_dist.MultivariateNormalDiag(loc, scale)
 
         return dist
@@ -67,18 +67,19 @@ class EnsembleModels(hk.Module):
     def __init__(
         self, 
         n, 
-        one_hot, 
-        action_dim, 
         out_size, 
+        max_logvar, 
+        min_logvar, 
         name='emodels', 
         **config
     ):
         super().__init__(name=name)
         self.config = dict2AttrDict(config, to_copy=True)
         self.n = n
-        self.one_hot = one_hot
-        self.action_dim = action_dim
         self.out_size = out_size
+        
+        self.max_logvar = max_logvar
+        self.min_logvar = min_logvar
 
     def __call__(self, x, action):
         nets = self.build_net()
@@ -86,9 +87,8 @@ class EnsembleModels(hk.Module):
         x = combine_sa(x, action)
 
         x = jnp.stack([net(x) for net in nets], -2)
-        # reward, x = jnp.split(x, [1], -1)
-        loc, logstd = jnp.split(x, 2, -1)
-        scale = lax.exp(logstd)
+        loc, logvar = compute_mean_logvar(x, self.max_logvar, self.min_logvar)
+        scale = lax.exp(logvar / 2)
         dist = jax_dist.MultivariateNormalDiag(loc, scale)
 
         return dist
@@ -107,16 +107,12 @@ class EnsembleModels(hk.Module):
 class Reward(hk.Module):
     def __init__(
         self, 
-        one_hot, 
-        action_dim, 
         out_size=1, 
         name='reward', 
         **config
     ):
         super().__init__(name=name)
 
-        self.one_hot = one_hot
-        self.action_dim = action_dim
         self.out_size = out_size
         self.config = dict2AttrDict(config, to_copy=True)
 
@@ -141,7 +137,7 @@ class Reward(hk.Module):
 
 
 def compute_mean_logvar(x, max_logvar, min_logvar):
-    mean, logvar = jnp.split(x, -1)
+    mean, logvar = jnp.split(x, 2, axis=-1)
     logvar = max_logvar - nn.softplus(max_logvar - logvar)
     logvar = min_logvar + nn.softplus(logvar - min_logvar)
 

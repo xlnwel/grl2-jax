@@ -182,10 +182,10 @@ class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
         if prefix is None:
             return {
                 'loc': self._loc, 
-                'scale': self._scale_diag, 
+                'scale': self.scale_diag, 
             }
         else:
             return {
                 f'{prefix}_loc': self._loc, 
-                f'{prefix}_scale': self._scale_diag, 
+                f'{prefix}_scale': self.scale_diag, 
             }

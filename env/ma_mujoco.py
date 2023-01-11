@@ -14,6 +14,18 @@ class MAMujoco(gym.Wrapper):
 
         self.env = MujocoMulti(**config)
 
+        self.action_space = self.env.action_space
+
+        self.single_agent = config.single_agent
+        if self.single_agent:
+            self.n_agents = 1
+            self.n_units = self.env.n_agents
+            self.uid2aid = [0] * self.n_units
+        else:
+            self.n_agents = self.env.n_agents
+            self.uid2aid = list(range(self.n_agents))
+            self.n_units = self.n_agents
+
         self.observation_space = [Box(low=np.array([-10]*self.n_agents), high=np.array([10]*self.n_agents)) for _ in range(self.n_agents)]
 
         self.obs_shape = [{
@@ -24,12 +36,10 @@ class MAMujoco(gym.Wrapper):
             'obs': np.float32, 
             'global_state': np.float32
         } for _ in range(self.n_agents)]
-        self.action_space = self.env.action_space
 
-        self.n_agents = self.env.n_agents
-        self.uid2aid = list(range(self.n_agents))
-        self.n_units = self.n_agents
-        
+        self.action_space = self.env.action_space[:1] \
+            if self.single_agent else self.env.action_space
+
         self.reward_range = None
         self.metadata = None
         self.max_episode_steps = self.env.episode_limit
@@ -42,14 +52,14 @@ class MAMujoco(gym.Wrapper):
         return action
 
     def step(self, actions):
-        actions = np.reshape(actions, (self.n_agents, -1))
+        actions = np.reshape(actions, (self.n_units, -1))
         obs, state, reward, done, _, _ = self.env.step(actions)
         reward = np.reshape(reward, -1)
         done = done[0]
-        obs = get_obs(obs, state)
+        obs = get_obs(obs, state, self.single_agent)
 
-        self._score += reward
-        self._dense_score += reward
+        self._score += reward[0]
+        self._dense_score += reward[0]
         self._epslen += 1
 
         info = {
@@ -61,14 +71,20 @@ class MAMujoco(gym.Wrapper):
 
         reward = np.split(reward, self.n_agents)
         if done and self._epslen == self.max_episode_steps:
-            done = [np.zeros(1) for _ in range(self.n)]
+            done = [np.zeros(self.n_units)] if self.single_agent else \
+                [np.zeros(1) for _ in range(self.n_agents)]
         else:
-            done = [np.ones(1) * done for _ in range(self.n)]
+            done = [np.ones(self.n_units) * done] if self.single_agent else \
+                [np.ones(1) * done for _ in range(self.n_agents)]
+        assert len(obs) == self.n_agents, (obs, self.n_agents)
+        assert len(reward) == self.n_agents, (reward, self.n_agents)
+        assert len(done) == self.n_agents, (done, self.n_agents)
         return obs, reward, done, info
 
     def reset(self):
         obs, state, _ = self.env.reset()
-        obs = get_obs(obs, state)
+        obs = get_obs(obs, state, self.single_agent)
+        assert len(obs) == self.n_agents, (obs, self.n_agents)
 
         self._score = np.zeros(self.n_agents)
         self._dense_score = np.zeros(self.n_agents)
@@ -76,10 +92,13 @@ class MAMujoco(gym.Wrapper):
 
         return obs
 
-def get_obs(obs, state):
+def get_obs(obs, state, single_agent):
     agent_obs = []
-    for o, s in zip(obs, state):
-        o = np.expand_dims(o, 0)
-        s = np.expand_dims(s, 0)
-        agent_obs.append({'obs': o, 'global_state': s})
+    if single_agent:
+        agent_obs.append({'obs': np.stack(obs, -2), 'global_state': np.stack(state, -2)})
+    else:
+        for o, s in zip(obs, state):
+            o = np.expand_dims(o, 0)
+            s = np.expand_dims(s, 0)
+            agent_obs.append({'obs': o, 'global_state': s})
     return agent_obs

@@ -23,8 +23,9 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 1
+    n_imaginary_runs: 0
     imaginary_rollout: sim
+    compute_return_at_once: False
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -35,6 +36,7 @@ env:
     env_args:
         agent_conf: 2x3
         agent_obsk: 0
+    single_agent: True
 
 agent: {}
 

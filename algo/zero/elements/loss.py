@@ -46,7 +46,7 @@ class Loss(LossBase):
                 data.next_obs, 
                 data.action, 
                 data.mu_logprob, 
-                data.state_reset[:, :-1], 
+                data.state_reset[:, :-1] if 'state_reset' in data else None, 
                 None if data.state is None else data.state.policy, 
                 action_mask=data.action_mask, 
                 next_action_mask=data.next_action_mask, 
@@ -59,12 +59,19 @@ class Loss(LossBase):
             stats.advantage = data.pop('advantage')
             stats.v_target = data.pop('v_target')
         else:
+            if self.config.popart:
+                value = lax.stop_gradient(denormalize(
+                    stats.value, data.popart_mean, data.popart_std))
+                next_value = denormalize(next_value, data.popart_mean, data.popart_std)
+            else:
+                value = lax.stop_gradient(stats.value)
+
             v_target, stats.raw_adv = jax_loss.compute_target_advantage(
                 config=self.config, 
                 reward=data.reward, 
                 discount=data.discount, 
                 reset=data.reset, 
-                value=lax.stop_gradient(stats.value), 
+                value=value, 
                 next_value=next_value, 
                 ratio=lax.stop_gradient(stats.ratio), 
                 gamma=stats.gamma, 
@@ -149,33 +156,34 @@ class Loss(LossBase):
             bptt=self.config.vrnn_bptt, 
             seq_axis=1, 
         )
-        if self.config.popart:
-            value = lax.stop_gradient(denormalize(
-                stats.value, data.popart_mean, data.popart_std))
-            next_value = denormalize(next_value, data.popart_mean, data.popart_std)
-        else:
-            value = lax.stop_gradient(stats.value)
 
         _, _, _, ratio = compute_policy(
-                self.modules.policy, 
-                policy_theta, 
-                rngs[1], 
-                data.obs, 
-                data.next_obs, 
-                data.action, 
-                data.mu_logprob, 
-                data.state_reset[:, :-1], 
-                None if data.state is None else data.state.policy, 
-                action_mask=data.action_mask, 
-                next_action_mask=data.next_action_mask, 
-                bptt=self.config.prnn_bptt, 
-                seq_axis=1, 
-            )
+            self.modules.policy, 
+            policy_theta, 
+            rngs[1], 
+            data.obs, 
+            data.next_obs, 
+            data.action, 
+            data.mu_logprob, 
+            data.state_reset[:, :-1] if 'state_reset' in data else None, 
+            None if data.state is None else data.state.policy, 
+            action_mask=data.action_mask, 
+            next_action_mask=data.next_action_mask, 
+            bptt=self.config.prnn_bptt, 
+            seq_axis=1, 
+        )
 
         if 'advantage' in data:
-            stats.advantage = data.pop('advantage')
+            stats.raw_adv = data.pop('advantage')
             stats.v_target = data.pop('v_target')
         else:
+            if self.config.popart:
+                value = lax.stop_gradient(denormalize(
+                    stats.value, data.popart_mean, data.popart_std))
+                next_value = denormalize(next_value, data.popart_mean, data.popart_std)
+            else:
+                value = lax.stop_gradient(stats.value)
+
             v_target, stats.raw_adv = jax_loss.compute_target_advantage(
                 config=self.config, 
                 reward=data.reward, 
@@ -191,17 +199,17 @@ class Loss(LossBase):
             stats.v_target = lax.stop_gradient(v_target)
             stats = record_target_adv(stats)
 
-            if self.config.norm_adv:
-                stats.advantage = jax_math.standard_normalization(
-                    stats.raw_adv, 
-                    zero_center=self.config.get('zero_center', True), 
-                    mask=data.sample_mask, 
-                    n=data.n, 
-                    epsilon=self.config.get('epsilon', 1e-8), 
-                )
-            else:
-                stats.advantage = stats.raw_adv
-            stats.advantage = lax.stop_gradient(stats.advantage)
+        if self.config.norm_adv:
+            stats.advantage = jax_math.standard_normalization(
+                stats.raw_adv, 
+                zero_center=self.config.get('zero_center', True), 
+                mask=data.sample_mask, 
+                n=data.n, 
+                epsilon=self.config.get('epsilon', 1e-8), 
+            )
+        else:
+            stats.advantage = stats.raw_adv
+        stats.advantage = lax.stop_gradient(stats.advantage)
 
         value_loss, stats = compute_vf_loss(
             self.config, 
@@ -221,7 +229,6 @@ class Loss(LossBase):
         name='train/policy', 
     ):
         rngs = random.split(rng, 2)
-        stats.update(self.config.stats)
 
         act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
             compute_policy(
@@ -232,7 +239,7 @@ class Loss(LossBase):
                 data.next_obs, 
                 data.action, 
                 data.mu_logprob, 
-                data.state_reset[:, :-1], 
+                data.state_reset[:, :-1] if 'state_reset' in data else None, 
                 None if data.state is None else data.state.policy, 
                 action_mask=data.action_mask, 
                 next_action_mask=data.next_action_mask, 
@@ -352,6 +359,7 @@ def compute_vf_loss(
             stats.v_target, data.popart_mean, data.popart_std)
     else:
         v_target = stats.v_target
+    stats.norm_v_target = v_target
 
     value_loss_type = config.value_loss
     if value_loss_type == 'huber':

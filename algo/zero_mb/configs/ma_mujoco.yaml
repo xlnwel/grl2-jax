@@ -1,7 +1,7 @@
 ---
 algorithm: &algo zero
 name: zero
-dynamics_name: mujoco
+dynamics_name: ma_mujoco
 info: ppo
 
 precision: 32

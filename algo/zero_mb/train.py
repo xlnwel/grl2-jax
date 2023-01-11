@@ -10,24 +10,9 @@ from tools.store import StateStore, TempStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
 from tools import pkg
+from algo.zero.train import transfer_data
 from algo.zero_mb.run import *
 
-
-def transfer_data(agents, buffers, env_outputs, config):
-    for agent, buffer, env_output in zip(agents, buffers, env_outputs):
-        data = buffer.get_data({
-            'state_reset': env_output.reset
-        })
-        if config.compute_return_at_once:
-            next_value = agent.model.compute_value({
-                'global_state': env_output.obs['global_state'], 
-                'state_reset': env_output.reset, 
-                'state': data.state.value if 'state' in data else None
-            })
-            data = buffer.compute_advantages(data, next_value)
-        from tools.display import print_dict_info
-        print_dict_info(data)
-        buffer.move_to_queue(data)
 
 def train(
     configs, 

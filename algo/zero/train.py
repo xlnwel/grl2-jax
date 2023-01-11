@@ -6,9 +6,11 @@ from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code
 from core.typing import ModelPath
+from tools.display import print_dict_info
 from tools.store import StateStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
+from jax_tools import jax_utils
 from tools import pkg
 from algo.zero.run import *
 
@@ -22,9 +24,17 @@ def transfer_data(agents, buffers, env_outputs, config):
             next_value = agent.model.compute_value({
                 'global_state': env_output.obs['global_state'], 
                 'state_reset': env_output.reset, 
-                'state': data.state.value if 'state' in data else None
+                'state': data.state.value[:, -1] if 'state' in data else None
             })
-            data = buffer.compute_advantages(data, next_value)
+            
+            value = data.value
+            # if agent.trainer.config.popart:
+            #     data.value = agent.trainer.popart.denormalize(data.value)
+            #     next_value = agent.trainer.popart.denormalize(next_value)
+            # data = buffer.compute_advantages(data, next_value)
+            if agent.trainer.config.popart:
+                # reassign value to ensure value clipping at the right anchor
+                data.value = value
 
         buffer.move_to_queue(data)
 

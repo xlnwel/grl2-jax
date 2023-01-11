@@ -32,12 +32,12 @@ def save(data, *, filedir, filename, backtrack=3):
         cloudpickle.dump(data, f)
     do_logging(f'Saving parameters in "{filename}"', backtrack=backtrack)
 
-def restore(*, filedir=None, filename, backtrack=3):
+def restore(*, filedir=None, filename, backtrack=3, default={}):
     """ Retrieve data from filedir/filename
     filename specifies the whole path if filedir is None
     """
     filename = _ckpt_filename(filedir, filename)
-    data = {}
+    data = default
     if os.path.exists(filename):
         try:
             with open(filename, 'rb') as f:
