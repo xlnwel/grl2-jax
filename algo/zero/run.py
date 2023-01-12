@@ -5,6 +5,11 @@ from tools.utils import batch_dicts
 from env.typing import EnvOutput
 
 
+def concate_along_unit_dim(x):
+    x = np.concatenate(x, axis=1)
+    return x
+
+
 def run_eval(env, agents, img_aids, prefix=''):
     for i, agent in enumerate(agents):
         if i in img_aids:
@@ -19,7 +24,7 @@ def run_eval(env, agents, img_aids, prefix=''):
     for _ in range(env.max_episode_steps):
         acts, stats = zip(*[a(eo, evaluation=True) for a, eo in zip(agents, env_outputs)])
 
-        action = np.concatenate(acts, axis=-1)
+        action = concate_along_unit_dim(acts)
         assert action.shape == (env.n_envs, len(agents)), action.shape
         env_output = env.step(action)
         new_env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
@@ -80,7 +85,7 @@ class Runner(RunnerWithState):
         for _ in range(n_steps):
             acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
-            action = np.concatenate(acts, axis=-1)
+            action = concate_along_unit_dim(acts)
             env_output = self.env.step(action)
             new_env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
 

@@ -52,7 +52,6 @@ class MAMujoco(gym.Wrapper):
         return action
 
     def step(self, actions):
-        actions = np.reshape(actions, (self.n_units, -1))
         obs, state, reward, done, _, _ = self.env.step(actions)
         reward = np.reshape(reward, -1)
         done = done[0]

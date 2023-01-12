@@ -5,7 +5,7 @@ from tools.run import RunnerWithState
 from tools.utils import batch_dicts
 from env.typing import EnvOutput
 from jax_tools import jax_utils
-from algo.zero.run import run_comparisons
+from algo.zero.run import concate_along_unit_dim, run_comparisons
 
 
 class Runner(RunnerWithState):
@@ -30,7 +30,7 @@ class Runner(RunnerWithState):
         for _ in range(n_steps):
             acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
-            action = np.concatenate(acts, axis=-1)
+            action = concate_along_unit_dim(acts)
             env_output = self.env.step(action)
             new_env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
 
@@ -50,12 +50,13 @@ class Runner(RunnerWithState):
             state = [s['state'] for s in stats] if 'state' in stats[0] else None
             if state is not None:
                 state = batch_dicts(state, func=lambda x: np.stack(x, 1))
+
             model_collect(
                 self.env, 0, 
                 reset=np.concatenate([eo.reset for eo in new_env_outputs], -1),
                 obs=batch_dicts([eo.obs for eo in env_outputs], 
                     func=lambda x: np.concatenate(x, -2)),
-                action=np.concatenate(acts, axis=-2), 
+                action=action, 
                 reward=reward,
                 next_obs=batch_dicts(next_obs, 
                     func=lambda x: np.concatenate(x, -2)), 
@@ -101,7 +102,7 @@ def simultaneous_rollout(env, agents, collects, env_output, rountine_config):
     for i in range(rountine_config.n_imaginary_steps):
         acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
-        action = np.concatenate(acts, axis=-2)
+        action = concate_along_unit_dim(acts)
         env_output.obs['action'] = action
         if rountine_config.switch_model_at_every_step:
             env.model.choose_elite()
@@ -138,7 +139,7 @@ def unilateral_rollout(env, agents, collects, env_output, rountine_config):
         for i in range(rountine_config.n_imaginary_steps):
             acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
-            action = np.concatenate(acts, axis=-1)
+            action = concate_along_unit_dim(acts)
             assert action.shape == (rountine_config.n_imaginary_envs, 2), action.shape
             env_output.obs['action'] = action
             new_env_output, env_stats = env(env_output)

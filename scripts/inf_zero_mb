@@ -4,38 +4,21 @@ export PYTHONPATH=.
 
 algos=(
     zero_mb
-    zero_mb
-    zero_mb
-    zero_mb
-    zero_mb
-    zero_mb
-    zero_mb
-    zero_mb
-    zero_mb
-    zero_mb
-    zero_mb
-    zero_mb
 )
 suite=$1
 shift
 # envs=(escalation staghunt harvest)
 envs=(
-    HalfCheetah_2x3
-    HalfCheetah_2x3
-    HalfCheetah_2x3
-    HalfCheetah_2x3
-    Ant_2x4
-    Ant_2x4
-    Ant_2x4
-    Ant_2x4
+    escalation
 )
-e=${suite}
+e=${envs[0]}
 configs=(
     "${e}"
 )
-args1=(1 1 3 3 1 1 3 3)
-args2=(200 400 200 400 200 400 200 400)
-args3=(10 15 20)
+args1=(1 1 1 1 3 3 3 3)
+args2=(128 128 256 256)
+args3=(10 20)
+args4=(5 10)
 date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"
@@ -71,15 +54,15 @@ la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
-for a3 in "${args3[@]}"; do
-    for s in {0..5}; do
-        kws="n_imaginary_runs=$a1 n_imaginary_envs=$a2 n_imaginary_steps=$a3"
+for a4 in "${args4[@]}"; do
+    for s in {0..9}; do
+        kws="n_imaginary_runs=$a1 n_imaginary_envs=$a2 n_imaginary_steps=$a3 img_prnn_bptt=$a4 img_vrnn_bptt=$a4"
         # echo $kws
         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
             gpu=$(($i % $gpus))
-            py_script="python run/train.py -a ${a} ${a} $suite -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na 3 -kw $kws &"
+            py_script="python run/train.py -a ${a} ${a} $suite -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -kw $kws &"
         else
-            py_script="python run/train.py -a ${a} ${a} $suite -e $env -c $config -ld $ld -n $n -s $s -na 3 -kw $kws &"
+            py_script="python run/train.py -a ${a} ${a} $suite -e $env -c $config -ld $ld -n $n -s $s -kw $kws &"
         fi
         echo $py_script
         eval $py_script
