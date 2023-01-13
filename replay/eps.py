@@ -154,7 +154,7 @@ class EpisodicReplay(Buffer):
                         self._memory[filename] = data
             do_logging(f'{len(self)} episodes are loaded', logger=logger)
         else:
-            logger.warning(f'There are already {len(self)} episodes in the memory. No further loading is performed')
+            do_logging(f'There are already {len(self)} episodes in the memory. No further loading is performed', logger=logger)
 
     def sample(
         self, 

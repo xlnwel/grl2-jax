@@ -2,6 +2,7 @@
 algorithm: &algo zero_mb
 name: zero_mb
 dynamics_name: magw
+info: ppo
 
 precision: 32
 
@@ -24,8 +25,8 @@ routine:
     size: [256, 256]
 
     n_imaginary_runs: 3
-    n_imaginary_envs: 64
-    n_imaginary_steps: 10
+    n_imaginary_envs: &nie 64
+    n_imaginary_steps: &nis 10
     imaginary_rollout: sim
     restore_state: False
     n_recent_trajectories: 64
@@ -112,9 +113,13 @@ trainer:
     n_runners: *nrunners
     n_envs: *nenvs
     n_epochs: &nepochs 4
-    n_imaginary_epochs: 4
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
+
+    n_imaginary_envs: *nie
+    n_imaginary_steps: *nis
+    n_imaginary_epochs: 4
+    n_imaginary_mbs: 1
 
     theta_opt:
         opt_name: adam

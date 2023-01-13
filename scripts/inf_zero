@@ -18,8 +18,8 @@ suite=$1
 shift
 # envs=(escalation staghunt harvest)
 envs=(
-    HalfCheetah_2x3
-    HalfCheetah_2x3
+    escalation
+    escalation
     HalfCheetah_2x3
     HalfCheetah_2x3
     HalfCheetah_2x3
@@ -29,12 +29,13 @@ envs=(
     Ant_2x4
     Ant_2x4
 )
-e=${suite}
+# e=${suite}
+e=escalation
 configs=(
     "${e}"
 )
 na=2
-args1=(0 1 3 1 3 0 1 3 1 3)
+args1=(3)
 args2=(300 400 300 400 300 400 300 400)
 args3=(10 10 10 10 10 10 10 10 10 10 10 10)
 date=$(date +"%m%d")
@@ -75,17 +76,20 @@ a3=${args3[$idx]}
 kws="n_imaginary_runs=$a1"
 # kws=$@
 
-for s in {0..4}; do
-    # echo $kws
-    if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
-        gpu=$(($i % $gpus))
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
-    else
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
-    fi
-    echo $py_script
-    eval $py_script
-    ((i=(i+1) ))
+for a1 in "${args1[@]}"; do
+    kws="n_imaginary_runs=$a1"
+    for s in {0..9}; do
+        # echo $kws
+        if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+            gpu=$(($i % $gpus))
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
+        else
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
+        fi
+        echo $py_script
+        eval $py_script
+        ((i=(i+1) ))
+    done
 done
 wait
 echo "Script completed"
