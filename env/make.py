@@ -179,6 +179,15 @@ def make_ma_mujoco(config):
 
     return env
 
+def make_ma_minigrid(config):
+    from env.ma_minigrid.environment import MAMiniGrid
+    config = _change_env_name(config)
+    env = MAMiniGrid(config)
+    env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+    env = wrappers.DataProcess(env)
+    env = wrappers.MASimEnvStats(env)
+
+    return env
 
 def make_overcooked(config):
     assert 'overcooked' in config['env_name'], config['env_name']
