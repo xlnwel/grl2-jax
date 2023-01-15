@@ -1,6 +1,6 @@
 ---
-algorithm: &algo lka_v3
-name: lka_v3
+algorithm: &algo lka_kl
+name: lka_kl
 
 precision: 32
 
@@ -13,10 +13,10 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 5e7
+    MAX_STEPS: 1e8
     n_steps: &nsteps 50
-    LOG_PERIOD: 1e5
-    EVAL_PERIOD: 1e5
+    LOG_PERIOD: 2e5
+    EVAL_PERIOD: null
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
@@ -26,15 +26,17 @@ routine:
     imaginary_rollout: sim
 
 env:
-    env_name: &env_name magw-staghunt
+    env_name: &env_name mpe-simple_spread
     n_runners: &nrunners 1
-    n_envs: &nenvs 256
+    n_units: 3
+    num_landmarks: 3
+    n_envs: &nenvs 64
     max_episode_steps: 50
     reward_scale: .1
     population_size: 1
     timeout_done: &td False
 
-    uid2aid: [0, 1]
+    uid2aid: [0, 1, 2]
 
 agent: {}
 
@@ -56,7 +58,7 @@ model:
         activation: tanh
         norm: null
         out_scale: .01
-        rnn_type: &prnn null
+        rnn_type: &prnn lstm
         rnn_units: 64
     value:
         nn_id: value
@@ -64,7 +66,7 @@ model:
         w_init: orthogonal
         activation: tanh
         norm: null
-        rnn_type: &vrnn null
+        rnn_type: &vrnn lstm
         rnn_units: 64
 
 loss:

@@ -71,7 +71,7 @@ class Trainer(TrainerBase):
 
 
 create_trainer = partial(create_trainer,
-    name='lka_v2', trainer_cls=Trainer
+    name='lka_v3', trainer_cls=Trainer
 )
 
 

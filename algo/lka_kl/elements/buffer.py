@@ -62,10 +62,16 @@ class LocalBuffer(Buffer):
         # assert self._size == self.n_steps, (self._size, self.n_steps)
         if latest_piece is not None:
             for k, v in latest_piece.items():
-                self._buffer[k].append(v)
+                if k in self._buffer:
+                    self._buffer[k].append(v)
 
         if "future_mu_logprob" in self._buffer.keys():
-            sample_keys = self.sample_keys | {"future_mu_logprob"}
+            if "future_mu_logits" in self._buffer.keys():
+                sample_keys = self.sample_keys | {"future_mu_logprob", "future_mu_logits"}
+            elif "future_mu_loc" in self._buffer.keys():
+                sample_keys = self.sample_keys | {"future_mu_logprob", "future_mu_loc", "future_mu_scale"}
+            else:
+                assert 0
         else:
             sample_keys = self.sample_keys
         data = stack_data_with_state(self._buffer, sample_keys)
@@ -153,7 +159,12 @@ class ACBuffer(Buffer):
         self._current_size += n
 
         if "future_mu_logprob" in data:
-            sample_keys = self.sample_keys | {"future_mu_logprob"}
+            if "future_mu_logits" in data:
+                sample_keys = self.sample_keys | {"future_mu_logprob", "future_mu_logits"}
+            elif "future_mu_loc" in data:
+                sample_keys = self.sample_keys | {"future_mu_logprob", "future_mu_loc", "future_mu_scale"}
+            else:
+                assert 0
         else:
             sample_keys = self.sample_keys
         if self._current_size >= self.max_size:
@@ -181,7 +192,6 @@ class ACBuffer(Buffer):
         ready = self._wait_to_sample()
         if not ready:
             return None
-        
         sample = self._sample(sample_keys)
         sample = dict2AttrDict(sample, shallow=True)
 
@@ -196,7 +206,7 @@ class ACBuffer(Buffer):
             gae_discount=self.config.gamma * self.config.lam,
             next_value=next_value,
             reset=data['reset'],
-            norm_adv=True, 
+            norm_adv=False,
             mask=data.get('sample_mask'),
             epsilon=1e-5,
         )
@@ -257,12 +267,14 @@ def compute_gae(
 ):
     if reset is not None:
         assert next_value is not None, f'next_value is required when reset is given'
+    if next_value.ndim < value.ndim:
+        next_value = np.expand_dims(next_value, 1)
+        next_value = np.concatenate([value[:, 1:], next_value], 1)
     assert reward.shape == discount.shape == value.shape == next_value.shape, (reward.shape, discount.shape, value.shape, next_value.shape)
-    assert np.all(discount == 1), discount
+    
     delta = (reward + discount * gamma * next_value - value).astype(np.float32)
     discount = (discount if reset is None else (1 - reset)) * gae_discount
-    assert np.all(discount[:, :-1] == gae_discount), discount
-    assert np.all(discount[:, -1] == 0), discount
+    
     next_adv = 0
     advs = np.zeros_like(reward, dtype=np.float32)
     for i in reversed(range(advs.shape[1])):
@@ -272,34 +284,3 @@ def compute_gae(
         advs = standardize(advs, mask=mask, epsilon=epsilon)
 
     return advs, traj_ret
-
-
-def extract_sampling_keys(
-    config: AttrDict, 
-    env_stats: AttrDict, 
-    model: Model
-):
-    state_keys = model.state_keys
-    state_type = model.state_type
-    sample_keys = config.sample_keys
-    sample_size = config.n_steps
-    sample_keys = set(sample_keys)
-    if state_keys is None:
-        sample_keys.remove('state')
-    else:
-        sample_keys.add('state')
-    obs_keys = env_stats.obs_keys[model.config.aid] if 'aid' in model.config else env_stats.obs_keys
-    for k in obs_keys:
-        sample_keys.add(k)
-    if not config.timeout_done:
-        for k in obs_keys:
-            sample_keys.add(f'next_{k}')
-    if env_stats.use_action_mask:
-        sample_keys.append('action_mask')
-    elif 'action_mask' in sample_keys:
-        sample_keys.remove('action_mask')
-    if env_stats.use_sample_mask:
-        sample_keys.append('sample_mask')
-    elif 'sample_mask' in sample_keys:
-        sample_keys.remove('sample_mask')
-    return state_keys, state_type, sample_keys, sample_size

@@ -10,13 +10,11 @@ from tools.store import StateStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
 from tools import pkg
-from algo.lka_v3.run import *
+from algo.lka_kl.run import *
 
 
-def transfer_data(agents, buffers, env_outputs, config, agent_idx=None):
-    for i, (agent, buffer, env_output) in enumerate(zip(agents, buffers, env_outputs)):
-        if agent_idx is not None and i != agent_idx:
-            continue
+def transfer_data(agents, buffers, env_outputs, config):
+    for agent, buffer, env_output in zip(agents, buffers, env_outputs):
         data = buffer.get_data({
             'state_reset': env_output.reset
         })
@@ -105,9 +103,9 @@ def train(
     while step < routine_config.MAX_STEPS:
         # train imaginary agents
         for _ in range(routine_config.n_imaginary_runs):
-            for i, agent in enumerate(agents):
-                with Timer('imaginary_run'):
-                    env_outputs = [None for _ in all_aids]
+            with Timer('imaginary_run'):
+                env_outputs = [None for _ in all_aids]
+                for i in all_aids:
                     with StateStore(f'img{i}',
                         state_constructor,
                         get_state, set_states
@@ -117,7 +115,8 @@ def train(
                             agents, collects,
                             [j for j in all_aids if j != i], [i]
                         )[i]
-                transfer_data(agents, buffers, env_outputs, routine_config, agent_idx=i)
+            transfer_data(agents, buffers, env_outputs, routine_config)
+            for agent in agents:
                 with Timer('imaginary_train'):
                     agent.imaginary_train()
 
@@ -136,9 +135,10 @@ def train(
                     env_outputs[i] = runner.run(
                         routine_config.n_steps,
                         agents, collects,
-                        img_aids, [i]
+                        img_aids, [i], extra_pi=True
                     )[i]
             transfer_data(agents, buffers, env_outputs, routine_config)
+
         
         for buffer in buffers:
             assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"

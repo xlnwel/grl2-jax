@@ -2,12 +2,14 @@
 
 export PYTHONPATH=.
 
-algos=(lka_v3)
+# algos=(zero)
+algos=(lka_kl)
 suite=ma_mujoco
 # suite=magw
 # envs=(escalation staghunt harvest)
 # envs=(staghunt escalation)
-envs=(Ant_4x2)
+# envs=(Ant_4x2)
+envs=(Ant_2x4)
 # envs=(escalation)
 # envs=(simple_tag)
 # config=simple_tag
@@ -18,13 +20,13 @@ args1=(sim)
 # args2=(3 5 8)
 # args2=(3 5)
 # args2=(1 3 5)
-args2=(3)
+args2=(1)
 args3=(5e-4)
 date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
-na=4
+na=2
 # for x in $(seq 1 1); do
 #     shift
 # done

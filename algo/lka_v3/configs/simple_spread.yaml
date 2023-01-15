@@ -1,6 +1,6 @@
 ---
-algorithm: &algo lka_v2
-name: lka_v2
+algorithm: &algo lka_v3
+name: lka_v3
 
 precision: 32
 

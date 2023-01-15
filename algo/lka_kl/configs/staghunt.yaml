@@ -1,6 +1,6 @@
 ---
-algorithm: &algo lka_v3
-name: lka_v3
+algorithm: &algo lka_kl
+name: lka_kl
 
 precision: 32
 
@@ -16,7 +16,7 @@ routine:
     MAX_STEPS: 5e7
     n_steps: &nsteps 50
     LOG_PERIOD: 1e5
-    EVAL_PERIOD: 1e5
+    EVAL_PERIOD: null
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
@@ -84,6 +84,10 @@ loss:
     kl_type: reverse
     kl_coef: 0
     policy_sample_mask: True
+    
+    # hyperparams for future policy regularization
+    future_kl_type: forward
+    future_kl_coef: 0.01
 
     # hyperparams for value learning
     value_loss: clip

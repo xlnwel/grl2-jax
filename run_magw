@@ -3,18 +3,20 @@
 export PYTHONPATH=.
 
 # algos=(zero)
-algos=(lka_v2)
+algos=(lka_v3)
 # suite=ma_mujoco
-# suite=magw
-suite=ma_minigrid
+suite=magw
+# suite=ma_minigrid
 # envs=(escalation staghunt harvest)
 # envs=(HalfCheetah_3x2)
 # envs=(escalation)
-envs=(treasure)
+envs=(staghunt)
+# envs=(treasure)
 # envs=(Ant_4x2)
 # envs=(Hopper)
 # config=escalation
-config=ma_minigrid
+config=staghunt
+# config=ma_minigrid
 na=2
 # args1=(0 1 3)
 args1=(3)
@@ -38,7 +40,7 @@ for e in "${envs[@]}"; do
     config="${config}"
     for a in "${algos[@]}"; do
         for a1 in "${args1[@]}"; do
-            for s in {0..4}; do
+            for s in {0..9}; do
                 kws="n_imaginary_runs=$a1"
                 # echo $kws
                 env="${suite}-${e}"
