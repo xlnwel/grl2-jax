@@ -1,6 +1,6 @@
-3---
-algorithm: &algo zero
-name: zero
+---
+algorithm: &algo lka_kl
+name: lka_kl
 info: a2c
 
 precision: 32

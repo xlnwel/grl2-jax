@@ -1,6 +1,6 @@
 ---
-algorithm: &algo zero
-name: zero
+algorithm: &algo lka_kl
+name: lka_kl
 info: ppo
 
 precision: 32
@@ -17,10 +17,10 @@ routine:
     MAX_STEPS: 1e7
     n_steps: &nsteps 100
     LOG_PERIOD: 2e5
-    EVAL_PERIOD: null
+    EVAL_PERIOD: 2e5
 
     RECORD_VIDEO: False
-    N_EVAL_EPISODES: 1
+    N_EVAL_EPISODES: 5
     size: [256, 256]
 
     n_imaginary_runs: 1
@@ -117,14 +117,19 @@ trainer:
 
     popart: *popart
 
-    policy_opt:
+    # policy_opt:
+    #     opt_name: adam
+    #     lr: 5e-6
+    #     clip_norm: 10
+    #     eps: 1e-5
+    # value_opt:
+    #     opt_name: adam
+    #     lr: 5e-3
+    #     clip_norm: 10
+    #     eps: 1e-5
+    theta_opt:
         opt_name: adam
-        lr: 5e-6
-        clip_norm: 10
-        eps: 1e-5
-    value_opt:
-        opt_name: adam
-        lr: 5e-3
+        lr: 1e-3
         clip_norm: 10
         eps: 1e-5
 

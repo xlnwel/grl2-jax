@@ -239,7 +239,6 @@ class Loss(LossBase):
             **kl_stats
         )
 
-        assert data.mu_loc is None
         future_kl_stats = dict(
             logp=stats.pi_logprob,
             logq=data.future_mu_logprob, 

@@ -92,7 +92,7 @@ class Runner(RunnerWithState):
                         agents[i].strategy.model.switch_params(True)
                         _, extra_stats = agents[i](env_outputs[i])
                         if "mu_logits" in extra_stats:
-                            stats[i]["futue_mu_logits"] = extra_stats["mu_logits"]
+                            stats[i]["future_mu_logits"] = extra_stats["mu_logits"]
                         elif "mu_loc" in extra_stats:
                             stats[i]["future_mu_loc"] = extra_stats["mu_loc"]
                             stats[i]["future_mu_scale"] = extra_stats["mu_scale"]

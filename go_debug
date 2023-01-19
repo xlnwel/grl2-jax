@@ -3,7 +3,7 @@
 export PYTHONPATH=.
 
 # algos=(zero)
-algos=(lka_kl)
+algos=(zero)
 suite=ma_mujoco
 # suite=magw
 # envs=(escalation staghunt harvest)
@@ -12,9 +12,11 @@ suite=ma_mujoco
 envs=(Ant_2x4)
 # envs=(escalation)
 # envs=(simple_tag)
+# envs=(staghunt)
 # config=simple_tag
 config=ma_mujoco
 # config=escalation
+# config=staghunt
 # args1=(uni sim)
 args1=(sim)
 # args2=(3 5 8)

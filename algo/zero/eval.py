@@ -61,7 +61,7 @@ def evaluate(
             for k, v in s.items():
                 new_stats[f'{k}_{i}'] = v
 
-        action = np.concatenate(acts, axis=-1)
+        action = np.concatenate(acts, axis=1)
         env_output = env.step(action)
         env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
         for i, eo in enumerate(env_outputs):
