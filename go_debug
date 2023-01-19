@@ -3,7 +3,7 @@
 export PYTHONPATH=.
 
 # algos=(zero)
-algos=(zero)
+algos=(happo)
 suite=ma_mujoco
 # suite=magw
 # envs=(escalation staghunt harvest)
