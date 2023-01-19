@@ -138,13 +138,16 @@ def train(
                 else:
                     raise NotImplementedError
             transfer_data(agents, buffers, env_outputs, routine_config)
-            teammate_log_ratio = 1
+            # note that the log ratio for the first agent should be zero instead of one.
+            teammate_log_ratio = 0
             np.random.shuffle(update_aids)
             for aid in update_aids:
                 agent = agents[aid]
                 with Timer('imaginary_train'):
                     teammate_log_ratio = agent.imaginary_train(teammate_log_ratio=teammate_log_ratio)
-
+                # print("="*20)
+                # print(teammate_log_ratio.shape)
+                # assert 0
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
         for i, buffer in enumerate(buffers):
@@ -179,25 +182,33 @@ def train(
         step += steps_per_iter
 
         time2record = to_record(step)
-        # if time2record:
-        #     with StateStore('comp', state_constructor, get_state, set_states):
-        #         before_info = run_comparisons(runner, agents)
-
-        teammate_log_ratio = 1
-        np.random.shuffle(update_aids)
-        # train agents
-        for aid in update_aids:
-            agent = agents[aid]
-            start_train_step = agent.get_train_step()
-            with tt:
-                tmp_stats = agent.train_record(teammate_log_ratio=teammate_log_ratio)
-            teammate_log_ratio = tmp_stats["teammate_log_ratio"]
-
-            train_step = agent.get_train_step()
-            assert train_step != start_train_step, (start_train_step, train_step)
-            agent.set_env_step(step)
-            agent.trainer.sync_imaginary_params()
-
+        
+        if routine_config.n_imaginary_runs:
+            # we have imaginary
+            for agent in agents:
+                start_train_step = agent.get_train_step()
+                with tt:
+                    agent.train_record()
+                train_step = agent.get_train_step()
+                assert train_step != start_train_step, (start_train_step, train_step)
+                agent.set_env_step(step)
+                agent.trainer.sync_imaginary_params()
+        else:
+            # note that the log ratio for the first agent should be one.
+            teammate_log_ratio = 0
+            np.random.shuffle(update_aids)
+            # train agents
+            for aid in update_aids:
+                agent = agents[aid]
+                start_train_step = agent.get_train_step()
+                with tt:
+                    tmp_stats = agent.train_record(teammate_log_ratio=teammate_log_ratio)
+                teammate_log_ratio = tmp_stats["teammate_log_ratio"]
+                train_step = agent.get_train_step()
+                assert train_step != start_train_step, (start_train_step, train_step)
+                agent.set_env_step(step)
+                agent.trainer.sync_imaginary_params()
+        
         # if time2record:
         #     with StateStore('comp', state_constructor, get_state, set_states):
         #         after_info = run_comparisons(runner, agents)

@@ -82,9 +82,6 @@ class Loss(LossBase):
             stats.v_target = lax.stop_gradient(v_target)
             stats = record_target_adv(stats)
 
-            # here we do the teammate importance sampling; TODO: to check
-            stats.raw_adv *= jax_math.exp(teammate_log_ratio)
-            
             if self.config.norm_adv:
                 stats.advantage = jax_math.standard_normalization(
                     stats.raw_adv, 
@@ -95,6 +92,9 @@ class Loss(LossBase):
                 )
             else:
                 stats.advantage = stats.raw_adv
+            
+            # do teammate is.
+            stats.advantage *= jnp.exp(teammate_log_ratio)
             stats.advantage = lax.stop_gradient(stats.advantage)
 
         actor_loss, stats = compute_actor_loss(
@@ -234,8 +234,7 @@ class Loss(LossBase):
         name='train/policy', 
     ):
         rngs = random.split(rng, 2)
-
-        stats.raw_adv *= jnp.exp(teammate_log_ratio)
+        stats.advantage *= jnp.exp(teammate_log_ratio)
 
         act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
             compute_policy(

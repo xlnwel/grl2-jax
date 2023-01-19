@@ -91,7 +91,7 @@ class Trainer(TrainerBase):
 
         if teammate_log_ratio is None:
             # TODO: Only apply happo when n_imaginary_runs==0 
-            teammate_log_ratio = 1
+            teammate_log_ratio = 0
 
         theta = self.model.theta.copy()
         is_imaginary = theta.pop('imaginary')
@@ -103,6 +103,10 @@ class Trainer(TrainerBase):
             for idx in indices:
                 with Timer('theta_train'):
                     d = data.slice(idx)
+                    if type(teammate_log_ratio) is not int:
+                        t_log_ratio = teammate_log_ratio[idx]
+                    else:
+                        t_log_ratio = teammate_log_ratio
                     if self.config.popart:
                         d.popart_mean = self.popart.mean
                         d.popart_std = self.popart.std
@@ -111,7 +115,7 @@ class Trainer(TrainerBase):
                             theta, 
                             opt_state=self.params.theta, 
                             data=d,
-                            teammate_log_ratio=teammate_log_ratio,
+                            teammate_log_ratio=t_log_ratio,
                         )
                 v_target.append(stats.v_target)
         self.model.set_weights(theta)
@@ -134,17 +138,17 @@ class Trainer(TrainerBase):
         for v in theta.values():
             stats.update(flatten_dict(
                 jax.tree_util.tree_map(np.linalg.norm, v)))
-        
+
         # Accumulate the agent log ratio
-        self.model.act_rng, act_rng = jax.random.split(self.model.act_rng)
-        _, new_stats, _ = self.model.jit_action(self.model.params, act_rng, raw_data, evaluation=False)
-        agent_log_ratio = new_stats['mu_logprob'] - raw_data.mu_logprob
+        self.rng, rng = jax.random.split(self.rng)
+        new_mu_logprob = self.model.jit_action_logprob(self.model.params, rng, raw_data, evaluation=False).squeeze(1)
+        agent_log_ratio = new_mu_logprob - raw_data.mu_logprob
         teammate_log_ratio += agent_log_ratio
         stats['teammate_log_ratio'] = teammate_log_ratio
 
         return stats
 
-    def imaginary_train(self, data: AttrDict, teammate_log_ratio):
+    def imaginary_train(self, data: AttrDict, teammate_log_ratio=None):
         theta = self.model.imaginary_params.copy()
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == True, is_imaginary
@@ -155,6 +159,10 @@ class Trainer(TrainerBase):
             for idx in indices:
                 with Timer('imaginary_train'):
                     d = data.slice(idx)
+                    if type(teammate_log_ratio) is not int:
+                        t_log_ratio = teammate_log_ratio[idx]
+                    else:
+                        t_log_ratio = teammate_log_ratio
                     if self.config.popart:
                         d.popart_mean = self.popart.mean
                         d.popart_std = self.popart.std
@@ -163,15 +171,15 @@ class Trainer(TrainerBase):
                             theta, 
                             opt_state=opt_state, 
                             data=d,
-                            teammate_log_ratio=teammate_log_ratio,
+                            teammate_log_ratio=t_log_ratio,
                         )
         for k, v in theta.items():
             self.model.imaginary_params[k] = v
         self.imaginary_opt_state = opt_state
-        
-        self.model.act_rng, act_rng = jax.random.split(self.model.act_rng)
-        _, new_stats, _ = self.model.jit_action(self.model.imaginary_params, act_rng, data, evaluation=False)
-        agent_log_ratio = new_stats['mu_logprob'] - data.mu_logprob
+
+        self.rng, rng = jax.random.split(self.rng) 
+        new_mu_logprob = self.model.jit_action_logprob(self.model.imaginary_params, rng, data, evaluation=False).squeeze(1)
+        agent_log_ratio = new_mu_logprob - data.mu_logprob
         return teammate_log_ratio + agent_log_ratio
 
     def sync_imaginary_params(self):
