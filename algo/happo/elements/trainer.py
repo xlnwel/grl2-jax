@@ -141,7 +141,8 @@ class Trainer(TrainerBase):
 
         # Accumulate the agent log ratio
         self.rng, rng = jax.random.split(self.rng)
-        new_mu_logprob = self.model.jit_action_logprob(self.model.params, rng, raw_data, evaluation=False).squeeze(1)
+        new_mu_logprob = self.model.jit_action_logprob(
+            self.model.params, rng, raw_data)
         agent_log_ratio = new_mu_logprob - raw_data.mu_logprob
         teammate_log_ratio += agent_log_ratio
         stats['teammate_log_ratio'] = teammate_log_ratio
@@ -178,7 +179,8 @@ class Trainer(TrainerBase):
         self.imaginary_opt_state = opt_state
 
         self.rng, rng = jax.random.split(self.rng) 
-        new_mu_logprob = self.model.jit_action_logprob(self.model.imaginary_params, rng, data, evaluation=False).squeeze(1)
+        new_mu_logprob = self.model.jit_action_logprob(
+            self.model.imaginary_params, rng, data)
         agent_log_ratio = new_mu_logprob - data.mu_logprob
         return teammate_log_ratio + agent_log_ratio
 

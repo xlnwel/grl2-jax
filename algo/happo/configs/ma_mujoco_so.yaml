@@ -1,6 +1,6 @@
 ---
-algorithm: &algo zero
-name: zero
+algorithm: &algo happo
+name: happo
 info: ppo
 
 precision: 32
@@ -119,14 +119,9 @@ trainer:
 
     popart: *popart
 
-    policy_opt:
+    theta_opt:
         opt_name: adam
-        lr: 1e-6
-        clip_norm: 10
-        eps: 1e-5
-    value_opt:
-        opt_name: adam
-        lr: 1e-3
+        lr: 1e-3 # 5e-6
         clip_norm: 10
         eps: 1e-5
 

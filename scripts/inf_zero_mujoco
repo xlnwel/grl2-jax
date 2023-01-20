@@ -18,14 +18,13 @@ suite=$1
 shift
 # envs=(escalation staghunt harvest)
 envs=(
-    Walker2d_2x3
     HalfCheetah_2x3
     Ant_2x4
     Walker2d_2x3
 )
 e=${suite}
 configs=(
-    "${e}_sa"
+    "${e}"
 )
 na=1
 args1=(0 1 3 1 3 0 1 3 1 3)

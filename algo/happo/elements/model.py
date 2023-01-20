@@ -10,8 +10,9 @@ from core.log import do_logging
 from core.elements.model import Model as ModelBase
 from core.typing import AttrDict, dict2AttrDict
 from tools.file import source_file
-from jax_tools import jax_dist
+from jax_tools import jax_dist, jax_utils
 from tools.display import print_dict_info
+from algo.zero.elements.utils import get_initial_state
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -79,20 +80,21 @@ class Model(ModelBase):
         params,
         rng,
         data,
-        evaluation=False,
     ):
         rngs = random.split(rng, 3)
-        state = data.pop('state', AttrDict())
-        data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
-        act_out, state.policy = self.modules.policy(
+        state_reset, _ = jax_utils.split_data(
+            data.state_reset, axis=1)
+        policy_state = None if data.state is None else \
+            get_initial_state(data.state.policy, 0)
+        act_out, policy_state = self.modules.policy(
             params.policy, 
             rngs[0], 
             data.obs, 
-            data.state_reset, 
-            state.policy, 
+            state_reset, 
+            policy_state, 
             action_mask=data.action_mask, 
         )
-        act_dist = self.policy_dist(act_out, evaluation)
+        act_dist = self.policy_dist(act_out, False)
         logprob = act_dist.log_prob(data.action)
         return logprob
 

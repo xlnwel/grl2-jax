@@ -1,6 +1,7 @@
 #!/bin/zsh
 
 source activate inf
+conda activate inf
 
 suite=$1
 shift

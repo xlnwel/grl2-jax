@@ -8,7 +8,7 @@ from core.typing import AttrDict
 from jax_tools import jax_assert, jax_dist, jax_loss, jax_utils
 
 
-def _get_initial_state(state, i):
+def get_initial_state(state, i):
     return jax_utils.tree_map(lambda x: x[:, i], state)
 
 def _reshape_for_bptt(*args, bptt):
@@ -40,8 +40,8 @@ def compute_values(
                 _reshape_for_bptt(
                     x, next_x, state_reset, next_state_reset, state, bptt=bptt
                 )
-        state0 = _get_initial_state(state, 0)
-        state1 = _get_initial_state(state, 1)
+        state0 = get_initial_state(state, 0)
+        state1 = get_initial_state(state, 1)
         value, _ = func(params, rng, x, state_reset, state0)
         next_value, _ = func(params, rng, next_x, next_state_reset, state1)
         if bptt is not None:
@@ -68,7 +68,7 @@ def compute_policy_dist(
         x, state_reset, state, action_mask = _reshape_for_bptt(
             x, state_reset, state, action_mask, bptt=bptt
         )
-    state = _get_initial_state(state, 0)
+    state = get_initial_state(state, 0)
     act_out, _ = func(
         params, rng, x, state_reset, state, action_mask=action_mask
     )

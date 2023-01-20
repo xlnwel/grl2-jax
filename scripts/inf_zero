@@ -3,45 +3,29 @@
 export PYTHONPATH=.
 
 algos=(
-    zero
-    zero
-    zero
-    lka_v2
-    lka_v2
-    zero
-    zero
-    zero
-    lka_v2
-    lka_v2
+    happo
 )
 suite=$1
 shift
 # envs=(escalation staghunt harvest)
 envs=(
-    escalation
-    escalation
     HalfCheetah_2x3
-    HalfCheetah_2x3
-    HalfCheetah_2x3
-    Ant_2x4
-    Ant_2x4
-    Ant_2x4
-    Ant_2x4
-    Ant_2x4
 )
 # e=${suite}
-e=escalation
 configs=(
-    "${e}"
+    "${suite}"
 )
 na=2
-args1=(3)
+args1=(None)
 args2=(300 400 300 400 300 400 300 400)
 args3=(10 10 10 10 10 10 10 10 10 10 10 10)
 date=$(date +"%m%d")
-info=""
+info=(
+    ""
+    "so"
+)
 ld="${suite}-logs"
-gpus=$(nvidia-smi -L | wc -l)
+# gpus=$(nvidia-smi -L | wc -l)
 # for x in $(seq 1 1); do
 #     shift
 # done
@@ -73,27 +57,39 @@ la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 # kws="n_imaginary_runs=$a1 n_imaginary_envs=$a2 n_imaginary_steps=$a3"
-kws="n_imaginary_runs=$a1"
 # kws=$@
 
-for a1 in "${args1[@]}"; do
-    kws="n_imaginary_runs=$a1"
-    for s in {0..9}; do
-        # echo $kws
-        if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
-            gpu=$(($i % $gpus))
-            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
-        else
-            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
-        fi
-        echo $py_script
-        eval $py_script
-        ((i=(i+1) ))
-    done
+# for a in "${algos[@]}"; do
+for s in {0..5}; do
+    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
+    echo $py_script
+    eval $py_script
 done
+nn="${n}_so"
+for s in {0..5}; do
+    py_script="python run/train.py -a ${a} -e $env -c ${config}_so -ld $ld -n $nn -s $s -na $na -kw $kws &"
+    echo $py_script
+    eval $py_script
+done
+# done
+# for config in "${configs[@]}"; do
+#     for s in {0..5}; do
+#         # echo $kws
+#         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+#             gpus=$(nvidia-smi -L | wc -l)
+#             gpu=$(($i % $gpus))
+#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
+#         else
+#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
+#         fi
+#         echo $py_script
+#         eval $py_script
+#         ((i=(i+1) ))
+#     done
+# done
 wait
 echo "Script completed"
-for e in "${envs[@]}"; do
+# for e in "${envs[@]}"; do
 # le=${#envs[@]}
 # idx=$(($INF_MAC_NODE_RANK % $le))
 # e=${envs[$idx]}
