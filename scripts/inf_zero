@@ -9,21 +9,43 @@ suite=$1
 shift
 # envs=(escalation staghunt harvest)
 envs=(
-    HalfCheetah_2x3
+    # HalfCheetah_2x3
+    # Ant_2x4
+    # Walker2d_2x3
+    # Ant_4x2
+    # HalfCheetah_3x2
+    HalfCheetah_6x1
 )
 # e=${suite}
 configs=(
     "${suite}"
 )
-na=2
-args1=(None)
-args2=(300 400 300 400 300 400 300 400)
-args3=(10 10 10 10 10 10 10 10 10 10 10 10)
-date=$(date +"%m%d")
-info=(
-    ""
-    "so"
+na=6
+args1=(1 3)
+args2=(
+    # .9,.09,.009,.0009,.00009,.00001 
+    # .00001,.9,.09,.009,.0009,.00009 
+    # .00009,.00001,.9,.09,.009,.0009 
+    # .0009,.00009,.00001,.9,.09,.009 
+    # .009,.0009,.00009,.00001,.9,.09 
+    # .09,.009,.0009,.00009,.00001,.9 
+    # .005,.045,.45,.005,.045,.45 
+    # .166,.167,.167,.166,.167,.167
+    # .45,.045,.005,.45,.045,.005 
+    # .9,.09,.01
+    # .01,.9,.09
+    # .09,.01,.9
+    # .33,.33,.34
+    # .9,.1
+    # .1,.9
+    # .5,.5
+    # .9,.1
+    # .1,.9
+    # .5,.5
 )
+args3=(10)
+date=$(date +"%m%d")
+info=""
 ld="${suite}-logs"
 # gpus=$(nvidia-smi -L | wc -l)
 # for x in $(seq 1 1); do
@@ -56,21 +78,23 @@ a2=${args2[$idx]}
 la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
-# kws="n_imaginary_runs=$a1 n_imaginary_envs=$a2 n_imaginary_steps=$a3"
 # kws=$@
 
-# for a in "${algos[@]}"; do
-for s in {0..5}; do
-    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
-    echo $py_script
-    eval $py_script
+kws="perm=$a2"
+for e in "${envs[@]}"; do
+    env="${suite}-${e}"
+    for s in {0..9}; do
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
+        echo $py_script
+        eval $py_script
+    done
 done
-nn="${n}_so"
-for s in {0..5}; do
-    py_script="python run/train.py -a ${a} -e $env -c ${config}_so -ld $ld -n $nn -s $s -na $na -kw $kws &"
-    echo $py_script
-    eval $py_script
-done
+# nn="${n}_so"
+# for s in {0..5}; do
+#     py_script="python run/train.py -a ${a} -e $env -c ${config}_so -ld $ld -n $nn -s $s -na $na -kw $kws &"
+#     echo $py_script
+#     eval $py_script
+# done
 # done
 # for config in "${configs[@]}"; do
 #     for s in {0..5}; do

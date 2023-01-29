@@ -246,3 +246,18 @@ class MujocoMulti(MultiAgentEnv):
                     "normalise_actions": False
                     }
         return env_info
+
+
+if __name__ == '__main__':
+    env_args = {'scenario': 'Walker2d-v2', 'agent_conf': '2x3', 'agent_obsk': 2, 'episode_limit': 1000}
+    env = MujocoMulti(env_args=env_args)
+    o = env.reset()
+    ret = 0
+    for step in range(1000):
+        o, _, r, d, i, _ = env.step([a.sample() for a in env.action_space])
+        ret += np.mean(r)
+        # print('return', np.mean(r), ret)
+        if np.all(d):
+            print('done at', step, 'with return', ret)
+            env.reset()
+            ret = 0

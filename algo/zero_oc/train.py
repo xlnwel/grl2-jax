@@ -2,25 +2,22 @@ import functools
 import numpy as np
 import ray
 
-from core.elements.builder import ElementsBuilder
 from core.log import do_logging
-from core.utils import configure_gpu, set_seed, save_code
-from core.typing import ModelPath
 from tools.store import StateStore
-from tools.utils import modify_config
 from tools.timer import Every, Timer
-from tools.display import print_dict_info
 from tools import pkg
 from algo.zero.run import *
+from algo.zero.train import transfer_data, main
 
 
 def train(
     configs, 
     agents, 
     runner, 
-    buffers
+    buffers, 
+    routine_config
 ):
-    def state_constructor_with_half_envs():
+    def state_constructor_with_sliced_envs():
         agent_states = [a.build_memory() for a in agents]
         env_config = runner.env_config()
         env_config.n_envs //= 2
@@ -45,7 +42,6 @@ def train(
         runner.set_states(runner_states)
 
     config = configs[0]
-    routine_config = config.routine.copy()
     collect_fn = pkg.import_module(
         'elements.utils', algo=routine_config.algorithm).collect
     collects = [functools.partial(collect_fn, buffer) for buffer in buffers]
@@ -119,38 +115,31 @@ def train(
                                 [i], [i], False)[i]
                 else:
                     raise NotImplementedError
-            for i, buffer in enumerate(buffers):
-                data = buffer.get_data({
-                    'state_reset': env_outputs[i].reset
-                })
-                buffer.move_to_queue(data)
+            transfer_data(agents, buffers, env_outputs, routine_config)
             for agent in agents:
                 with Timer('imaginary_train'):
                     agent.imaginary_train()
 
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
-        for b in buffers:
-            assert b.size() == 0, b.size()
+        for i, buffer in enumerate(buffers):
+            assert buffer.size() == 0, f"buffer i: {buffer.size()}"
         with rt:
             for i in all_aids:
                 img_aids = [aid for aid in all_aids if aid != i]
                 with StateStore(f'real{i}', 
-                    state_constructor_with_half_envs, 
+                    state_constructor_with_sliced_envs, 
                     get_state, set_states
                 ):
                     env_outputs = runner.run(
                         routine_config.n_steps, 
                         agents, collects, 
                         img_aids, all_aids)
-                for i, buffer in enumerate(buffers):
-                    data = buffer.get_data({
-                        'state_reset': env_outputs[i].reset
-                    })
-                    buffer.move_to_queue(data)
+                transfer_data(agents, buffers, env_outputs, routine_config)
 
-        for b in buffers:
-            assert b.ready(), (b.size(), len(b._queue))
+        for buffer in buffers:
+            assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
+
         step += steps_per_iter
 
         time2record = to_record(step)
@@ -172,6 +161,9 @@ def train(
         # if time2record:
         #     with StateStore('comp', state_constructor, get_state, set_states):
         #         after_info = run_comparisons(runner, agents)
+        # if step > 1e6:
+        #     print(config.seed, np.random.randint(10000))
+        #     exit()
 
         if time2record:
             # info = {
@@ -215,48 +207,4 @@ def train(
         # do_logging(f'finish the iteration with step: {step}')
 
 
-def main(configs, train=train):
-    config = configs[0]
-    seed = config.get('seed')
-    set_seed(seed)
-
-    configure_gpu()
-    use_ray = config.env.get('n_runners', 1) > 1 or config.routine.get('EVAL_PERIOD', False)
-    if use_ray:
-        from tools.ray_setup import sigint_shutdown_ray
-        ray.init(num_cpus=config.env.n_runners)
-        sigint_shutdown_ray()
-
-    runner = Runner(config.env)
-
-    # load agents
-    env_stats = runner.env_stats()
-    env_stats.n_envs = config.env.n_runners * config.env.n_envs
-    agents = []
-    buffers = []
-    root_dir = config.root_dir
-    model_name = config.model_name
-    for i, c in enumerate(configs):
-        assert c.aid == i, (c.aid, i)
-        if f'a{i}' in model_name:
-            new_model_name = model_name
-        else:
-            new_model_name = '/'.join([model_name, f'a{i}'])
-        modify_config(
-            configs[i], 
-            model_name=new_model_name, 
-        )
-        builder = ElementsBuilder(
-            configs[i], 
-            env_stats, 
-            to_save_code=False, 
-            max_steps=config.routine.MAX_STEPS
-        )
-        elements = builder.build_agent_from_scratch()
-        agents.append(elements.agent)
-        buffers.append(elements.buffer)
-    save_code(ModelPath(root_dir, model_name))
-
-    train(configs, agents, runner, buffers)
-
-    do_logging('Training completed')
+main = functools.partial(main, train=train)

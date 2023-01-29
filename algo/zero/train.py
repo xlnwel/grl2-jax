@@ -6,7 +6,7 @@ from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code
 from core.typing import ModelPath
-from tools.display import print_dict_info
+from tools.display import print_dict, print_dict_info
 from tools.store import StateStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
@@ -28,10 +28,10 @@ def transfer_data(agents, buffers, env_outputs, config):
             })
             
             value = data.value
-            # if agent.trainer.config.popart:
-            #     data.value = agent.trainer.popart.denormalize(data.value)
-            #     next_value = agent.trainer.popart.denormalize(next_value)
-            # data = buffer.compute_advantages(data, next_value)
+            if agent.trainer.config.popart:
+                data.value = agent.trainer.popart.denormalize(data.value)
+                next_value = agent.trainer.popart.denormalize(next_value)
+            data = buffer.compute_advantages(data, next_value)
             if agent.trainer.config.popart:
                 # reassign value to ensure value clipping at the right anchor
                 data.value = value
@@ -42,7 +42,8 @@ def train(
     configs, 
     agents, 
     runner, 
-    buffers
+    buffers, 
+    routine_config
 ):
     def state_constructor():
         agent_states = [a.build_memory() for a in agents]
@@ -62,7 +63,6 @@ def train(
         runner.set_states(runner_states)
         
     config = configs[0]
-    routine_config = config.routine.copy()
     collect_fn = pkg.import_module(
         'elements.utils', algo=routine_config.algorithm).collect
     collects = [functools.partial(collect_fn, buffer) for buffer in buffers]
@@ -255,6 +255,7 @@ def main(configs, train=train):
 
     # load agents
     env_stats = runner.env_stats()
+    print_dict(env_stats)
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
     agents = []
     buffers = []
@@ -283,6 +284,9 @@ def main(configs, train=train):
         buffers.append(elements.buffer)
     save_code(ModelPath(root_dir, model_name))
 
-    train(configs, agents, runner, buffers)
+    routine_config = configs[0].routine.copy()
+    if routine_config.perm is None:
+        routine_config.perm = list(np.ones(len(agents)) / len(agents))
+    train(configs, agents, runner, buffers, routine_config)
 
     do_logging('Training completed')

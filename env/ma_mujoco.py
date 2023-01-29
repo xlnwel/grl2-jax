@@ -3,11 +3,14 @@ from gym.spaces import Box
 from gym.wrappers import TimeLimit
 import numpy as np
 
+from core.typing import AttrDict
 from env.ma_mujoco_env.multiagent_mujoco.mujoco_multi import MujocoMulti
 
 class MAMujoco(gym.Wrapper):
     def __init__(self, config):
         scenario, agent_conf = config.env_name.split('_')
+        if 'env_args' not in config:
+            config.env_args = AttrDict()
         config.env_args.scenario = f'{scenario}-v2'
         config.env_args.agent_conf = agent_conf
         config.env_args.episode_limit = config.max_episode_steps
@@ -30,7 +33,7 @@ class MAMujoco(gym.Wrapper):
 
         self.obs_shape = [{
             'obs': (self.env.obs_size, ), 
-            'global_state': (self.env.obs_size, )
+            'global_state': (self.env.share_obs_size, )
         } for _ in range(self.n_agents)]
         self.obs_dtype = [{
             'obs': np.float32, 
@@ -65,7 +68,7 @@ class MAMujoco(gym.Wrapper):
             'score': self._score, 
             'dense_score': self._dense_score, 
             'epslen': self._epslen, 
-            'game_over': self._epslen == self.max_episode_steps
+            'game_over': done or self._epslen == self.max_episode_steps
         }
 
         reward = np.split(reward, self.n_agents)

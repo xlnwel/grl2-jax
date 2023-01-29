@@ -79,16 +79,14 @@ def get_env_stats(config):
 if __name__ == '__main__':
     import numpy as np
     config = dict(
-        env_name='gym-Ant-v4',
-        n_runners=2,
-        n_envs=2,
+        env_name='ma_mujoco-HalfCheetah_2x3',
+        n_runners=1,
+        n_envs=1,
         to_multi_agent=True,
     )
     env = create_env(config)
-    for k in range(100):
+    for k in range(1000):
         a = env.random_action()
-        print(a)
         o, r, d, re = env.step(a)
         if np.any(re):
-            print('discount at reset', d, re)
-            print('epslen', env.epslen())
+            print('info', env.info())

@@ -160,10 +160,10 @@ class Trainer(TrainerBase):
             for idx in indices:
                 with Timer('imaginary_train'):
                     d = data.slice(idx)
-                    if type(teammate_log_ratio) is not int:
-                        t_log_ratio = teammate_log_ratio[idx]
-                    else:
+                    if isinstance(teammate_log_ratio, (float, int)):
                         t_log_ratio = teammate_log_ratio
+                    else:
+                        t_log_ratio = teammate_log_ratio[idx]
                     if self.config.popart:
                         d.popart_mean = self.popart.mean
                         d.popart_std = self.popart.std

@@ -20,7 +20,8 @@ def train(
     model, 
     runner, 
     buffers, 
-    model_buffer
+    model_buffer, 
+    routine_config
 ):
     def state_constructor():
         agent_states = [a.build_memory() for a in agents]
@@ -40,7 +41,6 @@ def train(
         runner.set_states(runner_states)
         
     config = configs[0]
-    routine_config = config.routine.copy()
     collect_fn = pkg.import_module(
         'elements.utils', algo=routine_config.algorithm).collect
     collects = [functools.partial(collect_fn, buffer) for buffer in buffers]
@@ -270,9 +270,13 @@ def main(configs, train=train):
     model = elements.agent
     model_buffer = elements.buffer
 
+    routine_config = configs[0].routine.copy()
+    if routine_config.perm is None:
+        routine_config.perm = list(np.ones(len(agents)) / len(agents))
     train(
         configs, agents, model, 
-        runner, buffers, model_buffer
+        runner, buffers, model_buffer, 
+        routine_config
     )
 
     do_logging('Training completed')

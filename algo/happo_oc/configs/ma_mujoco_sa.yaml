@@ -1,6 +1,6 @@
 ---
-algorithm: &algo zero_oc
-name: zero_oc
+algorithm: &algo happo
+name: happo
 info: ppo
 
 precision: 32
@@ -23,8 +23,9 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 1
+    n_imaginary_runs: 0
     imaginary_rollout: sim
+    compute_return_at_once: False
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -35,6 +36,7 @@ env:
     env_args:
         agent_conf: 2x3
         agent_obsk: 0
+    single_agent: True
 
 agent: {}
 
@@ -54,12 +56,12 @@ model:
         units_list: [64, 64]
         w_init: orthogonal
         activation: relu
-        norm: layer
+        norm: null
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
         init_std: .2
-        sigmoid_scale: True
+        sigmoid_scale: False
         std_x_coef: 1.
         std_y_coef: .5
         use_feature_norm: True
@@ -68,7 +70,7 @@ model:
         units_list: [64, 64]
         w_init: orthogonal
         activation: relu
-        norm: layer
+        norm: null
         rnn_type: &vrnn null
         rnn_units: 64
         use_feature_norm: True
@@ -102,7 +104,7 @@ loss:
         gamma: *gamma
         lam: &lam .95
         pg_coef: 1
-        entropy_coef: .01
+        entropy_coef: .001
         value_coef: 1
 
 trainer:
@@ -119,12 +121,12 @@ trainer:
 
     policy_opt:
         opt_name: adam
-        lr: 1e-3
+        lr: 5e-6
         clip_norm: 10
         eps: 1e-5
     value_opt:
         opt_name: adam
-        lr: 1e-3
+        lr: 5e-3
         clip_norm: 10
         eps: 1e-5
 

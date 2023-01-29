@@ -260,14 +260,15 @@ def make_unity(config):
     return env
 
 if __name__ == '__main__':
+    import numpy as np
     from tools import yaml_op
-    config = yaml_op.load_config('algo/zero/configs/ma_mujoco')
+    config = yaml_op.load_config('algo/happo/configs/ma_mujoco')
+    print(config.env)
     env = make_ma_mujoco(config.env)
-    print(env.action_shape)
-    for _ in range(1):
+    for step in range(1000):
         a = env.random_action()
         o, r, d, re = env.step(a)
-        print(o)
-        if re:
-            print('discount at reset', d)
+        # print('reward', r)
+        if np.all(re):
+            print(step, 'info', env.info())
             print('epslen', env.epslen())

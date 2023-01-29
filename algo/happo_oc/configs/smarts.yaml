@@ -1,6 +1,7 @@
 ---
-algorithm: &algo zero_oc
-name: zero_oc
+algorithm: &algo happo
+name: happo
+aid: 0
 info: ppo
 
 precision: 32
@@ -14,27 +15,32 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 1e7
-    n_steps: &nsteps 100
-    LOG_PERIOD: 2e5
+    MAX_STEPS: 5e6
+    n_steps: &nsteps 50
+    LOG_PERIOD: 5e4
     EVAL_PERIOD: null
 
-    RECORD_VIDEO: False
+    RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 1
+    n_imaginary_runs: 0
     imaginary_rollout: sim
 
 env:
-    env_name: &env_name ma_mujoco-HalfCheetah_2x3
-    n_runners: &nrunners 1
-    n_envs: &nenvs 40
-    max_episode_steps: 1000
+    env_name: &env_name smarts
+    n_runners: &nrunners 32
+    n_envs: &nenvs 1
     timeout_done: &td False
-    env_args:
-        agent_conf: 2x3
-        agent_obsk: 0
+
+    scenario: intersections/4lane
+
+    max_episode_steps: 1000
+    collision_penalty: -50
+    offroad_penalty: -50
+    goal_reward: 50
+
+    uid2aid: [0, 0, 0, 0]
 
 agent: {}
 
@@ -54,24 +60,18 @@ model:
         units_list: [64, 64]
         w_init: orthogonal
         activation: relu
-        norm: layer
+        norm: null
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
-        init_std: .2
-        sigmoid_scale: True
-        std_x_coef: 1.
-        std_y_coef: .5
-        use_feature_norm: True
     value:
         nn_id: value
         units_list: [64, 64]
         w_init: orthogonal
         activation: relu
-        norm: layer
+        norm: null
         rnn_type: &vrnn null
         rnn_units: 64
-        use_feature_norm: True
 
 loss:
     # hyperparams for value target and advantage
@@ -80,7 +80,6 @@ loss:
     rho_clip: 1
     adv_type: gae
     norm_adv: True
-    popart: &popart True
 
     prnn_bptt: 10
     vrnn_bptt: 10
@@ -93,8 +92,7 @@ loss:
     policy_sample_mask: True
 
     # hyperparams for value learning
-    value_loss: clip_huber
-    huber_threshold: 10
+    value_loss: clip
     value_clip_range: .2
     value_sample_mask: False
 
@@ -110,22 +108,15 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 5
-    n_imaginary_epochs: 5
-    n_mbs: &nmbs 40
+    n_epochs: &nepochs 4
+    n_imaginary_epochs: 4
+    n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 
-    popart: *popart
-
-    policy_opt:
+    theta_opt:
         opt_name: adam
-        lr: 1e-3
-        clip_norm: 10
-        eps: 1e-5
-    value_opt:
-        opt_name: adam
-        lr: 1e-3
-        clip_norm: 10
+        lr: 5e-4
+        clip_norm: .5
         eps: 1e-5
 
 actor:
@@ -161,7 +152,6 @@ buffer:
         - discount
         - reset
         - mu_logprob
-        - mu_loc
-        - mu_scale
+        - mu_logits
         - state_reset
         - state

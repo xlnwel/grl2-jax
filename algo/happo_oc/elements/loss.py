@@ -82,14 +82,20 @@ class Loss(LossBase):
             stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
 
-        stats.advantage = norm_adv(
-            self.config, 
-            stats.raw_adv, 
-            teammate_log_ratio, 
-            sample_mask=data.sample_mask, 
-            n=data.n, 
-            epsilon=self.config.get('epsilon', 1e-5)
-        )
+        if self.config.norm_adv:
+            stats.advantage = jax_math.standard_normalization(
+                stats.raw_adv, 
+                zero_center=self.config.get('zero_center', True), 
+                mask=data.sample_mask, 
+                n=data.n, 
+                epsilon=self.config.get('epsilon', 1e-8), 
+            )
+        else:
+            stats.advantage = stats.raw_adv
+        
+        # do teammate is.
+        stats.advantage *= lax.exp(teammate_log_ratio)
+        stats.advantage = lax.stop_gradient(stats.advantage)
 
         actor_loss, stats = compute_actor_loss(
             self.config, 
@@ -197,6 +203,18 @@ class Loss(LossBase):
             stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
 
+        if self.config.norm_adv:
+            stats.advantage = jax_math.standard_normalization(
+                stats.raw_adv, 
+                zero_center=self.config.get('zero_center', True), 
+                mask=data.sample_mask, 
+                n=data.n, 
+                epsilon=self.config.get('epsilon', 1e-8), 
+            )
+        else:
+            stats.advantage = stats.raw_adv
+        stats.advantage = lax.stop_gradient(stats.advantage)
+
         value_loss, stats = compute_vf_loss(
             self.config, 
             data, 
@@ -216,14 +234,7 @@ class Loss(LossBase):
         name='train/policy', 
     ):
         rngs = random.split(rng, 2)
-        stats.advantage = norm_adv(
-            self.config, 
-            stats.raw_adv, 
-            teammate_log_ratio, 
-            sample_mask=data.sample_mask, 
-            n=data.n, 
-            epsilon=self.config.get('epsilon', 1e-5)
-        )
+        stats.advantage *= lax.exp(teammate_log_ratio)
 
         act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
             compute_policy(
@@ -278,29 +289,6 @@ def create_loss(config, model, name='happo'):
     loss = Loss(config=config, model=model, name=name)
 
     return loss
-
-
-def norm_adv(
-    config, 
-    raw_adv, 
-    teammate_log_ratio, 
-    sample_mask=None, 
-    n=None, 
-    epsilon=1e-5
-):
-    if config.norm_adv:
-        advantage = jax_math.standard_normalization(
-            raw_adv, 
-            zero_center=config.get('zero_center', True), 
-            mask=sample_mask, 
-            n=n, 
-            epsilon=epsilon, 
-        )
-    else:
-        advantage = raw_adv
-    advantage *= lax.exp(teammate_log_ratio)
-    advantage = lax.stop_gradient(advantage)
-    return advantage
 
 
 def compute_actor_loss(

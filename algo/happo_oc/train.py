@@ -17,6 +17,13 @@ def train(
     buffers, 
     routine_config
 ):
+    def state_constructor_with_sliced_envs():
+        agent_states = [a.build_memory() for a in agents]
+        env_config = runner.env_config()
+        env_config.n_envs //= 2
+        runner_states = runner.build_env(env_config)
+        return agent_states, runner_states
+    
     def state_constructor():
         agent_states = [a.build_memory() for a in agents]
         runner_states = runner.build_env()
@@ -127,35 +134,24 @@ def train(
         for i, buffer in enumerate(buffers):
             assert buffer.size() == 0, f"buffer i: {buffer.size()}"
         with rt:
-            if routine_config.n_imaginary_runs:
-                env_outputs = [None for _ in all_aids]
-                for i in all_aids:
-                    img_aids = [aid for aid in all_aids if aid != i]
-                    with StateStore(f'real{i}', 
-                        state_constructor, 
-                        get_state, set_states
-                    ):
-                        env_outputs[i] = runner.run(
-                            routine_config.n_steps, 
-                            agents, collects, 
-                            img_aids, [i])[i]
-            else:
-                with StateStore('real', 
-                    state_constructor, 
+            for i in all_aids:
+                img_aids = [aid for aid in all_aids if aid != i]
+                with StateStore(f'real{i}', 
+                    state_constructor_with_sliced_envs, 
                     get_state, set_states
                 ):
                     env_outputs = runner.run(
                         routine_config.n_steps, 
                         agents, collects, 
-                        [], all_aids)
-            transfer_data(agents, buffers, env_outputs, routine_config)
+                        img_aids, all_aids)
+                transfer_data(agents, buffers, env_outputs, routine_config)
 
         for buffer in buffers:
             assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
 
         step += steps_per_iter
 
-        time2record = agents[0].contains_stats('score') and to_record(step)
+        time2record = to_record(step)
         
         # note that the log ratio for the first agent should be zero.
         teammate_log_ratio = 0.

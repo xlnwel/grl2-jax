@@ -1,7 +1,7 @@
 ---
-algorithm: &algo zero_oc
-name: zero_oc
-info: ppo
+algorithm: &algo happo_oc
+name: happo_oc
+info: happo_oc
 
 precision: 32
 
@@ -25,16 +25,18 @@ routine:
 
     n_imaginary_runs: 1
     imaginary_rollout: sim
+    compute_return_at_once: False
+    perm: null
 
 env:
-    env_name: &env_name ma_mujoco-HalfCheetah_2x3
+    env_name: &env_name ma_mujoco-Walker2d_2x3
     n_runners: &nrunners 1
     n_envs: &nenvs 40
     max_episode_steps: 1000
     timeout_done: &td False
     env_args:
-        agent_conf: 2x3
         agent_obsk: 0
+    single_agent: False
 
 agent: {}
 

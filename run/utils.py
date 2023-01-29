@@ -40,6 +40,8 @@ def change_config_with_key_value(config, key, value, prefix=''):
         key = keys[0]
     else:
         keys = None
+    if isinstance(value, str) and ',' in value:
+        value = [eval_str(v) for v in value.split(',')]
     for k, v in config.items():
         config_name = f'{prefix}:{k}' if prefix else k
         if key == k:
