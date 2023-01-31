@@ -117,8 +117,9 @@ class Strategy:
         if 'env_step' in weights:
             self.step_counter.set_env_step(weights['env_step'])
 
-    def train_record(self):
-        n, stats = self.train_loop.train(self.step_counter.get_train_step())
+    def train_record(self, **kwargs):
+        n, stats = self.train_loop.train(
+            self.step_counter.get_train_step(), **kwargs)
         self.step_counter.add_train_step(n)
         return stats
 

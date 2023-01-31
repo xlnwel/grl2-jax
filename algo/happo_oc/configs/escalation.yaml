@@ -1,7 +1,7 @@
 ---
-algorithm: &algo happo
-name: happo
-info: ppo
+algorithm: &algo happo_oc
+name: happo_oc
+info: happo_oc
 
 precision: 32
 
@@ -17,14 +17,15 @@ routine:
     MAX_STEPS: 1e8
     n_steps: &nsteps 50
     LOG_PERIOD: 2e5
-    EVAL_PERIOD: null
+    EVAL_PERIOD: 2e5
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 0
+    n_imaginary_runs: 1
     imaginary_rollout: sim
+    compute_return_at_once: True
 
 env:
     env_name: &env_name magw-escalation
@@ -54,7 +55,7 @@ model:
         nn_id: policy
         units_list: [64, 64]
         w_init: orthogonal
-        activation: tanh
+        activation: relu
         norm: null
         out_scale: .01
         rnn_type: &prnn lstm
@@ -63,7 +64,7 @@ model:
         nn_id: value
         units_list: [64, 64]
         w_init: orthogonal
-        activation: tanh
+        activation: relu
         norm: null
         rnn_type: &vrnn lstm
         rnn_units: 64
@@ -73,8 +74,8 @@ loss:
     target_type: gae
     c_clip: 1
     rho_clip: 1
-    adv_type: vtrace
-    norm_adv: True
+    adv_type: gae
+    norm_adv: False
 
     prnn_bptt: 10
     vrnn_bptt: 10

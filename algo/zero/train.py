@@ -15,29 +15,6 @@ from tools import pkg
 from algo.zero.run import *
 
 
-def transfer_data(agents, buffers, env_outputs, config):
-    for agent, buffer, env_output in zip(agents, buffers, env_outputs):
-        data = buffer.get_data({
-            'state_reset': env_output.reset
-        })
-        if config.compute_return_at_once:
-            next_value = agent.model.compute_value({
-                'global_state': env_output.obs['global_state'], 
-                'state_reset': env_output.reset, 
-                'state': data.state.value[:, -1] if 'state' in data else None
-            })
-            
-            value = data.value
-            if agent.trainer.config.popart:
-                data.value = agent.trainer.popart.denormalize(data.value)
-                next_value = agent.trainer.popart.denormalize(next_value)
-            data = buffer.compute_advantages(data, next_value)
-            if agent.trainer.config.popart:
-                # reassign value to ensure value clipping at the right anchor
-                data.value = value
-
-        buffer.move_to_queue(data)
-
 def train(
     configs, 
     agents, 
@@ -63,9 +40,6 @@ def train(
         runner.set_states(runner_states)
         
     config = configs[0]
-    collect_fn = pkg.import_module(
-        'elements.utils', algo=routine_config.algorithm).collect
-    collects = [functools.partial(collect_fn, buffer) for buffer in buffers]
 
     step = agents[0].get_env_step()
     # print("Initial running stats:", 
@@ -121,7 +95,7 @@ def train(
                     ):
                         env_outputs = runner.run(
                             routine_config.n_steps, 
-                            agents, collects, 
+                            agents, buffers, 
                             all_aids, all_aids, False)
                 elif routine_config.imaginary_rollout == 'uni':
                     env_outputs = [None for _ in all_aids]
@@ -132,11 +106,10 @@ def train(
                         ):
                             env_outputs[i] = runner.run(
                                 routine_config.n_steps, 
-                                agents, collects, 
+                                agents, buffers, 
                                 [i], [i], False)[i]
                 else:
                     raise NotImplementedError
-            transfer_data(agents, buffers, env_outputs, routine_config)
             for agent in agents:
                 with Timer('imaginary_train'):
                     agent.imaginary_train()
@@ -156,7 +129,7 @@ def train(
                     ):
                         env_outputs[i] = runner.run(
                             routine_config.n_steps, 
-                            agents, collects, 
+                            agents, buffers, 
                             img_aids, [i])[i]
             else:
                 with StateStore('real', 
@@ -165,9 +138,8 @@ def train(
                 ):
                     env_outputs = runner.run(
                         routine_config.n_steps, 
-                        agents, collects, 
+                        agents, buffers, 
                         [], all_aids)
-            transfer_data(agents, buffers, env_outputs, routine_config)
 
         for buffer in buffers:
             assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
@@ -256,6 +228,7 @@ def main(configs, train=train):
     # load agents
     env_stats = runner.env_stats()
     print_dict(env_stats)
+    assert len(configs) == env_stats.n_agents, (len(configs), env_stats.n_agents)
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
     agents = []
     buffers = []

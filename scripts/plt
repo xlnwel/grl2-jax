@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source activate grl
+conda activate grl
 
 
 dir=$1
@@ -26,9 +26,11 @@ do
     today=$(date +"%m%d")
     yesterday=$(date -v-1d "+%m%d")
     dby=$(date -v-2d "+%m%d")
-    tda=$(date -v-3d "+%m%d")
+    # tda=$(date -v-3d "+%m%d")
 
     # rm -rf html-logs
-    python run/html_plt.py $@ -p a0 model -n $today $yesterday $dby
-    sleep 600
+    py_script="python run/html_plt.py $@ -p a0 model -n $today $yesterday $dby"
+    echo $py_script
+    eval $py_script
+    sleep 300
 done

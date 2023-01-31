@@ -18,11 +18,9 @@ def concat_obs(obs, last_obs):
 class ACBuffer(BufferBase):
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
-        samples = list(self._queue)
-        self._queue.clear()
+        samples = self._queue
+        self._queue = []
         sample = batch_dicts(samples, func=np.concatenate)
-        assert len(self._queue) == 0, len(self._queue)
-        assert set(sample) == set(self.sample_keys), set(self.sample_keys) - set(sample)
 
         return sample
 

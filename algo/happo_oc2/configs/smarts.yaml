@@ -1,7 +1,8 @@
 ---
 algorithm: &algo happo
 name: happo
-info: happo
+aid: 0
+info: ppo
 
 precision: 32
 
@@ -14,29 +15,32 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 1e8
+    MAX_STEPS: 5e6
     n_steps: &nsteps 50
-    LOG_PERIOD: 2e5
-    EVAL_PERIOD: 2e5
+    LOG_PERIOD: 5e4
+    EVAL_PERIOD: null
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 1
+    n_imaginary_runs: 0
     imaginary_rollout: sim
-    compute_return_at_once: True
 
 env:
-    env_name: &env_name magw-escalation
-    n_runners: &nrunners 1
-    n_envs: &nenvs 64
-    max_episode_steps: 50
-    reward_scale: .1
-    population_size: 1
+    env_name: &env_name smarts
+    n_runners: &nrunners 32
+    n_envs: &nenvs 1
     timeout_done: &td False
 
-    uid2aid: [0, 1]
+    scenario: intersections/4lane
+
+    max_episode_steps: 1000
+    collision_penalty: -50
+    offroad_penalty: -50
+    goal_reward: 50
+
+    uid2aid: [0, 0, 0, 0]
 
 agent: {}
 
@@ -58,7 +62,7 @@ model:
         activation: relu
         norm: null
         out_scale: .01
-        rnn_type: &prnn lstm
+        rnn_type: &prnn null
         rnn_units: 64
     value:
         nn_id: value
@@ -66,7 +70,7 @@ model:
         w_init: orthogonal
         activation: relu
         norm: null
-        rnn_type: &vrnn lstm
+        rnn_type: &vrnn null
         rnn_units: 64
 
 loss:
@@ -75,7 +79,7 @@ loss:
     c_clip: 1
     rho_clip: 1
     adv_type: gae
-    norm_adv: False
+    norm_adv: True
 
     prnn_bptt: 10
     vrnn_bptt: 10
@@ -111,7 +115,7 @@ trainer:
 
     theta_opt:
         opt_name: adam
-        lr: 1e-3
+        lr: 5e-4
         clip_norm: .5
         eps: 1e-5
 

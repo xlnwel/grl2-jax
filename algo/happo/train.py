@@ -7,7 +7,7 @@ from tools.store import StateStore
 from tools.timer import Every, Timer
 from tools import pkg
 from algo.zero.run import *
-from algo.zero.train import transfer_data, main
+from algo.zero.train import main
 
 
 def train(
@@ -35,9 +35,6 @@ def train(
         runner.set_states(runner_states)
         
     config = configs[0]
-    collect_fn = pkg.import_module(
-        'elements.utils', algo=routine_config.algorithm).collect
-    collects = [functools.partial(collect_fn, buffer) for buffer in buffers]
 
     step = agents[0].get_env_step()
     # print("Initial running stats:", 
@@ -68,7 +65,6 @@ def train(
             return p
         else:
             return None
-    eval_process = evaluate_agent(step)
 
     for agent in agents:
         agent.store(**{'time/log_total': 0, 'time/log': 0})
@@ -94,7 +90,7 @@ def train(
                     ):
                         env_outputs = runner.run(
                             routine_config.n_steps, 
-                            agents, collects, 
+                            agents, buffers, 
                             all_aids, all_aids, False)
                 elif routine_config.imaginary_rollout == 'uni':
                     env_outputs = [None for _ in all_aids]
@@ -105,13 +101,13 @@ def train(
                         ):
                             env_outputs[i] = runner.run(
                                 routine_config.n_steps, 
-                                agents, collects, 
+                                agents, buffers, 
                                 [i], [i], False)[i]
                 else:
                     raise NotImplementedError
-            transfer_data(agents, buffers, env_outputs, routine_config)
+
             # note that the log ratio for the first agent should be zero instead of one.
-            teammate_log_ratio = 0.
+            teammate_log_ratio = None
             aids = np.random.choice(
                 update_aids, size=len(update_aids), replace=False, 
                 p=routine_config.perm)
@@ -119,10 +115,7 @@ def train(
                 agent = agents[aid]
                 with Timer('imaginary_train'):
                     teammate_log_ratio = agent.imaginary_train(teammate_log_ratio=teammate_log_ratio)
-                # print("="*20)
-                # print(teammate_log_ratio.shape)
-                # assert 0
-        # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
+
         start_env_step = agents[0].get_env_step()
         for i, buffer in enumerate(buffers):
             assert buffer.size() == 0, f"buffer i: {buffer.size()}"
@@ -137,7 +130,7 @@ def train(
                     ):
                         env_outputs[i] = runner.run(
                             routine_config.n_steps, 
-                            agents, collects, 
+                            agents, buffers, 
                             img_aids, [i])[i]
             else:
                 with StateStore('real', 
@@ -146,9 +139,8 @@ def train(
                 ):
                     env_outputs = runner.run(
                         routine_config.n_steps, 
-                        agents, collects, 
+                        agents, buffers, 
                         [], all_aids)
-            transfer_data(agents, buffers, env_outputs, routine_config)
 
         for buffer in buffers:
             assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
@@ -158,7 +150,7 @@ def train(
         time2record = agents[0].contains_stats('score') and to_record(step)
         
         # note that the log ratio for the first agent should be zero.
-        teammate_log_ratio = 0.
+        teammate_log_ratio = None
         aids = np.random.choice(
             update_aids, size=len(update_aids), replace=False, 
             p=routine_config.perm)
@@ -200,8 +192,10 @@ def train(
             # else:
             #     diff_info = info
             # prev_info = after_info
+            eval_process = evaluate_agent(step)
             if eval_process is not None:
-                scores, epslens, video = ray.get(eval_process)
+                with Timer('eval'):
+                    scores, epslens, video = ray.get(eval_process)
                 for agent in agents:
                     agent.store(**{
                         'metrics/eval_score': np.mean(scores), 
@@ -209,7 +203,6 @@ def train(
                     })
                 if video is not None:
                     agent.video_summary(video, step=step, fps=1)
-            eval_process = evaluate_agent(step)
             with Timer('log'):
                 for agent in agents:
                     agent.store(**{
@@ -219,8 +212,8 @@ def train(
                     }, 
                     # **eval_info, **diff_info, 
                     **Timer.all_stats())
-                    agent.record(step=step)
                     agent.save()
+                agents[0].record(step=step)
         # do_logging(f'finish the iteration with step: {step}')
 
 

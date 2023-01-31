@@ -127,16 +127,16 @@ def train(
         for i, buffer in enumerate(buffers):
             assert buffer.size() == 0, f"buffer i: {buffer.size()}"
         with rt:
-            for i in all_aids:
-                img_aids = [aid for aid in all_aids if aid != i]
-                with StateStore(f'real{i}', 
-                    state_constructor_with_sliced_envs, 
-                    get_state, set_states
-                ):
-                    env_outputs = runner.run(
-                        routine_config.n_steps, 
-                        agents, buffers, 
-                        img_aids, all_aids)
+            n_img_agents = np.random.randint(len(all_aids))
+            img_aids = list(np.random.choice(all_aids, size=n_img_agents, replace=False))
+            with StateStore(f'real', 
+                state_constructor, 
+                get_state, set_states
+            ):
+                env_outputs = runner.run(
+                    routine_config.n_steps, 
+                    agents, buffers, 
+                    img_aids, all_aids)
 
         for buffer in buffers:
             assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
@@ -157,8 +157,7 @@ def train(
             start_train_step = agent.get_train_step()
             with tt:
                 tmp_stats = agent.train_record(teammate_log_ratio=teammate_log_ratio)
-            if not routine_config.ignore_ratio_for_pi:
-                teammate_log_ratio = tmp_stats["teammate_log_ratio"]
+            teammate_log_ratio = tmp_stats["teammate_log_ratio"]
             train_step = agent.get_train_step()
             assert train_step != start_train_step, (start_train_step, train_step)
             agent.set_env_step(step)

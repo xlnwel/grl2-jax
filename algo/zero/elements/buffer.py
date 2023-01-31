@@ -130,11 +130,22 @@ class ACBuffer(Buffer):
 
     def reset(self):
         self._buffers = [collections.defaultdict(list) for _ in range(self.n_runners)]
-        self._queue = collections.deque(maxlen=self.config.get('queue_size', 2))
+        self._queue = []
         self._memory = []
         self._current_size = 0
 
     """ Filling Methods """
+    def collect(self, env, env_step, reset, obs, next_obs, **kwargs):
+        for k, v in obs.items():
+            if k not in kwargs:
+                kwargs[k] = v
+        for k, v in next_obs.items():
+            kwargs[f'next_{k}'] = v
+        self.add(**kwargs, reset=reset)
+    
+    def add_last_value(self, value):
+        self._buffer.add({'value': value})
+
     def add(self, **data):
         """ Add transitions """
         self._buffer.add(data)
@@ -179,21 +190,6 @@ class ACBuffer(Buffer):
 
         return sample
 
-    def compute_advantages(self, data, next_value):
-        data['advantage'], data['v_target'] = compute_gae(
-            reward=data['reward'], 
-            discount=data['discount'],
-            value=data['value'],
-            gamma=self.config.gamma,
-            gae_discount=self.config.gamma * self.config.lam,
-            next_value=next_value,
-            reset=data['reset'],
-            norm_adv=False,
-            mask=data.get('sample_mask'),
-            epsilon=1e-5,
-        )
-        return data
-
     """ Implementations """
     def _wait_to_sample(self):
         while len(self._queue) == 0 and (
@@ -209,15 +205,15 @@ class ACBuffer(Buffer):
 
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
-        sample = self._queue.popleft()
-        assert len(self._queue) == 0, len(self._queue)
-        # assert set(sample) == set(self.sample_keys), set(self.sample_keys) - set(sample)
+        assert len(self._queue) == 1, self._queue
+        sample = self._queue[0]
+        self._queue = []
 
         return sample
 
     def clear(self):
         self.reset()
-        self._queue.clear()
+        self._queue = []
 
 
 def create_buffer(config, model, env_stats, **kwargs):
@@ -233,36 +229,3 @@ def create_buffer(config, model, env_stats, **kwargs):
         model=model, 
         **kwargs
     )
-
-
-def compute_gae(
-    reward, 
-    discount, 
-    value, 
-    gamma,
-    gae_discount, 
-    next_value=None, 
-    reset=None, 
-    norm_adv=False, 
-    mask=None, 
-    epsilon=1e-8
-):
-    if reset is not None:
-        assert next_value is not None, f'next_value is required when reset is given'
-    if next_value.ndim < value.ndim:
-        next_value = np.expand_dims(next_value, 1)
-        next_value = np.concatenate([value[:, 1:], next_value], 1)
-    assert reward.shape == discount.shape == value.shape == next_value.shape, (reward.shape, discount.shape, value.shape, next_value.shape)
-    
-    delta = (reward + discount * gamma * next_value - value).astype(np.float32)
-    discount = (discount if reset is None else (1 - reset)) * gae_discount
-    
-    next_adv = 0
-    advs = np.zeros_like(reward, dtype=np.float32)
-    for i in reversed(range(advs.shape[1])):
-        advs[:, i] = next_adv = (delta[:, i] + discount[:, i] * next_adv)
-    traj_ret = advs + value
-    if norm_adv:
-        advs = standardize(advs, mask=mask, epsilon=epsilon)
-
-    return advs, traj_ret

@@ -58,7 +58,8 @@ class Memory:
             inp: dict, reset: np.ndarray, state: NamedTuple=None):
         """ Adds memory state and mask to the input. """
         if state is None and self._state is None:
-            self._state = self.model.get_initial_state(inp.obs.shape[0])
+            self._state = self.model.get_initial_state(
+                next(iter(inp.values())).shape[0])
 
         if state is None:
             state = self._state

@@ -173,6 +173,10 @@ class Categorical(distrax.Categorical):
 
 
 class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
+    def __init__(self, loc, scale_diag, joint_log_prob=True):
+        super().__init__(loc, scale_diag)
+        self._joint_log_prob = joint_log_prob
+
     def stop_gradient(self):
         loc = lax.stop_gradient(self.loc)
         scale = lax.stop_gradient(self._scale_diag)
@@ -189,3 +193,25 @@ class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
                 f'{prefix}_loc': self._loc, 
                 f'{prefix}_scale': self.scale_diag, 
             }
+
+    def sample_and_log_prob(self, *, seed, joint=None):
+        if joint is None:
+            joint = self._joint_log_prob
+        if joint:
+            return super().sample_and_log_prob(seed=seed)
+        else:
+            action = super().sample(seed=seed)
+            logprob = self._ind_log_prob(action)
+            return action, logprob
+
+    def log_prob(self, x, joint=None):
+        if joint is None:
+            joint = self._joint_log_prob
+        if joint:
+            return super().log_prob(x)
+        else:
+            return self._ind_log_prob(x)
+
+    def _ind_log_prob(self, x):
+        return -lax.log(self.scale_diag) -.5 * (
+            lax.log(2. * np.pi) + ((x - self._loc) / self.scale_diag)**2)

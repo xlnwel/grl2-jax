@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict
-from jax_tools import jax_loss, jax_math, jax_utils
+from jax_tools import jax_loss, jax_math, jax_assert
 from tools.rms import denormalize, normalize
 from tools.utils import prefix_name
 from .utils import compute_values, compute_policy
@@ -40,7 +40,7 @@ class Loss(LossBase):
 
         act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
             compute_policy(
-                self.modules.policy, 
+                self.model, 
                 theta.policy, 
                 rngs[1], 
                 data.obs, 
@@ -57,7 +57,7 @@ class Loss(LossBase):
         stats = record_policy_stats(data, stats, act_dist)
         
         if 'advantage' in data:
-            stats.advantage = data.pop('advantage')
+            stats.raw_adv = data.pop('advantage')
             stats.v_target = data.pop('v_target')
         else:
             if self.config.popart:
@@ -82,7 +82,7 @@ class Loss(LossBase):
             stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
 
-        stats.advantage = norm_adv(
+        stats.norm_adv, stats.advantage = norm_adv(
             self.config, 
             stats.raw_adv, 
             teammate_log_ratio, 
@@ -156,7 +156,7 @@ class Loss(LossBase):
         )
 
         _, _, _, ratio = compute_policy(
-            self.modules.policy, 
+            self.model, 
             policy_theta, 
             rngs[1], 
             data.obs, 
@@ -216,7 +216,7 @@ class Loss(LossBase):
         name='train/policy', 
     ):
         rngs = random.split(rng, 2)
-        stats.advantage = norm_adv(
+        stats.norm_adv, stats.advantage = norm_adv(
             self.config, 
             stats.raw_adv, 
             teammate_log_ratio, 
@@ -227,7 +227,7 @@ class Loss(LossBase):
 
         act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
             compute_policy(
-                self.modules.policy, 
+                self.model, 
                 theta, 
                 rngs[1], 
                 data.obs, 
@@ -289,7 +289,7 @@ def norm_adv(
     epsilon=1e-5
 ):
     if config.norm_adv:
-        advantage = jax_math.standard_normalization(
+        norm_adv = jax_math.standard_normalization(
             raw_adv, 
             zero_center=config.get('zero_center', True), 
             mask=sample_mask, 
@@ -297,10 +297,14 @@ def norm_adv(
             epsilon=epsilon, 
         )
     else:
-        advantage = raw_adv
-    advantage *= lax.exp(teammate_log_ratio)
+        norm_adv = raw_adv
+    if norm_adv.ndim < teammate_log_ratio.ndim:
+        norm_adv = jnp.expand_dims(norm_adv, -1)
+    jax_assert.assert_rank_compatibility(
+        [norm_adv, teammate_log_ratio])
+    advantage = norm_adv * lax.exp(teammate_log_ratio)
     advantage = lax.stop_gradient(advantage)
-    return advantage
+    return norm_adv, advantage
 
 
 def compute_actor_loss(
@@ -330,6 +334,8 @@ def compute_actor_loss(
         stats.ppo_clip_loss = ppo_clip_loss
     else:
         raise NotImplementedError
+    if raw_pg_loss.ndim == 4:   # reduce the action dimension for continuous actions
+        raw_pg_loss = jnp.sum(raw_pg_loss, axis=-1)
     scaled_pg_loss, pg_loss = jax_loss.to_loss(
         raw_pg_loss, 
         stats.pg_coef, 

@@ -247,7 +247,6 @@ class MujocoMulti(MultiAgentEnv):
                     }
         return env_info
 
-
 if __name__ == '__main__':
     env_args = {'scenario': 'Walker2d-v2', 'agent_conf': '2x3', 'agent_obsk': 2, 'episode_limit': 1000}
     env = MujocoMulti(env_args=env_args)

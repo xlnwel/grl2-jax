@@ -54,7 +54,7 @@ def compute_values(
     return value, next_value
 
 def compute_policy_dist(
-    func, 
+    model, 
     params, 
     rng, 
     x, 
@@ -69,17 +69,14 @@ def compute_policy_dist(
             x, state_reset, state, action_mask, bptt=bptt
         )
     state = get_initial_state(state, 0)
-    act_out, _ = func(
+    act_out, _ = model.modules.policy(
         params, rng, x, state_reset, state, action_mask=action_mask
     )
     if state is not None and bptt is not None:
         act_out = jax_utils.tree_map(
             lambda x: x.reshape(*shape, -1), act_out
         )
-    if isinstance(act_out, tuple):
-        act_dist = jax_dist.MultivariateNormalDiag(*act_out)
-    else:
-        act_dist = jax_dist.Categorical(act_out)
+    act_dist = model.policy_dist(act_out)
     return act_dist
 
 def compute_policy(

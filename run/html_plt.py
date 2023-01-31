@@ -42,6 +42,9 @@ def parse_args():
                         default=None)
     parser.add_argument('--sync', 
                         action='store_true')
+    parser.add_argument('--ignore', '-i',
+                        type=str, 
+                        default=None)
     args = parser.parse_args()
 
     return args
@@ -120,7 +123,11 @@ if __name__ == '__main__':
         do_logging(f'Finding directories with prefix {p} in {directory}')
         for d in yield_dirs(directory, p, is_suffix=False, matches=args.name):
             if date is not None and date not in d:
-                print(f'Pass directory {d}')
+                print(f'Pass directory {d} due to mismatch date')
+                continue
+                
+            if args.ignore and args.ignore in d:
+                print(f'Pass directory {d} as it contains ignore pattern "{args.ignore}"')
                 continue
 
             # load config

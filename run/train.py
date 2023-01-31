@@ -88,6 +88,12 @@ def _grid_search(config, main, cmd_args):
     [p.join() for p in processes]
 
 
+def _setup_n_agents_for_ma_mujoco(cmd_args):
+    suite, env = cmd_args.environment.split('-')
+    if suite == 'ma_mujoco':
+        cmd_args.n_agents = int(float(env.split('_')[-1][0]))
+    return cmd_args
+
 def make_info(config, info, model_name):
     if info is None:
         info = model_name.split('/', 1)[0]
@@ -186,6 +192,7 @@ def _run_with_configs(cmd_args):
 
 if __name__ == '__main__':
     cmd_args = parse_train_args()
+    cmd_args = _setup_n_agents_for_ma_mujoco(cmd_args)
 
     setup_logging(cmd_args.verbose)
     if not (cmd_args.grid_search and cmd_args.multiprocess) and cmd_args.gpu is not None:

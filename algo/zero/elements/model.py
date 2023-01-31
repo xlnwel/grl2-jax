@@ -126,7 +126,7 @@ class Model(ModelBase):
         value = comp_value(self.params, rng, **data)
         return value
 
-    def policy_dist(self, act_out, evaluation):
+    def policy_dist(self, act_out, evaluation=False):
         if self.is_action_discrete:
             if evaluation and self.config.get('eval_act_temp', 0) > 0:
                 act_out = act_out / self.config.eval_act_temp
@@ -135,7 +135,8 @@ class Model(ModelBase):
             loc, scale = act_out
             if evaluation and self.config.get('eval_act_temp', 0) > 0:
                 scale = scale * self.config.eval_act_temp
-            dist = jax_dist.MultivariateNormalDiag(loc, scale)
+            dist = jax_dist.MultivariateNormalDiag(
+                loc, scale, joint_log_prob=self.config.joint_log_prob)
 
         return dist
 

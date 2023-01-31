@@ -3,43 +3,34 @@
 export PYTHONPATH=.
 
 algos=(
-    happo_oc
-    happo_oc
+    happo
 )
 suite=$1
 shift
 # envs=(escalation staghunt harvest)
 envs=(
-    # HalfCheetah_2x3
-    # Ant_2x4
-    # Walker2d_2x3
+    HalfCheetah_2x3
+    Ant_2x4
+    Walker2d_2x3
+    HalfCheetah_3x2
+    Walker2d_3x2
+    Ant_4x2
     HalfCheetah_6x1
     Walker2d_6x1
+    Ant_8x1
 )
 # e=${suite}
 configs=(
     "${suite}"
 )
 na=6
-args1=(1 3)
-args2=(
-    # .9,.09,.009,.001 
-    # .001,.9,.09,.009 
-    # .009,.001,.9,.09 
-    # .09,.009,.001,.9 
-    # .25,.25,.25,.25
-    # .9,.09,.01
-    # .01,.9,.09
-    # .09,.01,.9
-    # .33,.33,.34
-    .9,.1
-    .1,.9
-    .5,.5
-    .9,.1
-    .1,.9
-    .5,.5
+args1=(
+    True True False False
 )
-args3=(10 10 10 10 10 10 10 10 10 10 10 10)
+args2=(
+    True False True False
+)
+args3=(1)
 date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"
@@ -76,10 +67,19 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 # kws=$@
 
-kws="n_imaginary_runs=$a1"
-for e in "${envs[@]}"; do
-    env="${suite}-${e}"
-    for s in {0..4}; do
+# kws="n_imaginary_runs=$a1"
+# for e in "${envs[@]}"; do
+#     env="${suite}-${e}"
+#     for s in {0..4}; do
+#         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
+#         echo $py_script
+#         eval $py_script
+#     done
+# done
+
+for i in {0..3}; do
+    kws="compute_return_at_once=${args1[$i]}-norm_adv=${args2[$i]}"
+    for s in {0..3}; do
         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
         echo $py_script
         eval $py_script

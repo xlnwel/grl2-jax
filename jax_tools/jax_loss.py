@@ -258,6 +258,9 @@ def v_trace_from_ratio(
         discount = 1-done. 
         axis specifies the time dimension
     """
+    if reward.ndim < ratio.ndim:
+        chex.assert_rank(ratio, 4)
+        ratio = jnp.prod(ratio, -1)
     jax_assert.assert_shape_compatibility(
         [reward, value, next_value, ratio, discount, reset])
     
@@ -317,9 +320,6 @@ def compute_target_advantage(
     lam, 
     axis=1, 
 ):
-    jax_assert.assert_shape_compatibility([
-        reward, discount, value, next_value, ratio, reset
-    ])
     if config.target_type == 'vtrace':
         v_target, advantage = v_trace_from_ratio(
             reward=reward, 
@@ -354,7 +354,7 @@ def compute_target_advantage(
         advantage = v_target - value
     else:
         raise NotImplementedError
-    
+
     return v_target, advantage
 
 

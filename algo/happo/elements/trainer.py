@@ -90,8 +90,7 @@ class Trainer(TrainerBase):
                 lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[2:])), data)
 
         if teammate_log_ratio is None:
-            # TODO: Only apply happo when n_imaginary_runs==0 
-            teammate_log_ratio = 0
+            teammate_log_ratio = jnp.zeros_like(data.mu_logprob)
 
         theta = self.model.theta.copy()
         is_imaginary = theta.pop('imaginary')
@@ -103,10 +102,7 @@ class Trainer(TrainerBase):
             for idx in indices:
                 with Timer('theta_train'):
                     d = data.slice(idx)
-                    if isinstance(teammate_log_ratio, (float, int)):
-                        t_log_ratio = teammate_log_ratio
-                    else:
-                        t_log_ratio = teammate_log_ratio[idx]
+                    t_log_ratio = teammate_log_ratio[idx]
                     if self.config.popart:
                         d.popart_mean = self.popart.mean
                         d.popart_std = self.popart.std
@@ -146,10 +142,14 @@ class Trainer(TrainerBase):
         agent_log_ratio = pi_logprob - raw_data.mu_logprob
         teammate_log_ratio += agent_log_ratio
         stats['teammate_log_ratio'] = teammate_log_ratio
+        stats['teammate_ratio'] = lax.exp(teammate_log_ratio)
 
         return stats
 
     def imaginary_train(self, data: AttrDict, teammate_log_ratio=None):
+        if teammate_log_ratio is None:
+            teammate_log_ratio = jnp.zeros_like(data.mu_logprob)
+
         theta = self.model.imaginary_params.copy()
         is_imaginary = theta.pop('imaginary')
         assert is_imaginary == True, is_imaginary
@@ -160,10 +160,7 @@ class Trainer(TrainerBase):
             for idx in indices:
                 with Timer('imaginary_train'):
                     d = data.slice(idx)
-                    if type(teammate_log_ratio) is not int:
-                        t_log_ratio = teammate_log_ratio[idx]
-                    else:
-                        t_log_ratio = teammate_log_ratio
+                    t_log_ratio = teammate_log_ratio[idx]
                     if self.config.popart:
                         d.popart_mean = self.popart.mean
                         d.popart_std = self.popart.std

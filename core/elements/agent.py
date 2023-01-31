@@ -111,9 +111,10 @@ class Agent:
         return self.strategy(*args, **kwargs)
 
     """ Train """
-    def train_record(self):
-        stats = self.strategy.train_record()
+    def train_record(self, **kwargs):
+        stats = self.strategy.train_record(**kwargs)
         self.monitor.store(**stats)
+        return stats
 
     def save(self):
         for s in self.strategies.values():
