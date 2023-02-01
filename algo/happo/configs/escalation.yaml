@@ -19,13 +19,14 @@ routine:
     LOG_PERIOD: 2e5
     EVAL_PERIOD: 2e5
 
-    RECORD_VIDEO: True
+    RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 1
+    n_imaginary_runs: 0
     imaginary_rollout: sim
     compute_return_at_once: True
+    perm: null
 
 env:
     env_name: &env_name magw-escalation
