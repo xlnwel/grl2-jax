@@ -11,24 +11,30 @@ class StepCounter:
     def __init__(self, model_path: ModelPath, name='step_counter'):
         self._env_step = 0
         self._train_step = 0
+        self._env_step_interval = 0
+        self._train_step_interval = 0
         self._path = None if model_path is None else '/'.join([*model_path, f'{name}.pkl'])
 
     def get_env_step(self):
         return self._env_step
 
     def set_env_step(self, step):
+        self._env_step_interval = step - self._env_step
         self._env_step = step
 
     def add_env_step(self, steps):
+        self._env_step_interval = steps
         self._env_step += steps
 
     def get_train_step(self):
         return self._train_step
 
     def set_train_step(self, step):
+        self._train_step_interval = step - self._train_step
         self._train_step = step
 
     def add_train_step(self, steps):
+        self._train_step_interval = steps
         self._train_step += steps
 
     def get_steps(self):
@@ -47,6 +53,11 @@ class StepCounter:
             with open(self._path, 'rb') as f:
                 self._env_step, self._train_step = cloudpickle.load(f)
 
+    def get_env_step_intervals(self):
+        return self._env_step_interval
+
+    def get_train_step_intervals(self):
+        return self._train_step_interval
 
 class Memory:
     def __init__(self, model):

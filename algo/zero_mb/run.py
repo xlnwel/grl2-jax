@@ -5,7 +5,7 @@ from tools.run import RunnerWithState
 from tools.utils import batch_dicts
 from env.typing import EnvOutput
 from jax_tools import jax_utils
-from algo.zero.run import concate_along_unit_dim, run_comparisons
+from algo.zero.run import prepare_buffer, concate_along_unit_dim, run_comparisons
 
 
 class Runner(RunnerWithState):
@@ -13,14 +13,15 @@ class Runner(RunnerWithState):
         self, 
         n_steps, 
         agents, 
-        collects, 
+        buffers, 
         model_collect, 
-        img_aids, 
+        lka_aids, 
         collect_ids, 
-        store_info=True
+        store_info=True,
+        compute_return=True, 
     ):
         for aid, agent in enumerate(agents):
-            if aid in img_aids:
+            if aid in lka_aids:
                 agent.strategy.model.switch_params(True)
             else:
                 agent.strategy.model.check_params(False)
@@ -44,7 +45,7 @@ class Runner(RunnerWithState):
                     next_obs=next_obs[i], 
                     **stats[i]
                 )
-                collects[i](self.env, 0, new_env_outputs[i].reset, **kwargs)
+                buffers[i].collect(self.env, 0, new_env_outputs[i].reset, **kwargs)
 
             reward = np.concatenate([eo.reward for eo in new_env_outputs], -1)
             state = [s['state'] for s in stats] if 'state' in stats[0] else None
@@ -64,7 +65,7 @@ class Runner(RunnerWithState):
             )
 
             if store_info:
-                done_env_ids = [i for i, r in enumerate(new_env_outputs[0].reset) if r]
+                done_env_ids = [i for i, r in enumerate(new_env_outputs[0].reset) if np.all(r)]
 
                 if done_env_ids:
                     info = self.env.info(done_env_ids)
@@ -74,7 +75,9 @@ class Runner(RunnerWithState):
                             agent.store(**info)
             env_outputs = new_env_outputs
 
-        for i in img_aids:
+        prepare_buffer(collect_ids, agents, buffers, env_outputs, compute_return)
+
+        for i in lka_aids:
             agents[i].strategy.model.switch_params(False)
         for agent in agents:
             agent.strategy.model.check_params(False)
@@ -91,7 +94,7 @@ def split_env_output(env_output):
     return env_outputs
 
 
-def simultaneous_rollout(env, agents, collects, env_output, rountine_config):
+def simultaneous_rollout(env, agents, buffers, env_output, rountine_config):
     env_outputs = split_env_output(env_output)
     for agent in agents:
         agent.strategy.model.switch_params(True)
@@ -99,7 +102,7 @@ def simultaneous_rollout(env, agents, collects, env_output, rountine_config):
     
     if not rountine_config.switch_model_at_every_step:
         env.model.choose_elite()
-    for i in range(rountine_config.n_imaginary_steps):
+    for i in range(rountine_config.n_lookahead_steps):
         acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
         action = concate_along_unit_dim(acts)
@@ -119,28 +122,33 @@ def simultaneous_rollout(env, agents, collects, env_output, rountine_config):
                 next_obs=new_env_outputs[aid].obs, 
                 **stats[aid]
             )
-            collects[aid](env, 0, new_env_outputs[aid].reset, **kwargs)
+            buffers[aid].collect(env, 0, new_env_outputs[aid].reset, **kwargs)
 
         env_output = new_env_output
         env_outputs = new_env_outputs
-    
+
+    prepare_buffer(list(range(len(agents))), agents, buffers, env_outputs, 
+        rountine_config.compute_return_at_once)
+
     for agent in agents:
         agent.strategy.model.switch_params(False)
+
     return env_outputs
 
 
-def unilateral_rollout(env, agents, collects, env_output, rountine_config):
+def unilateral_rollout(env, agents, buffers, env_output, rountine_config):
     env_outputs = split_env_output(env_output)
     for aid, agent in enumerate(agents):
         for a in agents:
             a.set_states()
         agent.strategy.model.switch_params(True)
         env.model.choose_elites()
-        for i in range(rountine_config.n_imaginary_steps):
+
+        for i in range(rountine_config.n_lookahead_steps):
             acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
             action = concate_along_unit_dim(acts)
-            assert action.shape == (rountine_config.n_imaginary_envs, 2), action.shape
+            assert action.shape == (rountine_config.n_lookahead_envs, 2), action.shape
             env_output.obs['action'] = action
             new_env_output, env_stats = env(env_output)
             new_env_outputs = split_env_output(new_env_output)
@@ -154,19 +162,23 @@ def unilateral_rollout(env, agents, collects, env_output, rountine_config):
                 next_obs=new_env_outputs[aid].obs, 
                 **stats[aid]
             )
-            collects[aid](env, 0, new_env_outputs[aid].reset, **kwargs)
+            buffers[aid].collect(env, 0, new_env_outputs[aid].reset, **kwargs)
 
             env_output = new_env_output
             env_outputs = new_env_outputs
         agent.strategy.model.switch_params(False)
+
+        prepare_buffer(list(range(len(agents))), agents, buffers, env_outputs, 
+            rountine_config.compute_return_at_once)
+
     return env_outputs
 
 
-def run_on_model(env, buffer, agents, collects, routine_config):
+def run_on_model(env, buffer, agents, buffers, routine_config):
     sample_keys = buffer.obs_keys + ['state'] \
         if routine_config.restore_state else buffer.obs_keys 
     obs = buffer.sample_from_recency(
-        batch_size=routine_config.n_imaginary_envs,
+        batch_size=routine_config.n_lookahead_envs,
         sample_keys=sample_keys, 
         sample_size=1, 
         squeeze=True, 
@@ -186,9 +198,10 @@ def run_on_model(env, buffer, agents, collects, routine_config):
     else:
         for a in agents:
             a.set_states()
-    if routine_config.imaginary_rollout == 'sim':
-        return simultaneous_rollout(env, agents, collects, env_output, routine_config)
-    elif routine_config.imaginary_rollout == 'uni':
-        return unilateral_rollout(env, agents, collects, env_output, routine_config)
+
+    if routine_config.lookahead_rollout == 'sim':
+        return simultaneous_rollout(env, agents, buffers, env_output, routine_config)
+    elif routine_config.lookahead_rollout == 'uni':
+        return unilateral_rollout(env, agents, buffers, env_output, routine_config)
     else:
         raise NotImplementedError

@@ -23,8 +23,8 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 0
-    imaginary_rollout: sim
+    n_lookahead_steps: 0
+    lookahead_rollout: sim
 
 env:
     env_name: &env_name ma_mujoco-Ant
@@ -104,7 +104,7 @@ trainer:
     n_runners: *nrunners
     n_envs: *nenvs
     n_epochs: &nepochs 5
-    n_imaginary_epochs: 5
+    n_lookahead_epochs: 5
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 

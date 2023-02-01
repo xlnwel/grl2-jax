@@ -40,7 +40,7 @@ for e in "${envs[@]}"; do
         for a1 in "${args1[@]}"; do
             for a2 in "${args2[@]}"; do
                 s=0
-                kws="imaginary_rollout=$a1 n_imaginary_runs=$a2"
+                kws="lookahead_rollout=$a1 n_lookahead_steps=$a2"
                 env="${suite}-${e}"
                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
                     gpu=$(($i % $gpus))

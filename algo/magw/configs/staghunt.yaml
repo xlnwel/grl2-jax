@@ -19,9 +19,9 @@ routine:
     EVAL_PERIOD: null
 
     run_with_future_opponents: True
-    n_imaginary_runs: 1
-    n_imaginary_envs: 64
-    n_imaginary_steps: 8
+    n_lookahead_steps: 1
+    n_lookahead_envs: 64
+    n_lookahead_steps: 8
 
 env:
     env_name: &env_name magw-staghunt

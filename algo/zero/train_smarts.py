@@ -75,7 +75,7 @@ def train(
             train_step = agent.get_train_step()
             assert train_step != start_train_step, (start_train_step, train_step)
             agent.set_env_step(step)
-            agent.trainer.sync_imaginary_params()
+            agent.trainer.sync_lookahead_params()
         
         if time2record:
             with Timer('log'):

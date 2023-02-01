@@ -2,7 +2,7 @@ from core.elements.trainloop import TrainingLoop as TrainingLoopBase
 
 
 class TrainingLoop(TrainingLoopBase):
-    def imaginary_train(self):
+    def lookahead_train(self, **kwargs):
         data = self.sample_data()
 
-        self.trainer.imaginary_train(data)
+        return self.trainer.lookahead_train(data, **kwargs)

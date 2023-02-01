@@ -30,8 +30,8 @@ class Strategy(StrategyBase):
         value = jnp.squeeze(value, 1)
         return value
 
-    def imaginary_train(self, **kwargs):
-        return self.train_loop.imaginary_train(**kwargs)
+    def lookahead_train(self, **kwargs):
+        return self.train_loop.lookahead_train(**kwargs)
 
 
 create_strategy = functools.partial(create_strategy, strategy_cls=Strategy)

@@ -41,8 +41,9 @@ class Timer:
     aggregators = collections.defaultdict(Aggregator)
 
     def __init__(self, summary_name, period=None, mode='average', to_record=True):
-        self._to_log = to_record
-        if self._to_log:
+        self._to_record = to_record
+        if self._to_record:
+            self.aggregators[summary_name]
             self._summary_name = summary_name
             self._period = period
             assert mode in ['average', 'sum']
@@ -53,12 +54,12 @@ class Timer:
         return self._summary_name
 
     def __enter__(self):
-        if self._to_log:
+        if self._to_record:
             self._start = time.time()
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        if self._to_log:
+        if self._to_record:
             duration = time.time() - self._start
             aggregator = self.aggregators[self._summary_name]
             aggregator.add(duration)
@@ -119,20 +120,20 @@ class TBTimer:
     aggregators = collections.defaultdict(Aggregator)
 
     def __init__(self, summary_name, period=1, to_record=True, print_terminal_info=False):
-        self._to_log = to_record
-        if self._to_log:
+        self._to_record = to_record
+        if self._to_record:
             self._summary_name = summary_name
             self._period = period
             self._print_terminal_info = print_terminal_info
 
     def __enter__(self):
-        if self._to_log:
+        if self._to_record:
             self._start = time.time()
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
         import tensorflow as tf
-        if self._to_log:
+        if self._to_record:
             duration = time.time() - self._start
             aggregator = self.aggregators[self._summary_name]
             aggregator.add(duration)
@@ -147,18 +148,18 @@ class TBTimer:
 
 class LoggerTimer:
     def __init__(self, logger, summary_name, to_record=True):
-        self._to_log = to_record
-        if self._to_log:
+        self._to_record = to_record
+        if self._to_record:
             self._logger = logger
             self._summary_name = summary_name
 
     def __enter__(self):
-        if self._to_log:
+        if self._to_record:
             self._start = time.time()
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        if self._to_log:
+        if self._to_record:
             duration = time.time() - self._start
             self._logger.store(**{self._summary_name: duration})
 
@@ -184,3 +185,18 @@ class Every:
     def difference(self):
         """ Compute the most recent update difference """
         return self._diff
+
+class NamedEvery:
+    named_everys = {}
+
+    def __init__(self, name, period, start=0, init_next=False, final=None):
+        if name not in self.named_everys:
+            self.named_everys[name] = Every(
+                period, start, init_next=init_next, final=final)
+        self._every = self.named_everys[name]
+    
+    def __call__(self, step):
+        return self._every(step)
+    
+    def difference(self):
+        return self._every.difference()
