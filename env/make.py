@@ -116,7 +116,6 @@ def make_dmc(config):
 
     return env
 
-
 def make_mpe(config):
     from env.mpe_env.MPE_env import MPEEnv
     assert 'mpe' in config['env_name'], config['env_name']
@@ -127,7 +126,6 @@ def make_mpe(config):
     env = wrappers.MASimEnvStats(env)
 
     return env
-
 
 def make_spiel(config):
     config = _change_env_name(config)
@@ -188,6 +186,16 @@ def make_ma_minigrid(config):
     env = wrappers.MASimEnvStats(env)
 
     return env
+
+def make_lbf(config):
+    from env.lbf_env.environment import LBFEnv
+    config = _change_env_name(config)
+    env = LBFEnv(config)
+    # env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+    env = wrappers.DataProcess(env)
+    env = wrappers.MASimEnvStats(env)
+
+    return env 
 
 def make_overcooked(config):
     assert 'overcooked' in config['env_name'], config['env_name']

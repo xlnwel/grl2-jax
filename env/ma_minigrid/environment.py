@@ -18,7 +18,6 @@ class MAMiniGrid(gym.Wrapper):
         self.action_shape = [a.shape for a in self.action_space]
         self.action_dim = [a.n for a in self.action_space]
         self.action_dtype = [np.int32 for _ in self.action_space]
-        self.action_dtype = [np.int32 for _ in self.action_space]
         self.is_action_discrete = True
 
         self.obs_shape = [{
