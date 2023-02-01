@@ -13,7 +13,7 @@ from algo.zero.elements.trainer import Trainer as TrainerBase
 class Trainer(TrainerBase):
     def add_attributes(self):
         super().add_attributes()
-        self.img_indices = np.arange(self.config.n_imaginary_envs)
+        self.img_indices = np.arange(self.config.n_lookahead_envs)
 
     def compile_train(self):
         _jit_train = jax.jit(self.theta_train)
@@ -30,16 +30,16 @@ class Trainer(TrainerBase):
         
         self.haiku_tabulate()
 
-    def imaginary_train(self, data: AttrDict):
-        theta = self.model.imaginary_params.copy()
-        is_imaginary = theta.pop('imaginary')
-        assert is_imaginary == True, is_imaginary
-        opt_state = self.imaginary_opt_state
-        for _ in range(self.config.n_imaginary_epochs):
+    def lookahead_train(self, data: AttrDict):
+        theta = self.model.lookahead_params.copy()
+        is_lookahead = theta.pop('lookahead')
+        assert is_lookahead == True, is_lookahead
+        opt_state = self.lookahead_opt_state
+        for _ in range(self.config.n_lookahead_epochs):
             np.random.shuffle(self.img_indices)
-            indices = np.split(self.img_indices, self.config.n_imaginary_mbs)
+            indices = np.split(self.img_indices, self.config.n_lookahead_mbs)
             for idx in indices:
-                with Timer('imaginary_train'):
+                with Timer('lookahead_train'):
                     d = data.slice(idx)
                     if self.config.popart:
                         d.popart_mean = self.popart.mean
@@ -52,8 +52,8 @@ class Trainer(TrainerBase):
                         )
         
         for k, v in theta.items():
-            self.model.imaginary_params[k] = v
-        self.imaginary_opt_state = opt_state
+            self.model.lookahead_params[k] = v
+        self.lookahead_opt_state = opt_state
 
     def img_train(
         self, 

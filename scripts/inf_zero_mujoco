@@ -64,8 +64,8 @@ a2=${args2[$idx]}
 la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
-# kws="n_imaginary_runs=$a1 n_imaginary_envs=$a2 n_imaginary_steps=$a3"
-# kws="n_imaginary_runs=$a1"
+# kws="n_lookahead_steps=$a1 n_lookahead_envs=$a2 n_lookahead_steps=$a3"
+# kws="n_lookahead_steps=$a1"
 kws=$@
 
 for s in {0..4}; do
@@ -105,7 +105,7 @@ for e in "${envs[@]}"; do
 # fi
 # for a in "${algos[@]}"; do
 #     for s in {0..9}; do
-#         kws="n_imaginary_runs=$a1"
+#         kws="n_lookahead_steps=$a1"
 #         # echo $kws
 #         env="${suite}-${e}"
 #         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then

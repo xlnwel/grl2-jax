@@ -12,6 +12,7 @@ algos=(
     happo_oc
     happo
     happo
+    happo
     # happo_oc2
     # happo_oc2
     # happo_oc2
@@ -41,7 +42,7 @@ configs=(
 )
 # configs=$envs
 na=2
-args1=(0 1 3 5 1 3 5 1 3)
+args1=(5 3 1 0 1 3 5 1 3 5)
 args2=(
     False
     False
@@ -50,6 +51,7 @@ args2=(
     False
     False
     False
+    True
     True
     True
     # .9,.09,.009,.0009,.00009,.00001 
@@ -109,11 +111,11 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 # kws=$@
 
-kws="n_imaginary_runs=$a1 ignore_ratio_for_pi=$a2"
+kws="n_lookahead_steps=$a1 ignore_ratio_for_pi=$a2"
 for es in "${envs[@]}"; do
     for e in $es; do
         env="${suite}-${e}"
-        for s in {0..4}; do
+        for s in {0..3}; do
             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
             echo $py_script
             eval $py_script
@@ -168,7 +170,7 @@ echo "Script completed"
 # fi
 # for a in "${algos[@]}"; do
 #     for s in {0..9}; do
-#         kws="n_imaginary_runs=$a1"
+#         kws="n_lookahead_steps=$a1"
 #         # echo $kws
 #         env="${suite}-${e}"
 #         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then

@@ -13,6 +13,23 @@ from tools.timer import get_current_datetime, compute_time_left
 logger = logging.getLogger(__name__)
 
 
+def check_key(k):
+    return (k.endswith('score') or k.endswith('epslen')) and not k.startswith('metrics/')
+
+def add_prefix(k, prefix):
+    k = f'{prefix}/{k}'
+    return k
+
+def add_suffix(k, suffix):
+    k = f'{k}/{suffix}'
+    return k
+
+def prefix_stats(stats, check_fn=check_key, prefix='metrics'):
+    stats = {add_prefix(k, prefix) if check_fn(k) else k: v 
+        for k, v in stats.items()}
+    return stats
+
+
 """ Recorder """
 class Recorder:
     def __init__(self, model_path: ModelPath=None, record_file='record.txt', max_steps=None):
@@ -98,13 +115,13 @@ class Recorder:
             stats[key] = v
             return
         if mean:
-            stats[f'{key}'] = np.mean(v).astype(np.float32)
+            stats[key] = np.mean(v).astype(np.float32)
         if std:
-            stats[f'{key}_std'] = np.std(v).astype(np.float32)
+            stats[add_suffix(key, 'std')] = np.std(v).astype(np.float32)
         if min:
-            stats[f'{key}_min'] = np.min(v).astype(np.float32)
+            stats[add_suffix(key, 'min')] = np.min(v).astype(np.float32)
         if max:
-            stats[f'{key}_max'] = np.max(v).astype(np.float32)
+            stats[add_suffix(key, 'max')] = np.max(v).astype(np.float32)
         del self._store_dict[key]
         return stats
 
@@ -113,13 +130,13 @@ class Recorder:
         self._store_dict.clear()
         return stats
 
-    def get_stats(self, mean=True, std=False, min=False, max=False, adaptive=True):
+    def get_stats(self, mean=True, std=False, min=False, max=False, 
+            adaptive=True, add_missing_prefix=True):
         stats = {}
         for k in sorted(self._store_dict):
             v = self._store_dict[k]
-            k_std, k_min, k_max = std, min, max
-            if (k.endswith('score') or k.endswith('epslen')) and not k.startswith('metrics/'):
-                k = f'metrics/{k}'
+            if add_missing_prefix and check_key(k):
+                k = add_prefix(k, 'metrics')
             if (
                 adaptive 
                 and not k.startswith('aux/') 
@@ -130,6 +147,8 @@ class Recorder:
                 and not k.endswith('max')
             ):
                 k_std = k_min = k_max = True
+            else:
+                k_std, k_min, k_max = std, min, max
             if isscalar(v):
                 stats[k] = v
                 continue
@@ -142,15 +161,15 @@ class Recorder:
                     print(k, v)
                     assert False
             if k_std:
-                stats[f'{k}_std'] = np.std(v).astype(np.float32)
+                stats[add_suffix(k, 'std')] = np.std(v).astype(np.float32)
             if k_min:
                 try:
-                    stats[f'{k}_min'] = np.min(v).astype(np.float32)
+                    stats[add_suffix(k, 'min')] = np.min(v).astype(np.float32)
                 except:
                     print(k)
                     assert False
             if k_max:
-                stats[f'{k}_max'] = np.max(v).astype(np.float32)
+                stats[add_suffix(k, 'max')] = np.max(v).astype(np.float32)
         self._store_dict.clear()
         return stats
 
@@ -199,13 +218,13 @@ class Recorder:
         else:
             v = np.asarray(self._store_dict[key])
             if mean:
-                self._record_tabular(f'{key}_mean', np.mean(v))
+                self._record_tabular(key, np.mean(v))
             if std:
-                self._record_tabular(f'{key}_std', np.std(v))
+                self._record_tabular(add_suffix(key, 'std'), np.std(v))
             if min:
-                self._record_tabular(f'{key}_min', np.min(v))
+                self._record_tabular(add_suffix(key, 'min'), np.min(v))
             if max:
-                self._record_tabular(f'{key}_max', np.max(v))
+                self._record_tabular(add_suffix(key, 'max'), np.max(v))
         self._store_dict[key] = []
 
     def dump_tabular(self, print_terminal_info=True):

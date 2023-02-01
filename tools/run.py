@@ -60,7 +60,10 @@ class RunnerWithState:
 
     def run(self):
         raise NotImplementedError
-
+    
+    def get_steps_per_run(self, n_steps):
+        return self.env_stats().n_envs * n_steps
+    
 
 class Runner:
     def __init__(self, env, agent, step=0, nsteps=None, 

@@ -6,9 +6,9 @@ from tools.utils import batch_dicts
 from env.typing import EnvOutput
 
 
-def run_eval(env, agents, img_aids, prefix=''):
+def run_eval(env, agents, lka_aids, prefix=''):
     for i, agent in enumerate(agents):
-        if i in img_aids:
+        if i in lka_aids:
             agent.strategy.model.switch_params(True)
         else:
             agent.strategy.model.check_params(False)
@@ -32,7 +32,7 @@ def run_eval(env, agents, img_aids, prefix=''):
             infos += info
         env_outputs = new_env_outputs
 
-    for i in img_aids:
+    for i in lka_aids:
         agents[i].strategy.model.switch_params(False)
     for agent in agents:
         agent.strategy.model.check_params(False)
@@ -40,7 +40,7 @@ def run_eval(env, agents, img_aids, prefix=''):
     for i, a in enumerate(agents):
         if prefix:
             prefix += '_'
-        prefix += 'future' if i in img_aids else 'old'
+        prefix += 'future' if i in lka_aids else 'old'
     info = batch_dicts(infos, list)
     info = {f'{prefix}_{k}': np.mean(v) for k, v in info.items()}
 
@@ -66,15 +66,15 @@ class Runner(RunnerWithState):
         n_steps, 
         agents, 
         collects, 
-        img_aids, 
+        lka_aids, 
         collect_ids, 
         store_info=True,
         extra_pi=False,
     ):  
         if extra_pi:
-            assert len(img_aids) == 0
+            assert len(lka_aids) == 0
         for aid, agent in enumerate(agents):
-            if aid in img_aids:
+            if aid in lka_aids:
                 agent.strategy.model.switch_params(True)
             else:
                 agent.strategy.model.check_params(False)
@@ -119,7 +119,7 @@ class Runner(RunnerWithState):
                             agent.store(**info)
             env_outputs = new_env_outputs
 
-        for i in img_aids:
+        for i in lka_aids:
             agents[i].strategy.model.switch_params(False)
         for agent in agents:
             agent.strategy.model.check_params(False)

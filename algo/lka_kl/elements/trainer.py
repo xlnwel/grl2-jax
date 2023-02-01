@@ -67,8 +67,8 @@ class Trainer(TrainerBase):
                 lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[2:])), data)
 
         theta = self.model.theta.copy()
-        is_imaginary = theta.pop('imaginary')
-        assert is_imaginary == False, is_imaginary
+        is_lookahead = theta.pop('lookahead')
+        assert is_lookahead == False, is_lookahead
         for _ in range(self.config.n_epochs):
             np.random.shuffle(self.indices)
             indices = np.split(self.indices, self.config.n_mbs)
@@ -108,17 +108,17 @@ class Trainer(TrainerBase):
 
         return stats
         
-    def imaginary_train(self, data: AttrDict):
+    def lookahead_train(self, data: AttrDict):
         # NOTE: we utilize the params
         theta = self.model.params.copy()
-        is_imaginary = theta.pop('imaginary')
-        assert is_imaginary == False, is_imaginary
+        is_lookahead = theta.pop('lookahead')
+        assert is_lookahead == False, is_lookahead
         opt_state = self.params.theta
-        for _ in range(self.config.n_imaginary_epochs):
+        for _ in range(self.config.n_lookahead_epochs):
             np.random.shuffle(self.indices)
             indices = np.split(self.indices, self.config.n_mbs)
             for idx in indices:
-                with Timer('imaginary_train'):
+                with Timer('lookahead_train'):
                     d = data.slice(idx)
                     if self.config.popart:
                         d.popart_mean = self.popart.mean
@@ -130,9 +130,9 @@ class Trainer(TrainerBase):
                             data=d, 
                         )
         
-        # NOTE: the updated parameters are valued to imaginary parameters
+        # NOTE: the updated parameters are valued to lookahead parameters
         for k, v in theta.items():
-            self.model.imaginary_params[k] = v
+            self.model.lookahead_params[k] = v
 
     def real_theta_train(
         self,

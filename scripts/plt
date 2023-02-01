@@ -24,8 +24,8 @@ dir=$1
 while true
 do
     today=$(date +"%m%d")
-    yesterday=$(date -v-1d "+%m%d")
-    dby=$(date -v-2d "+%m%d")
+    # yesterday=$(date -v-1d "+%m%d")
+    # dby=$(date -v-2d "+%m%d")
     # tda=$(date -v-3d "+%m%d")
 
     # rm -rf html-logs

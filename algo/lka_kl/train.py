@@ -103,10 +103,10 @@ def train(
     #     prev_info = run_comparisons(runner, agents)
     all_aids = list(range(len(agents)))
     while step < routine_config.MAX_STEPS:
-        # train imaginary agents
-        for _ in range(routine_config.n_imaginary_runs):
+        # train lookahead agents
+        for _ in range(routine_config.n_lookahead_steps):
             for i, agent in enumerate(agents):
-                with Timer('imaginary_run'):
+                with Timer('lookahead_run'):
                     env_outputs = [None for _ in all_aids]
                     with StateStore(f'img{i}',
                         state_constructor,
@@ -118,8 +118,8 @@ def train(
                             [j for j in all_aids if j != i], [i]
                         )[i]
                 transfer_data(agents, buffers, env_outputs, routine_config, agent_idx=i)
-                with Timer('imaginary_train'):
-                    agent.imaginary_train()
+                with Timer('lookahead_train'):
+                    agent.lookahead_train()
 
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
@@ -128,7 +128,7 @@ def train(
         with rt:
             env_outputs = [None for _ in all_aids]
             for i in all_aids:
-                img_aids = [aid for aid in all_aids if aid != i]
+                lka_aids = [aid for aid in all_aids if aid != i]
                 with StateStore(f'real{i}',
                     state_constructor,
                     get_state, set_states
@@ -136,7 +136,7 @@ def train(
                     env_outputs[i] = runner.run(
                         routine_config.n_steps,
                         agents, collects,
-                        img_aids, [i], extra_pi=True
+                        lka_aids, [i], extra_pi=True
                     )[i]
             transfer_data(agents, buffers, env_outputs, routine_config)
 
@@ -160,7 +160,7 @@ def train(
             train_step = agent.get_train_step()
             assert train_step != start_train_step, (start_train_step, train_step)
             agent.set_env_step(step)
-            agent.trainer.sync_imaginary_params()
+            agent.trainer.sync_lookahead_params()
 
         # if time2record:
         #     with StateStore('comp', state_constructor, get_state, set_states):

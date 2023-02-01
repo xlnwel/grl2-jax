@@ -10,7 +10,6 @@ from tools.store import StateStore, TempStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
 from tools import pkg
-from algo.zero.train import transfer_data
 from algo.zero_mb.run import *
 
 
@@ -41,12 +40,6 @@ def train(
         runner.set_states(runner_states)
         
     config = configs[0]
-    collect_fn = pkg.import_module(
-        'elements.utils', algo=routine_config.algorithm).collect
-    collects = [functools.partial(collect_fn, buffer) for buffer in buffers]
-    collect_fn = pkg.import_module(
-        'elements.utils', algo=config.dynamics_name).collect
-    model_collect = functools.partial(collect_fn, model_buffer)
 
     step = agents[0].get_env_step()
     # print("Initial running stats:", 
@@ -77,7 +70,6 @@ def train(
             return p
         else:
             return None
-    eval_process = evaluate_agent(step)
 
     for agent in agents:
         agent.store(**{'time/log_total': 0, 'time/log': 0})
@@ -99,17 +91,18 @@ def train(
         with rt:
             env_outputs = [None for _ in all_aids]
             for i in all_aids:
-                img_aids = [aid for aid in all_aids if aid != i]
+                lka_aids = [aid for aid in all_aids if aid != i]
                 with StateStore(f'real{i}', 
                     state_constructor, 
                     get_state, set_states
                 ):
                     env_outputs[i] = runner.run(
                         routine_config.n_steps, 
-                        agents, collects, 
-                        model_collect, 
-                        img_aids, [i])[i]
-        transfer_data(agents, buffers, env_outputs, routine_config)
+                        agents, buffers, 
+                        model_buffer, 
+                        lka_aids, [i], 
+                        compute_return=routine_config.compute_return_at_once
+                    )[i]
 
         for buffer in buffers:
             assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
@@ -130,7 +123,7 @@ def train(
             train_step = agent.get_train_step()
             assert train_step != start_train_step, (start_train_step, train_step)
             agent.set_env_step(step)
-            agent.trainer.sync_imaginary_params()
+            agent.trainer.sync_lookahead_params()
 
         # if time2record:
         #     with StateStore('comp', state_constructor, get_state, set_states):
@@ -148,16 +141,15 @@ def train(
                 for a, s in zip(agents, states):
                     a.set_states(s)
 
-            # train imaginary agents
+            # train lookahead agents
             with TempStore(get_agent_states, set_agent_states):
-                for _ in range(routine_config.n_imaginary_runs):
-                    with Timer('imaginary_run'):
-                        img_eos = run_on_model(
-                            model, model_buffer, agents, collects, routine_config)
-                    transfer_data(agents, buffers, img_eos, routine_config)
+                for _ in range(routine_config.n_lookahead_steps):
+                    with Timer('lookahead_run'):
+                        run_on_model(
+                            model, model_buffer, agents, buffers, routine_config)
                     for agent in agents:
-                        with Timer('imaginary_train'):
-                            agent.imaginary_train()
+                        with Timer('lookahead_train'):
+                            agent.lookahead_train()
 
         if time2record:
             # info = {
@@ -177,8 +169,10 @@ def train(
             # else:
             #     diff_info = info
             # prev_info = after_info
+            eval_process = evaluate_agent(step)
             if eval_process is not None:
-                scores, epslens, video = ray.get(eval_process)
+                with Timer('eval'):
+                    scores, epslens, video = ray.get(eval_process)
                 for agent in agents:
                     agent.store(**{
                         'metrics/eval_score': np.mean(scores), 
@@ -186,7 +180,6 @@ def train(
                     })
                 if video is not None:
                     agent.video_summary(video, step=step, fps=1)
-            eval_process = evaluate_agent(step)
             with Timer('log'):
                 for agent in agents:
                     agent.store(**{
@@ -196,10 +189,8 @@ def train(
                     }, 
                     # **eval_info, **diff_info, 
                     **Timer.all_stats())
-                    agent.record(step=step)
                     agent.save()
-                model.record(step=step)
-                model.save()
+                agents[0].record(step=step)
         # do_logging(f'finish the iteration with step: {step}')
 
 

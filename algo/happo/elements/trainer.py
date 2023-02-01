@@ -46,13 +46,13 @@ def construct_fake_data(env_stats, aid):
 
 class Trainer(TrainerBase):
     def add_attributes(self):
-        self.imaginary_theta = self.model.theta
+        self.lookahead_theta = self.model.theta
         self.popart = RunningMeanStd((0, 1, 2))
         self.indices = np.arange(self.config.n_runners * self.config.n_envs)
 
     def build_optimizers(self):
         theta = self.model.theta.copy()
-        theta.pop('imaginary')
+        theta.pop('lookahead')
         if self.config.get('theta_opt'):
             self.opts.theta, self.params.theta = optimizer.build_optimizer(
                 params=theta, 
@@ -71,7 +71,7 @@ class Trainer(TrainerBase):
                 **self.config.value_opt, 
                 name='value'
             )
-        self.imaginary_opt_state = self.params.theta
+        self.lookahead_opt_state = self.params.theta
 
     def compile_train(self):
         _jit_train = jax.jit(self.theta_train)
@@ -93,8 +93,8 @@ class Trainer(TrainerBase):
             teammate_log_ratio = jnp.zeros_like(data.mu_logprob)
 
         theta = self.model.theta.copy()
-        is_imaginary = theta.pop('imaginary')
-        assert is_imaginary == False, is_imaginary
+        is_lookahead = theta.pop('lookahead')
+        assert is_lookahead == False, is_lookahead
         for _ in range(self.config.n_epochs):
             np.random.shuffle(self.indices)
             indices = np.split(self.indices, self.config.n_mbs)
@@ -146,19 +146,19 @@ class Trainer(TrainerBase):
 
         return stats
 
-    def imaginary_train(self, data: AttrDict, teammate_log_ratio=None):
+    def lookahead_train(self, data: AttrDict, teammate_log_ratio=None):
         if teammate_log_ratio is None:
             teammate_log_ratio = jnp.zeros_like(data.mu_logprob)
 
-        theta = self.model.imaginary_params.copy()
-        is_imaginary = theta.pop('imaginary')
-        assert is_imaginary == True, is_imaginary
-        opt_state = self.imaginary_opt_state
-        for _ in range(self.config.n_imaginary_epochs):
+        theta = self.model.lookahead_params.copy()
+        is_lookahead = theta.pop('lookahead')
+        assert is_lookahead == True, is_lookahead
+        opt_state = self.lookahead_opt_state
+        for _ in range(self.config.n_lookahead_epochs):
             np.random.shuffle(self.indices)
             indices = np.split(self.indices, self.config.n_mbs)
             for idx in indices:
-                with Timer('imaginary_train'):
+                with Timer('lookahead_train'):
                     d = data.slice(idx)
                     t_log_ratio = teammate_log_ratio[idx]
                     if self.config.popart:
@@ -172,18 +172,18 @@ class Trainer(TrainerBase):
                             teammate_log_ratio=t_log_ratio,
                         )
         for k, v in theta.items():
-            self.model.imaginary_params[k] = v
-        self.imaginary_opt_state = opt_state
+            self.model.lookahead_params[k] = v
+        self.lookahead_opt_state = opt_state
 
         self.rng, rng = jax.random.split(self.rng) 
-        new_mu_logprob = self.model.jit_action_logprob(
-            self.model.imaginary_params, rng, data)
-        agent_log_ratio = new_mu_logprob - data.mu_logprob
+        pi_logprob = self.model.jit_action_logprob(
+            self.model.lookahead_params, rng, data)
+        agent_log_ratio = pi_logprob - data.mu_logprob
         return teammate_log_ratio + agent_log_ratio
 
-    def sync_imaginary_params(self):
-        self.model.sync_imaginary_params()
-        self.imaginary_opt_state = self.params.theta
+    def sync_lookahead_params(self):
+        self.model.sync_lookahead_params()
+        self.lookahead_opt_state = self.params.theta
 
     def get_theta_params(self):
         weights = {
@@ -280,7 +280,7 @@ class Trainer(TrainerBase):
     #     if data is None:
     #         data = construct_fake_data(self.env_stats, 0)
     #     theta = self.model.theta.copy()
-    #     is_imaginary = theta.pop('imaginary')
+    #     is_lookahead = theta.pop('lookahead')
     #     print(hk.experimental.tabulate(self.theta_train)(
     #         theta, rng, self.params.theta, data
     #     ))

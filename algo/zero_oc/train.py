@@ -7,7 +7,7 @@ from tools.store import StateStore
 from tools.timer import Every, Timer
 from tools import pkg
 from algo.zero.run import *
-from algo.zero.train import transfer_data, main
+from algo.zero.train import main
 
 
 def train(
@@ -42,9 +42,6 @@ def train(
         runner.set_states(runner_states)
 
     config = configs[0]
-    collect_fn = pkg.import_module(
-        'elements.utils', algo=routine_config.algorithm).collect
-    collects = [functools.partial(collect_fn, buffer) for buffer in buffers]
 
     step = agents[0].get_env_step()
     # print("Initial running stats:", 
@@ -75,7 +72,6 @@ def train(
             return p
         else:
             return None
-    eval_process = evaluate_agent(step)
 
     for agent in agents:
         agent.store(**{'time/log_total': 0, 'time/log': 0})
@@ -90,19 +86,20 @@ def train(
     #     prev_info = run_comparisons(runner, agents)
     all_aids = list(range(len(agents)))
     while step < routine_config.MAX_STEPS:
-        # train imaginary agents
-        for _ in range(routine_config.n_imaginary_runs):
-            with Timer('imaginary_run'):
-                if routine_config.imaginary_rollout == 'sim':
+        # train lookahead agents
+        for _ in range(routine_config.n_lookahead_steps):
+            with Timer('lookahead_run'):
+                if routine_config.lookahead_rollout == 'sim':
                     with StateStore('sim', 
                         state_constructor, 
                         get_state, set_states
                     ):
                         env_outputs = runner.run(
                             routine_config.n_steps, 
-                            agents, collects, 
-                            all_aids, all_aids, False)
-                elif routine_config.imaginary_rollout == 'uni':
+                            agents, buffers, 
+                            all_aids, all_aids, 
+                            False, compute_return=routine_config.compute_return_at_once)
+                elif routine_config.lookahead_rollout == 'uni':
                     env_outputs = [None for _ in all_aids]
                     for i in all_aids:
                         with StateStore(f'uni{i}', 
@@ -111,14 +108,16 @@ def train(
                         ):
                             env_outputs[i] = runner.run(
                                 routine_config.n_steps, 
-                                agents, collects, 
-                                [i], [i], False)[i]
+                                agents, buffers, 
+                                [i], [i], False, 
+                                compute_return=routine_config.compute_return_at_once
+                            )[i]
                 else:
                     raise NotImplementedError
-            transfer_data(agents, buffers, env_outputs, routine_config)
+
             for agent in agents:
-                with Timer('imaginary_train'):
-                    agent.imaginary_train()
+                with Timer('lookahead_train'):
+                    agent.lookahead_train()
 
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
@@ -126,16 +125,17 @@ def train(
             assert buffer.size() == 0, f"buffer i: {buffer.size()}"
         with rt:
             for i in all_aids:
-                img_aids = [aid for aid in all_aids if aid != i]
+                lka_aids = [aid for aid in all_aids if aid != i]
                 with StateStore(f'real{i}', 
                     state_constructor_with_sliced_envs, 
                     get_state, set_states
                 ):
                     env_outputs = runner.run(
                         routine_config.n_steps, 
-                        agents, collects, 
-                        img_aids, all_aids)
-                transfer_data(agents, buffers, env_outputs, routine_config)
+                        agents, buffers, 
+                        lka_aids, all_aids, 
+                        compute_return=routine_config.compute_return_at_once
+                    )
 
         for buffer in buffers:
             assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
@@ -156,7 +156,7 @@ def train(
             train_step = agent.get_train_step()
             assert train_step != start_train_step, (start_train_step, train_step)
             agent.set_env_step(step)
-            agent.trainer.sync_imaginary_params()
+            agent.trainer.sync_lookahead_params()
 
         # if time2record:
         #     with StateStore('comp', state_constructor, get_state, set_states):
@@ -183,8 +183,10 @@ def train(
             # else:
             #     diff_info = info
             # prev_info = after_info
+            eval_process = evaluate_agent(step)
             if eval_process is not None:
-                scores, epslens, video = ray.get(eval_process)
+                with Timer('eval'):
+                    scores, epslens, video = ray.get(eval_process)
                 for agent in agents:
                     agent.store(**{
                         'metrics/eval_score': np.mean(scores), 
@@ -192,7 +194,6 @@ def train(
                     })
                 if video is not None:
                     agent.video_summary(video, step=step, fps=1)
-            eval_process = evaluate_agent(step)
             with Timer('log'):
                 for agent in agents:
                     agent.store(**{
@@ -202,8 +203,8 @@ def train(
                     }, 
                     # **eval_info, **diff_info, 
                     **Timer.all_stats())
-                    agent.record(step=step)
                     agent.save()
+                agents[0].record(step=step)
         # do_logging(f'finish the iteration with step: {step}')
 
 

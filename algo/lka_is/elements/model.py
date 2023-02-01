@@ -34,8 +34,8 @@ def construct_fake_data(env_stats, aid, batch_size=1):
 
 class Model(ModelBase):
     def add_attributes(self):
-        self.imaginary_params = dict2AttrDict({'imaginary': True})
-        self.params.imaginary = False
+        self.lookahead_params = dict2AttrDict({'lookahead': True})
+        self.params.lookahead = False
 
         self._initial_state = None
 
@@ -48,7 +48,7 @@ class Model(ModelBase):
             data.obs, data.state_reset, data.state, data.action_mask, name='policy')
         self.params.value, self.modules.value = self.build_net(
             data.global_state, data.state_reset, data.state, name='value')
-        self.sync_imaginary_params()
+        self.sync_lookahead_params()
 
     def compile_model(self):
         self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
@@ -57,18 +57,18 @@ class Model(ModelBase):
     def theta(self):
         return self.params
 
-    def switch_params(self, imaginary):
-        self.params, self.imaginary_params = self.imaginary_params, self.params
-        self.check_params(imaginary)
+    def switch_params(self, lookahead):
+        self.params, self.lookahead_params = self.lookahead_params, self.params
+        self.check_params(lookahead)
 
-    def check_params(self, imaginary):
-        assert self.params.imaginary == imaginary, (self.params.imaginary, imaginary)
-        assert self.imaginary_params.imaginary == 1-imaginary, (self.params.imaginary, imaginary)
+    def check_params(self, lookahead):
+        assert self.params.lookahead == lookahead, (self.params.lookahead, lookahead)
+        assert self.lookahead_params.lookahead == 1-lookahead, (self.params.lookahead, lookahead)
 
-    def sync_imaginary_params(self):
+    def sync_lookahead_params(self):
         for k, v in self.params.items():
-            if k != 'imaginary':
-                self.imaginary_params[k] = v
+            if k != 'lookahead':
+                self.lookahead_params[k] = v
 
     def raw_action(
         self, 

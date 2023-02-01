@@ -1,4 +1,4 @@
-import functools
+from functools import partial
 import numpy as np
 import ray
 
@@ -10,205 +10,223 @@ from tools.display import print_dict, print_dict_info
 from tools.store import StateStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
-from jax_tools import jax_utils
-from tools import pkg
 from algo.zero.run import *
 
 
+def state_constructor_with_sliced_envs(agents, runner):
+    agent_states = [a.build_memory() for a in agents]
+    env_config = runner.env_config()
+    env_config.n_envs //= len(agents)
+    runner_states = runner.build_env(env_config)
+    return agent_states, runner_states
+    
+
+def state_constructor(agents, runner):
+    agent_states = [a.build_memory() for a in agents]
+    runner_states = runner.build_env()
+    return agent_states, runner_states
+
+
+def get_state(agents, runner):
+    agent_states = [a.get_memory() for a in agents]
+    runner_states = runner.get_states()
+    return agent_states, runner_states
+
+
+def set_states(states, agents, runner):
+    agent_states, runner_states = states
+    assert len(agents) == len(agent_states)
+    for a, s in zip(agents, agent_states):
+        a.set_memory(s)
+    runner.set_states(runner_states)
+
+
+def run_for_lookahead_agents(agents, runner, buffers, routine_config):
+    all_aids = list(range(len(agents)))
+    constructor = partial(state_constructor, agents=agents, runner=runner)
+    get_fn = partial(get_state, agents=agents, runner=runner)
+    set_fn = partial(set_states, agents=agents, runner=runner)
+
+    with Timer('lookahead_run'):
+        if routine_config.lookahead_rollout == 'sim':
+            with StateStore('sim', constructor, get_fn, set_fn):
+                runner.run(
+                    routine_config.n_steps, 
+                    agents, buffers, 
+                    all_aids, all_aids, False, 
+                    compute_return=routine_config.compute_return_at_once
+                )
+        elif routine_config.lookahead_rollout == 'uni':
+            for i in all_aids:
+                with StateStore(f'uni{i}', constructor, get_fn, set_fn):
+                    runner.run(
+                        routine_config.n_steps, 
+                        agents, buffers, 
+                        [i], [i], False, 
+                        compute_return=routine_config.compute_return_at_once
+                    )
+        else:
+            raise NotImplementedError
+
+    for i, buffer in enumerate(buffers):
+        assert buffer.ready(), f"buffer {i}: ({buffer.size()}, {len(buffer._queue)})"
+
+
+def optimize_lookahead_agents(agents, routine_config):
+    all_aids = list(range(len(agents)))
+    teammate_log_ratio = None
+    aids = np.random.choice(
+        all_aids, size=len(all_aids), replace=False, 
+        p=routine_config.perm)
+
+    for aid in aids:
+        agent = agents[aid]
+        teammate_log_ratio = agent.lookahead_train(
+            teammate_log_ratio=teammate_log_ratio)
+
+
+def run_for_ego_agents(agents, runner, buffers, routine_config):
+    all_aids = list(range(len(agents)))
+    constructor = partial(state_constructor, agents=agents, runner=runner)
+    get_fn = partial(get_state, agents=agents, runner=runner)
+    set_fn = partial(set_states, agents=agents, runner=runner)
+
+    for i, buffer in enumerate(buffers):
+        assert buffer.size() == 0, f"buffer {i}: {buffer.size()}"
+
+    with Timer('run'):
+        if routine_config.n_lookahead_steps:
+            for i in all_aids:
+                lka_aids = [aid for aid in all_aids if aid != i]
+                with StateStore(f'real{i}', constructor, get_fn, set_fn):
+                    runner.run(
+                        routine_config.n_steps, 
+                        agents, buffers, 
+                        lka_aids, [i], 
+                        compute_return=routine_config.compute_return_at_once
+                    )
+        else:
+            with StateStore('real', constructor, get_fn, set_fn):
+                runner.run(
+                    routine_config.n_steps, 
+                    agents, buffers, 
+                    [], all_aids, 
+                    compute_return=routine_config.compute_return_at_once
+                )
+
+    for i, buffer in enumerate(buffers):
+        assert buffer.ready(), f"buffer {i}: ({buffer.size()}, {len(buffer._queue)})"
+
+    env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
+    for agent in agents:
+        agent.add_env_step(env_steps_per_run)
+    
+    return agents[0].get_env_step()
+
+
+def optimize_ego_agents(agents, routine_config):
+    all_aids = list(range(len(agents)))
+    teammate_log_ratio = None
+    aids = np.random.choice(
+        all_aids, size=len(all_aids), replace=False, 
+        p=routine_config.perm)
+    assert set(aids) == set(all_aids), (aids, all_aids)
+
+    for aid in aids:
+        agent = agents[aid]
+        tmp_stats = agent.train_record(teammate_log_ratio=teammate_log_ratio)
+        if not routine_config.ignore_ratio_for_pi:
+            teammate_log_ratio = tmp_stats["teammate_log_ratio"]
+
+        train_step = agent.get_train_step()
+        fps = agent.get_env_step_intervals() / Timer('run').last()
+        tps = agent.get_train_step_intervals() / Timer('train').last()
+        agent.store(**{
+                'stats/train_step': train_step, 
+                'time/fps': fps, 
+                'time/tps': tps, 
+            }, 
+            **Timer.all_stats()
+        )
+        agent.trainer.sync_lookahead_params()
+    
+    return train_step
+
+
+def train_agents(agents, runner, buffers, routine_config, 
+        n_runs, run_fn, opt_fn):
+    if n_runs > 0:
+        for _ in range(n_runs):
+            env_step = run_fn(agents, runner, buffers, routine_config)
+            train_step = opt_fn(agents, routine_config)
+    else:
+        env_step = agents[0].get_env_step()
+        train_step = agents[0].get_train_step()
+
+    return env_step, train_step
+
+
+def eval_and_log(agents, runner, env_step, routine_config):
+    constructor = partial(state_constructor, agents=agents, runner=runner)
+    get_fn = partial(get_state, agents=agents, runner=runner)
+    set_fn = partial(set_states, agents=agents, runner=runner)
+
+    with Timer('eval'):
+        with StateStore('eval', constructor, get_fn, set_fn):
+            scores, epslens, stats, video = runner.eval_with_video(
+                agents, 
+                record_video=routine_config.RECORD_VIDEO
+            )
+    agents[0].store(**{
+        'eval_score': np.mean(scores), 
+        'eval_epslen': np.mean(epslens), 
+    })
+
+    with Timer('save'):
+        for agent in agents:
+            agent.save()
+    with Timer('log'):
+        if video is not None:
+            agents[0].video_summary(video, step=env_step, fps=1)
+        agents[0].record(step=env_step)
+
+
 def train(
-    configs, 
     agents, 
     runner, 
     buffers, 
-    routine_config
+    routine_config, 
+    lka_run_fn=run_for_lookahead_agents, 
+    lka_opt_fn=optimize_lookahead_agents, 
+    ego_run_fn=run_for_ego_agents, 
+    ego_opt_fn=optimize_ego_agents
 ):
-    def state_constructor():
-        agent_states = [a.build_memory() for a in agents]
-        runner_states = runner.build_env()
-        return agent_states, runner_states
-    
-    def get_state():
-        agent_states = [a.get_memory() for a in agents]
-        runner_states = runner.get_states()
-        return agent_states, runner_states
-    
-    def set_states(states):
-        agent_states, runner_states = states
-        assert len(agents) == len(agent_states)
-        for a, s in zip(agents, agent_states):
-            a.set_memory(s)
-        runner.set_states(runner_states)
-        
-    config = configs[0]
-
-    step = agents[0].get_env_step()
-    # print("Initial running stats:", 
-    #     *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
+    do_logging('Training starts...')
+    env_step = agents[0].get_env_step()
     to_record = Every(
         routine_config.LOG_PERIOD, 
-        start=step, 
-        init_next=step != 0, 
-        final=routine_config.MAX_STEPS)
-    to_eval = Every(
-        routine_config.EVAL_PERIOD, 
-        start=step, 
-        final=routine_config.MAX_STEPS)
-    rt = Timer('run')
-    tt = Timer('train')
+        start=env_step, 
+        init_next=env_step != 0, 
+        final=routine_config.MAX_STEPS
+    )
+    while env_step < routine_config.MAX_STEPS:
+        train_agents(
+            agents, runner, buffers, routine_config, 
+            n_runs=routine_config.n_lookahead_steps, 
+            run_fn=lka_run_fn, 
+            opt_fn=lka_opt_fn
+        )
+        env_step, _ = train_agents(
+            agents, runner, buffers, routine_config, 
+            n_runs=1, 
+            run_fn=ego_run_fn, 
+            opt_fn=ego_opt_fn
+        )
+        time2record = agents[0].contains_stats('score') \
+            and to_record(env_step)
 
-    def evaluate_agent(step):
-        if to_eval(step):
-            eval_main = pkg.import_main('eval', config=config)
-            eval_main = ray.remote(eval_main)
-            p = eval_main.remote(
-                configs, 
-                routine_config.N_EVAL_EPISODES, 
-                record=routine_config.RECORD_VIDEO, 
-                fps=1, 
-                info=step // routine_config.EVAL_PERIOD * routine_config.EVAL_PERIOD
-            )
-            return p
-        else:
-            return None
-    eval_process = evaluate_agent(step)
-
-    for agent in agents:
-        agent.store(**{'time/log_total': 0, 'time/log': 0})
-
-    do_logging('Training starts...')
-    train_step = agents[0].get_train_step()
-    env_stats = runner.env_stats()
-    steps_per_iter = env_stats.n_envs * routine_config.n_steps
-    # eval_info = {}
-    # diff_info = {}
-    # with StateStore('comp', state_constructor, get_state, set_states):
-    #     prev_info = run_comparisons(runner, agents)
-    all_aids = list(range(len(agents)))
-    while step < routine_config.MAX_STEPS:
-        # train imaginary agents
-        for _ in range(routine_config.n_imaginary_runs):
-            with Timer('imaginary_run'):
-                if routine_config.imaginary_rollout == 'sim':
-                    with StateStore('sim', 
-                        state_constructor, 
-                        get_state, set_states
-                    ):
-                        env_outputs = runner.run(
-                            routine_config.n_steps, 
-                            agents, buffers, 
-                            all_aids, all_aids, False)
-                elif routine_config.imaginary_rollout == 'uni':
-                    env_outputs = [None for _ in all_aids]
-                    for i in all_aids:
-                        with StateStore(f'uni{i}', 
-                            state_constructor, 
-                            get_state, set_states
-                        ):
-                            env_outputs[i] = runner.run(
-                                routine_config.n_steps, 
-                                agents, buffers, 
-                                [i], [i], False)[i]
-                else:
-                    raise NotImplementedError
-            for agent in agents:
-                with Timer('imaginary_train'):
-                    agent.imaginary_train()
-
-        # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
-        start_env_step = agents[0].get_env_step()
-        for i, buffer in enumerate(buffers):
-            assert buffer.size() == 0, f"buffer i: {buffer.size()}"
-        with rt:
-            if routine_config.n_imaginary_runs:
-                env_outputs = [None for _ in all_aids]
-                for i in all_aids:
-                    img_aids = [aid for aid in all_aids if aid != i]
-                    with StateStore(f'real{i}', 
-                        state_constructor, 
-                        get_state, set_states
-                    ):
-                        env_outputs[i] = runner.run(
-                            routine_config.n_steps, 
-                            agents, buffers, 
-                            img_aids, [i])[i]
-            else:
-                with StateStore('real', 
-                    state_constructor, 
-                    get_state, set_states
-                ):
-                    env_outputs = runner.run(
-                        routine_config.n_steps, 
-                        agents, buffers, 
-                        [], all_aids)
-
-        for buffer in buffers:
-            assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
-
-        step += steps_per_iter
-
-        time2record = to_record(step)
-        # if time2record:
-        #     with StateStore('comp', state_constructor, get_state, set_states):
-        #         before_info = run_comparisons(runner, agents)
-
-        # train agents
-        for agent in agents:
-            start_train_step = agent.get_train_step()
-            with tt:
-                agent.train_record()
-            
-            train_step = agent.get_train_step()
-            assert train_step != start_train_step, (start_train_step, train_step)
-            agent.set_env_step(step)
-            agent.trainer.sync_imaginary_params()
-
-        # if time2record:
-        #     with StateStore('comp', state_constructor, get_state, set_states):
-        #         after_info = run_comparisons(runner, agents)
-        # if step > 1e6:
-        #     print(config.seed, np.random.randint(10000))
-        #     exit()
-        
         if time2record:
-            # info = {
-            #     f'diff_{k}': after_info[k] - before_info[k] 
-            #     for k in before_info.keys()
-            # }
-            # info.update({
-            #     f'dist_diff_{k}': after_info[k] - prev_info[k] 
-            #     for k in before_info.keys()
-            # })
-            # if eval_info:
-            #     eval_info = batch_dicts([eval_info, after_info], sum)
-            # else:
-            #     eval_info = after_info
-            # if diff_info:
-            #     diff_info = batch_dicts([diff_info, info], sum)
-            # else:
-            #     diff_info = info
-            # prev_info = after_info
-            if eval_process is not None:
-                scores, epslens, video = ray.get(eval_process)
-                for agent in agents:
-                    agent.store(**{
-                        'metrics/eval_score': np.mean(scores), 
-                        'metrics/eval_epslen': np.mean(epslens), 
-                    })
-                if video is not None:
-                    agent.video_summary(video, step=step, fps=1)
-            eval_process = evaluate_agent(step)
-            with Timer('log'):
-                for agent in agents:
-                    agent.store(**{
-                        'stats/train_step': train_step,
-                        'time/fps': (step-start_env_step)/rt.last(), 
-                        'time/tps': (train_step-start_train_step)/tt.last(),
-                    }, 
-                    # **eval_info, **diff_info, 
-                    **Timer.all_stats())
-                    agent.record(step=step)
-                    agent.save()
-        # do_logging(f'finish the iteration with step: {step}')
+            eval_and_log(agents, runner, env_step, routine_config)
 
 
 def main(configs, train=train):
@@ -227,9 +245,10 @@ def main(configs, train=train):
 
     # load agents
     env_stats = runner.env_stats()
-    print_dict(env_stats)
     assert len(configs) == env_stats.n_agents, (len(configs), env_stats.n_agents)
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
+    print_dict(env_stats)
+
     agents = []
     buffers = []
     root_dir = config.root_dir
@@ -258,8 +277,6 @@ def main(configs, train=train):
     save_code(ModelPath(root_dir, model_name))
 
     routine_config = configs[0].routine.copy()
-    if routine_config.perm is None:
-        routine_config.perm = list(np.ones(len(agents)) / len(agents))
-    train(configs, agents, runner, buffers, routine_config)
+    train(agents, runner, buffers, routine_config)
 
     do_logging('Training completed')

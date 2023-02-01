@@ -49,7 +49,7 @@ def split_env_output(env_output):
     return env_outputs
 
 
-def run_imaginary_agent(model, n_envs, n_steps):
+def run_lookahead_agent(model, n_envs, n_steps):
     obs = model.data['obs'].reshape(-1, 2, model.data['obs'].shape[-1])
     obs = obs[np.random.randint(0, obs.shape[0], n_envs)]
     assert len(obs.shape) == 3, obs.shape
@@ -114,13 +114,13 @@ def train(
         model.train_record()
         train_step = model.get_train_step()
         
-        # train imaginary agents
+        # train lookahead agents
         if routine_config.run_with_future_opponents:
-            for _ in range(routine_config.n_imaginary_runs):
-                run_imaginary_agent(
+            for _ in range(routine_config.n_lookahead_steps):
+                run_lookahead_agent(
                     model, 
-                    routine_config.n_imaginary_envs, 
-                    routine_config.n_imaginary_steps
+                    routine_config.n_lookahead_envs, 
+                    routine_config.n_lookahead_steps
                 )
         
         if to_record(step):

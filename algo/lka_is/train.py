@@ -86,10 +86,10 @@ def train(
     #     prev_info = run_comparisons(runner, agents)
     all_aids = list(range(len(agents)))
     while step < routine_config.MAX_STEPS:
-        # train imaginary agents
-        for _ in range(routine_config.n_imaginary_runs):
-            with Timer('imaginary_run'):
-                if routine_config.imaginary_rollout == 'sim':
+        # train lookahead agents
+        for _ in range(routine_config.n_lookahead_steps):
+            with Timer('lookahead_run'):
+                if routine_config.lookahead_rollout == 'sim':
                     with StateStore('sim', 
                         state_constructor, 
                         get_state, set_states
@@ -98,7 +98,7 @@ def train(
                             routine_config.n_steps, 
                             agents, collects, 
                             all_aids, all_aids, False)
-                elif routine_config.imaginary_rollout == 'uni':
+                elif routine_config.lookahead_rollout == 'uni':
                     env_outputs = [None for _ in all_aids]
                     for i in all_aids:
                         with StateStore(f'uni{i}', 
@@ -117,18 +117,18 @@ def train(
                 })
                 buffer.move_to_queue(data)
             for agent in agents:
-                with Timer('imaginary_train'):
-                    agent.imaginary_train()
+                with Timer('lookahead_train'):
+                    agent.lookahead_train()
 
         # do_logging(f'start a new iteration with step: {step} vs {routine_config.MAX_STEPS}')
         start_env_step = agents[0].get_env_step()
         for b in buffers:
             assert b.size() == 0, b.size()
         with rt:
-            # if routine_config.n_imaginary_runs:
+            # if routine_config.n_lookahead_steps:
             #     env_outputs = [None for _ in all_aids]
             #     for i in all_aids:
-            #         img_aids = [aid for aid in all_aids if aid != i]
+            #         lka_aids = [aid for aid in all_aids if aid != i]
             #         with StateStore(f'real{i}', 
             #             state_constructor, 
             #             get_state, set_states
@@ -136,7 +136,7 @@ def train(
             #             env_outputs[i] = runner.run(
             #                 routine_config.n_steps, 
             #                 agents, collects, 
-            #                 img_aids, [i])[i]
+            #                 lka_aids, [i])[i]
             # else:
             #     with StateStore('real', 
             #         state_constructor, 
@@ -180,7 +180,7 @@ def train(
             agent.set_env_step(step)
         
         for agent in agents:
-            agent.trainer.sync_imaginary_params()
+            agent.trainer.sync_lookahead_params()
 
         # if time2record:
         #     with StateStore('comp', state_constructor, get_state, set_states):

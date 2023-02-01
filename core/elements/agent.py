@@ -89,8 +89,7 @@ class Agent:
                     build_monitor=self.monitor is not None
                 )
                 self.strategies[algo] = elements.strategy
-                do_logging(f'Adding new strategy {strategy.model}', 
-                    level='print', time=True)
+                do_logging(f'Adding new strategy {strategy.model}')
             if self.monitor is not None and self.monitor.save_to_disk:
                 self.monitor = self.monitor.reset_model_path(strategy.model)
             self.strategies[algo].set_weights(strategy.weights)
