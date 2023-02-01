@@ -11,7 +11,6 @@ class LBFEnv(gym.Wrapper):
             **config.env_args
         )
         
-        self.field_size = config.env_args.field_size
         self.sight = config.env_args.sight
         self._seed = config.seed
         self.env.seed(self._seed)
@@ -27,7 +26,7 @@ class LBFEnv(gym.Wrapper):
         self.action_shape = [a.shape for a in self.action_space]
         self.action_dim = [a.n for a in self.action_space]
         self.action_dtype = [np.int32 for _ in self.action_space]
-        self.is_action_discrete = True
+        self.is_action_discrete = [True for _ in range(self.n_agents)]
 
         self.obs_shape = [{
             'obs': (self.env.ob_dim, ),
@@ -57,6 +56,11 @@ class LBFEnv(gym.Wrapper):
         self._obs, reward, done, info, self._state = self.env.step(actions)
         self._obs = self.observation(self._obs)
         self._state = self.observation(self._state)
+        print("*"*20)
+        print(self.obs_shape)
+        print(self._obs[0].shape)
+        print(self._state[0].shape)
+        assert 0
         
         self._score += float(sum(reward))
         self._dense_score += float(sum(reward))
@@ -74,10 +78,10 @@ class LBFEnv(gym.Wrapper):
         reward = np.array([sum(reward) for _ in range(self.n_agents)])        
         done = np.array([all(done) for _ in range(self.n_agents)])
         
-        obs = {
-            'obs': np.stack(self._obs),
-            'global_state': np.stack(self._state),
-        }
+        obs = [{
+            'obs': self._obs[i],
+            'global_state': self._state[i],
+        } for i in range(self.n_agents)]
         
         assert len(obs) == self.n_agents, (obs, self.n_agents)
         assert len(reward) == self.n_agents, (reward, self.n_agents)
@@ -94,9 +98,9 @@ class LBFEnv(gym.Wrapper):
         self._dense_score = np.zeros(self.n_agents)
         self._epslen = 0
 
-        obs = {
-            'obs': np.stack(self._obs),
-            'global_state': np.stack(self._state),
-        }
+        obs = [{
+            'obs': self._obs[i],
+            'global_state': self._state[i],
+        } for i in range(self.n_agents)]
 
         return obs

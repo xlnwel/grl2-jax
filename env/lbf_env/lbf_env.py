@@ -90,6 +90,7 @@ class ForagingEnv(Env):
         self.seed()
         self.players = [Player() for _ in range(players)]
 
+        field_size = [field_size, field_size]
         self.field = np.zeros(field_size, np.int32)
 
         self.max_food = max_food
@@ -128,7 +129,7 @@ class ForagingEnv(Env):
         self.observation_space = ma_spaces
         
         # for compatibility of the project
-        self.ob_dim = self.observation_space[0].n
+        self.ob_dim = self.observation_space[0].shape[0]
         assert self._grid_observation
         self.state_dim = 3 * (field_size[0] + 2 * self.sight) * (field_size[1] + 2 * self.sight)
         # self.observation_space = gym.spaces.Tuple(tuple(ma_spaces))
@@ -480,7 +481,7 @@ class ForagingEnv(Env):
             layers = make_global_grid_arrays()
             agents_bounds = [get_agent_grid_bounds(*player.position) for player in self.players]
             nobs = tuple([layers[:, start_x:end_x, start_y:end_y] for start_x, end_x, start_y, end_y in agents_bounds])
-            layers = tuple([layers] * len(self.players))
+            layers = [layers] * len(self.players)
         else:
             nobs = tuple([make_obs_array(obs) for obs in observations])
         nreward = [get_player_reward(obs) for obs in observations]

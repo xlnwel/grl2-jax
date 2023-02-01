@@ -141,6 +141,7 @@ def train(
                         routine_config.n_steps, 
                         agents, buffers, 
                         [], all_aids)
+                    assert 0
 
         for buffer in buffers:
             assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
