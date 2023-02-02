@@ -191,7 +191,7 @@ def make_lbf(config):
     from env.lbf_env.environment import LBFEnv
     config = _change_env_name(config)
     env = LBFEnv(config)
-    # env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+    env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
 

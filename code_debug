@@ -1,0 +1,52 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+algos=(happo)
+suite=lbf
+envs=(10px6fxs1)
+config=lbf
+# suite=magw
+# envs=(escalation)
+# config=escalation
+na=6
+args1=(sim)
+args2=(0)
+date=$(date +"%m%d")
+info=""
+ld="${suite}-logs"
+gpus=$(nvidia-smi -L | wc -l)
+
+if [ -z "$info" ]; then
+    n=$date
+    echo $n
+else
+    n="$date-$info"
+    echo $n
+fi
+
+i=0
+for e in "${envs[@]}"; do
+    for a in "${algos[@]}"; do
+        for a1 in "${args1[@]}"; do
+            for a2 in "${args2[@]}"; do
+                s=0
+                kws="lookahead_rollout=$a1 n_lookahead_runs=$a2"
+                env="${suite}-${e}"
+                if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+                    gpu=$(($i % $gpus))
+                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s --gpu $gpu -na $na -kw $kws &"
+                else
+                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s -na $na -kw $kws &"
+                fi
+                echo $py_script
+                eval $py_script
+                ((i=(i+1) ))
+            done
+        done
+        wait
+    done
+    wait
+done
+wait
+echo "Script completed"

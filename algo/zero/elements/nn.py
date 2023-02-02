@@ -29,6 +29,7 @@ class Policy(hk.Module):
         self.config = dict2AttrDict(config, to_copy=True)
         self.action_dim = action_dim
         self.is_action_discrete = is_action_discrete
+
         self.out_act = out_act
         self.init_std = init_std
         self.sigmoid_scale = sigmoid_scale

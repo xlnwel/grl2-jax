@@ -56,11 +56,6 @@ class LBFEnv(gym.Wrapper):
         self._obs, reward, done, info, self._state = self.env.step(actions)
         self._obs = self.observation(self._obs)
         self._state = self.observation(self._state)
-        print("*"*20)
-        print(self.obs_shape)
-        print(self._obs[0].shape)
-        print(self._state[0].shape)
-        assert 0
         
         self._score += float(sum(reward))
         self._dense_score += float(sum(reward))
@@ -78,11 +73,11 @@ class LBFEnv(gym.Wrapper):
         reward = np.array([sum(reward) for _ in range(self.n_agents)])        
         done = np.array([all(done) for _ in range(self.n_agents)])
         
-        obs = [{
-            'obs': self._obs[i],
-            'global_state': self._state[i],
-        } for i in range(self.n_agents)]
-        
+        obs = {
+            'obs': np.stack(self._obs),
+            'global_state': np.stack(self._state),
+        }
+
         assert len(obs) == self.n_agents, (obs, self.n_agents)
         assert len(reward) == self.n_agents, (reward, self.n_agents)
         assert len(done) == self.n_agents, (done, self.n_agents)
@@ -98,9 +93,9 @@ class LBFEnv(gym.Wrapper):
         self._dense_score = np.zeros(self.n_agents)
         self._epslen = 0
 
-        obs = [{
-            'obs': self._obs[i],
-            'global_state': self._state[i],
-        } for i in range(self.n_agents)]
-
+        obs = {
+            'obs': np.stack(self._obs),
+            'global_state': np.stack(self._state),
+        }
+        
         return obs

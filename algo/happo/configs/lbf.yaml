@@ -23,8 +23,8 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_imaginary_runs: 0
-    imaginary_rollout: sim
+    n_lookahead_steps: 1
+    lookahead_rollout: sim
     compute_return_at_once: True
     perm: null
 
@@ -35,16 +35,17 @@ env:
     max_episode_steps: 25
     timeout_done: &td False
     env_args:
-      players: 2
+      players: 10
       max_player_level: 2
-      field_size: 8
-      max_food: 3
-      sight: 2
+      field_size: 20
+      max_food: 6
+      sight: 1
       max_episode_steps: 25
       force_coop: False
       normalize_reward: True
       grid_observation: True
       pretrained_wrapper: null
+    uid2aid: [0, 1, 2, 3, 4, 5]
 
 agent: {}
 
@@ -113,7 +114,7 @@ trainer:
     n_runners: *nrunners
     n_envs: *nenvs
     n_epochs: &nepochs 4
-    n_imaginary_epochs: 4
+    n_lookahead_epochs: 4
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 
