@@ -3,7 +3,7 @@
 export PYTHONPATH=.
 
 # algos=(happo)
-algos=(happo_oc)
+algos=(happo_lka)
 suite=mpe
 envs=(simple_tag)
 config=simple_tag
@@ -48,7 +48,7 @@ fi
 # wait
 # echo "Script completed"
 
-# ========== scripts for happo_oc ===========
+# ========== scripts for happo_lka ===========
 
 i=0
 INF_MAC_NODE_RANK=0
