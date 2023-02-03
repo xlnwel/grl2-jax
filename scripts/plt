@@ -29,7 +29,7 @@ do
     # tda=$(date -v-3d "+%m%d")
 
     # rm -rf html-logs
-    py_script="python run/html_plt.py $@ -p a0 model -n $today $yesterday $dby"
+    py_script="python run/html_plt.py $@ -p a0 model -n $today"
     echo $py_script
     eval $py_script
     sleep 300

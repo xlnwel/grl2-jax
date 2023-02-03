@@ -16,6 +16,7 @@ def ego_run(agents, runner, buffers, routine_config):
 
     for i, buffer in enumerate(buffers):
         assert buffer.size() == 0, f"buffer {i}: {buffer.size()}"
+
     with Timer('run'):
         with StateStore('real', constructor, get_fn, set_fn):
             runner.run(
@@ -26,7 +27,7 @@ def ego_run(agents, runner, buffers, routine_config):
             )
 
     for buffer in buffers:
-        assert buffer.ready(), f"buffer i: ({buffer.size()}, {len(buffer._queue)})"
+        assert buffer.ready(), f"buffer {i}: ({buffer.size()}, {len(buffer._queue)})"
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
     for agent in agents:

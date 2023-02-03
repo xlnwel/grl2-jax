@@ -10,15 +10,15 @@ algos=(
 )
 suite=ma_mujoco
 envs=(
-    HalfCheetah_2x3
-    Ant_2x4
-    Walker2d_2x3
-    # Ant_4x2
-    # HalfCheetah_3x2
-    # Walker2d_3x2
-    # Ant_8x1
-    # HalfCheetah_6x1
-    # Walker2d_6x1
+    # HalfCheetah_2x3
+    # Ant_2x4
+    # Walker2d_2x3
+    Ant_4x2
+    Ant_8x1
+    HalfCheetah_3x2
+    Walker2d_3x2
+    HalfCheetah_6x1
+    Walker2d_6x1
 )
 # e=${suite}
 configs=(
@@ -73,6 +73,7 @@ else
     n="$date-$info"
 fi
 
+INF_MAC_NODE_RANK=0
 le=${#envs[@]}
 idx=$(($INF_MAC_NODE_RANK % $le))
 e=${envs[$idx]}

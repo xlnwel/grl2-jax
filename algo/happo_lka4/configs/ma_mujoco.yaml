@@ -1,7 +1,7 @@
 ---
-algorithm: &algo happo_lka3
-name: happo_lka3
-info: happo_lka3
+algorithm: &algo happo_lka4
+name: happo_lka4
+info: happo_lka4
 
 precision: 32
 
@@ -17,7 +17,7 @@ routine:
     MAX_STEPS: 5e6
     n_steps: &nsteps 100
     LOG_PERIOD: 2e5
-    EVAL_PERIOD: 2e5
+    EVAL_PERIOD: null
 
     n_eval_envs: 100
     RECORD_VIDEO: False
