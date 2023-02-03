@@ -91,8 +91,8 @@ loss:
     prnn_bptt: 10
     vrnn_bptt: 10
 
-    img_prnn_bptt: 10
-    img_vrnn_bptt: 10
+    lka_prnn_bptt: 10
+    lka_vrnn_bptt: 10
 
     # hyperparams for policy optimization
     pg_type: ppo

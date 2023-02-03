@@ -19,6 +19,7 @@ routine:
     LOG_PERIOD: 2e5
     EVAL_PERIOD: 2e5
 
+    n_eval_envs: 100
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
@@ -26,7 +27,8 @@ routine:
     n_lookahead_steps: 0
     lookahead_rollout: sim
     compute_return_at_once: True
-    ignore_ratio_for_pi: False
+    ignore_ratio_for_ego: False
+    ignore_ratio_for_lookahead: False
     perm: null
 
 env:

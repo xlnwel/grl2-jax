@@ -1,8 +1,8 @@
 ---
-algorithm: &algo zero_mb
-name: zero_mb
-dynamics_name: magw
-info: ppo
+algorithm: &algo happo
+name: happo
+aid: 0
+info: a2c
 
 precision: 32
 
@@ -15,33 +15,32 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 1e8
-    n_steps: &nsteps 50
-    LOG_PERIOD: 2e5
+    MAX_STEPS: 5e6
+    n_steps: &nsteps 20
+    LOG_PERIOD: 5e4
     EVAL_PERIOD: null
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 3
-    n_lookahead_envs: &nie 64
-    n_lookahead_steps: &nis 10
+    n_lookahead_steps: 0
     lookahead_rollout: sim
-    restore_state: False
-    n_recent_trajectories: 64
-    switch_model_at_every_step: False
 
 env:
-    env_name: &env_name magw-escalation
-    n_runners: &nrunners 1
-    n_envs: &nenvs 64
-    max_episode_steps: 50
-    reward_scale: .1
-    population_size: 1
+    env_name: &env_name smarts
+    n_runners: &nrunners 16
+    n_envs: &nenvs 1
     timeout_done: &td False
 
-    uid2aid: [0, 1]
+    scenario: intersections/4lane
+
+    max_episode_steps: 1000
+    collision_penalty: -10
+    offroad_penalty: -10
+    goal_reward: 10
+
+    uid2aid: [0, 0, 0, 0]
 
 agent: {}
 
@@ -60,33 +59,30 @@ model:
         nn_id: policy
         units_list: [64, 64]
         w_init: orthogonal
-        activation: tanh
+        activation: relu
         norm: null
         out_scale: .01
-        rnn_type: &prnn lstm
+        rnn_type: &prnn null
         rnn_units: 64
     value:
         nn_id: value
         units_list: [64, 64]
         w_init: orthogonal
-        activation: tanh
+        activation: relu
         norm: null
-        rnn_type: &vrnn lstm
+        rnn_type: &vrnn null
         rnn_units: 64
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
-    adv_type: vtrace
+    adv_type: gae
     norm_adv: True
 
     prnn_bptt: 10
     vrnn_bptt: 10
-
-    lka_prnn_bptt: 10
-    lka_vrnn_bptt: 10
 
     # hyperparams for policy optimization
     pg_type: ppo
@@ -112,18 +108,14 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 4
+    n_epochs: &nepochs 1
+    n_lookahead_epochs: 1
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 
-    n_lookahead_envs: *nie
-    n_lookahead_steps: *nis
-    n_lookahead_epochs: 4
-    n_lookahead_mbs: 1
-
     theta_opt:
         opt_name: adam
-        lr: 1e-3
+        lr: 5e-4
         clip_norm: .5
         eps: 1e-5
 

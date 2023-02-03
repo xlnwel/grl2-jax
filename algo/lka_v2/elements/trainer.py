@@ -59,7 +59,7 @@ class Trainer(TrainerBase):
                         d.popart_mean = self.popart.mean
                         d.popart_std = self.popart.std
                     theta, opt_state, _ = \
-                        self.jit_img_train(
+                        self.jit_lka_train(
                             theta, 
                             opt_state=opt_state,
                             data=d, 

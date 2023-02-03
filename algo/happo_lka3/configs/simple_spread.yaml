@@ -1,7 +1,7 @@
 ---
-algorithm: &algo happo_oc
-name: happo_oc
-info: happo_oc
+algorithm: &algo happo
+name: happo
+info: ppo
 
 precision: 32
 
@@ -17,29 +17,25 @@ routine:
     MAX_STEPS: 1e8
     n_steps: &nsteps 50
     LOG_PERIOD: 2e5
-    EVAL_PERIOD: 2e5
+    EVAL_PERIOD: null
 
-    RECORD_VIDEO: False
+    RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
     n_lookahead_steps: 0
     lookahead_rollout: sim
-    compute_return_at_once: True
-    perm: null
 
 env:
-    env_name: &env_name mpe-simple_tag
+    env_name: &env_name mpe-simple_spread
     n_runners: &nrunners 1
-    num_good_agents: 1
-    num_adversaries: 3
-    num_landmarks: 2
-    n_envs: &nenvs 63
+    n_units: 3
+    num_landmarks: 3
+    n_envs: &nenvs 64
     max_episode_steps: 50
     reward_scale: .1
     population_size: 1
     timeout_done: &td False
-    pretrained_wrapper: pretrained_tag
 
     uid2aid: [0, 1, 2]
 
@@ -79,8 +75,8 @@ loss:
     target_type: gae
     c_clip: 1
     rho_clip: 1
-    adv_type: gae
-    norm_adv: False
+    adv_type: vtrace
+    norm_adv: True
 
     prnn_bptt: 10
     vrnn_bptt: 10

@@ -13,7 +13,7 @@ from algo.zero.elements.trainer import Trainer as TrainerBase
 class Trainer(TrainerBase):
     def add_attributes(self):
         super().add_attributes()
-        self.img_indices = np.arange(self.config.n_lookahead_envs)
+        self.lka_indices = np.arange(self.config.n_lookahead_envs)
 
     def compile_train(self):
         _jit_train = jax.jit(self.theta_train)
@@ -22,11 +22,11 @@ class Trainer(TrainerBase):
             return _jit_train(*args, rng=rng, **kwargs)
         self.jit_train = jit_train
         
-        _jit_img_train = jax.jit(self.img_train)
-        def jit_img_train(*args, **kwargs):
+        _jit_lka_train = jax.jit(self.lka_train)
+        def jit_lka_train(*args, **kwargs):
             self.rng, rng = jax.random.split(self.rng)
-            return _jit_img_train(*args, rng=rng, **kwargs)
-        self.jit_img_train = jit_img_train
+            return _jit_lka_train(*args, rng=rng, **kwargs)
+        self.jit_lka_train = jit_lka_train
         
         self.haiku_tabulate()
 
@@ -36,8 +36,8 @@ class Trainer(TrainerBase):
         assert is_lookahead == True, is_lookahead
         opt_state = self.lookahead_opt_state
         for _ in range(self.config.n_lookahead_epochs):
-            np.random.shuffle(self.img_indices)
-            indices = np.split(self.img_indices, self.config.n_lookahead_mbs)
+            np.random.shuffle(self.lka_indices)
+            indices = np.split(self.lka_indices, self.config.n_lookahead_mbs)
             for idx in indices:
                 with Timer('lookahead_train'):
                     d = data.slice(idx)
@@ -45,7 +45,7 @@ class Trainer(TrainerBase):
                         d.popart_mean = self.popart.mean
                         d.popart_std = self.popart.std
                     theta, opt_state, _ = \
-                        self.jit_img_train(
+                        self.jit_lka_train(
                             theta, 
                             opt_state=opt_state, 
                             data=d, 
@@ -55,17 +55,17 @@ class Trainer(TrainerBase):
             self.model.lookahead_params[k] = v
         self.lookahead_opt_state = opt_state
 
-    def img_train(
+    def lka_train(
         self, 
         theta, 
         rng, 
         opt_state, 
         data, 
     ):
-        do_logging('img train is traced', backtrack=4)
+        do_logging('lka train is traced', backtrack=4)
         if self.config.get('theta_opt'):
             theta, opt_state, stats = optimizer.optimize(
-                self.loss.img_loss, 
+                self.loss.lka_loss, 
                 theta, 
                 opt_state, 
                 kwargs={
@@ -77,7 +77,7 @@ class Trainer(TrainerBase):
             )
         else:
             theta.value, opt_state.value, stats = optimizer.optimize(
-                self.loss.img_value_loss, 
+                self.loss.lka_value_loss, 
                 theta.value, 
                 opt_state.value, 
                 kwargs={
@@ -89,7 +89,7 @@ class Trainer(TrainerBase):
                 name='train/value'
             )
             theta.policy, opt_state.policy, stats = optimizer.optimize(
-                self.loss.img_policy_loss, 
+                self.loss.lka_policy_loss, 
                 theta.policy, 
                 opt_state.policy, 
                 kwargs={

@@ -3,46 +3,30 @@
 export PYTHONPATH=.
 
 algos=(
-    happo
-    happo
-    happo
-    happo
-    happo_oc
-    happo_oc
-    happo_oc
-    happo
-    happo
-    happo
-    # happo_oc2
-    # happo_oc2
-    # happo_oc2
+    # happo
+    happo_lka3
+    happo_lka3
+    happo_lka3
 )
-suite=$1
-shift
-# envs=(escalation staghunt harvest)
-# envs=(escalation)
+suite=ma_mujoco
 envs=(
-    "HalfCheetah_2x3 Walker2d_2x3 Ant_2x4"
-    "HalfCheetah_3x2 Walker2d_3x2 Ant_4x2"
-    "HalfCheetah_6x1 Walker2d_6x1 Ant_8x1"
-    # HalfCheetah_2x3
-    # Ant_2x4
-    # Walker2d_2x3
+    HalfCheetah_2x3
+    Ant_2x4
+    Walker2d_2x3
+    # Ant_4x2
     # HalfCheetah_3x2
     # Walker2d_3x2
-    # Ant_4x2
+    # Ant_8x1
     # HalfCheetah_6x1
     # Walker2d_6x1
-    # Ant_8x1
 )
-echo $envs
 # e=${suite}
 configs=(
     "${suite}"
 )
 # configs=$envs
 na=2
-args1=(5 3 1 0 1 3 5 1 3 5)
+args1=(1 3 5 1 3 5 1 3 5)
 args2=(
     False
     False
@@ -76,7 +60,6 @@ args2=(
 )
 args3=(10)
 date=$(date +"%m%d")
-date=0201
 info=""
 ld="${suite}-logs"
 # gpus=$(nvidia-smi -L | wc -l)
@@ -111,18 +94,25 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 # kws=$@
 
-kws="n_lookahead_steps=$a1 ignore_ratio_for_pi=$a2"
-for es in "${envs[@]}"; do
-    for e in $es; do
+commands=()
+for i in {0..0}; do
+    a=${algos[$i]}
+    kws="n_lookahead_steps=${args1[$i]}"
+    for e in "${envs[@]}"; do
         env="${suite}-${e}"
         for s in {0..3}; do
-            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws"
+            commands+=("$py_script")
             echo $py_script
-            eval $py_script
+            # eval $py_script
         done
     done
-    wait
 done
+# echo ${commands[@]}s
+lc=${#commands[@]}
+p=$((lc / le))
+# echo $p
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 
 # nn="${n}_so"
 # for s in {0..5}; do
 #     py_script="python run/train.py -a ${a} -e $env -c ${config}_so -ld $ld -n $nn -s $s -na $na -kw $kws &"
@@ -145,7 +135,7 @@ done
 #         ((i=(i+1) ))
 #     done
 # done
-wait
+# wait
 echo "Script completed"
 # for e in "${envs[@]}"; do
 # le=${#envs[@]}

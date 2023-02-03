@@ -1,8 +1,7 @@
 ---
-algorithm: &algo zero_mb
-name: zero_mb
-dynamics_name: magw
-info: ppo
+algorithm: &algo happo_lka
+name: happo_lka
+info: happo_lka
 
 precision: 32
 
@@ -18,30 +17,31 @@ routine:
     MAX_STEPS: 1e8
     n_steps: &nsteps 50
     LOG_PERIOD: 2e5
-    EVAL_PERIOD: null
+    EVAL_PERIOD: 2e5
 
-    RECORD_VIDEO: True
+    RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 3
-    n_lookahead_envs: &nie 64
-    n_lookahead_steps: &nis 10
+    n_lookahead_steps: 0
     lookahead_rollout: sim
-    restore_state: False
-    n_recent_trajectories: 64
-    switch_model_at_every_step: False
+    compute_return_at_once: True
+    perm: null
 
 env:
-    env_name: &env_name magw-escalation
+    env_name: &env_name mpe-simple_tag
     n_runners: &nrunners 1
-    n_envs: &nenvs 64
+    num_good_agents: 1
+    num_adversaries: 3
+    num_landmarks: 2
+    n_envs: &nenvs 63
     max_episode_steps: 50
     reward_scale: .1
     population_size: 1
     timeout_done: &td False
+    pretrained_wrapper: pretrained_tag
 
-    uid2aid: [0, 1]
+    uid2aid: [0, 1, 2]
 
 agent: {}
 
@@ -79,14 +79,11 @@ loss:
     target_type: gae
     c_clip: 1
     rho_clip: 1
-    adv_type: vtrace
-    norm_adv: True
+    adv_type: gae
+    norm_adv: False
 
     prnn_bptt: 10
     vrnn_bptt: 10
-
-    lka_prnn_bptt: 10
-    lka_vrnn_bptt: 10
 
     # hyperparams for policy optimization
     pg_type: ppo
@@ -113,13 +110,9 @@ trainer:
     n_runners: *nrunners
     n_envs: *nenvs
     n_epochs: &nepochs 4
+    n_lookahead_epochs: 4
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
-
-    n_lookahead_envs: *nie
-    n_lookahead_steps: *nis
-    n_lookahead_epochs: 4
-    n_lookahead_mbs: 1
 
     theta_opt:
         opt_name: adam

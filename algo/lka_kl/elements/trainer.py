@@ -47,16 +47,16 @@ def construct_fake_data(env_stats, aid):
 class Trainer(TrainerBase):
 
     def compile_train(self):
-        _img_jit_train = jax.jit(self.theta_train)
+        _lka_jit_train = jax.jit(self.theta_train)
         _jit_train = jax.jit(self.real_theta_train)
-        def img_jit_train(*args, **kwargs):
+        def lka_jit_train(*args, **kwargs):
             self.rng, rng = jax.random.split(self.rng)
-            return _img_jit_train(*args, rng=rng, **kwargs)
+            return _lka_jit_train(*args, rng=rng, **kwargs)
         def jit_train(*args, **kwargs):
             self.rng, rng = jax.random.split(self.rng)
             return _jit_train(*args, rng=rng, **kwargs)
         self.jit_train = jit_train
-        self.jit_img_train = img_jit_train
+        self.jit_lka_train = lka_jit_train
 
         self.haiku_tabulate()
 
@@ -124,7 +124,7 @@ class Trainer(TrainerBase):
                         d.popart_mean = self.popart.mean
                         d.popart_std = self.popart.std
                     theta, opt_state, _ = \
-                        self.jit_img_train(
+                        self.jit_lka_train(
                             theta, 
                             opt_state=opt_state,
                             data=d, 

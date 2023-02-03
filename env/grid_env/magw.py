@@ -940,7 +940,7 @@ class GridWorldEnv(gym.Env):
         infos['dense_score'] = self._dense_score
         infos['score'] = self._score
         infos['epslen'] = self._epslen
-        infos['game_over'] = self._epslen == self.max_episode_steps
+        infos['game_over'] = np.all(dones) or self._epslen == self.max_episode_steps
 
         return observations, rewards, dones, infos
 

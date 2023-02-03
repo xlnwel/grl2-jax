@@ -11,7 +11,7 @@ from algo.zero.elements.loss import Loss as LossBase, \
 
 
 class Loss(LossBase):
-    def img_loss(
+    def lka_loss(
         self, 
         theta, 
         rng, 
@@ -34,7 +34,7 @@ class Loss(LossBase):
             data.next_global_state, 
             data.state_reset, 
             None if data.state is None else data.state.value, 
-            bptt=self.config.img_vrnn_bptt, 
+            bptt=self.config.lka_vrnn_bptt, 
             seq_axis=1, 
         )
 
@@ -51,7 +51,7 @@ class Loss(LossBase):
                 None if data.state is None else data.state.policy, 
                 action_mask=data.action_mask, 
                 next_action_mask=data.next_action_mask, 
-                bptt=self.config.img_prnn_bptt, 
+                bptt=self.config.lka_prnn_bptt, 
                 seq_axis=1, 
             )
         stats = record_policy_stats(data, stats, act_dist)
@@ -123,7 +123,7 @@ class Loss(LossBase):
 
         return loss, stats
 
-    def img_value_loss(
+    def lka_value_loss(
         self, 
         theta, 
         rng, 
@@ -147,7 +147,7 @@ class Loss(LossBase):
             data.next_global_state, 
             data.state_reset, 
             None if data.state is None else data.state.value, 
-            bptt=self.config.img_vrnn_bptt, 
+            bptt=self.config.lka_vrnn_bptt, 
             seq_axis=1, 
         )
         if self.config.popart:
@@ -213,7 +213,7 @@ class Loss(LossBase):
 
         return loss, stats
 
-    def img_policy_loss(
+    def lka_policy_loss(
         self, 
         theta, 
         rng, 
@@ -237,7 +237,7 @@ class Loss(LossBase):
                 None if data.state is None else data.state.policy, 
                 action_mask=data.action_mask, 
                 next_action_mask=data.next_action_mask, 
-                bptt=self.config.img_prnn_bptt, 
+                bptt=self.config.lka_prnn_bptt, 
                 seq_axis=1, 
             )
         stats = record_policy_stats(data, stats, act_dist)

@@ -47,12 +47,12 @@ def evaluate(
     env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
     while n_done_eps < n:
         if record_video:
-            img = env.get_screen(size=size)
+            lka = env.get_screen(size=size)
             if env.env_type == 'Env':
-                frames[0].append(img)
+                frames[0].append(lka)
             else:
                 for i in range(len(frames)):
-                    frames[i].append(img[i])
+                    frames[i].append(lka[i])
 
         acts, stats = zip(*[a(eo, evaluation=True) for a, eo in zip(agents, env_outputs)])
 

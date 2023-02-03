@@ -76,7 +76,7 @@ class Trainer(TrainerBase):
             self.rng, rng = jax.random.split(self.rng)
             return _jit_train(*args, rng=rng, **kwargs)
         self.jit_train = jit_train
-        self.jit_img_train = jit_train
+        self.jit_lka_train = jit_train
 
         self.haiku_tabulate()
 
@@ -128,7 +128,7 @@ class Trainer(TrainerBase):
         for _ in range(self.config.n_lookahead_epochs):
             with Timer('lookahead_train'):
                 theta, opt_state, _ = \
-                    self.jit_img_train(
+                    self.jit_lka_train(
                         theta, 
                         opt_state=opt_state, 
                         data=data, 

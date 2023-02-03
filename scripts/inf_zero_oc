@@ -78,7 +78,7 @@ a3=${args3[$idx]}
 # done
 
 for i in {0..3}; do
-    kws="compute_return_at_once=${args1[$i]}-norm_adv=${args2[$i]}"
+    kws="compute_return_at_once=${args1[$i]} norm_adv=${args2[$i]}"
     for s in {0..3}; do
         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
         echo $py_script

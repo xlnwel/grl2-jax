@@ -108,7 +108,7 @@ def train(
             for i, agent in enumerate(agents):
                 with Timer('lookahead_run'):
                     env_outputs = [None for _ in all_aids]
-                    with StateStore(f'img{i}',
+                    with StateStore(f'lka{i}',
                         state_constructor,
                         get_state, set_states
                     ):
