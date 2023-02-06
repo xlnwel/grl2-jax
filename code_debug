@@ -4,12 +4,15 @@ export PYTHONPATH=.
 
 algos=(happo)
 suite=lbf
-envs=(10px6fxs1)
 config=lbf
+na=2
+pl=(2 4)
+nfood=(3 5 8)
+sight=(1 2)
+# envs=(10px6fxs1)
 # suite=magw
 # envs=(escalation)
 # config=escalation
-na=6
 args1=(sim)
 args2=(0)
 date=$(date +"%m%d")
@@ -25,13 +28,40 @@ else
     echo $n
 fi
 
+# i=0
+# for e in "${envs[@]}"; do
+#     for a in "${algos[@]}"; do
+#         for a1 in "${args1[@]}"; do
+#             for a2 in "${args2[@]}"; do
+#                 s=0
+#                 kws="lookahead_rollout=$a1 n_lookahead_runs=$a2"
+#                 env="${suite}-${e}"
+#                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+#                     gpu=$(($i % $gpus))
+#                     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s --gpu $gpu -na $na -kw $kws &"
+#                 else
+#                     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s -na $na -kw $kws &"
+#                 fi
+#                 echo $py_script
+#                 eval $py_script
+#                 ((i=(i+1) ))
+#             done
+#         done
+#         wait
+#     done
+#     wait
+# done
+# wait
+# echo "Script completed"
+
 i=0
-for e in "${envs[@]}"; do
-    for a in "${algos[@]}"; do
-        for a1 in "${args1[@]}"; do
-            for a2 in "${args2[@]}"; do
+for a in "${algos[@]}"; do
+    for max_player_level in "${pl[@]}"; do
+        for max_food in "${nfood[@]}"; do
+            for sight in "${sight[@]}"; do
                 s=0
-                kws="lookahead_rollout=$a1 n_lookahead_runs=$a2"
+                e="2px${max_player_level}plx${max_food}nfxs${sight}"
+                kws="max_player_level=${max_player_level} max_food=${max_food} sight=${sight}"
                 env="${suite}-${e}"
                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
                     gpu=$(($i % $gpus))
@@ -43,10 +73,11 @@ for e in "${envs[@]}"; do
                 eval $py_script
                 ((i=(i+1) ))
             done
+            # wait
         done
-        wait
+        # wait
     done
-    wait
+    # wait
 done
 wait
 echo "Script completed"
