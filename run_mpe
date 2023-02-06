@@ -3,13 +3,16 @@
 export PYTHONPATH=.
 
 # algos=(happo)
-algos=(happo_lka)
+algos=(happo_lka1)
 suite=mpe
-envs=(simple_tag)
-config=simple_tag
+envs=(simple_spread)
+config=simple_spread
 na=3
-args1=(2)
-args2=(1 3 5)
+# envs=(simple_tag)
+# config=simple_tag
+# na=3
+args1=(5)
+args2=(1 3)
 date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"
@@ -58,7 +61,7 @@ for e in "${envs[@]}"; do
         for a1 in "${args1[@]}"; do
             for a2 in "${args2[@]}"; do
                 for s in {0..4}; do
-                    kws="num_landmarks=$a1 n_imaginary_runs=$a2"
+                    kws="num_landmarks=$a1 n_lookahead_steps=$a2"
                     env="${suite}-${e}"
                     if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
                         gpu=$(($i % $gpus))

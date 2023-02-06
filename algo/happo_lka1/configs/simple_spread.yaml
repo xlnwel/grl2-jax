@@ -1,7 +1,7 @@
 ---
-algorithm: &algo happo
-name: happo
-info: ppo
+algorithm: &algo happo_lka
+name: happo_lka
+info: happo_lka
 
 precision: 32
 
@@ -19,12 +19,14 @@ routine:
     LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
-    RECORD_VIDEO: True
+    RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 0
+    n_lookahead_steps: 1
     lookahead_rollout: sim
+    compute_return_at_once: True
+    perm: null
 
 env:
     env_name: &env_name mpe-simple_spread
@@ -75,7 +77,7 @@ loss:
     target_type: gae
     c_clip: 1
     rho_clip: 1
-    adv_type: vtrace
+    adv_type: gae
     norm_adv: True
 
     prnn_bptt: 10
