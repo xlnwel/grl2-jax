@@ -3,18 +3,9 @@
 export PYTHONPATH=.
 
 algos=(
-    happo_lka4
-    happo_lka4
-    happo_lka4
-    happo_lka1
-    happo_lka1
-    happo_lka1
-    happo_lka2
-    happo_lka2
-    happo_lka2
-    happo
-    happo
-    happo
+    happo_lka3
+    happo_lka3
+    happo_lka3
 )
 suite=ma_mujoco
 envs=(
@@ -102,7 +93,7 @@ for e in "${envs[@]}"; do
         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws"
         commands+=("$py_script")
         echo $py_script
-        eval $py_script
+        # eval $py_script
     done
 done
 # echo ${commands[@]}s

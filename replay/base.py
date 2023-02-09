@@ -54,7 +54,7 @@ class Replay(ABC):
     def name(self):
         return self._replay_type
 
-    def good_to_learn(self):
+    def ready_to_sample(self):
         return len(self) >= self._min_size
     
     def load_data(self):

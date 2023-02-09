@@ -171,6 +171,7 @@ class Trainer(TrainerBase):
                             data=d,
                             teammate_log_ratio=t_log_ratio,
                         )
+        
         for k, v in theta.items():
             self.model.lookahead_params[k] = v
         self.lookahead_opt_state = opt_state
@@ -201,7 +202,7 @@ class Trainer(TrainerBase):
         theta, 
         rng, 
         opt_state, 
-        data,
+        data, 
         teammate_log_ratio,
     ):
         do_logging('train is traced', backtrack=4)

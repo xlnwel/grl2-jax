@@ -1,5 +1,4 @@
 import copy
-from functools import partial
 
 from standalone.happo import *
 
@@ -10,7 +9,9 @@ def build_lka_name(args):
     else:
         name = args.name
     name = '-'.join([
+        name, 
         f'horizon={args.horizon}', 
+        f'epochs={args.epochs}', 
         f'lr={args.lr}', 
         f'state_size={args.state_size}', 
         f'action_dims={args.action_dims}', 
@@ -31,10 +32,11 @@ def look_ahead(
     opts, 
     states, 
     horizon, 
+    epochs, 
 ):
     for _ in range(n):
         mu = prob_from_logits(x_logits)
-        x_logits, states = hapg_train(
+        x_logits, states = happo_train(
             rng=rng, 
             pi_logits=x_logits, 
             mu=mu, 
@@ -43,59 +45,58 @@ def look_ahead(
             gamma=gamma, 
             opts=opts, 
             states=states, 
-            horizon=horizon
+            horizon=horizon, 
+            epochs=epochs
         )
 
     return x_logits
 
 
 def lka_train(
-    n, 
-    horizon, 
+    args, 
     pi_logits, 
     reward, 
     rho, 
     transition, 
-    gamma, 
     opts, 
     states, 
-    seed, 
     points=100, 
-    name=None
 ):
-    interval = n // points
+    interval = args.iteration // points
     print('Interval:', interval)
-    rng = random.PRNGKey(seed)
-    print(f'Initial PRNG for seed={seed}:', rng)
+    rng = random.PRNGKey(args.seed)
+    # print(f'Initial PRNG for seed={seed}:', rng)
     mu = prob_from_logits(pi_logits)
     steps = [0]
     scores = [evaluate(mu, reward, rho, transition)]
-    print(f'{name} Iteration {0}:\t{scores[0]}')
+    print(f'{args.name} Iteration {0}:\t{scores[0]}')
     
     x_logits = copy.deepcopy(pi_logits)
-    for i in range(1, n+1):
+    for i in range(1, args.iteration+1):
         x_logits = look_ahead(
             rng, 
-            n, 
-            x_logits, 
-            reward, 
-            transition, 
-            gamma,
-            opts, 
-            states, 
-            horizon
+            args.n_lka_steps, 
+            x_logits=x_logits, 
+            reward=reward, 
+            transition=transition, 
+            gamma=args.gamma,
+            opts=opts, 
+            states=states, 
+            horizon=args.horizon, 
+            epochs=args.epochs
         )
         mu = prob_from_logits(x_logits)
-        pi_logits, states = hapg_train(
+        pi_logits, states = happo_train(
             rng=rng, 
             pi_logits=pi_logits, 
             mu=mu, 
             reward=reward, 
             transition=transition, 
-            gamma=gamma, 
+            gamma=args.gamma, 
             opts=opts, 
             states=states, 
-            horizon=horizon
+            horizon=args.horizon, 
+            epochs=args.epochs
         )
 
         pi = prob_from_logits(pi_logits)
@@ -103,7 +104,7 @@ def lka_train(
             score = evaluate(pi, reward, rho, transition)
             steps.append(i)
             scores.append(score)
-            print(f'{name} Iteration {i}:\t{score}')
+            print(f'{args.name} Iteration {i}:\t{score}')
     steps = np.array(steps)
     scores = np.array(scores)
 
@@ -135,7 +136,6 @@ def lka_main(
         args.seed = seed
         p = ray_bt.remote(
             args, 
-            name=args.name, 
             points=points, 
             build_initial_policy=build_initial_policy, 
             build_optimizers=build_optimizers, 

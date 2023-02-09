@@ -5,41 +5,24 @@ import haiku as hk
 from core.typing import dict2AttrDict
 from nn.func import mlp, nn_registry
 from jax_tools import jax_dist
+from algo.dynamics.elements.utils import *
 """ Source this file to register Networks """
-
-
-def joint_actions(actions, one_hot, action_dim):
-    actions2 = actions[..., ::-1]
-    actions = jnp.stack([actions, actions2], -1)
-    assert actions.shape[-2:] == (2, 2), actions.shape
-    if one_hot:
-        actions = nn.one_hot(actions, action_dim)
-        actions = jnp.reshape(actions, (*actions.shape[:-2], -1))
-    return actions
-
-def combine_sa(x, a, one_hot, action_dim):
-    a = joint_actions(a, one_hot, action_dim)
-    x = jnp.concatenate([x, a], -1)
-
-    return x
 
 
 @nn_registry.register('model')
 class Model(hk.Module):
     def __init__(
         self, 
-        one_hot, 
-        action_dim, 
         out_size, 
+        out_config, 
         name='model', 
         **config, 
     ):
         super().__init__(name=name)
         self.config = dict2AttrDict(config, to_copy=True)
-        self.one_hot = one_hot
-        self.n_grids = 5
-        self.action_dim = action_dim
         self.out_size = out_size
+
+        self.out_config = out_config
 
     def __call__(self, x, action):
         net = self.build_net()
@@ -47,7 +30,7 @@ class Model(hk.Module):
         x = combine_sa(x, action, self.one_hot, self.action_dim)
 
         x = net(x)
-        logits = jnp.reshape(x, (*x.shape[:-1], self.out_size, self.n_grids))
+        logits = jnp.reshape(x, (*x.shape[:-1], self.out_size, self.n_classes))
         dist = jax_dist.Categorical(logits)
 
         return dist
@@ -56,9 +39,13 @@ class Model(hk.Module):
     def build_net(self):
         net = mlp(
             **self.config, 
-            out_size=self.n_grids * self.out_size, 
+            out_size=self.out_size * self.n_classes, 
         )
         return net
+
+    def call_net(self, x):
+        x = net(x)
+        return x
 
 
 @nn_registry.register('emodels')
@@ -76,17 +63,17 @@ class EnsembleModels(hk.Module):
         self.config = dict2AttrDict(config, to_copy=True)
         self.n = n
         self.one_hot = one_hot
-        self.n_grids = 5
         self.action_dim = action_dim
+        self.n_classes = 5
         self.out_size = out_size
 
     def __call__(self, x, action):
         nets = self.build_net()
 
-        x = combine_sa(x, action, self.one_hot, self.action_dim)
+        x = combine_sa(x, action)
 
         x = jnp.stack([net(x) for net in nets], -2)
-        logits = jnp.reshape(x, (*x.shape[:-1], self.out_size, self.n_grids))
+        logits = jnp.reshape(x, (*x.shape[:-1], self.out_size, self.n_classes))
         dist = jax_dist.Categorical(logits)
 
         return dist
@@ -95,7 +82,7 @@ class EnsembleModels(hk.Module):
     def build_net(self):
         nets = [mlp(
             **self.config,
-            out_size=self.n_grids * self.out_size, 
+            out_size=self.out_size * self.n_classes, 
             name=f'model{i}'
         ) for i in range(self.n)]
         return nets
@@ -105,26 +92,23 @@ class EnsembleModels(hk.Module):
 class Reward(hk.Module):
     def __init__(
         self, 
-        one_hot, 
-        action_dim, 
         out_size=1, 
         name='reward', 
         **config
     ):
         super().__init__(name=name)
 
-        self.one_hot = one_hot
-        self.action_dim = action_dim
         self.out_size = out_size
         self.config = dict2AttrDict(config, to_copy=True)
 
     def __call__(self, x, action):
         net = self.build_net()
 
-        x = combine_sa(x, action, self.one_hot, self.action_dim)
+        x = combine_sa(x, action)
         
         x = net(x)
         if self.out_size == 1:
+            x = jnp.squeeze(x, -1)
             dist = jax_dist.MultivariateNormalDiag(x, jnp.ones(1))
         else:
             dist = jax_dist.Categorical(x)
@@ -136,14 +120,6 @@ class Reward(hk.Module):
         net = mlp(**self.config, out_size=self.out_size)
 
         return net
-
-
-def compute_mean_logvar(x, max_logvar, min_logvar):
-    mean, logvar = jnp.split(x, -1)
-    logvar = max_logvar - nn.softplus(max_logvar - logvar)
-    logvar = min_logvar + nn.softplus(logvar - min_logvar)
-
-    return mean, logvar
 
 
 if __name__ == '__main__':
@@ -168,8 +144,6 @@ if __name__ == '__main__':
     # print(net.apply(params, None, x, 1., 2, 3))
     # print(hk.experimental.tabulate(net)(x, 1, 2, 3.))
     import os, sys
-    os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
-    os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
 
     config = {
         'units_list': [3], 

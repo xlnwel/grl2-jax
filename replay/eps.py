@@ -14,6 +14,7 @@ from core.typing import AttrDict, tree_slice
 from replay.local import EnvEpisodicBuffer
 from replay.utils import load_data, save_data
 from tools.utils import batch_dicts
+from tools.display import print_dict_info
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +51,19 @@ class EpisodicReplay(Buffer):
             for _ in range(self.n_envs)
         ]
 
-    def good_to_learn(self):
+    def ready_to_sample(self):
         return len(self._memory) >= self.min_episodes
 
     def __len__(self):
         return len(self._memory)
+
+    def collect(self, reset, obs, next_obs, **kwargs):
+        for k, v in obs.items():
+            if k not in kwargs:
+                kwargs[k] = v
+        for k, v in next_obs.items():
+            kwargs[f'next_{k}'] = v
+        self.add(**kwargs, reset=reset)
 
     def add(self, idxes=None, **data):
         if self.n_envs > 1:
@@ -63,8 +72,12 @@ class EpisodicReplay(Buffer):
             for i in idxes:
                 d = tree_slice(data, i)
                 self._tmp_bufs[i].add(**d)
+                if np.all(d['reset']):
+                    self.finish_episodes(i)
         else:
             self._tmp_bufs[0].add(**data)
+            if np.all(data['reset']):
+                self.finish_episodes()
 
     def reset_local_buffer(self, i=None):
         if i is None:
@@ -110,12 +123,12 @@ class EpisodicReplay(Buffer):
             episodes = [episodes]
         timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         for eps in episodes:
-            if eps is None or (self.sample_size 
-                and len(next(iter(eps.values()))) < self.sample_size):
+            epslen = len(next(iter(eps.values())))
+            if eps is None or (self.sample_size and epslen < self.sample_size):
+                # do_logging(f'Ignore short episode of length {epslen}. Minimum acceptable episode length: {self.sample_size}')
                 continue    # ignore None/short episodes
             identifier = str(uuid.uuid4().hex)
-            length = len(eps['reward'])
-            filename = self._dir / f'{timestamp}-{identifier}-{length}.npz'
+            filename = self._dir / f'{timestamp}-{identifier}-{epslen}.npz'
             self._memory[filename] = eps
             if self._save:
                 save_data(filename, eps)
@@ -198,12 +211,12 @@ class EpisodicReplay(Buffer):
         else:
             filename = random.choice(list(self._filenames)[-n:])
         episode = self._memory[filename]
-        total = len(next(iter(episode.values())))
-        available = total - self.sample_size
-        assert available > 0, f'Skipped short episode of length {total}.' \
+        epslen = len(next(iter(episode.values())))
+        available = epslen - self.sample_size
+        assert available >= 0, f'Skipped short episode of length {epslen}.' \
             f'{[(k, np.array(v).shape) for e in self._memory.values() for k, v in e.items()]}'
 
-        i = int(random.randint(0, available))
+        i = random.randint(0, available)
         if sample_size == 1 and squeeze:
             sample = episode.subdict(*sample_keys).slice(i)
         else:

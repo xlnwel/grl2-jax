@@ -1,7 +1,5 @@
 import numpy as np
-from jax import lax, nn, random
-import jax.numpy as jnp
-import optax
+from jax import lax
 import distrax
 
 EPSILON = 1e-8
@@ -157,6 +155,19 @@ EPSILON = 1e-8
 #                 f'{prefix}_mean': self.mu, 
 #                 f'{prefix}_std': self.std, 
 #             }
+
+
+class Bernoulli(distrax.Bernoulli):
+    def stop_gradient(self):
+        logits = None if self._logits is None else lax.stop_gradient(self._logits)
+        probs = None if self._probs is None else lax.stop_gradient(self._probs)
+        super().__init__(logits=logits, probs=probs, dtype=self._dtype)
+
+    def get_stats(self, prefix=None):
+        if prefix is None:
+            return {'logits': self._logits}
+        else:
+            return {f'{prefix}_logits': self._logits}
 
 
 class Categorical(distrax.Categorical):

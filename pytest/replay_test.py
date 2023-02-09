@@ -31,7 +31,7 @@ class ReplayBuffer:
     def name(self):
         return self._type
 
-    def good_to_learn(self):
+    def ready_to_sample(self):
         return self.ptr >= self.min_size
 
     def add(self, obs, action, reward, next_obs, done, **kwargs):
@@ -264,7 +264,7 @@ class TestClass:
                         h = np.ones((n_envs, 2)) * r[:, None]
                         c = np.ones((n_envs, 2)) * r[:, None]
                     replay.add(obs=o, reward=r, discount=d, h=h, c=c, mask=1-reset, prev_reward=prev_reward)
-                    if replay.good_to_learn():
+                    if replay.ready_to_sample():
                         data = replay.sample()
                         np.testing.assert_equal(data['reward'][:, 0], data['h'][:, 0])
                         np.testing.assert_equal(data['obs'][:, 0, 0], data['c'][:, 0])

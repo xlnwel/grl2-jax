@@ -34,8 +34,8 @@ class DualReplay(Replay):
     def buffer_type(self):
         return self._replay_type
         
-    def good_to_learn(self):
-        return self._fast_replay.good_to_learn()
+    def ready_to_sample(self):
+        return self._fast_replay.ready_to_sample()
 
     def __len__(self):
         return self._capacity if self._is_full else len(self._fast_replay) + len(self._fast_replay)
@@ -43,7 +43,7 @@ class DualReplay(Replay):
     def sample(self, batch_size=None):
         assert self._good_to_learn()
         batch_size = batch_size or self._batch_size
-        if self._slow_replay.good_to_learn():
+        if self._slow_replay.ready_to_sample():
             regular_samples = self._fast_replay.sample()
             additional_samples = self._slow_replay.sample()
             return self._combine_samples(regular_samples, additional_samples)

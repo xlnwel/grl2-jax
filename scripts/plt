@@ -8,7 +8,7 @@ dir=$1
 # IFS='/'
 
 # read -r -a arr <<< "$dir"
-# logs=${arr[6]}
+# logs=${arr[6]
 # ologs=""
 # for i in {1..6}; do
 #     if [ -z != $ologs ]; then
@@ -25,12 +25,13 @@ while true
 do
     today=$(date +"%m%d")
     yesterday=$(date -v-1d "+%m%d")
-    dby=$(date -v-2d "+%m%d")
+    # dby=$(date -v-2d "+%m%d")
     # tda=$(date -v-3d "+%m%d")
 
     # rm -rf html-logs
-    py_script="python run/html_plt.py $@ -p a0 model -n $today"
+    py_script="python run/html_plt.py $@ -p a0 model -n $today $yesterday $dby $tda"
     echo $py_script
     eval $py_script
+    echo "sleeping for 300 seconds"
     sleep 300
 done

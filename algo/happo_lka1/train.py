@@ -4,8 +4,8 @@ from functools import partial
 from core.log import do_logging
 from tools.store import StateStore
 from tools.timer import Timer
-from algo.zero.run import *
-from algo.zero.train import main, train, \
+from algo.ppo.run import *
+from algo.ppo.train import main, train, \
     state_constructor, get_states, set_states
 
 

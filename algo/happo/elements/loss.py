@@ -3,10 +3,9 @@ import jax.numpy as jnp
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict
-from jax_tools import jax_loss, jax_math, jax_assert
-from tools.rms import denormalize, normalize
-from tools.utils import prefix_name
-from .utils import compute_values, compute_policy
+from jax_tools import jax_loss
+from tools.rms import denormalize
+from .utils import *
 
 
 class Loss(LossBase):
@@ -55,7 +54,7 @@ class Loss(LossBase):
                 seq_axis=1, 
             )
         stats = record_policy_stats(data, stats, act_dist)
-        
+
         if 'advantage' in data:
             stats.raw_adv = data.pop('advantage')
             stats.v_target = data.pop('v_target')
@@ -278,163 +277,3 @@ def create_loss(config, model, name='happo'):
     loss = Loss(config=config, model=model, name=name)
 
     return loss
-
-
-def norm_adv(
-    config, 
-    raw_adv, 
-    teammate_log_ratio, 
-    sample_mask=None, 
-    n=None, 
-    epsilon=1e-5
-):
-    if config.norm_adv:
-        norm_adv = jax_math.standard_normalization(
-            raw_adv, 
-            zero_center=config.get('zero_center', True), 
-            mask=sample_mask, 
-            n=n, 
-            epsilon=epsilon, 
-        )
-    else:
-        norm_adv = raw_adv
-    if norm_adv.ndim < teammate_log_ratio.ndim:
-        norm_adv = jnp.expand_dims(norm_adv, -1)
-    jax_assert.assert_rank_compatibility(
-        [norm_adv, teammate_log_ratio])
-    advantage = norm_adv * lax.exp(teammate_log_ratio)
-    advantage = lax.stop_gradient(advantage)
-    return norm_adv, advantage
-
-
-def compute_actor_loss(
-    config, 
-    data, 
-    stats, 
-    act_dist,
-):
-    if not config.get('policy_sample_mask', True):
-        sample_mask = data.sample_mask
-    else:
-        sample_mask = None
-
-    if config.pg_type == 'pg':
-        raw_pg_loss = jax_loss.pg_loss(
-            advantage=stats.advantage, 
-            logprob=stats.pi_logprob, 
-        )
-    elif config.pg_type == 'ppo':
-        ppo_pg_loss, ppo_clip_loss, raw_pg_loss = \
-            jax_loss.ppo_loss(
-                advantage=stats.advantage, 
-                ratio=stats.ratio, 
-                clip_range=config.ppo_clip_range, 
-            )
-        stats.ppo_pg_loss = ppo_pg_loss
-        stats.ppo_clip_loss = ppo_clip_loss
-    else:
-        raise NotImplementedError
-    if raw_pg_loss.ndim == 4:   # reduce the action dimension for continuous actions
-        raw_pg_loss = jnp.sum(raw_pg_loss, axis=-1)
-    scaled_pg_loss, pg_loss = jax_loss.to_loss(
-        raw_pg_loss, 
-        stats.pg_coef, 
-        mask=sample_mask, 
-        n=data.n
-    )
-    stats.raw_pg_loss = raw_pg_loss
-    stats.scaled_pg_loss = scaled_pg_loss
-    stats.pg_loss = pg_loss
-
-    entropy = act_dist.entropy()
-    scaled_entropy_loss, entropy_loss = jax_loss.entropy_loss(
-        entropy_coef=stats.entropy_coef, 
-        entropy=entropy, 
-        mask=sample_mask, 
-        n=data.n
-    )
-    stats.entropy = entropy
-    stats.scaled_entropy_loss = scaled_entropy_loss
-    stats.entropy_loss = entropy_loss
-
-    loss = pg_loss + entropy_loss
-    stats.actor_loss = loss
-
-    clip_frac = jax_math.mask_mean(
-        lax.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2), 
-        sample_mask, data.n)
-    stats.clip_frac = clip_frac
-
-    return loss, stats
-
-
-def compute_vf_loss(
-    config, 
-    data, 
-    stats, 
-):
-    if config.get('value_sample_mask', False):
-        sample_mask = data.sample_mask
-    else:
-        sample_mask = None
-    
-    if config.popart:
-        v_target = normalize(
-            stats.v_target, data.popart_mean, data.popart_std)
-    else:
-        v_target = stats.v_target
-    stats.norm_v_target = v_target
-
-    value_loss_type = config.value_loss
-    if value_loss_type == 'huber':
-        raw_value_loss = jax_loss.huber_loss(
-            stats.value, 
-            y=v_target, 
-            threshold=config.huber_threshold
-        )
-    elif value_loss_type == 'mse':
-        raw_value_loss = .5 * (stats.value - v_target)**2
-    elif value_loss_type == 'clip' or value_loss_type == 'clip_huber':
-        raw_value_loss, stats.v_clip_frac = jax_loss.clipped_value_loss(
-            stats.value, 
-            v_target, 
-            data.value, 
-            config.value_clip_range, 
-            huber_threshold=config.huber_threshold, 
-            mask=sample_mask, 
-            n=data.n,
-        )
-    else:
-        raise ValueError(f'Unknown value loss type: {value_loss_type}')
-    stats.raw_value_loss = raw_value_loss
-    scaled_value_loss, value_loss = jax_loss.to_loss(
-        raw_value_loss, 
-        coef=stats.value_coef, 
-        mask=sample_mask, 
-        n=data.n
-    )
-    
-    stats.scaled_value_loss = scaled_value_loss
-    stats.value_loss = value_loss
-
-    return value_loss, stats
-
-
-def record_target_adv(stats):
-    stats.explained_variance = jax_math.explained_variance(
-        stats.v_target, stats.value)
-    stats.v_target_unit_std = jnp.std(stats.v_target, axis=-1)
-    stats.raw_adv_unit_std = jnp.std(stats.raw_adv, axis=-1)
-    return stats
-
-
-def record_policy_stats(data, stats, act_dist):
-    stats.diff_frac = jax_math.mask_mean(
-        lax.abs(stats.pi_logprob - data.mu_logprob) > 1e-5, 
-        data.sample_mask, data.n)
-    stats.approx_kl = .5 * jax_math.mask_mean(
-        (stats.log_ratio)**2, data.sample_mask, data.n)
-    stats.approx_kl_max = jnp.max(.5 * (stats.log_ratio)**2)
-    stats.update(act_dist.get_stats(prefix='pi'))
-
-    return stats

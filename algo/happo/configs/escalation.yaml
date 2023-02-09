@@ -17,15 +17,17 @@ routine:
     MAX_STEPS: 1e8
     n_steps: &nsteps 50
     LOG_PERIOD: 2e5
-    EVAL_PERIOD: 2e5
+    EVAL_PERIOD: null
 
-    RECORD_VIDEO: False
+    RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
     n_lookahead_steps: 1
     lookahead_rollout: sim
     compute_return_at_once: True
+    ignore_ratio_for_ego: False
+    ignore_ratio_for_lookahead: False
     perm: null
 
 env:

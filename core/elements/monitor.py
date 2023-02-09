@@ -59,6 +59,9 @@ class Monitor:
             adaptive=adaptive
         )
 
+    def clear(self):
+        self._recorder.clear()
+
 
 def record(
     *, 

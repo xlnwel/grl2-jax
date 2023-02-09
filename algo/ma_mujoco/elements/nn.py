@@ -5,23 +5,8 @@ import haiku as hk
 from core.typing import dict2AttrDict
 from nn.func import mlp, nn_registry
 from jax_tools import jax_dist
+from algo.dynamics.elements.utils import *
 """ Source this file to register Networks """
-
-
-def joint_actions(actions):
-    all_actions = [actions]
-    for _ in range(actions.shape[-2]-1):
-        actions = jnp.roll(actions, 1, -2)
-        all_actions.append(actions)
-    all_actions = jnp.concatenate(all_actions, -1)
-
-    return all_actions
-
-def combine_sa(x, a):
-    a = joint_actions(a)
-    x = jnp.concatenate([x, a], -1)
-
-    return x
 
 
 @nn_registry.register('model')
@@ -136,14 +121,6 @@ class Reward(hk.Module):
         return net
 
 
-def compute_mean_logvar(x, max_logvar, min_logvar):
-    mean, logvar = jnp.split(x, 2, axis=-1)
-    logvar = max_logvar - nn.softplus(max_logvar - logvar)
-    logvar = min_logvar + nn.softplus(logvar - min_logvar)
-
-    return mean, logvar
-
-
 if __name__ == '__main__':
     import jax
     # config = dict( 
@@ -166,8 +143,8 @@ if __name__ == '__main__':
     # print(net.apply(params, None, x, 1., 2, 3))
     # print(hk.experimental.tabulate(net)(x, 1, 2, 3.))
     import os, sys
-    os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
-    os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
+    # os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
+    # os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
 
     config = {
         'units_list': [3], 

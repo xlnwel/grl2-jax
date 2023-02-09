@@ -1,1 +1,1 @@
-from algo.zero.train import *
+from algo.ppo.train import *

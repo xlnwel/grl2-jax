@@ -12,7 +12,7 @@ from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.timer import Timer
 from tools.utils import flatten_dict
-from algo.zero.elements.trainer import Trainer as TrainerBase
+from algo.ppo.elements.trainer import Trainer as TrainerBase
 
 
 def construct_fake_data(env_stats, aid):

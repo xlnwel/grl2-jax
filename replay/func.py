@@ -79,7 +79,7 @@ if __name__ == '__main__':
     def sample():
         for _ in range(100000):
             data = replay.sample()
-    while not replay.good_to_learn():
+    while not replay.ready_to_sample():
         replay.add(
             o=np.random.normal(size=4), 
             h=np.random.normal(size=2), 

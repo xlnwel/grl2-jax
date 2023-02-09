@@ -23,11 +23,14 @@ def construct_fake_data(env_stats, aid):
     basic_shape = (1, 1, env_stats.n_units)
     shapes = env_stats.obs_shape[aid]
     dtypes = env_stats.obs_dtype[aid]
-    action_dim = env_stats.action_dim[aid]
     data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
         for k, v in shapes.items()}
     data = dict2AttrDict(data)
-    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
+    if env_stats.is_action_discrete[aid]:
+        data.action = jnp.zeros(basic_shape, jnp.float32)
+    else:
+        action_dim = env_stats.action_dim[aid]
+        data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
 
     return data
 

@@ -11,6 +11,7 @@ class Buffer:
         aid: int=0, 
     ):
         self.config = dict2AttrDict(config, to_copy=True)
+        self.env_stats = dict2AttrDict(env_stats, to_copy=True)
         self.aid = aid
 
         self.obs_keys = env_stats.obs_keys[self.aid]

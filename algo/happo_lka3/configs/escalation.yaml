@@ -1,7 +1,7 @@
 ---
-algorithm: &algo happo_lka2
-name: happo_lka2
-info: happo_lka2
+algorithm: &algo happo_lka3
+name: happo_lka3
+info: happo_lka3
 
 precision: 32
 
@@ -23,10 +23,12 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 0
+    n_lookahead_steps: 1
     lookahead_rollout: sim
     compute_return_at_once: True
     ignore_ratio_for_ego: False
+    ignore_ratio_for_lookahead: False
+    perm: null
 
 env:
     env_name: &env_name magw-escalation
@@ -76,7 +78,7 @@ loss:
     c_clip: 1
     rho_clip: 1
     adv_type: gae
-    norm_adv: False
+    norm_adv: True
 
     prnn_bptt: 10
     vrnn_bptt: 10

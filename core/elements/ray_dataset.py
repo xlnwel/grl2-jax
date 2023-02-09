@@ -30,8 +30,8 @@ class  RayDataset(Dataset):
     def name(self):
         return ray.get(self._buffer.name.remote())
 
-    def good_to_learn(self):
-        return ray.get(self._buffer.good_to_learn.remote())
+    def ready_to_sample(self):
+        return ray.get(self._buffer.ready_to_sample.remote())
 
     def _sample(self):
         while True:
@@ -48,7 +48,7 @@ class  RayDataset(Dataset):
 def get_dataformat(replay):
     import time
     i = 0
-    while not ray.get(replay.good_to_learn.remote()):
+    while not ray.get(replay.ready_to_sample.remote()):
         time.sleep(1)
         i += 1
         if i % 60 == 0:

@@ -6,8 +6,8 @@ from core.log import do_logging
 from tools.store import StateStore
 from tools.timer import Every, Timer
 from tools import pkg
-from algo.zero.run import *
-from algo.zero.train import main
+from algo.ppo.run import *
+from algo.ppo.train import main
 
 
 def train(

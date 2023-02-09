@@ -158,6 +158,11 @@ class GridWorldEnv(gym.Env):
         self._score = np.zeros(self.num_agents, np.float32)
         self._epslen = 0
 
+    def random_action(self):
+        action = [a.sample() for a in self.action_space]
+        action = np.stack(action)
+        return action
+
     @property
     def action_space(self):
         action_space = []

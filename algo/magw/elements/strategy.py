@@ -1,1 +1,1 @@
-from core.elements.strategy import Strategy, create_strategy
+from algo.dynamics.elements.strategy import *

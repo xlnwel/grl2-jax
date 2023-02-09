@@ -1,6 +1,7 @@
 import argparse
 import os
 import string
+import cloudpickle
 import numpy as np
 import pandas as pd
 import jax
@@ -21,6 +22,9 @@ def parse_args():
     parser.add_argument('-iteration', '-i', 
                         type=int, 
                         default=1000)
+    parser.add_argument('-epochs', '-e', 
+                        type=int, 
+                        default=1)
     parser.add_argument('--horizon', '-H',
                         type=int, 
                         default=1)
@@ -30,7 +34,10 @@ def parse_args():
     parser.add_argument('--action_dims', 
                         type=int, 
                         nargs='*',
-                        default=[4, 5])
+                        default=[3, 3])
+    parser.add_argument('--gamma', 
+                        type=float, 
+                        default=1.)
     parser.add_argument('--seed', '-s', 
                         type=int, 
                         default=1)
@@ -198,7 +205,23 @@ def vectorized_weighted_advantage(joint_mu, teammate_ratio, adv):
     return adv
 
 
-def hapg_loss_i(pi_logits_i, mu_i, joint_mu, teammate_ratio, adv):
+def ppo_loss(
+    advantage, 
+    ratio, 
+    clip_range, 
+):
+    neg_adv = -advantage
+    pg_loss = neg_adv * ratio
+    if clip_range is None:
+        clipped_loss = pg_loss
+    else:
+        clipped_loss = neg_adv * jnp.clip(ratio, 1. - clip_range, 1. + clip_range)
+    loss = jnp.maximum(pg_loss, clipped_loss)
+    
+    return loss
+
+
+def happo_loss_i(pi_logits_i, mu_i, joint_mu, teammate_ratio, adv):
     """ Compute the HAPPO loss function for agent i: 
     E_\mu[(ratio_i - 1) * teammate_ratio * adv]. 
     NOTE: 
@@ -213,7 +236,7 @@ def hapg_loss_i(pi_logits_i, mu_i, joint_mu, teammate_ratio, adv):
         joint_mu: (s, a^n, ..., a^1): \sum_{i=1}^{n} pi_i / mu_i
         teammate_ratio (s, a^{i-1}, ..., a^{1}): \sum_{j=1}^{i-1} pi_j / mu_j
         adv (s, a^n, ..., a^1): advantages
-    Return:
+    Returnn:
         loss
     """
     assert teammate_ratio.ndim > 0, teammate_ratio.ndim
@@ -221,18 +244,24 @@ def hapg_loss_i(pi_logits_i, mu_i, joint_mu, teammate_ratio, adv):
     pi_i = nn.softmax(pi_logits_i, -1)
     chex.assert_rank([pi_i, mu_i, adv], 2)
     chex.assert_equal_shape([pi_i, mu_i, adv])
-    loss = - jnp.sum((pi_i - mu_i) * adv)
+    ratio = pi_i / mu_i
+    loss = ppo_loss(adv, ratio, .2)
+    loss = jnp.sum(loss)
 
     return loss
 
 
-def hapg_optimize_i(pi_logits, mu, joint_mu, teammate_ratio, adv, opt, state):
-    grads = jax.grad(hapg_loss_i)(
+def happo_optimize_i(pi_logits, mu, joint_mu, teammate_ratio, adv, opt, state):
+    grads = jax.grad(happo_loss_i)(
         pi_logits, mu, joint_mu, teammate_ratio, adv)
     updates, state = opt.update(grads, state)
     pi_logits = optax.apply_updates(pi_logits, updates)
     
     return pi_logits, state
+
+
+
+jit_happo_optimize_i = jax.jit(happo_optimize_i, static_argnames='opt')
 
 
 def update_teammate_ratio(teammate_ratio, pi_logits_i, mu_i):
@@ -246,7 +275,7 @@ def update_teammate_ratio(teammate_ratio, pi_logits_i, mu_i):
     return teammate_ratio
 
 
-def hapg_optimize(rng, pi_logits, mu, joint_mu, adv, opts, states):
+def happo_optimize(rng, pi_logits, mu, joint_mu, adv, opts, states):
     """ Perform one-step HAPG optimization 
     Params:
         transition (s, a, s)
@@ -269,7 +298,7 @@ def hapg_optimize(rng, pi_logits, mu, joint_mu, adv, opts, states):
     idx = n_agents
     for i in reversed(aids):
         assert pi_logits[i].shape[-1] == joint_mu.shape[idx], (idx, pi_logits[i].shape, joint_mu.shape)
-        pi_logits[i], states[i] = hapg_optimize_i(
+        pi_logits[i], states[i] = jit_happo_optimize_i(
             pi_logits[i], mu[i], joint_mu, teammate_ratio, adv, 
             opts[i], states[i]
         )
@@ -281,7 +310,7 @@ def hapg_optimize(rng, pi_logits, mu, joint_mu, adv, opts, states):
     return pi_logits, states
 
 
-def hapg_train_t(
+def happo_train_t(
     rng, 
     pi_logits, 
     mu, 
@@ -291,18 +320,20 @@ def hapg_train_t(
     gamma,
     opt, 
     state, 
+    epochs, 
 ):
     joint_mu = joint_prob_from_marginals(mu)
     adv, v = vectorized_advantage(
         joint_mu, reward, transition, next_value, gamma)
     adv = adv.reshape(joint_mu.shape)
-    pi_logits, states = hapg_optimize(
-        rng, pi_logits, mu, joint_mu, adv, opt, state)
+    for _ in range(epochs):
+        pi_logits, state = happo_optimize(
+            rng, pi_logits, mu, joint_mu, adv, opt, state)
 
-    return pi_logits, states, adv, v
+    return pi_logits, state, adv, v
 
 
-def hapg_train(
+def happo_train(
     rng, 
     pi_logits, 
     mu, 
@@ -311,7 +342,8 @@ def hapg_train(
     gamma,
     opts, 
     states, 
-    horizon
+    horizon, 
+    epochs, 
 ):
     values = [
         jnp.zeros(transition.shape[0])
@@ -319,7 +351,7 @@ def hapg_train(
     ]
     for t in reversed(range(horizon)):
         rng, train_rng = random.split(rng)
-        pi_logits[t], states[t], adv, values[t] = hapg_train_t(
+        pi_logits[t], states[t], adv, values[t] = happo_train_t(
             rng=train_rng, 
             pi_logits=pi_logits[t], 
             mu=mu[t], 
@@ -329,6 +361,7 @@ def hapg_train(
             gamma=gamma, 
             opt=opts[t], 
             state=states[t], 
+            epochs=epochs
         )
     return pi_logits, states
 
@@ -342,6 +375,7 @@ def build_name(args):
     name = '-'.join([
         name, 
         f'horizon={args.horizon}', 
+        f'epochs={args.epochs}', 
         f'lr={args.lr}', 
         f'state_size={args.state_size}', 
         f'action_dims={args.action_dims}', 
@@ -466,39 +500,36 @@ def plot(data, dir_path, name):
 
 """ Training """
 def train(
-    n, 
-    horizon, 
+    args, 
     pi_logits, 
     reward, 
     rho, 
     transition, 
-    gamma, 
     opts, 
     states, 
-    seed, 
     points=100, 
-    name=None
 ):
-    interval = n // points
+    interval = args.iteration // points
     print('Interval:', interval)
-    rng = random.PRNGKey(seed)
-    print(f'Initial PRNG for seed={seed}:', rng)
+    rng = random.PRNGKey(args.seed)
+    # print(f'Initial PRNG for seed={seed}:', rng)
     mu = prob_from_logits(pi_logits)
     steps = [0]
     scores = [evaluate(mu, reward, rho, transition)]
-    print(f'{name} Iteration {0}:\t{scores[0]}')
+    print(f'{args.name} Iteration {0}:\t{scores[0]}')
 
-    for i in range(1, n+1):
-        pi_logits, states = hapg_train(
+    for i in range(1, args.iteration+1):
+        pi_logits, states = happo_train(
             rng=rng, 
             pi_logits=pi_logits, 
             mu=mu, 
             reward=reward, 
             transition=transition, 
-            gamma=gamma, 
+            gamma=args.gamma, 
             opts=opts, 
             states=states, 
-            horizon=horizon
+            horizon=args.horizon, 
+            epochs=args.epochs, 
         )
 
         mu = prob_from_logits(pi_logits)
@@ -506,7 +537,7 @@ def train(
             score = evaluate(mu, reward, rho, transition)
             steps.append(i)
             scores.append(score)
-            print(f'{name} Iteration {i}:\t{score}')
+            print(f'{args.name} Iteration {i}:\t{score}')
     steps = np.array(steps)
     scores = np.array(scores)
 
@@ -515,7 +546,6 @@ def train(
 
 def build_and_train(
     args, 
-    name, 
     points=100, 
     build_initial_policy=build_initial_policy, 
     build_optimizers=build_optimizers, 
@@ -538,18 +568,14 @@ def build_and_train(
     # print_dynamics(reward, rho, transition, action_dims)
 
     steps, scores = train(
-        args.iteration, 
-        horizon, 
+        args, 
         pi_logits, 
         reward, 
         rho, 
         transition, 
-        1, 
         opts, 
         states, 
-        seed=args.seed, 
         points=points, 
-        name=name
     )
 
     return steps, scores
@@ -563,10 +589,12 @@ def main(
     train=train
 ):
     horizon = args.horizon
+    epochs = args.epochs
     state_size = args.state_size
     action_dims = args.action_dims
     n_agents = len(action_dims)
     print('Horizon:', horizon)
+    print('Epochs:', epochs)
     print('#Agents:', n_agents)
     print('State size:', state_size)
     print('Action dimensions:', action_dims)
@@ -580,7 +608,6 @@ def main(
         args.seed = seed
         p = ray_bt.remote(
             args, 
-            name=args.name, 
             points=points, 
             build_initial_policy=build_initial_policy, 
             build_optimizers=build_optimizers, 
@@ -602,6 +629,8 @@ if __name__ == '__main__':
     ray.init()
 
     args = parse_args()
+    args.algo = 'happo'
+    args.name = 'happo'
     args.name = build_name(args)
     data = main(args)
     dir_path = args.dir_path

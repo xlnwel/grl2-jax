@@ -10,9 +10,7 @@ import haiku as hk
 from core.log import do_logging
 from core.elements.model import Model as ModelBase
 from core.typing import dict2AttrDict, AttrDict
-from nn.func import create_network
 from tools.file import source_file
-from tools.display import print_dict_info
 from jax_tools import jax_dist
 from env.typing import EnvOutput
 
@@ -37,9 +35,11 @@ def construct_fake_data(env_stats, aid):
     data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
         for k, v in shapes.items()}
     data = dict2AttrDict(data)
-    data.action = jnp.zeros(basic_shape, jnp.float32)
+    action_dim = env_stats.action_dim[aid]
+    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
 
     return data
+
 
 class Model(ModelBase):
     def add_attributes(self):
@@ -118,7 +118,7 @@ class Model(ModelBase):
         next_obs, stats = self.next_obs(
             params.model, rngs[0], data.obs, data.action, evaluation)
         reward = self.reward(params.reward, rngs[1], data.obs, data.action)
-        discount = jnp.ones_like(reward, dtype=jnp.float32)
+        discount = self.discount(params.discount, rngs[1], next_obs)
         reset = jnp.zeros_like(reward, dtype=jnp.float32)
         global_state = jnp.expand_dims(next_obs, -3)
         global_state = jnp.reshape(global_state, (*global_state.shape[:-2], -1))
@@ -147,8 +147,15 @@ class Model(ModelBase):
         rewards = dist.mode()
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             rewards = jnp.squeeze(rewards, -1)
+        else:
+            rewards = self.env_stats.reward_map[rewards]
 
         return rewards
+
+    def discount(self, params, rng, obs):
+        dist = self.modules.discount(params, rng, obs)
+        discount = dist.mode()
+        return discount
 
 
 def setup_config_from_envstats(config, env_stats):

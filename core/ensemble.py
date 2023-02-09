@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Sequence, Union
+from typing import Dict, Sequence, Union, Any
 
 from .typing import ModelPath
 from core.typing import AttrDict, dict2AttrDict
@@ -17,7 +17,7 @@ class Ensemble:
         *, 
         config: AttrDict, 
         env_stats: AttrDict=None,
-        components: Dict=None, 
+        components: Dict[str, Any]=None, 
         name: str, 
     ):
         """ Two ways to construct an Ensemble

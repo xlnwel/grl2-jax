@@ -280,12 +280,15 @@ class Recorder:
                 self._out_file.write("\t".join(self._headers)+"\n")
             self._out_file.write("\t".join(map(str,vals))+"\n")
             self._out_file.flush()
-        self._current_row.clear()
-        self._store_dict.clear()
-        self._first_row = False
+        self.clear()
 
         self._last_time = current_time
         self._start_step = steps
+
+    def clear(self):
+        self._current_row.clear()
+        self._store_dict.clear()
+        self._first_row = False
 
 
 """ Recorder Ops """

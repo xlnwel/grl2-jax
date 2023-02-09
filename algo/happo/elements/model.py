@@ -11,8 +11,8 @@ from core.typing import AttrDict, dict2AttrDict
 from tools.file import source_file
 from jax_tools import jax_dist, jax_utils
 from tools.display import print_dict_info
-from algo.zero.elements.model import Model as ModelBase, setup_config_from_envstats
-from algo.zero.elements.utils import get_initial_state
+from algo.ppo.elements.model import Model as ModelBase, setup_config_from_envstats
+from algo.ppo.elements.utils import get_initial_state
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -39,7 +39,7 @@ def construct_fake_data(env_stats, aid, batch_size=1):
 class Model(ModelBase):
     def compile_model(self):
         super().compile_model()
-        self.jit_action_logprob = jax.jit(self.action_logprob, static_argnames=('evaluation'))
+        self.jit_action_logprob = jax.jit(self.action_logprob)
 
     def action_logprob(
         self,
@@ -47,14 +47,13 @@ class Model(ModelBase):
         rng,
         data,
     ):
-        rngs = random.split(rng, 3)
         state_reset, _ = jax_utils.split_data(
             data.state_reset, axis=1)
         policy_state = None if data.state is None else \
             get_initial_state(data.state.policy, 0)
         act_out, policy_state = self.modules.policy(
             params.policy, 
-            rngs[0], 
+            rng, 
             data.obs, 
             state_reset, 
             policy_state, 

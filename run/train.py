@@ -1,6 +1,9 @@
 import os, sys
-os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
-# os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
+# os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
+# running in a single cpu
+os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false "
+                           "intra_op_parallelism_threads=1")
+
 
 from datetime import datetime
 import numpy as np

@@ -7,7 +7,7 @@ from replay.base import Replay
 class UniformReplay(Replay):
     @override(Replay)
     def sample(self, batch_size=None):
-        assert self.good_to_learn(), (
+        assert self.ready_to_sample(), (
             'There are not sufficient transitions to start learning --- '
             f'transitions in buffer({len(self)}) vs '
             f'minimum required size({self.min_size})')

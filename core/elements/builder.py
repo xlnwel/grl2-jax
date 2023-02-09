@@ -51,20 +51,13 @@ class ElementsBuilder:
     
     def retrieve_constructor(self, algo):
         constructors = AttrDict()
-        constructors.model = self._import_element(
-            name='model', algo=algo, place=-1).create_model
-        constructors.loss = self._import_element(
-            name='loss', algo=algo, place=-1).create_loss
-        constructors.trainer = self._import_element(
-            name='trainer', algo=algo, place=-1).create_trainer
-        constructors.actor = self._import_element(
-            name='actor', algo=algo, place=-1).create_actor
-        constructors.buffer = self._import_element(
-            'buffer', algo=algo).create_buffer
-        constructors.strategy = self._import_element(
-            'strategy', algo=algo).create_strategy
-        constructors.agent = self._import_element(
-            'agent', algo=algo).create_agent
+        constructors.model = self._import_element('model', algo).create_model
+        constructors.loss = self._import_element('loss', algo).create_loss
+        constructors.trainer = self._import_element('trainer', algo).create_trainer
+        constructors.actor = self._import_element('actor', algo).create_actor
+        constructors.buffer = self._import_element('buffer', algo).create_buffer
+        constructors.strategy = self._import_element('strategy', algo).create_strategy
+        constructors.agent = self._import_element('agent', algo).create_agent
 
         return constructors
 

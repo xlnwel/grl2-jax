@@ -4,7 +4,7 @@ import numpy as np
 from core.typing import dict2AttrDict
 from tools.utils import batch_dicts
 from tools.display import print_dict_info
-from algo.zero.elements.buffer import LocalBuffer, ACBuffer as BufferBase
+from algo.ppo.elements.buffer import LocalBuffer, ACBuffer as BufferBase
 
 logger = logging.getLogger(__name__)
 

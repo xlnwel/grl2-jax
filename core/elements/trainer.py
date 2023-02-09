@@ -170,6 +170,15 @@ class TrainerEnsemble(Ensemble):
         for k, v in weights.items():
             self.components[k].set_optimizer_weights(v)
 
+    """ Checkpoints """
+    def save_optimizer(self):
+        for v in self.components.values():
+            v.save_optimizer()
+
+    def restore_optimizer(self):
+        for v in self.components.values():
+            v.restore_optimizer()
+
 
 def create_trainer(config, env_stats, loss, *, name, trainer_cls, **kwargs):
     trainer = trainer_cls(
