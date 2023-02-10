@@ -1,7 +1,7 @@
 ---
-algorithm: &algo happo_lka2
-name: happo_lka2
-info: happo_lka2
+algorithm: &algo happo
+name: happo
+info: happo
 
 precision: 32
 
@@ -15,7 +15,7 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 1e8
-    n_steps: &nsteps 50
+    n_steps: &nsteps 400
     LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
@@ -29,18 +29,18 @@ routine:
     perm: null
 
 env:
-    env_name: &env_name mpe-simple_spread
+    env_name: &env_name overcooked
     n_runners: &nrunners 1
-    n_units: 3
-    num_landmarks: 3
     n_envs: &nenvs 64
-    max_episode_steps: 50
-    reward_scale: .1
-    population_size: 1
+    max_episode_steps: 400
     timeout_done: &td False
-
-    uid2aid: [0, 1, 2]
-
+    # env_args:
+    # max_episode_steps: 400
+    dense_reward: True
+    featurize: True
+    add_goal: False
+    uid2aid: [0, 1]
+    
 agent: {}
 
 monitor:

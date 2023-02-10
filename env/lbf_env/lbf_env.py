@@ -1,4 +1,4 @@
-import logging
+import logging, os
 from collections import namedtuple, defaultdict
 from enum import Enum
 from itertools import product
@@ -87,7 +87,6 @@ class ForagingEnv(Env):
             **kwargs,
     ):
         self.logger = logging.getLogger(__name__)
-        self.seed()
         self.players = [Player() for _ in range(players)]
 
         field_size = [field_size, field_size]
@@ -270,6 +269,8 @@ class ForagingEnv(Env):
         attempts = 0
         min_level = max_level if self.force_coop else 1
 
+        levels = [3, 3, 3, 4]
+
         while food_count < max_food and attempts < 1000:
             attempts += 1
             row = self.np_random.integers(1, self.rows - 1)
@@ -284,9 +285,10 @@ class ForagingEnv(Env):
                 continue
 
             self.field[row, col] = (
-                min_level
-                if min_level == max_level
-                else self.np_random.integers(min_level, max_level)
+                # min_level
+                # if min_level == max_level
+                # else self.np_random.integers(min_level, max_level)
+                levels[food_count]
             )
             food_count += 1
         self._food_spawned = self.field.sum()
@@ -304,7 +306,10 @@ class ForagingEnv(Env):
         return True
 
     def spawn_players(self, max_player_level):
-        for player in self.players:
+        levels = [1, 1, 1, 1]
+        player_count = 0
+
+        for i, player in enumerate(self.players):
 
             attempts = 0
             player.reward = 0
@@ -315,9 +320,11 @@ class ForagingEnv(Env):
                 if self._is_empty_location(row, col):
                     player.setup(
                         (row, col),
-                        self.np_random.integers(1, max_player_level),
+                        # self.np_random.integers(1, max_player_level),
+                        levels[player_count],
                         self.field_size,
                     )
+                    player_count += 1
                     break
                 attempts += 1
 
@@ -606,7 +613,7 @@ class ForagingEnv(Env):
         if not self._rendering_initialized:
             self._init_render()
 
-        return self.viewer.render(self, return_rgb_array=mode == "rgb_array")
+        return self.viewer.render(self, return_rgb_array=True)
 
     def close(self):
         if self.viewer:

@@ -1,0 +1,77 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+# algos=(happo)
+algos=(happo_lka1)
+suite=overcooked
+# envs=(counter_circuit)
+# envs=(asymmetric_advantages coordination_ring)
+# envs=(counter_circuit_o_1order)
+envs=(counter_circuit)
+config=overcooked
+na=2
+# args1=(3)
+# args1=(1)
+# args2=(1 10)
+date=$(date +"%m%d")
+info=""
+ld="${suite}-logs"
+gpus=$(nvidia-smi -L | wc -l)
+
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
+
+# ========== scripts for happo ===========
+
+i=0
+INF_MAC_NODE_RANK=0
+for e in "${envs[@]}"; do
+    config="${config}"
+    for a in "${algos[@]}"; do
+        for s in {0..4}; do
+            env="${suite}-${e}"
+            if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+                gpu=$(($i % $gpus))
+                py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na &"
+            else
+                py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na &"
+            fi
+            echo $py_script
+            eval $py_script
+            ((i=(i+1) ))
+        done
+    done
+done
+wait
+echo "Script completed"
+
+# ========== scripts for happo_oc ===========
+
+# i=0
+# INF_MAC_NODE_RANK=0
+# for e in "${envs[@]}"; do
+#     config="${config}"
+#     for a in "${algos[@]}"; do
+#         for a1 in "${args1[@]}"; do
+#             for s in {5..9}; do
+#                 kws="n_imaginary_runs=$a1"
+#                 env="${suite}-${e}"
+#                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+#                     gpu=$(($i % $gpus))
+#                     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
+#                 else
+#                     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
+#                 fi
+#                 echo $py_script
+#                 eval $py_script
+#                 ((i=(i+1) ))
+#             done
+#         done
+#     done
+# done
+# wait
+# echo "Script completed"

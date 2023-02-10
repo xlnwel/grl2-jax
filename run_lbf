@@ -1,0 +1,131 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+# algos=(happo_lka1)
+algos=(happo)
+# algos=(happo_lka1 happo_lka2)
+suite=lbf
+config=lbf
+na=4
+pl=(2)
+nfood=(4)
+sight=(2)
+force_coop=false
+# lka_steps=(1)
+lka_steps=(0)
+date=$(date +"%m%d")
+info=""
+ld="${suite}-logs"
+gpus=$(nvidia-smi -L | wc -l)
+
+if [ -z "$info" ]; then
+    n=$date
+    echo $n
+else
+    n="$date-$info"
+    echo $n
+fi
+
+# i=0
+# for e in "${envs[@]}"; do
+#     for a in "${algos[@]}"; do
+#         for a1 in "${args1[@]}"; do
+#             for a2 in "${args2[@]}"; do
+#                 s=0
+#                 kws="lookahead_rollout=$a1 n_lookahead_runs=$a2"
+#                 env="${suite}-${e}"
+#                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+#                     gpu=$(($i % $gpus))
+#                     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s --gpu $gpu -na $na -kw $kws &"
+#                 else
+#                     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s -na $na -kw $kws &"
+#                 fi
+#                 echo $py_script
+#                 eval $py_script
+#                 ((i=(i+1) ))
+#             done
+#         done
+#         wait
+#     done
+#     wait
+# done
+# wait
+# echo "Script completed"
+
+# i=0
+# for a in "${algos[@]}"; do
+#     for max_player_level in "${pl[@]}"; do
+#         for max_food in "${nfood[@]}"; do
+#             for sight in "${sight[@]}"; do
+#                 s=0
+#                 if [ "$force_coop" = true ]; then
+#                     # e="2px${max_player_level}plx${max_food}nfxs${sight}xf"
+#                     e="fix2"
+#                     kws="max_player_level=${max_player_level} max_food=${max_food} sight=${sight} force_coop=True"
+#                 else
+#                     # e="2px${max_player_level}plx${max_food}nfxs${sight}"
+#                     e="fix2"
+#                     kws="max_player_level=${max_player_level} max_food=${max_food} sight=${sight}"
+#                 fi
+#                 echo $e
+#                 env="${suite}-${e}"
+#                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+#                     gpu=$(($i % $gpus))
+#                     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s --gpu $gpu -na $na -kw $kws &"
+#                 else
+#                     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s -na $na -kw $kws &"
+#                 fi
+#                 echo $py_script
+#                 eval $py_script
+#                 ((i=(i+1) ))
+#             done
+#             # wait
+#         done
+#         # wait
+#     done
+#     # wait
+# done
+# wait
+# echo "Script completed"
+
+i=0
+for a in "${algos[@]}"; do
+    for max_player_level in "${pl[@]}"; do
+        for max_food in "${nfood[@]}"; do
+            for sight in "${sight[@]}"; do
+                for n_lookahead_steps in "${lka_steps[@]}"; do
+                    for s in {0..4}; do
+                        if [ "$force_coop" = true ]; then
+                            # e="2px${max_player_level}plx${max_food}nfxs${sight}xf"
+                            e="fix2"
+                            kws="max_player_level=${max_player_level} max_food=${max_food} sight=${sight} force_coop=True n_lookahead_steps=${n_lookahead_steps}"
+                        else
+                            # e="2px${max_player_level}plx${max_food}nfxs${sight}"
+                            e="fix2"
+                            kws="max_player_level=${max_player_level} max_food=${max_food} sight=${sight} n_lookahead_steps=${n_lookahead_steps}"
+                        fi
+                        echo $e
+                        env="${suite}-${e}"
+                        if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
+                            gpu=$(($i % $gpus))
+                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n ${n} -s $s --gpu $gpu -na $na -kw $kws &"
+                        else
+                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n ${n} -s $s -na $na -kw $kws &"
+                        fi
+                        echo $py_script
+                        eval $py_script
+                        ((i=(i+1) ))
+                    done
+                    # wait
+                done
+                # wait
+            done
+            # wait
+        done
+        # wait
+    done
+    # wait
+done
+wait
+echo "Script completed"

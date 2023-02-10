@@ -15,7 +15,7 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 1e8
-    n_steps: &nsteps 25
+    n_steps: &nsteps 50
     LOG_PERIOD: 2e5
     EVAL_PERIOD: False
 
@@ -23,7 +23,7 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 0
+    n_lookahead_steps: 1
     lookahead_rollout: sim
     compute_return_at_once: True
     perm: null
@@ -32,20 +32,21 @@ env:
     env_name: &env_name lbf
     n_runners: &nrunners 1
     n_envs: &nenvs 64
-    max_episode_steps: 25
+    max_episode_steps: 50
     timeout_done: &td False
     env_args:
-      players: 2
+      players: 4
       max_player_level: 2
       field_size: 10
-      max_food: 3
-      sight: 1
-      max_episode_steps: 25
+      max_food: 4
+      sight: 2
+      max_episode_steps: 50
       force_coop: False
       normalize_reward: True
       grid_observation: True
       pretrained_wrapper: null
-    uid2aid: [0, 1]
+      seed: 0
+    uid2aid: [0, 1, 2, 3]
 
 agent: {}
 

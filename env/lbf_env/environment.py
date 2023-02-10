@@ -13,7 +13,7 @@ class LBFEnv(gym.Wrapper):
         
         self.sight = config.env_args.sight
         self._seed = config.seed
-        self.env.seed(self._seed)
+        # self.env.seed(self._seed)
         self._obs = None
         self._state = None
 
@@ -78,7 +78,7 @@ class LBFEnv(gym.Wrapper):
             'global_state': np.stack(self._state),
         }
 
-        assert len(obs) == self.n_agents, (obs, self.n_agents)
+        # assert len(obs) == self.n_agents, (obs, self.n_agents)
         assert len(reward) == self.n_agents, (reward, self.n_agents)
         assert len(done) == self.n_agents, (done, self.n_agents)
 

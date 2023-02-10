@@ -1,0 +1,4 @@
+# python run/eval.py logs/gd/gd/batch_size=256-norm=None-use_ln=False-norm_after_activation=False -n 10000 -nw 50 -ne 20
+xvfb-run -s "-screen 0 640x480x24" python run/eval.py /home/ubuntu/zhanglichao/chenfeng/LookAhead/lka/overcooked-logs/overcooked-counter_circuit/happo/0208/happo-baseline/seed=1 --fps 3 -n 64 --record
+# xvfb-run -s "-screen 0 640x480x24" python run/eval.py /home/ubuntu/zhanglichao/chenfeng/LookAhead/lka/lbf-logs/lbf-fix/happo_lka1/0208/happo_lka1-max_player_level=2-max_food=4-sight=2-n_lookahead_steps=1/seed=0 -n 64 --record
+# xvfb-run -s "-screen 0 640x480x24" python run/eval.py magw-logs/magw-escalation/zero/0205/ppo-share-n_imaginary_runs=0/seed=0/a0 -n 10 --record

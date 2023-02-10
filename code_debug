@@ -3,12 +3,14 @@
 export PYTHONPATH=.
 
 algos=(happo)
+# algos=(happo_lka1 happo_lka2)
 suite=lbf
 config=lbf
-na=2
-pl=(2 4)
-nfood=(3 5 8)
-sight=(1 2)
+na=4
+pl=(2)
+nfood=(4)
+sight=(2)
+force_coop=false
 # envs=(10px6fxs1)
 # suite=magw
 # envs=(escalation)
@@ -60,8 +62,14 @@ for a in "${algos[@]}"; do
         for max_food in "${nfood[@]}"; do
             for sight in "${sight[@]}"; do
                 s=0
-                e="2px${max_player_level}plx${max_food}nfxs${sight}"
-                kws="max_player_level=${max_player_level} max_food=${max_food} sight=${sight}"
+                if [ "$force_coop" = true ]; then
+                    e="${na}px${max_player_level}plx${max_food}nfxs${sight}xf"
+                    kws="max_player_level=${max_player_level} max_food=${max_food} sight=${sight} force_coop=True"
+                else
+                    e="${na}px${max_player_level}plx${max_food}nfxs${sight}"
+                    kws="max_player_level=${max_player_level} max_food=${max_food} sight=${sight}"
+                fi
+                echo $e
                 env="${suite}-${e}"
                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
                     gpu=$(($i % $gpus))

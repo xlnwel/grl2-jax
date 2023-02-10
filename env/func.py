@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 def is_ma_suite(env_name):
-    ma_suites = ['overcooked', 'smac', 'grf', 'grid_world']
+    # ma_suites = ['overcooked', 'smac', 'grf', 'grid_world']
+    ma_suites = ['smac', 'grf', 'grid_world']
     for suite in ma_suites:
         if env_name.startswith(suite):
             return True

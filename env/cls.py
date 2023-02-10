@@ -96,8 +96,10 @@ class VecEnvBase:
         self.name = config['env_name']
         if 'eid' not in config:
             config['eid'] = 0
-        self.envs = [env_fn(config, config['eid'] + eid)
-            for eid in range(n_envs)]
+        self.envs = []
+        for eid in range(n_envs):
+            config.seed += 1
+            self.envs.append(env_fn(config, config['eid'] + eid))
         self.env = self.envs[0]
         if config.get('seed') is not None and hasattr(self.env, 'seed'):
             [env.seed(config['seed'] + i) 

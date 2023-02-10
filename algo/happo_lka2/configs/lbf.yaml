@@ -5,6 +5,8 @@ info: happo_lka2
 
 precision: 32
 
+precision: 32
+
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
 # the following names are just examples; they will be re-specified in the entry point
@@ -17,29 +19,36 @@ routine:
     MAX_STEPS: 1e8
     n_steps: &nsteps 50
     LOG_PERIOD: 2e5
-    EVAL_PERIOD: null
+    EVAL_PERIOD: False
 
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 0
+    n_lookahead_steps: 1
     lookahead_rollout: sim
     compute_return_at_once: True
     perm: null
 
 env:
-    env_name: &env_name mpe-simple_spread
+    env_name: &env_name lbf
     n_runners: &nrunners 1
-    n_units: 3
-    num_landmarks: 3
     n_envs: &nenvs 64
     max_episode_steps: 50
-    reward_scale: .1
-    population_size: 1
     timeout_done: &td False
-
-    uid2aid: [0, 1, 2]
+    env_args:
+      players: 4
+      max_player_level: 2
+      field_size: 10
+      max_food: 4
+      sight: 2
+      max_episode_steps: 50
+      force_coop: False
+      normalize_reward: True
+      grid_observation: True
+      pretrained_wrapper: null
+      seed: 0
+    uid2aid: [0, 1, 2, 3]
 
 agent: {}
 

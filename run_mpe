@@ -3,7 +3,8 @@
 export PYTHONPATH=.
 
 # algos=(happo)
-algos=(happo_lka1)
+# algos=(happo_lka1)
+algos=(happo_lka2)
 suite=mpe
 envs=(simple_spread)
 config=simple_spread
@@ -12,7 +13,7 @@ na=3
 # config=simple_tag
 # na=3
 args1=(5)
-args2=(1 3)
+args2=(1)
 date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"
