@@ -1,4 +1,4 @@
-from random import randint
+from functools import partial
 import numpy as np
 import ray
 
@@ -6,16 +6,19 @@ from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code
 from core.typing import ModelPath
+from tools.display import print_dict
 from tools.store import StateStore, TempStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
-from algo.ppo.train import *
 from .run import *
+from algo.ppo.train import state_constructor, get_states, set_states, \
+    lookahead_optimize, ego_optimize
 
 
 def model_train(model, model_buffer):
     if model_buffer.ready_to_sample():
-        model.train_record()
+        with Timer('model_train'):
+            model.train_record()
 
 
 def lookahead_run(agents, model, buffers, model_buffer, routine_config):
@@ -34,14 +37,15 @@ def lookahead_run(agents, model, buffers, model_buffer, routine_config):
                 model, model_buffer, agents, buffers, routine_config)
 
 
+
 def lookahead_train(agents, model, buffers, model_buffer, routine_config, 
-        n_runs, run_fn, opt_fn):
+        aids, n_runs, run_fn, opt_fn):
     if not model_buffer.ready_to_sample():
         return
-    if n_runs > 0:
-        for _ in range(n_runs):
-            run_fn(agents, model, buffers, model_buffer, routine_config)
-            opt_fn(agents, routine_config)
+    assert n_runs > 0, n_runs
+    for _ in range(n_runs):
+        run_fn(agents, model, buffers, model_buffer, routine_config)
+        opt_fn(agents, routine_config, aids)
 
 
 def ego_run(agents, runner, buffers, model_buffer, routine_config):
@@ -54,14 +58,12 @@ def ego_run(agents, runner, buffers, model_buffer, routine_config):
         assert buffer.size() == 0, f"buffer {i}: {buffer.size()}"
 
     with Timer('run'):
-        i = randint(0, len(all_aids))   # i in [0, n], n is included to account for the possibility that all agents are looking-ahead
-        lka_aids = [aid for aid in all_aids if aid != i]
         with StateStore('real', constructor, get_fn, set_fn):
             runner.run(
                 routine_config.n_steps, 
                 agents, buffers, 
                 model_buffer, 
-                lka_aids, all_aids, 
+                all_aids, all_aids, 
                 compute_return=routine_config.compute_return_at_once
             )
 
@@ -76,20 +78,15 @@ def ego_run(agents, runner, buffers, model_buffer, routine_config):
 
 
 def ego_train(agents, runner, buffers, model_buffer, routine_config, 
-        n_runs, run_fn, opt_fn):
-    if n_runs > 0:
-        for _ in range(n_runs):
-            env_step = run_fn(
-                agents, runner, buffers, model_buffer, routine_config)
-            train_step = opt_fn(agents, routine_config)
-    else:
-        env_step = agents[0].get_env_step()
-        train_step = agents[0].get_train_step()
+        aids, run_fn, opt_fn):
+    env_step = run_fn(
+        agents, runner, buffers, model_buffer, routine_config)
+    train_step = opt_fn(agents, routine_config, aids)
 
     return env_step, train_step
 
 
-def eval_and_log(agents, model, runner, env_step, routine_config):
+def eval_and_log(agents, model, runner, env_step, train_step, routine_config):
     get_fn = partial(get_states, agents=agents, runner=runner)
     set_fn = partial(set_states, agents=agents, runner=runner)
     def constructor():
@@ -114,13 +111,43 @@ def eval_and_log(agents, model, runner, env_step, routine_config):
         for agent in agents:
             agent.save()
         model.save()
+
     with Timer('log'):
         if video is not None:
             agents[0].video_summary(video, step=env_step, fps=1)
+        fps = agents[0].get_env_step_intervals() / Timer('run').last()
+        tps = agents[0].get_train_step_intervals() / Timer('train').last()
+        agents[0].store(**{
+                'stats/train_step': train_step, 
+                'time/fps': fps, 
+                'time/tps': tps, 
+            }, 
+            **Timer.all_stats()
+        )
         agents[0].record(step=env_step)
         for i in range(1, len(agents)):
             agents[i].clear()
+
+        train_step = model.get_train_step()
+        model_train_duration = Timer('model_train').last()
+        if model_train_duration == 0:
+            tps = 0
+        else:
+            tps = model.get_train_step_intervals() / model_train_duration
+        model.store(**{
+                'stats/train_step': train_step, 
+                'time/tps': tps, 
+            }, 
+            **Timer.all_stats()
+        )
         model.record(step=env_step)
+
+
+def training_aids(all_aids, routine_config):
+    aids = np.random.choice(
+        all_aids, size=len(all_aids), replace=False, 
+        p=routine_config.perm)
+    return aids
 
 
 def train(
@@ -130,6 +157,7 @@ def train(
     buffers, 
     model_buffer, 
     routine_config, 
+    aids_fn=training_aids,
     lka_run_fn=lookahead_run, 
     lka_opt_fn=lookahead_optimize, 
     lka_train_fn=lookahead_train, 
@@ -146,26 +174,39 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
+    all_aids = list(range(len(agents)))
+
     while env_step < routine_config.MAX_STEPS:
+        aids = aids_fn(all_aids, routine_config)
+        
         model_train_fn(
             model, 
             model_buffer
         )
+
+        all_aids = list(range(len(agents)))
+        aids = np.random.choice(
+            all_aids, size=len(all_aids), replace=False, 
+            p=routine_config.perm)
+
         lka_train_fn(
-            agents, model, 
-            buffers, model_buffer, 
+            agents, 
+            model, 
+            buffers, 
+            model_buffer, 
             routine_config, 
+            aids=aids, 
             n_runs=routine_config.n_lookahead_steps, 
             run_fn=lka_run_fn, 
             opt_fn=lka_opt_fn
         )
-        env_step, _ = ego_train_fn(
+        env_step, train_step = ego_train_fn(
             agents, 
             runner, 
             buffers, 
             model_buffer, 
             routine_config, 
-            n_runs=1, 
+            aids=aids, 
             run_fn=ego_run_fn, 
             opt_fn=ego_opt_fn
         )
@@ -173,7 +214,8 @@ def train(
         time2record = agents[0].contains_stats('score') \
             and to_record(env_step)
         if time2record:
-            eval_and_log(agents, model, runner, env_step, routine_config)
+            eval_and_log(
+                agents, model, runner, env_step, train_step, routine_config)
 
 
 def main(configs, train=train):
@@ -193,7 +235,10 @@ def main(configs, train=train):
     configs, model_config = configs[:-1], configs[-1]
     # load agents
     env_stats = runner.env_stats()
+    assert len(configs) == env_stats.n_agents, (len(configs), env_stats.n_agents)
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
+    print_dict(env_stats)
+
     agents = []
     buffers = []
     root_dir = config.root_dir
@@ -208,6 +253,8 @@ def main(configs, train=train):
             configs[i], 
             model_name=new_model_name, 
         )
+        if c.routine.compute_return_at_once:
+            c.buffer.sample_keys += ['advantage', 'v_target']
         builder = ElementsBuilder(
             configs[i], 
             env_stats, 
@@ -244,8 +291,6 @@ def main(configs, train=train):
     model_buffer = elements.buffer
 
     routine_config = configs[0].routine.copy()
-    if routine_config.perm is None:
-        routine_config.perm = list(np.ones(len(agents)) / len(agents))
     train(
         agents, 
         model, 

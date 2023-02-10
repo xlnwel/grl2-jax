@@ -1,4 +1,4 @@
-## Dynamics v1
+### Dynamics v1
 
 We learn three independent function approximators using MLPs
 1. (obs, action) -> next_obs

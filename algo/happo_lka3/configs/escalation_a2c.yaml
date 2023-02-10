@@ -1,7 +1,7 @@
 ---
-algorithm: &algo happo_lka3
-name: happo_lka3
-info: happo_lka3
+algorithm: &algo happo
+name: happo
+info: a2c
 
 precision: 32
 

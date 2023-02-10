@@ -3,7 +3,7 @@
 export PYTHONPATH=.
 
 algos=(
-    zero_mb
+    happo_mb
 )
 suite=$1
 shift
@@ -15,7 +15,7 @@ e=${envs[0]}
 configs=(
     "${e}"
 )
-args1=(1 1 1 1 3 3 3 3)
+args1=(1 3)
 args2=(128 128 256 256)
 args3=(10 20)
 args4=(5 10)
@@ -54,60 +54,21 @@ la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
-for a4 in "${args4[@]}"; do
-    for s in {0..9}; do
-        kws="n_lookahead_steps=$a1 n_lookahead_envs=$a2 n_lookahead_steps=$a3 img_prnn_bptt=$a4 img_vrnn_bptt=$a4"
-        # echo $kws
-        if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
-            gpu=$(($i % $gpus))
-            py_script="python run/train.py -a ${a} ${a} $suite -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -kw $kws &"
-        else
-            py_script="python run/train.py -a ${a} ${a} $suite -e $env -c $config -ld $ld -n $n -s $s -kw $kws &"
-        fi
+commands=()
+kws="n_lookahead_steps=$a1"
+for e in "${envs[@]}"; do
+    config=$e
+    env="${suite}-${e}"
+    for s in {0..5}; do
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws"
+        commands+=("$py_script")
         echo $py_script
-        eval $py_script
-        ((i=(i+1) ))
+        # eval $py_script
     done
 done
-wait
+# echo ${commands[@]}s
+lc=${#commands[@]}
+p=$((lc / le))
+# echo $p
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"
-for e in "${envs[@]}"; do
-# le=${#envs[@]}
-# idx=$(($INF_MAC_NODE_RANK % $le))
-# e=${envs[$idx]}
-# lc=${#configs[@]}
-# idx=$(($INF_MAC_NODE_RANK % $lc))
-# config=${configs[$idx]}
-# la1=${#args1[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la1))
-# a1=${args1[$idx]}
-# la2=${#args2[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la2))
-# a2=${args2[$idx]}
-# la3=${#args3[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la3))
-# a3=${args3[$idx]}
-# if [[ "${suite}" == "mpe" ]]; then
-#     na=3
-# else
-#     na=2
-# fi
-# for a in "${algos[@]}"; do
-#     for s in {0..9}; do
-#         kws="n_lookahead_steps=$a1"
-#         # echo $kws
-#         env="${suite}-${e}"
-#         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
-#             gpu=$(($i % $gpus))
-#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
-#         else
-#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
-#         fi
-#         echo $py_script
-#         eval $py_script
-#         ((i=(i+1) ))
-#     done
-#     # wait
-# done
-# wait
-# echo "Script completed"

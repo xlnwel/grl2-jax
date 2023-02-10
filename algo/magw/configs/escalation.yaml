@@ -24,7 +24,7 @@ routine:
     n_lookahead_steps: 8
 
 env:
-    env_name: &env_name magw-escalatioin
+    env_name: &env_name magw-escalation
     n_runners: &nrunners 1
     n_envs: &nenvs 32
     max_episode_steps: 50
@@ -50,13 +50,11 @@ model:
     emodels:
         nn_id: emodels
         n: &n 1
-        one_hot: True
         units_list: [256, 256]
         activation: relu
         norm: null
     reward:
         nn_id: reward
-        one_hot: True
         out_size: 1
         units_list: [256, 256]
         activation: relu
