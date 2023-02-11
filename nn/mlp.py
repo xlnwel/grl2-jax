@@ -3,6 +3,9 @@ import jax
 import jax.numpy as jnp
 import haiku as hk
 
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
+
 from core.log import do_logging
 from nn.layers import Layer
 from nn.registry import layer_registry, nn_registry
@@ -94,12 +97,26 @@ class MLP(hk.Module):
                 x = l(x, is_training)
             if state is None:
                 state = core.initial_state(x.shape[0])
-
+            
+            print("=-="*20)
+            print(x.shape)
+            # print(state.shape)
+            
             # we assume the original data is of form [B, T, U, *]
             x, shape = _prepare_for_rnn(x)
             reset, _ = _prepare_for_rnn(reset)
             x = (x, reset)
+            print("->"*20)
+            print(x[0].shape)
+            print(x[1].shape)
+            # print(state.shape)
+            print(state.hidden.shape)
+            print(state.cell.shape)
             x, state = hk.dynamic_unroll(core, x, state)
+            print('after'*10)
+            print(x.shape)
+            print(state.shape)
+            assert 0
             x = _recover_shape(x, shape)
 
             for l in out_layers:
@@ -157,8 +174,8 @@ if __name__ == '__main__':
     s = 3
     d = 4
     # x = jax.random.normal(rng, (b, s, d))
-    x = jnp.ones((b, s, d))
-    reset = jnp.ones((b, s))
+    x = jnp.ones((b, s, 1, d))
+    reset = jnp.ones((b, s, 1))
     net = hk.transform(mlp)
     params = net.init(rng, x, reset)
     out, state = net.apply(params, rng, x, reset)
