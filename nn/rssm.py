@@ -41,12 +41,6 @@ def _rnn_reshape(rnn_out, shape, rnn_type):
     else:
         assert 0, rnn_type
 
-"""
-RSSM这个class其实就是以神经网络参数的形式封装了RSSM方法中的三个函数（参数化）
-问题是，之前的方法当中，这些东西都可以实例化（表达成模块）
-jax当中模块的内容必须表达成函数
-    - 
-"""
 
 @nn_registry.register('rssm_model')
 class RSSMModel(hk.Module):
@@ -62,17 +56,13 @@ class RSSM(hk.Module):
         deter=200,
         hidden=200,
         discrete=False,
-        act='elu',
         norm='none',
-        std_act='softplus',
-        min_std=0.1,
         embed_units_list=[],
         trans_units_list=[],
         repre_units_list=[],
         layer_type='linear',
         activation=None,
         w_init='glorot_uniform',
-        b_init='zeros',
         norm_after_activation=False,
         norm_kwargs={
             'axis': -1,
