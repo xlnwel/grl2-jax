@@ -98,25 +98,11 @@ class MLP(hk.Module):
             if state is None:
                 state = core.initial_state(x.shape[0])
             
-            print("=-="*20)
-            print(x.shape)
-            # print(state.shape)
-            
             # we assume the original data is of form [B, T, U, *]
             x, shape = _prepare_for_rnn(x)
             reset, _ = _prepare_for_rnn(reset)
             x = (x, reset)
-            print("->"*20)
-            print(x[0].shape)
-            print(x[1].shape)
-            # print(state.shape)
-            print(state.hidden.shape)
-            print(state.cell.shape)
             x, state = hk.dynamic_unroll(core, x, state)
-            print('after'*10)
-            print(x.shape)
-            print(state.shape)
-            assert 0
             x = _recover_shape(x, shape)
 
             for l in out_layers:

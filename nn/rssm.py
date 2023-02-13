@@ -41,12 +41,6 @@ def _rnn_reshape(rnn_out, shape, rnn_type):
     else:
         assert 0, rnn_type
 
-
-@nn_registry.register('rssm_model')
-class RSSMModel(hk.Module):
-    def __init__(self):
-        pass
-
 @nn_registry.register('rssm')
 class RSSM(hk.Module):
     def __init__(

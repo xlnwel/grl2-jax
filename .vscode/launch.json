@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: 当前文件",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "-a=dynamics", "-e=magw-escalation", "-c=escalation", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-na=2"
+            ]
+        },
+        {
             "name": "Python: Train",
             "type": "python",
             "request": "launch",

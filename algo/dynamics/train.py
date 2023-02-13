@@ -137,7 +137,7 @@ def main(configs, train=train):
     elements = builder.build_agent_from_scratch()
     model = elements.agent
     buffer = elements.buffer
-    save_code(ModelPath(config.root_dir, config.model_name))
+    # save_code(ModelPath(config.root_dir, config.model_name))
 
     train(config, model, env, buffer)
 
