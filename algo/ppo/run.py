@@ -40,9 +40,9 @@ class Runner(RunnerWithState):
     ):
         for aid, agent in enumerate(agents):
             if aid in lka_aids:
-                agent.strategy.model.switch_params(True)
+                agent.model.switch_params(True)
             else:
-                agent.strategy.model.check_params(False)
+                agent.model.check_params(False)
 
         env_output = self.env_output
         env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
@@ -80,9 +80,9 @@ class Runner(RunnerWithState):
         prepare_buffer(collect_ids, agents, buffers, env_outputs, compute_return)
 
         for i in lka_aids:
-            agents[i].strategy.model.switch_params(False)
+            agents[i].model.switch_params(False)
         for agent in agents:
-            agent.strategy.model.check_params(False)
+            agent.model.check_params(False)
 
         self.env_output = env_output
         return env_outputs
@@ -96,8 +96,8 @@ class Runner(RunnerWithState):
         video_len=1000, 
         n_windows=4
     ):
-        for a in agents:
-            a.strategy.model.check_params(False)
+        for agent in agents:
+            agent.model.check_params(False)
 
         if n is None:
             n = self.env.n_envs
@@ -175,9 +175,9 @@ class Runner(RunnerWithState):
     def eval(self, agents, lka_aids, prefix=''):
         for i, agent in enumerate(agents):
             if i in lka_aids:
-                agent.strategy.model.switch_params(True)
+                agent.model.switch_params(True)
             else:
-                agent.strategy.model.check_params(False)
+                agent.model.check_params(False)
 
         env_output = self.env.reset()
         np.testing.assert_allclose(env_output.reset, 1)
@@ -198,9 +198,9 @@ class Runner(RunnerWithState):
             env_outputs = new_env_outputs
 
         for i in lka_aids:
-            agents[i].strategy.model.switch_params(False)
+            agents[i].model.switch_params(False)
         for agent in agents:
-            agent.strategy.model.check_params(False)
+            agent.model.check_params(False)
         np.testing.assert_allclose(env_output.reset, 1)
         for i, a in enumerate(agents):
             if prefix:
@@ -210,6 +210,7 @@ class Runner(RunnerWithState):
         info = {f'{prefix}_{k}': np.mean(v) for k, v in info.items()}
 
         return info
+
 
 def prepare_buffer(
     collect_ids, 

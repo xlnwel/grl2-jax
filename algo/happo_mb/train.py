@@ -37,12 +37,11 @@ def lookahead_run(agents, model, buffers, model_buffer, routine_config):
                 model, model_buffer, agents, buffers, routine_config)
 
 
-
 def lookahead_train(agents, model, buffers, model_buffer, routine_config, 
         aids, n_runs, run_fn, opt_fn):
     if not model_buffer.ready_to_sample():
         return
-    assert n_runs > 0, n_runs
+    assert n_runs >= 0, n_runs
     for _ in range(n_runs):
         run_fn(agents, model, buffers, model_buffer, routine_config)
         opt_fn(agents, routine_config, aids)
@@ -62,7 +61,7 @@ def ego_run(agents, runner, buffers, model_buffer, routine_config):
             runner.run(
                 routine_config.n_steps, 
                 agents, buffers, 
-                model_buffer, 
+                model_buffer if routine_config.n_lookahead_steps > 1 else None, 
                 all_aids, all_aids, 
                 compute_return=routine_config.compute_return_at_once
             )
@@ -184,11 +183,6 @@ def train(
             model_buffer
         )
 
-        all_aids = list(range(len(agents)))
-        aids = np.random.choice(
-            all_aids, size=len(all_aids), replace=False, 
-            p=routine_config.perm)
-
         lka_train_fn(
             agents, 
             model, 
@@ -264,7 +258,8 @@ def main(configs, train=train):
         elements = builder.build_agent_from_scratch()
         agents.append(elements.agent)
         buffers.append(elements.buffer)
-    save_code(ModelPath(root_dir, model_name))
+    if seed == 0:
+        save_code(ModelPath(root_dir, model_name))
 
     # load model
     new_model_name = '/'.join([model_name, 'model'])

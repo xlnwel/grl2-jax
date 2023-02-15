@@ -29,7 +29,7 @@ def _print_array(v, prefix, level, backtrack):
 def print_dict_info(d, prefix='', level='pwt', backtrack=3):
     if isinstance(d, (list, tuple)):
         for i, v in enumerate(d):
-            print_dict_info(v, f'{prefix} {i}', level=level, backtrack=backtrack+1)
+            print_dict_info(v, f'{prefix} idx({i})', level=level, backtrack=backtrack+1)
     elif isinstance(d, (np.ndarray, jnp.DeviceArray, jax.ShapedArray)):
         _print_array(d, prefix, level, backtrack=backtrack)
     elif isinstance(d, dict):

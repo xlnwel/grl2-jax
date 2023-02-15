@@ -46,11 +46,11 @@ def static_scan(f, inputs, start):
                 outputs[i][_key] = jnp.stack(outputs[i][_key], 0)
     else:
         assert 0, outputs.__class__
-    return outputs    
+    return outputs
 
-def tree_map(f, x, is_leaf=None):
+def tree_map(f, x, *rest, is_leaf=None):
     x = tree_util.tree_map(
-        lambda x: x if x is None else f(x), x, is_leaf=is_leaf)
+        lambda x, *rest: x if x is None else f(x, *rest), x, *rest, is_leaf=is_leaf)
     return x
 
 def random_generator(seed):

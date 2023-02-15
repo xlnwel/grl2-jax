@@ -308,7 +308,8 @@ def main(configs, train=train):
         elements = builder.build_agent_from_scratch()
         agents.append(elements.agent)
         buffers.append(elements.buffer)
-    save_code(ModelPath(root_dir, model_name))
+    if seed == 0:
+        save_code(ModelPath(root_dir, model_name))
 
     routine_config = configs[0].routine.copy()
     train(

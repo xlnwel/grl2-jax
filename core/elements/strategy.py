@@ -204,21 +204,21 @@ def create_strategy(
     env_stats: AttrDict, 
     actor: Actor=None,
     trainer: Union[TrainerBase, TrainerEnsemble]=None, 
-    dataset=None,
+    buffer=None,
     *,
     strategy_cls=Strategy,
     training_loop_cls=None
 ):
     if trainer is not None:
-        if dataset is None:
-            raise ValueError('Missing dataset')
+        if buffer is None:
+            raise ValueError('Missing buffer')
         if training_loop_cls is None:
             algo = config.algorithm.split('-')[-1]
             training_loop_cls = pkg.import_module(
                 'elements.trainloop', algo=algo).TrainingLoop
         train_loop = training_loop_cls(
             config=config.train_loop, 
-            dataset=dataset, 
+            buffer=buffer, 
             trainer=trainer
         )
     else:

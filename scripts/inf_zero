@@ -3,18 +3,19 @@
 export PYTHONPATH=.
 
 algos=(
-    happo_lka3
-    happo_lka3
-    happo_lka3
+    happo_mb
+    happo_mb
+    happo_mb
+    happo_mb
 )
 suite=ma_mujoco
 envs=(
-    Ant_8x1
-    HalfCheetah_6x1
-    Walker2d_6x1
-    Ant_4x2
-    HalfCheetah_3x2
-    Walker2d_3x2
+    # Ant_8x1
+    # HalfCheetah_6x1
+    # Walker2d_6x1
+    # Ant_4x2
+    # HalfCheetah_3x2
+    # Walker2d_3x2
     Ant_2x4
     HalfCheetah_2x3
     Walker2d_2x3
@@ -24,10 +25,9 @@ configs=(
     "${suite}"
 )
 # configs=$envs
-na=2
-args1=(5 3 1 1 3 5 1 3 5 1 3 5)
+args1=(25 25 50 50)
 args2=(
-    False
+    128 256
     # .9,.09,.009,.0009,.00009,.00001 
     # .00001,.9,.09,.009,.0009,.00009 
     # .00009,.00001,.9,.09,.009,.0009 
@@ -86,11 +86,11 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-kws="n_lookahead_steps=$a1"
+kws="n_epochs=$a1 batch_size=$a2"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
-    for s in {0..5}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws"
+    for s in {0..4}; do
+        py_script="python run/train.py -a ${a} ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

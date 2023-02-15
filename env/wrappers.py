@@ -853,6 +853,7 @@ class EnvStatsBase(gym.Wrapper):
         self._dense_score = 0   # the (shaped) reward for training
         self._epslen = 0
         self._info = {}
+        self._prev_output = None
         self._output = None
         self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
         if hasattr(self.env, 'stats'):
@@ -919,11 +920,14 @@ class EnvStatsBase(gym.Wrapper):
         return self._game_over
 
     def prev_obs(self):
-        return self._prev_env_output.obs
+        return self._prev_output.obs
 
     def info(self):
         return self._info
         
+    def prev_output(self):
+        return self._prev_output
+
     def output(self):
         return self._output
 
@@ -961,6 +965,7 @@ class EnvStats(EnvStatsBase):
             else:
                 discount = self.float_dtype(1)
                 reset = self.float_dtype(True)
+        self._prev_output = EnvOutput(obs, reward, discount, reset)
         self._output = EnvOutput(obs, reward, discount, reset)
 
         return self._output
@@ -1012,7 +1017,7 @@ class EnvStats(EnvStatsBase):
             discount = self.float_dtype(1-done)
             reset = self.float_dtype(info.get('reset', False))
         # store previous env output for later retrieval
-        self._prev_env_output = GymOutput(obs, reward, discount)
+        self._prev_output = EnvOutput(obs, reward, discount, reset)
 
         assert isinstance(self._game_over, bool), self._game_over
         # reset env
@@ -1094,6 +1099,7 @@ class MASimEnvStats(EnvStatsBase):
         reward = self._get_agent_wise_zeros()
         discount = self._get_agent_wise_ones()
         reset = self._get_agent_wise_ones()
+        self._prev_output = EnvOutput(obs, reward, discount, reset)
         self._output = EnvOutput(obs, reward, discount, reset)
 
         return self._output
@@ -1124,14 +1130,13 @@ class MASimEnvStats(EnvStatsBase):
         discount = [np.array(1-d, self.float_dtype) for d in done]
 
         # store previous env output for later retrieval
-        self._prev_env_output = GymOutput(obs, reward, discount)
+        reset = self._get_agent_wise_zeros()
+        self._prev_output = EnvOutput(obs, reward, discount, reset)
 
         # reset env
         if self._game_over and self.auto_reset:
             # when resetting, we override the obs and reset but keep the others
             obs, _, _, reset = self._reset()
-        else:
-            reset = self._get_agent_wise_zeros()
         obs = self.observation(obs)
         self._info = info
 
@@ -1187,6 +1192,7 @@ class MATurnBasedEnvStats(EnvStatsBase):
         self._resets = np.ones(self.env.n_units, dtype=np.float32)
         reset = np.expand_dims(self._resets[obs['uid']], 0)
         self._resets[obs['uid']] = 0
+        self._prev_output = EnvOutput(obs, reward, discount, reset)
         self._output = EnvOutput(obs, reward, discount, reset)
 
         return self._output
@@ -1208,7 +1214,8 @@ class MATurnBasedEnvStats(EnvStatsBase):
             assert np.all(discount == 0), discount
 
         # store previous env output for later retrieval
-        self._prev_env_output = GymOutput(obs, reward, discount)
+        reset = np.expand_dims(self._resets[obs['uid']], 0)
+        self._prev_output = EnvOutput(obs, reward, discount, reset)
 
         # reset env
         if self._game_over and self.auto_reset:

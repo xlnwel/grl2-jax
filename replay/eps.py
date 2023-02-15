@@ -176,10 +176,13 @@ class EpisodicReplay(Buffer):
         sample_size=None, 
         squeeze=False
     ):
-        batch_size = batch_size or self.batch_size
-        samples = [self._sample(sample_keys, sample_size, squeeze)
-            for _ in range(batch_size)]
-        data = batch_dicts(samples)
+        if self.ready_to_sample():
+            batch_size = batch_size or self.batch_size
+            samples = [self._sample(sample_keys, sample_size, squeeze)
+                for _ in range(batch_size)]
+            data = batch_dicts(samples)
+        else:
+            data = None
 
         return data
     

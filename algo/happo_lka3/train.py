@@ -2,6 +2,7 @@ from functools import partial
 import numpy as np
 
 from algo.ppo.train import main, train
+from algo.happo_lka2.train import ego_run
 
 
 def training_aids(all_aids, routine_config):
@@ -11,5 +12,5 @@ def training_aids(all_aids, routine_config):
     return aids
 
 
-train = partial(train, aids_fn=training_aids)
+train = partial(train, aids_fn=training_aids, ego_run_fn=ego_run)
 main = partial(main, train=train)

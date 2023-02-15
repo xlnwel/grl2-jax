@@ -35,6 +35,7 @@ class Ensemble:
             self.env_stats = dict2AttrDict(env_stats, to_copy=True)
         else:
             self.env_stats = None
+        
         self.prev_init()
         self.components = dict2AttrDict(components, shallow=True)
         add_attr(self, components)
