@@ -2,6 +2,7 @@ import logging
 import jax
 import jax.numpy as jnp
 import haiku as hk
+from jax_tools import jax_utils
 
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
@@ -25,6 +26,10 @@ def _recover_shape(x, shape):
     x = jnp.reshape(x, (*shape[:3], x.shape[-1]))
     return x
 
+def _rnn_reshape(rnn_out, shape):
+    rnn_out = jax_utils.tree_map(lambda x: x.reshape(shape), rnn_out)
+    return rnn_out
+    
 @nn_registry.register('mlp')
 class MLP(hk.Module):
     def __init__(
@@ -96,14 +101,17 @@ class MLP(hk.Module):
             for l in layers:
                 x = l(x, is_training)
             if state is None:
-                state = core.initial_state(x.shape[0])
+                state = core.initial_state(x.shape[0] * x.shape[2])
             
             # we assume the original data is of form [B, T, U, *]
             x, shape = _prepare_for_rnn(x)
             reset, _ = _prepare_for_rnn(reset)
             x = (x, reset)
+            
+            state = _rnn_reshape(state, (shape[0]*shape[2], -1))
             x, state = hk.dynamic_unroll(core, x, state)
             x = _recover_shape(x, shape)
+            state = _rnn_reshape(state, (shape[0], shape[2], -1))
 
             for l in out_layers:
                 x = l(x, is_training)

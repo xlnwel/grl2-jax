@@ -12,7 +12,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "-a=dynamics", "-e=magw-escalation", "-c=escalation", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-na=2"
+                "-a=dreamer", "-e=magw-escalation", "-c=escalation", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-na=2"
             ]
         },
         {

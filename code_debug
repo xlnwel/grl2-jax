@@ -2,16 +2,17 @@
 
 export PYTHONPATH=.
 
-algos=(happo)
-suite=lbf
-envs=(10px6fxs1)
-config=lbf
+# algos=(happo)
+algos=(dreamer)
+suite=magw
+envs=(escalation)
+config=escalation
 # suite=magw
 # envs=(escalation)
 # config=escalation
-na=6
+na=2
 args1=(sim)
-args2=(0)
+args2=(1)
 date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"

@@ -26,9 +26,9 @@ def static_scan(f, inputs, start):
         assert 0, start.__class__
 
     assert isinstance(inputs, tuple) or isinstance(inputs, jnp.ndarray), inputs.__class__
-    indices = range(inputs.shape[0]) if isinstance(inputs, jnp.ndarray) else range(inputs[0].shape[0])
+    indices = range(inputs.shape[0]) if isinstance(inputs, jnp.ndarray) else range(inputs[-1].shape[0])
     for index in indices:
-        inp = inputs[index] if isinstance(inputs, jnp.ndarray) else tuple([inputs_item[index] for inputs_item in inputs])
+        inp = inputs[index] if isinstance(inputs, jnp.ndarray) else tuple([inputs_item[index] if inputs_item is not None else None for inputs_item in inputs])
         last = f(last, inp)
         if isinstance(last, tuple) and hasattr(last, "_asdict"):
             for _key in outputs:
