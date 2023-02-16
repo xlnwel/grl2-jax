@@ -23,8 +23,7 @@ class LocalBuffer(Buffer):
         super().__init__(config, env_stats, model, aid)
         self.runner_id = runner_id
 
-        self._buffer = collections.defaultdict(list)
-        self._size = 0
+        self._buffer = []
 
         self._add_attributes()
     
@@ -34,8 +33,11 @@ class LocalBuffer(Buffer):
     def name(self):
         return self.config.type
 
+    def __len__(self):
+        return len(self._buffer)
+
     def is_full(self):
-        return self._size >= self.config.n_steps
+        return len(self._buffer) >= self.config.n_steps
 
     @abstractmethod
     def retrieve_all_data(self):
@@ -46,7 +48,7 @@ class LocalBuffer(Buffer):
         raise NotImplementedError
 
 
-class EnvEpisodicBuffer(LocalBuffer):
+class EpisodicBuffer(LocalBuffer):
     def reset(self):
         self._buffer.clear()
         self._size = 0
@@ -58,58 +60,44 @@ class EnvEpisodicBuffer(LocalBuffer):
         return data
 
     def add(self, **data):
-        for k, v in data.items():
-            self._buffer[k].append(v)
-        self._size += 1
+        self._buffer.append(data)
+        if np.all(data['reset']) or np.all(data['discount'] == 0):
+            eps = batch_dicts(self._buffer)
+            self._buffer = []
+        else:
+            eps = None
+        
+        return eps
 
 
 class NStepBuffer(LocalBuffer):
     def _add_attributes(self):
-        self._max_steps = getattr(self, '_max_steps', 0)
-        self._extra_len = max(self._n_steps, self._max_steps)
-        self._memlen = self._seqlen + self._extra_len
+        self.max_steps = self.config.get('max_steps', 1)
+        self.gamma = self.config.gamma
+        self._buffer = collections.deque(maxlen=self.max_steps)
 
+    def is_full(self):
+        return len(self._buffer) == self.max_steps
 
-class EnvNStepBuffer(NStepBuffer):
-    """ Local memory only stores one episode of transitions from each of n environments """
     def reset(self):
-        assert self.is_full(), self._idx
-        self._idx = self._extra_len
-        for v in self._buffer.values():
-            v[:self._extra_len] = v[self._seqlen:]
+        self._buffer.clear()
 
     def add(self, **data):
         """ Add experience to local memory """
-        if self._buffer == {}:
-            del data['next_obs']
-            init_buffer(self._buffer, pre_dims=self._memlen, has_steps=self._n_steps>1, **data)
-            print_buffer(self._buffer, 'Local')
-            
-        add_buffer(self._buffer, self._idx, self._n_steps, self._gamma, **data)
-        self._idx = self._idx + 1
-
-    def retrieve_all_data(self):
-        assert self.is_full(), self._idx
-        return self.retrieve(self._seqlen)
-
-    def retrieve(self, seqlen=None):
-        seqlen = seqlen or self._idx
-        results = {}
-        for k, v in self._buffer.items():
-            results[k] = v[:seqlen]
-        if 'next_obs' not in self._buffer:
-            idxes = np.arange(seqlen)
-            steps = results.get('steps', 1)
-            next_idxes = idxes + steps
-            if isinstance(self._buffer['obs'], np.ndarray):
-                results['next_obs'] = self._buffer['obs'][next_idxes]
-            else:
-                results['next_obs'] = [np.array(self._buffer['obs'][i], copy=False) 
-                    for i in next_idxes]
-        if 'steps' in results:
-            results['steps'] = results['steps'].astype(np.float32)
-
-        return results
+        if self.is_full():
+            result = self._buffer.popleft()
+        else:
+            result = None
+        reward = data['reward']
+        for i, d in enumerate(reversed(self._buffer)):
+            d['reward'] += self.gamma**(i+1) * reward
+            d['steps'] += 1
+            for k, v in data.items():
+                if k.startswith('next_'):
+                    d[k] = v
+        data['steps'] = np.ones_like(reward)
+        self._buffer.append(data)
+        return result
 
 
 class VecEnvNStepBuffer(NStepBuffer):

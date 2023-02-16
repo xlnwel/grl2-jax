@@ -11,7 +11,7 @@ from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict, tree_slice
-from replay.local import EnvEpisodicBuffer
+from replay.local import EpisodicBuffer
 from replay.utils import load_data, save_data
 from tools.utils import batch_dicts
 from tools.display import print_dict_info
@@ -45,17 +45,16 @@ class EpisodicReplay(Buffer):
         self.min_episodes = self.config.get('min_episodes', 10)
         self.batch_size = self.config.batch_size
 
-        # Store and retrieve entire episodes if sample_size is None
-        self._tmp_bufs: List[EnvEpisodicBuffer] = [
-            EnvEpisodicBuffer(config, env_stats, model, aid, 0) 
+        self._tmp_bufs: List[EpisodicBuffer] = [
+            EpisodicBuffer(config, env_stats, model, aid, 0) 
             for _ in range(self.n_envs)
         ]
 
     def ready_to_sample(self):
-        return len(self._memory) >= self.min_episodes
+        return len(self) >= self.min_episodes
 
     def __len__(self):
-        return len(self._memory)
+        return len(self._filenames)
 
     def collect(self, reset, obs, next_obs, **kwargs):
         for k, v in obs.items():
@@ -71,13 +70,14 @@ class EpisodicReplay(Buffer):
                 idxes = range(self.n_envs)
             for i in idxes:
                 d = tree_slice(data, i)
-                self._tmp_bufs[i].add(**d)
-                if np.all(d['reset']):
-                    self.finish_episodes(i)
+                eps = self._tmp_bufs[i].add(**d)
+                if eps is not None:
+                    self.merge(eps)
         else:
-            self._tmp_bufs[0].add(**data)
-            if np.all(data['reset']):
-                self.finish_episodes()
+            data = tree_slice(data, 0)
+            eps = self._tmp_bufs[0].add(**data)
+            if eps is not None:
+                self.merge(eps)
 
     def reset_local_buffer(self, i=None):
         if i is None:
@@ -176,10 +176,13 @@ class EpisodicReplay(Buffer):
         sample_size=None, 
         squeeze=False
     ):
-        batch_size = batch_size or self.batch_size
-        samples = [self._sample(sample_keys, sample_size, squeeze)
-            for _ in range(batch_size)]
-        data = batch_dicts(samples)
+        if self.ready_to_sample():
+            batch_size = batch_size or self.batch_size
+            samples = [self._sample(sample_keys, sample_size, squeeze)
+                for _ in range(batch_size)]
+            data = batch_dicts(samples)
+        else:
+            data = None
 
         return data
     

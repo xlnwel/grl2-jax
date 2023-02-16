@@ -7,12 +7,12 @@ class TrainingLoop:
     def __init__(
         self, 
         config: AttrDict, 
-        dataset, 
+        buffer, 
         trainer: TrainerBase, 
         **kwargs
     ):
-        self.config = dict2AttrDict(config)
-        self.dataset = dataset
+        self.config = dict2AttrDict(config, to_copy=True)
+        self.buffer = buffer
         self.trainer = trainer
         self.model = self.trainer.model
         self.rng = self.model.rng
@@ -55,10 +55,15 @@ class TrainingLoop:
 
     def sample_data(self):
         with Timer('sample'):
-            data = self.dataset.sample()
+            data = self.buffer.sample()
         if data is None:
             return None
         data.setdefault('global_state', data.obs)
         if 'next_obs' in data:
             data.setdefault('next_global_state', data.next_obs)
         return data
+
+    def change_buffer(self, buffer):
+        old_buffer = self.buffer
+        self.buffer = buffer
+        return old_buffer

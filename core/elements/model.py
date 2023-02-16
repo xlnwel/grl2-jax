@@ -43,21 +43,24 @@ class Model(ParamsCheckpointBase):
     def add_attributes(self):
         pass
 
-    def build_net(self, *args, name, **kwargs):
+    def build_net(self, *args, name, return_init=False, **kwargs):
         def build(*args, **kwargs):
             net = create_network(self.config[name], name)
             return net(*args, **kwargs)
         net = hk.transform(build)
-        self.rng, rng = jax.random.split(self.rng)
-        self.act_rng = self.rng
-        return net.init(rng, *args, **kwargs), net.apply
+        if return_init:
+            return net.init, net.apply
+        else:
+            self.rng, rng = jax.random.split(self.rng)
+            self.act_rng = self.rng
+            return net.init(rng, *args, **kwargs), net.apply
 
     def build_nets(self):
         raise NotImplementedError
 
     def compile_model(self):
-        # self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
-        self.jit_action = jax.jit(self.raw_action, static_argnums=(3))
+        self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
+        # self.jit_action = jax.jit(self.raw_action, static_argnums=(3))
 
     def action(self, data, evaluation):
         self.act_rng, act_rng = jax.random.split(self.act_rng)
@@ -141,18 +144,6 @@ class ModelEnsemble(Ensemble):
             has_ckpt=False, 
             **classes
         )
-
-        if to_build:
-            self._build(env_stats)
-            self.to_build = True
-        elif to_build_for_eval:
-            self._build(env_stats, evaluation=True)
-            self.to_build = True
-        else:
-            self.to_build = False
-
-    def _build(self, env_stats: AttrDict, evaluation=False):
-        pass
 
     def get_weights(self, name: Union[dict, list]=None):
         weights = {}

@@ -2,7 +2,7 @@
 algorithm: &algo happo_mb
 name: happo_mb
 dynamics_name: dynamics
-info: happo
+info: happo_mb
 
 precision: 32
 
@@ -25,8 +25,8 @@ routine:
     size: [256, 256]
 
     n_lookahead_steps: 3
-    n_lookahead_envs: &nie 64
-    n_lookahead_steps: &nis 10
+    n_simulated_envs: &nie 400
+    n_simulated_steps: &nis 10
     lookahead_rollout: sim
     restore_state: False
     n_recent_trajectories: 64
@@ -116,8 +116,8 @@ trainer:
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 
-    n_lookahead_envs: *nie
-    n_lookahead_steps: *nis
+    n_simulated_envs: *nse
+    n_simulated_steps: *nss
     n_lookahead_epochs: 4
     n_lookahead_mbs: 1
 

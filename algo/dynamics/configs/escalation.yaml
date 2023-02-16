@@ -51,7 +51,7 @@ model:
         n: &n 1
         units_list: [256, 256]
         activation: relu
-        norm: null
+        norm: layer
         out_config:
             type: discrete
             n_classes: 5
@@ -60,12 +60,14 @@ model:
         out_size: 1
         units_list: [256, 256]
         activation: relu
+        norm: layer
         out_scale: .01
     discount:
         nn_id: discount
         out_size: 1
         units_list: [256, 256]
         activation: relu
+        norm: layer
 
 loss:
     model_loss_type: discrete
@@ -78,9 +80,7 @@ loss:
 trainer:
     algorithm: *algo
     aid: 0
-    n_runners: *nrunners
-    n_envs: *nenvs
-    n_epochs: &nepochs 50
+    n_epochs: &nepochs 25
     timeout_done: *td
 
     model_opt:
@@ -99,8 +99,6 @@ buffer:
     n_envs: *nenvs
     n_steps: 10
     batch_size: 128
-
-    auto_state: False
 
     sample_keys: 
         - obs

@@ -95,10 +95,10 @@ class Model(ModelBase):
 
     def action(self, data, evaluation):
         self.act_rng, act_rng = jax.random.split(self.act_rng) 
-        env_outs, stats, state = self.jit_action(
+        env_out, stats, state = self.jit_action(
             self.params, act_rng, data, evaluation)
         stats.update(self.n_selected_elites)
-        return env_outs, stats, state
+        return env_out, stats, state
 
     def raw_action(
         self, 
@@ -122,7 +122,11 @@ class Model(ModelBase):
             global_state = jnp.expand_dims(next_obs, -3)
             global_state = jnp.reshape(global_state, (*global_state.shape[:-2], -1))
             global_state = jnp.tile(global_state, (self.env_stats.n_units, 1))
-        obs = {'obs': next_obs, 'global_state': global_state}
+        elif self.config.global_state_type == 'obs':
+            global_state = next_obs
+        else:
+            raise NotImplementedError
+        obs = dict2AttrDict({'obs': next_obs, 'global_state': global_state})
         env_out = EnvOutput(obs, reward, discount, reset)
 
         return env_out, stats, data.state
@@ -131,7 +135,9 @@ class Model(ModelBase):
         rngs = random.split(rng, 2)
         dist = self.modules.model(params, rngs[0], obs, action)
         next_obs = dist.mode() if evaluation else dist.sample(seed=rngs[1])
-        
+        if isinstance(dist, jax_dist.MultivariateNormalDiag):
+            # for continuous obs, we predict 𝛥(o)
+            next_obs = obs + next_obs
         stats.update(dist.get_stats('model'))
 
         return next_obs, stats
@@ -153,7 +159,8 @@ class Model(ModelBase):
         return discount, stats
 
     def process_action(self, action):
-        action = nn.one_hot(action, self.env_stats.action_dim[0])
+        if self.env_stats.is_action_discrete[0]:
+            action = nn.one_hot(action, self.env_stats.action_dim[0])
         return action
 
 

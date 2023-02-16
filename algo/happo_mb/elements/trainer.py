@@ -14,7 +14,7 @@ from algo.happo.elements.trainer import Trainer as TrainerBase
 class Trainer(TrainerBase):
     def add_attributes(self):
         super().add_attributes()
-        self.lka_indices = np.arange(self.config.n_lookahead_envs)
+        self.lka_indices = np.arange(self.config.n_simulated_envs)
 
     def compile_train(self):
         _jit_train = jax.jit(self.theta_train)

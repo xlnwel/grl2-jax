@@ -25,9 +25,13 @@ routine:
     size: [256, 256]
 
     n_lookahead_steps: 1
-    n_lookahead_envs: &nie 256
-    n_lookahead_steps: &nis 10
+    n_simulated_envs: &nse 320
+    n_simulated_steps: &nss 10
     lookahead_rollout: sim
+    compute_return_at_once: True
+    ignore_ratio_for_ego: False
+    ignore_ratio_for_lookahead: False
+    perm: null
     restore_state: False
     n_recent_trajectories: 64
     switch_model_at_every_step: False
@@ -116,8 +120,8 @@ trainer:
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 
-    n_lookahead_envs: *nie
-    n_lookahead_steps: *nis
+    n_simulated_envs: *nse
+    n_simulated_steps: *nss
     n_lookahead_epochs: 4
     n_lookahead_mbs: 1
 

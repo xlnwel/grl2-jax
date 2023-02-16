@@ -22,6 +22,8 @@ def get_discrete_dist(x, out_size, n_classes):
     return dist
 
 
+CONTINUOUS_MODEL = 'continuous'
+DISCRETE_MODEL = 'discrete'
 @nn_registry.register('model')
 class Model(hk.Module):
     def __init__(
@@ -37,7 +39,7 @@ class Model(hk.Module):
 
         self.out_config = dict2AttrDict(out_config, to_copy=True)
         self.out_type = self.out_config.pop('type')
-        assert self.out_type in ('discrete', 'continous')
+        assert self.out_type in (DISCRETE_MODEL, CONTINUOUS_MODEL)
 
     def __call__(self, x, action):
         net = self.build_net()
@@ -48,7 +50,7 @@ class Model(hk.Module):
 
     @hk.transparent
     def build_net(self):
-        if self.out_type == 'discrete':
+        if self.out_type == DISCRETE_MODEL:
             out_size = self.out_size * self.out_config.n_classes
         else:
             out_size = self.out_size * 2
@@ -63,7 +65,7 @@ class Model(hk.Module):
         return x
     
     def get_dist(self, x):
-        if self.out_type == 'discrete':
+        if self.out_type == DISCRETE_MODEL:
             dist = get_discrete_dist(x, self.out_size, self.out_config.n_classes)
         else:
             dist = get_normal_dist(x, **self.out_config)

@@ -5,7 +5,7 @@ from types import FunctionType
 from typing import Dict, Tuple
 
 from core.elements.actor import Actor
-# from core.elements.dataset import create_dataset
+# from core.elements.buffer import create_dataset
 from core.elements.model import Model
 from core.elements.strategy import Strategy
 from core.elements.trainer import TrainerBase
@@ -116,6 +116,7 @@ class ElementsBuilder:
     ):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
+        env_stats = dict2AttrDict(env_stats or self.env_stats)
         buffer = constructors.buffer(
             config.buffer, 
             model, 
@@ -140,19 +141,19 @@ class ElementsBuilder:
     #             'elements.utils', algo=config.algorithm, place=-1)
     #         data_format = am.get_data_format(
     #             self.config.trainer, env_stats, model)
-    #         dataset = create_dataset(buffer, env_stats, 
+    #         buffer = create_dataset(buffer, env_stats, 
     #             data_format=data_format, central_buffer=central_buffer, 
     #             one_hot_action=False)
     #     else:
-    #         dataset = buffer
+    #         buffer = buffer
 
-    #     return dataset
+    #     return buffer
     
     def build_strategy(
         self, 
         actor: Actor=None, 
         trainer: TrainerBase=None, 
-        dataset=None, 
+        buffer=None, 
         config: dict=None, 
         env_stats: dict=None, 
         constructors: Dict[str, FunctionType]=None
@@ -166,7 +167,7 @@ class ElementsBuilder:
             env_stats=env_stats,
             actor=actor, 
             trainer=trainer, 
-            dataset=dataset, 
+            buffer=buffer, 
         )
         
         return strategy
@@ -289,14 +290,14 @@ class ElementsBuilder:
             config=config, 
             env_stats=env_stats, 
             constructors=constructors)
-        # elements.dataset = self.build_dataset(
+        # elements.buffer = self.build_dataset(
         #     buffer=elements.buffer, 
         #     model=elements.model, 
         #     config=config,
         #     env_stats=env_stats)
         elements.strategy = self.build_strategy(
             trainer=elements.trainer, 
-            dataset=elements.buffer, 
+            buffer=elements.buffer, 
             config=config,
             env_stats=env_stats,
             constructors=constructors)
@@ -343,7 +344,7 @@ class ElementsBuilder:
             config=config, 
             env_stats=env_stats, 
             constructors=constructors)
-        # elements.dataset = self.build_dataset(
+        # elements.buffer = self.build_dataset(
         #     buffer=elements.buffer, 
         #     model=elements.model, 
         #     config=config,
@@ -351,7 +352,7 @@ class ElementsBuilder:
         elements.strategy = self.build_strategy(
             actor=elements.actor, 
             trainer=elements.trainer, 
-            dataset=elements.buffer,
+            buffer=elements.buffer,
             config=config,
             env_stats=env_stats,
             constructors=constructors)
@@ -462,10 +463,10 @@ class ElementsBuilder:
             level = 'info' if name == 'agent' else 'pwc'
             do_logging(
                 f'Switch to default module({name}) due to error: {e}', 
-                logger=logger, level=level)
+                logger=logger, level=level, backtrack=4)
             do_logging(
                 "You are safe to neglect it if it's an intended behavior. ", 
-                logger=logger, level=level)
+                logger=logger, level=level, backtrack=4)
             module = pkg.import_module(
                 f'elements.{name}', pkg='core')
         return module
