@@ -61,7 +61,7 @@ def ego_run(agents, runner, buffers, model_buffer, routine_config):
             runner.run(
                 routine_config.n_steps, 
                 agents, buffers, 
-                model_buffer if routine_config.n_lookahead_steps > 1 else None, 
+                model_buffer if routine_config.n_lookahead_steps > 0 else None, 
                 all_aids, all_aids, 
                 compute_return=routine_config.compute_return_at_once
             )

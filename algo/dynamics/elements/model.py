@@ -124,6 +124,8 @@ class Model(ModelBase):
             global_state = jnp.tile(global_state, (self.env_stats.n_units, 1))
         elif self.config.global_state_type == 'obs':
             global_state = next_obs
+        else:
+            raise NotImplementedError
         obs = dict2AttrDict({'obs': next_obs, 'global_state': global_state})
         env_out = EnvOutput(obs, reward, discount, reset)
 

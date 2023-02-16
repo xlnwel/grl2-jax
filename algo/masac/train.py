@@ -86,7 +86,7 @@ def ego_run(agent, runner, buffer, model_buffer, routine_config):
             runner.run(
                 routine_config.n_steps, 
                 agent, buffer, 
-                model_buffer if routine_config.n_lookahead_steps > 1 else None, 
+                model_buffer if routine_config.n_lookahead_steps > 0 else None, 
                 [], 
             )
 
@@ -142,8 +142,16 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
     with Timer('log'):
         if video is not None:
             agent.video_summary(video, step=env_step, fps=1)
-        fps = agent.get_env_step_intervals() / Timer('run').last()
-        tps = agent.get_train_step_intervals() / Timer('train').last()
+        run_time = Timer('run').last()
+        train_time = Timer('train').last()
+        if run_time == 0:
+            fps = 0
+        else:
+            fps = agent.get_env_step_intervals() / Timer('run').last()
+        if train_time == 0:
+            tps = 0
+        else:
+            tps = agent.get_train_step_intervals() / Timer('train').last()
         agent.store(**{
                 'stats/train_step': train_step, 
                 'time/fps': fps, 
@@ -247,8 +255,6 @@ def main(configs, train=train):
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
     print_dict(env_stats)
 
-    agent = []
-    buffer = []
     root_dir = config.root_dir
     model_name = config.model_name
     
@@ -257,8 +263,6 @@ def main(configs, train=train):
         config, 
         model_name=new_model_name, 
     )
-    if config.routine.compute_return_at_once:
-        config.buffer.sample_keys += ['advantage', 'v_target']
     builder = ElementsBuilder(
         config, 
         env_stats, 

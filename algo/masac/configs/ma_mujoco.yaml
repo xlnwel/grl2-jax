@@ -31,7 +31,6 @@ routine:
     lookahead_rollout: sim
     n_recent_trajectories: 10
 
-
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
     n_runners: &nrunners 1
@@ -119,11 +118,17 @@ buffer:
 
     n_runners: *nrunners
     n_envs: *nenvs
-    n_steps: *nsteps
+    max_size: 1e6
+    min_size: 5e4
     batch_size: 256
+    n_steps: 1
+
+    max_steps: 1
+    gamma: *gamma
 
     sample_keys: 
         - obs
         - action
         - reward
         - discount
+        - steps

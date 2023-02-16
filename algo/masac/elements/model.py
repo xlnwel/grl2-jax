@@ -9,7 +9,7 @@ import chex
 
 from core.log import do_logging
 from core.elements.model import Model as ModelBase
-from core.mixin.model import sync_params, update_params
+from core.mixin.model import update_params
 from core.typing import AttrDict, dict2AttrDict
 from jax_tools import jax_dist, jax_utils
 from tools.file import source_file

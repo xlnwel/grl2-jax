@@ -34,7 +34,7 @@ class Runner(RunnerWithState):
                 reset=concate_along_unit_dim(new_env_output.reset),
             )
             buffer.collect(**kwargs, **stats)
-            
+
             if model_buffer is not None:
                 model_buffer.collect(
                     **kwargs,
@@ -131,7 +131,7 @@ class Runner(RunnerWithState):
             return scores, epslens, stats, None
 
 
-def simultaneous_rollout(env, agent, buffers, env_output, rountine_config):
+def simultaneous_rollout(env, agent, buffer, env_output, rountine_config):
     agent.model.switch_params(True)
     agent.set_states()
     
@@ -155,14 +155,14 @@ def simultaneous_rollout(env, agent, buffers, env_output, rountine_config):
             reset=new_env_output.reset, 
             **stats
         )
-        buffers.collect(**kwargs)
+        buffer.collect(**kwargs)
 
         env_output = new_env_output
 
     agent.model.switch_params(False)
 
 
-def unilateral_rollout(env, agents, buffers, env_output, rountine_config):
+def unilateral_rollout(env, agents, buffer, env_output, rountine_config):
     for aid, agent in enumerate(agents):
         for a in agents:
             a.set_states()
@@ -186,17 +186,17 @@ def unilateral_rollout(env, agents, buffers, env_output, rountine_config):
                 reset=new_env_output.reset, 
                 **stats
             )
-            buffers[aid].collect(**kwargs)
+            buffer.collect(**kwargs)
 
             env_output = new_env_output
 
         agent.model.switch_params(False)
 
 
-def run_on_model(env, buffer, agent, buffers, routine_config):
+def run_on_model(env, model_buffer, agent, buffer, routine_config):
     sample_keys = buffer.obs_keys + ['state'] \
         if routine_config.restore_state else buffer.obs_keys 
-    obs = buffer.sample_from_recency(
+    obs = model_buffer.sample_from_recency(
         batch_size=routine_config.n_simulated_envs,
         sample_keys=sample_keys, 
         sample_size=1, 
@@ -217,8 +217,8 @@ def run_on_model(env, buffer, agent, buffers, routine_config):
         agent.set_states()
 
     if routine_config.lookahead_rollout == 'sim':
-        return simultaneous_rollout(env, agent, buffers, env_output, routine_config)
+        return simultaneous_rollout(env, agent, buffer, env_output, routine_config)
     elif routine_config.lookahead_rollout == 'uni':
-        return unilateral_rollout(env, agent, buffers, env_output, routine_config)
+        return unilateral_rollout(env, agent, buffer, env_output, routine_config)
     else:
         raise NotImplementedError

@@ -126,9 +126,8 @@ def compute_joint_action_logprob(
         action.append(a)
         logprob.append(lp)
     action = jnp.concatenate(action, 2)
-    action = action.reshape(
-        *action.shape[:2], 1, -1)
-    logprob = jnp.prod(jnp.concatenate(logprob, 2), 
+    action = action.reshape(*action.shape[:2], 1, -1)
+    logprob = jnp.sum(jnp.concatenate(logprob, 2), 
         2, keepdims=True)
     act_dists.append(d)
 

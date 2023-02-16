@@ -24,29 +24,28 @@ class Loss(LossBase):
         data, 
         name='theta'
     ):
-        obs, next_obs = jax_utils.split_data(data.obs, data.next_obs, axis=1)
-        ensemble_next_obs = ensemble_obs(next_obs, self.config.n)
+        next_obs_ensemble = ensemble_obs(data.next_obs, self.config.n)
         rngs = random.split(rng, 3)
         dist = self.modules.emodels(
-            theta.emodels, rngs[0], obs, data.action, 
+            theta.emodels, rngs[0], data.obs, data.action, 
         )
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
-            ensemble_obs = ensemble_obs(obs, self.config.n)
-            ensemble_pred = ensemble_next_obs - ensemble_obs
+            obs_ensemble = ensemble_obs(data.obs, self.config.n)
+            pred_ensemble = next_obs_ensemble - obs_ensemble
         else:
-            ensemble_pred = jnp.array(ensemble_next_obs, dtype=jnp.int32)
+            pred_ensemble = jnp.array(next_obs_ensemble, dtype=jnp.int32)
 
         stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
 
         model_loss, stats = compute_model_loss(
-            self.config, ensemble_pred, stats)
+            self.config, pred_ensemble, stats)
         reward_dist = self.modules.reward(
-            theta.reward, rngs[1], obs, data.action)
+            theta.reward, rngs[1], data.obs, data.action)
         reward_loss, stats = compute_reward_loss(
             self.config, reward_dist, data.reward, stats)
         discount_dist = self.modules.discount(
-            theta.discount, rngs[2], next_obs)
+            theta.discount, rngs[2], data.next_obs)
         discount_loss, stats = compute_discount_loss(
             self.config, discount_dist, data.discount, stats)
 
@@ -72,7 +71,6 @@ def compute_model_loss(
             lax.log(stats.model_scale) * 2., 
             pred_obs
         )
-
         stats.model_mae = lax.abs(stats.model_loc - pred_obs)
         mean_loss = jnp.mean(mean_loss, [0, 1, 2])
         var_loss = jnp.mean(var_loss, [0, 1, 2])

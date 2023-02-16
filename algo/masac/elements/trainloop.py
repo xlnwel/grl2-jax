@@ -6,7 +6,6 @@ class TrainingLoop(TrainingLoopBase):
         self._before_train(step)
         for _ in range(self.config.n_epochs):
             _, stats = self._train(**kwargs)
-
         self._after_train()
 
         return self.config.n_epochs, stats

@@ -69,7 +69,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="n_epochs=$a1 n_lka_epochs=$a1 batch_size=$a2"
+kws="n_lookahead_steps=0 n_epochs=$a1 batch_size=$a2"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"
