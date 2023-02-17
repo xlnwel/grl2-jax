@@ -77,13 +77,13 @@ class Model(hk.Module):
 class EnsembleModels(Model):
     def __init__(
         self, 
-        n, 
+        n_models, 
         out_size, 
         out_config, 
         name='emodel', 
         **config, 
     ):
-        self.n = n
+        self.n_models = n_models
         super().__init__(out_size, out_config, name=name, **config)
 
     @hk.transparent
@@ -96,7 +96,7 @@ class EnsembleModels(Model):
             **self.config,
             out_size=out_size, 
             name=f'model{i}'
-        ) for i in range(self.n)]
+        ) for i in range(self.n_models)]
         return nets
 
     def call_net(self, nets, x):

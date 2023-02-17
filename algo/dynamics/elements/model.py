@@ -172,7 +172,7 @@ def setup_config_from_envstats(config, env_stats):
         config.emodels.out_size = env_stats.obs_shape['obs'][0]
     config.model = config.emodels.copy()
     config.model.nn_id = 'model'
-    config.model.pop('n')
+    config.model.pop('n_models')
 
     return config
 

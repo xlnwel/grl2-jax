@@ -90,7 +90,7 @@ def lookahead_optimize(agents, routine_config, aids=None):
 
 def lookahead_train(agents, runner, buffers, routine_config, 
         aids, n_runs, run_fn, opt_fn):
-    assert n_runs > 0, n_runs
+    assert n_runs >= 0, n_runs
     for _ in range(n_runs):
         run_fn(agents, runner, buffers, routine_config)
         opt_fn(agents, routine_config, aids)

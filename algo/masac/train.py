@@ -147,11 +147,11 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
         if run_time == 0:
             fps = 0
         else:
-            fps = agent.get_env_step_intervals() / Timer('run').last()
+            fps = agent.get_env_step_intervals() / run_time
         if train_time == 0:
             tps = 0
         else:
-            tps = agent.get_train_step_intervals() / Timer('train').last()
+            tps = agent.get_train_step_intervals() / train_time
         agent.store(**{
                 'stats/train_step': train_step, 
                 'time/fps': fps, 

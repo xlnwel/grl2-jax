@@ -202,13 +202,13 @@ if __name__ == '__main__':
     for p in args.prefix:
         do_logging(f'Finding directories with prefix {p} in {search_dir}')
 
-        for d in yield_dirs(search_dir, p, is_suffix=False, matches=args.name):
+        for d in yield_dirs(search_dir, p, is_suffix=False, root_matches=args.name):
             if date is not None and date not in d:
-                print(f'Pass directory {d} due to mismatch date')
+                do_logging(f'Pass directory "{d}" due to mismatch date')
                 continue
                 
             if args.ignore and args.ignore in d:
-                print(f'Pass directory {d} as it contains ignore pattern "{args.ignore}"')
+                do_logging(f'Pass directory "{d}" as it contains ignore pattern "{args.ignore}"')
                 continue
 
             # load config

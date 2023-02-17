@@ -17,7 +17,7 @@ routine:
     MAX_STEPS: 5e6
     n_steps: &nsteps 100
     LOG_PERIOD: 2e5
-    EVAL_PERIOD: 2e5
+    EVAL_PERIOD: null
 
     n_eval_envs: 100
     RECORD_VIDEO: False

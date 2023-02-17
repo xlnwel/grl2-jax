@@ -4,11 +4,8 @@ export PYTHONPATH=.
 
 algos=(
     happo_mb
-    happo_mb
-    happo_mb
-    happo_mb
 )
-suite=ma_mujoco
+suite=$1
 envs=(
     # Ant_8x1
     # HalfCheetah_6x1
@@ -25,9 +22,9 @@ configs=(
     "${suite}"
 )
 # configs=$envs
-args1=(25 25 50 50)
+args1=(50 50 100 100 150 150)
 args2=(
-    128 256
+    256
     # .9,.09,.009,.0009,.00009,.00001 
     # .00001,.9,.09,.009,.0009,.00009 
     # .00009,.00001,.9,.09,.009,.0009 
@@ -48,7 +45,7 @@ args2=(
     # .1,.9
     # .5,.5
 )
-args3=(10)
+args3=(1 10)
 date=$(date +"%m%d")
 # date="0204"
 info=""
@@ -86,7 +83,7 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-kws="n_epochs=$a1 batch_size=$a2"
+kws="n_epochs=$a1 batch_size=$a2 sample_size=$a3"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

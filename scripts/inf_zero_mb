@@ -4,15 +4,14 @@ export PYTHONPATH=.
 
 algos=(
     happo_mb
-    happo_mb
-    happo_mb2
-    happo_mb2
 )
 suite=$1
 shift
 # envs=(escalation staghunt harvest)
 envs=(
-    escalation
+    Ant_2x4
+    HalfCheetah_2x3
+    Walker2d_2x3
 )
 e=${envs[0]}
 configs=(
@@ -77,7 +76,7 @@ a3=${args3[$idx]}
 commands=()
 kws="n_epochs=$a1"
 for e in "${envs[@]}"; do
-    config=$e
+    config=$suite
     env="${suite}-${e}"
     for s in {0..9}; do
         py_script="python run/train.py -a ${a} ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"

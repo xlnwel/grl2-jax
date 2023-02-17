@@ -34,7 +34,7 @@ def extract_sampling_keys(
     state_keys = model.state_keys
     state_type = model.state_type
     sample_keys = config.sample_keys
-    sample_size = config.n_steps
+    sample_size = config.get('sample_size', config.n_steps)
     sample_keys = set(sample_keys)
     if state_keys is None:
         if 'state' in sample_keys:

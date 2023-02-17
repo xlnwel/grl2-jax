@@ -92,6 +92,7 @@ class Loss(LossBase):
         )
         stats.logprob = logprob
         stats.update(act_dists[-1].get_stats('pi'))
+        stats.entropy = act_dists[-1].entropy()
 
         q_data = data.slice((slice(None), slice(None), slice(1)))
         qs_state = None if q_data.state is None else q_data.state.qs
@@ -125,7 +126,11 @@ class Loss(LossBase):
             'target_entropy', -self.model.config.policy.action_dim)
         stats.target_entropy = target_entropy
         stats.temp = temp
-        loss = - jnp.mean(log_temp * (stats.logprob + target_entropy))
+        raw_temp_loss = - log_temp * (stats.logprob + target_entropy)
+        stats.scaled_temp_loss, loss = jax_loss.to_loss(
+            raw_temp_loss, 
+            coef=stats.temp_coef, 
+        )
         stats.temp_loss = loss
 
         return loss, stats

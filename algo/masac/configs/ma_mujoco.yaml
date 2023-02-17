@@ -90,6 +90,7 @@ loss:
         gamma: *gamma
         policy_coef: 1
         q_coef: 1
+        temp_coef: 1
 
 trainer:
     algorithm: *algo
@@ -121,7 +122,7 @@ buffer:
     max_size: 1e6
     min_size: 5e4
     batch_size: 256
-    n_steps: 1
+    sample_size: 1
 
     max_steps: 1
     gamma: *gamma

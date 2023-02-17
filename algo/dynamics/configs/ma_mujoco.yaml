@@ -48,7 +48,7 @@ model:
 
     emodels:
         nn_id: emodels
-        n: &n 1
+        n_models: &n 1
         units_list: [200, 200, 200, 200]
         activation: relu
         norm: layer
@@ -72,7 +72,7 @@ model:
 
 loss:
     model_loss_type: mbpo
-    n: *n
+    n_models: *n
 
     model_coef: 1
     reward_coef: 1
@@ -94,11 +94,9 @@ actor: {}
 
 
 buffer:
-    type: ac
-
     n_runners: *nrunners
     n_envs: *nenvs
-    n_steps: 10
+    sample_size: 10
     batch_size: 128
 
     sample_keys: 

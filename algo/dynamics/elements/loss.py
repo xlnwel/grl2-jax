@@ -5,14 +5,12 @@ import optax
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict, AttrDict
-from jax_tools import jax_dist, jax_loss, jax_utils
-from tools.utils import prefix_name
-from tools.display import print_dict_info
+from jax_tools import jax_dist, jax_loss
 
 
-def ensemble_obs(obs, n):
+def ensemble_obs(obs, n_models):
     ensemble_obs = jnp.expand_dims(obs, -2)
-    ensemble_obs = jnp.tile(ensemble_obs, [n, 1])
+    ensemble_obs = jnp.tile(ensemble_obs, [n_models, 1])
     return ensemble_obs
 
 
@@ -24,14 +22,14 @@ class Loss(LossBase):
         data, 
         name='theta'
     ):
-        next_obs_ensemble = ensemble_obs(data.next_obs, self.config.n)
+        next_obs_ensemble = ensemble_obs(data.next_obs, self.config.n_models)
         rngs = random.split(rng, 3)
         dist = self.modules.emodels(
             theta.emodels, rngs[0], data.obs, data.action, 
         )
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
-            obs_ensemble = ensemble_obs(data.obs, self.config.n)
+            obs_ensemble = ensemble_obs(data.obs, self.config.n_models)
             pred_ensemble = next_obs_ensemble - obs_ensemble
         else:
             pred_ensemble = jnp.array(next_obs_ensemble, dtype=jnp.int32)
