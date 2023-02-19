@@ -97,14 +97,25 @@ def _setup_n_agents_for_ma_mujoco(cmd_args):
         cmd_args.n_agents = int(float(env.split('_')[-1][0]))
     return cmd_args
 
+
 def make_info(config, info, model_name):
+    """ 
+    info = info if config.info is empty else "{config.info}-{info}"
+    model_info = "{info}-{model_name.split('/')[0]}" 
+    """
     if info is None:
-        info = model_name.split('/', 1)[0]
+        info = ''
+    if info:
+        model_info = f'{info}-{model_name.split("/", 1)[0]}'
     else:
-        info = f'{info}-{model_name.split("/", 1)[0]}'
+        model_info = model_name.split('/', 1)[0]
     if config.info and config.info not in info:
-        info = f'{config.info}-{info}'
-    return info
+        if info:
+            info = f'{config.info}-{info}'
+        else:
+            info = config.info
+        model_info = f'{config.info}-{model_info}'
+    return info, model_info
 
 
 def setup_configs(cmd_args, algo_env_config):
@@ -139,8 +150,8 @@ def setup_configs(cmd_args, algo_env_config):
         if model_name == '':
             model_name = 'baseline'
 
-        config.info = make_info(config, cmd_args.info, model_name)
-        model_name = config.info
+        config.info, config.model_info = make_info(config, cmd_args.info, model_name)
+        # model_name = config.model_info
         if not cmd_args.grid_search and not cmd_args.trials > 1:
             model_name = f'{model_name}/seed={cmd_args.seed}'
         

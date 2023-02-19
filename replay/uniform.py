@@ -7,8 +7,10 @@ from core.elements.model import Model
 from core.typing import AttrDict, tree_slice
 from replay.local import NStepBuffer
 from tools.utils import batch_dicts
+from replay import buffer_registry
 
 
+@buffer_registry.register('uniform')
 class UniformReplay(Buffer):
     def __init__(
         self, 

@@ -37,7 +37,7 @@ class Loss(LossBase):
         stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
 
         model_loss, stats = compute_model_loss(
-            self.config, pred_ensemble, stats)
+            self.config, dist, pred_ensemble, stats)
         reward_dist = self.modules.reward(
             theta.reward, rngs[1], data.obs, data.action)
         reward_loss, stats = compute_reward_loss(
@@ -61,7 +61,7 @@ def create_loss(config, model, name='model'):
 
 
 def compute_model_loss(
-    config, pred_obs, stats
+    config, dist, pred_obs, stats
 ):
     if config.model_loss_type == 'mbpo':
         mean_loss, var_loss = jax_loss.mbpo_model_loss(
@@ -77,12 +77,12 @@ def compute_model_loss(
         loss = jnp.sum(mean_loss) + jnp.sum(var_loss)
         chex.assert_rank([mean_loss, var_loss], 1)
     elif config.model_loss_type == 'mse':
-        loss = .5 * (stats.model_loc - pred_obs) ** 2
-        stats.mean_loss = jnp.mean(loss, [0, 1, 2, 4])
+        loss = - dist.log_prob(pred_obs)
+        stats.mean_loss = jnp.mean(loss, [0, 1, 2])
+        assert stats.mean_loss.ndim == 1, stats.mean_loss.shape
         loss = jnp.sum(stats.mean_loss)
     elif config.model_loss_type == 'discrete':
-        loss = optax.softmax_cross_entropy_with_integer_labels(
-            stats.model_logits, pred_obs)
+        loss = - dist.log_prob(pred_obs)
         pred_next_obs = jnp.argmax(stats.model_logits, -1)
         stats.obs_consistency = jnp.mean(pred_next_obs == pred_obs)
         stats.mean_loss = jnp.mean(loss, [0, 1, 2, 4])

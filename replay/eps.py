@@ -15,10 +15,12 @@ from replay.local import EpisodicBuffer
 from replay.utils import load_data, save_data
 from tools.utils import batch_dicts
 from tools.display import print_dict_info
+from replay import buffer_registry
 
 logger = logging.getLogger(__name__)
 
 
+@buffer_registry.register('eps')
 class EpisodicReplay(Buffer):
     def __init__(
         self, 

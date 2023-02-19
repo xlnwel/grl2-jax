@@ -134,7 +134,10 @@ class Model(ModelBase):
     def next_obs(self, params, rng, obs, action, stats, evaluation):
         rngs = random.split(rng, 2)
         dist = self.modules.model(params, rngs[0], obs, action)
-        next_obs = dist.mode() if evaluation else dist.sample(seed=rngs[1])
+        if self.config.stoch_trans and not evaluation:
+            next_obs = dist.sample(seed=rngs[1])
+        else:
+            next_obs = dist.mode()
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
             next_obs = obs + next_obs

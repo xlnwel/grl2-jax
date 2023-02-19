@@ -68,12 +68,12 @@ def lookahead_train(agent, model, buffer, model_buffer, routine_config,
         n_runs, run_fn, opt_fn):
     if not model_buffer.ready_to_sample():
         return
-    assert n_runs >= 0, n_runs
-    old_buffer = agent.change_buffer(buffer)
-    for _ in range(n_runs):
-        run_fn(agent, model, buffer, model_buffer, routine_config)
-        opt_fn(agent)
-    agent.change_buffer(old_buffer)
+    # assert n_runs >= 0, n_runs
+    # old_buffer = agent.change_buffer(buffer)
+    # for _ in range(n_runs):
+    run_fn(agent, model, buffer, model_buffer, routine_config)
+    #     opt_fn(agent)
+    # agent.change_buffer(old_buffer)
 
 
 def ego_run(agent, runner, buffer, model_buffer, routine_config):

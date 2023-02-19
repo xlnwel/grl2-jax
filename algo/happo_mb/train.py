@@ -213,7 +213,7 @@ def train(
 
 
 def main(configs, train=train):
-    config = configs[0]
+    config, model_config = configs[0], configs[-1]
     seed = config.get('seed')
     set_seed(seed)
 
@@ -226,10 +226,9 @@ def main(configs, train=train):
 
     runner = Runner(config.env)
 
-    configs, model_config = configs[:-1], configs[-1]
     # load agents
     env_stats = runner.env_stats()
-    assert len(configs) == env_stats.n_agents, (len(configs), env_stats.n_agents)
+    # assert len(configs) == env_stats.n_agents, (len(configs), env_stats.n_agents)
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
     print_dict(env_stats)
 
@@ -237,8 +236,8 @@ def main(configs, train=train):
     buffers = []
     root_dir = config.root_dir
     model_name = config.model_name
-    for i, c in enumerate(configs):
-        assert c.aid == i, (c.aid, i)
+    for i in range(env_stats.n_agents):
+        config.aid = i
         if model_name.endswith(f'a{i}'):
             new_model_name = model_name
         else:
@@ -247,8 +246,8 @@ def main(configs, train=train):
             configs[i], 
             model_name=new_model_name, 
         )
-        if c.routine.compute_return_at_once:
-            c.buffer.sample_keys += ['advantage', 'v_target']
+        if config.routine.compute_return_at_once:
+            config.buffer.sample_keys += ['advantage', 'v_target']
         builder = ElementsBuilder(
             configs[i], 
             env_stats, 

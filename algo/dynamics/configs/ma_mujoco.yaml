@@ -25,7 +25,6 @@ env:
     n_runners: &nrunners 1
     n_envs: *nenvs
     max_episode_steps: 50
-    reward_scale: .1
     population_size: 1
     timeout_done: &td False
 
@@ -45,6 +44,7 @@ model:
     n_elites: 1
     global_state_type: obs
     rn_std: .1
+    stoch_trans: True
 
     emodels:
         nn_id: emodels
@@ -94,10 +94,12 @@ actor: {}
 
 
 buffer:
+    type: eps
+
     n_runners: *nrunners
     n_envs: *nenvs
-    sample_size: 10
-    batch_size: 128
+    sample_size: 1
+    batch_size: 256
 
     sample_keys: 
         - obs

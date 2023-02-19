@@ -3,35 +3,38 @@
 export PYTHONPATH=.
 
 algos=(
-    happo_mb
+    mambpo
 )
 suite=$1
+shift
+# envs=(escalation staghunt harvest)
 envs=(
-    # Ant_8x1
-    # HalfCheetah_6x1
-    # Walker2d_6x1
-    # Ant_4x2
-    # HalfCheetah_3x2
-    # Walker2d_3x2
     Ant_2x4
     HalfCheetah_2x3
     Walker2d_2x3
 )
-# e=${suite}
 configs=(
     "${suite}"
 )
-# configs=$envs
-args1=(100 100 200)
+args1=(40 40 100 100 200 200 400 400)
 args2=(
-    True True
+    10
+    10
+    4
+    4
+    2
+    2
+    1
+    1
 )
-args3=(mse mbpo)
+args3=(
+    10 20
+)
+args4=(5 10)
 date=$(date +"%m%d")
-# date="0204"
 info=""
 ld="${suite}-logs"
-# gpus=$(nvidia-smi -L | wc -l)
+gpus=$(nvidia-smi -L | wc -l)
 # for x in $(seq 1 1); do
 #     shift
 # done
@@ -42,6 +45,7 @@ else
     n="$date-$info"
 fi
 
+# INF_MAC_NODE_RANK=$1
 le=${#envs[@]}
 idx=$(($INF_MAC_NODE_RANK % $le))
 e=${envs[$idx]}
@@ -61,14 +65,14 @@ a2=${args2[$idx]}
 la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
-# kws=$@
 
 commands=()
-kws="trainer:n_epochs=$a1 stoch_trans=$a2 model_loss_type=$a3"
+kws="n_simulated_envs=$a1 n_simulated_steps=$a2 trainer:n_epochs=$a3"
 for e in "${envs[@]}"; do
+    config=${suite}
     env="${suite}-${e}"
-    for s in {0..4}; do
-        py_script="python run/train.py -a ${a} ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
+    for s in {0..3}; do
+        py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script
@@ -77,5 +81,6 @@ done
 # echo ${commands[@]}s
 lc=${#commands[@]}
 p=$((lc / le))
-printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 
+# echo $p
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

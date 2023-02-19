@@ -1,8 +1,8 @@
-from replay import buffer_registry
+from replay.uniform import UniformReplay
+
 
 def create_buffer(config, model, env_stats, **kwargs):
-    BufferCls = buffer_registry.get(config.type)
-    return BufferCls(
+    return UniformReplay(
         config=config, 
         env_stats=env_stats, 
         model=model, 
