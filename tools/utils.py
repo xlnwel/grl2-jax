@@ -49,7 +49,7 @@ def add_suffix(s, suffix):
     return s
 
 def flatten_dict(d: dict, prefix=None, suffix=None):
-    result = {}
+    result = AttrDict()
     for k, v in d.items():
         if isinstance(v, dict):
             v = flatten_dict(v, suffix=suffix)

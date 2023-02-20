@@ -1,7 +1,6 @@
 from jax import lax, nn, random
 import jax.numpy as jnp
 import chex
-import optax
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict, AttrDict
@@ -76,10 +75,11 @@ def compute_model_loss(
         stats.var_loss = var_loss
         loss = jnp.sum(mean_loss) + jnp.sum(var_loss)
         chex.assert_rank([mean_loss, var_loss], 1)
-    elif config.model_loss_type == 'mse':
+    elif config.model_loss_type == 'ce':
         loss = - dist.log_prob(pred_obs)
         stats.mean_loss = jnp.mean(loss, [0, 1, 2])
-        assert stats.mean_loss.ndim == 1, stats.mean_loss.shape
+        stats.model_mae = lax.abs(stats.model_loc - pred_obs)
+        chex.assert_rank([stats.mean_loss], 1)
         loss = jnp.sum(stats.mean_loss)
     elif config.model_loss_type == 'discrete':
         loss = - dist.log_prob(pred_obs)

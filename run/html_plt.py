@@ -2,11 +2,10 @@ import argparse
 import os, sys
 from pathlib import Path
 import json
-from pathlib import Path
 import pandas as pd
 import subprocess
 import collections
-import multiprocessing
+import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -16,7 +15,7 @@ from tools import yaml_op
 from tools.utils import flatten_dict, recursively_remove
 
 ModelPath = collections.namedtuple('ModelPath', 'root_dir model_name')
-
+DataPath = collections.namedtuple('data_path', 'path data')
 def get_model_path(dirpath) -> ModelPath:
     d = dirpath.split('/')
     model_path = ModelPath('/'.join(d[:3]), '/'.join(d[3:]))
@@ -128,7 +127,7 @@ def rename_env(config: dict):
 #     # define paths
 #     json_path = '/'.join([target_dir, js_name])
 #     record_path = '/'.join([d, record_name])
-#     process_path = '/'.join([target_dir, process_name])
+#     csv_path = '/'.join([target_dir, process_name])
 #     # do_logging(f'yaml path: {yaml_path}')
 #     if not os.path.exists(record_path):
 #         do_logging(f'{record_path} does not exist', color='magenta')
@@ -161,8 +160,17 @@ def rename_env(config: dict):
 #                 data[k] = (data[f'{k}1'] + data[f'{k}2']) / 2
 #             except:
 #                 pass
-#     data.to_csv(process_path)
+#     data.to_csv(csv_path)
 
+
+def to_csv(v):
+    if v == [] or 'metrics/score' not in v[0].data:
+        return
+    max_scores = np.max(np.concatenate([vv.data['metrics/score'] for vv in v if 'metrics/score' in vv.data]))
+    for csv_path, data in v:
+        if 'metrics/score' in data:
+            data['metrics/score'] /= max_scores
+        data.to_csv(csv_path)
 
 if __name__ == '__main__':
     args = parse_args()
@@ -199,6 +207,8 @@ if __name__ == '__main__':
         process = subprocess.Popen(cmd)
 
     search_dir = directory
+    all_data = []
+    env_name = ''
     for p in args.prefix:
         do_logging(f'Finding directories with prefix {p} in {search_dir}')
 
@@ -237,7 +247,7 @@ if __name__ == '__main__':
             # define paths
             json_path = '/'.join([target_dir, js_name])
             record_path = '/'.join([d, record_name])
-            process_path = '/'.join([target_dir, process_name])
+            csv_path = '/'.join([target_dir, process_name])
             # do_logging(f'yaml path: {yaml_path}')
             if not os.path.exists(record_path):
                 do_logging(f'{record_path} does not exist', color='magenta')
@@ -253,9 +263,6 @@ if __name__ == '__main__':
             config = remove_redundancies(config)
             config['model_name'] = config['model_name'].split('/')[1]
 
-            with open(json_path, 'w') as json_file:
-                json.dump(config, json_file)
-
             # save stats
             try:
                 data = pd.read_table(record_path, on_bad_lines='skip')
@@ -270,7 +277,18 @@ if __name__ == '__main__':
                         data[k] = (data[f'{k}1'] + data[f'{k}2']) / 2
                     except:
                         pass
-            data.to_csv(process_path)
+
+            with open(json_path, 'w') as json_file:
+                json.dump(config, json_file)
+
+            if f'{config.env_suite}-{config.env_name}' != env_name:
+                env = f'{config.env_suite}-{config.env_name}'
+                to_csv(all_data)
+                all_data.clear()
+            all_data.append(
+                DataPath(csv_path, data))
+            # print(list(data))
+            # exit()
 
     if process is not None:
         do_logging('Waiting for rsync to complete...')
