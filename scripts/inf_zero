@@ -64,12 +64,12 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-kws="trainer:n_epochs=$a1 stoch_trans=$a2 model_loss_type=$a3"
+# kws="trainer:n_epochs=$a1 stoch_trans=$a2 model_loss_type=$a3"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do
-        py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
-        # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
+        # py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script
