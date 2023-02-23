@@ -1,4 +1,5 @@
 import numpy as np
+import jax
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
@@ -6,7 +7,6 @@ from core.utils import configure_gpu, set_seed, save_code
 from core.typing import dict2AttrDict, ModelPath
 from tools.utils import batch_dicts
 from tools.timer import Every, Timer
-from jax_tools import jax_utils
 from env.func import create_env
 from env.typing import EnvOutput
 
@@ -38,7 +38,7 @@ def run(
 
 def split_env_output(env_output):
     env_outputs = [
-        jax_utils.tree_map(lambda x: x[:, i:i+1], env_output) 
+        jax.tree_util.tree_map(lambda x: x[:, i:i+1], env_output) 
         for i in range(2)
     ]
     return env_outputs

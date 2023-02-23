@@ -21,7 +21,8 @@ class Layer:
             'create_scale': True, 
             'create_offset': True, 
         }, 
-        **kwargs):
+        **kwargs
+    ):
         self.name = name or layer_type
         self.layer_cls = layer_registry.get(layer_type)
         self.layer_args = args

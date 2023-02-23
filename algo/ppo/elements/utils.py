@@ -1,3 +1,4 @@
+import jax
 from jax import lax
 import jax.numpy as jnp
 
@@ -7,11 +8,11 @@ from jax_tools import jax_assert, jax_math, jax_loss, jax_utils
 
 
 def get_initial_state(state, i):
-    return jax_utils.tree_map(lambda x: x[:, i], state)
+    return jax.tree_util.tree_map(lambda x: x[:, i], state)
 
 
 def _reshape_for_bptt(*args, bptt):
-    return jax_utils.tree_map(
+    return jax.tree_util.tree_map(
         lambda x: x.reshape(-1, bptt, *x.shape[2:]), args
     )
 
@@ -44,7 +45,7 @@ def compute_values(
         value, _ = func(params, rng, x, state_reset, state0)
         next_value, _ = func(params, rng, next_x, next_state_reset, state1)
         if bptt is not None:
-            value, next_value = jax_utils.tree_map(
+            value, next_value = jax.tree_util.tree_map(
                 lambda x: x.reshape(shape), (value, next_value)
             )
     next_value = lax.stop_gradient(next_value)
@@ -73,7 +74,7 @@ def compute_policy_dist(
         params, rng, x, state_reset, state, action_mask=action_mask
     )
     if state is not None and bptt is not None:
-        act_out = jax_utils.tree_map(
+        act_out = jax.tree_util.tree_map(
             lambda x: x.reshape(*shape, -1), act_out
         )
     act_dist = model.policy_dist(act_out)

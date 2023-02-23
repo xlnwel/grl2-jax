@@ -4,15 +4,15 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
-from core.utils import configure_gpu, set_seed, save_code
-from core.typing import ModelPath
+from core.utils import configure_gpu, set_seed, save_code_for_seed
+from core.typing import get_basic_model_name
 from tools.display import print_dict
 from tools.store import StateStore, TempStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
 from .run import *
 from algo.ppo.train import state_constructor, get_states, set_states, \
-    lookahead_optimize, ego_optimize
+    build_agents, lookahead_optimize, ego_optimize
 
 
 def model_train(model, model_buffer):
@@ -212,8 +212,44 @@ def train(
                 agents, model, runner, env_step, train_step, routine_config)
 
 
+def build_model(config, model_config, env_stats):
+    root_dir = config.root_dir
+    model_name = get_basic_model_name(config.model_name)
+    seed = config.seed
+    new_model_name = '/'.join([model_name, 'dynamics'])
+    model_config = modify_config(
+        model_config, 
+        max_layer=1, 
+        aid=0,
+        algorithm=config.dynamics_name, 
+        info=config.info,
+        model_info=config.model_info,
+        n_runners=config.env.n_runners, 
+        n_envs=config.env.n_envs, 
+        root_dir=root_dir, 
+        model_name=new_model_name, 
+        overwrite_existed_only=True, 
+        seed=seed+1000
+    )
+
+    builder = ElementsBuilder(
+        model_config, 
+        env_stats, 
+        to_save_code=False, 
+        max_steps=config.routine.MAX_STEPS
+    )
+    elements = builder.build_agent_from_scratch(config=model_config)
+    model = elements.agent
+    model_buffer = elements.buffer
+
+    return model, model_buffer
+
+
 def main(configs, train=train):
+    assert len(configs) > 1, len(configs)
     config, model_config = configs[0], configs[-1]
+    if config.routine.compute_return_at_once:
+        config.buffer.sample_keys += ['advantage', 'v_target']
     seed = config.get('seed')
     set_seed(seed)
 
@@ -226,65 +262,18 @@ def main(configs, train=train):
 
     runner = Runner(config.env)
 
-    # load agents
     env_stats = runner.env_stats()
     # assert len(configs) == env_stats.n_agents, (len(configs), env_stats.n_agents)
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
     print_dict(env_stats)
 
-    agents = []
-    buffers = []
-    root_dir = config.root_dir
-    model_name = config.model_name
-    for i in range(env_stats.n_agents):
-        config.aid = i
-        if model_name.endswith(f'a{i}'):
-            new_model_name = model_name
-        else:
-            new_model_name = '/'.join([model_name, f'a{i}'])
-        modify_config(
-            configs[i], 
-            model_name=new_model_name, 
-        )
-        if config.routine.compute_return_at_once:
-            config.buffer.sample_keys += ['advantage', 'v_target']
-        builder = ElementsBuilder(
-            configs[i], 
-            env_stats, 
-            to_save_code=False, 
-            max_steps=config.routine.MAX_STEPS
-        )
-        elements = builder.build_agent_from_scratch()
-        agents.append(elements.agent)
-        buffers.append(elements.buffer)
-    if seed == 0:
-        save_code(ModelPath(root_dir, model_name))
+    # build agents
+    agents, buffers = build_agents(config, env_stats)
+    # build model
+    model, model_buffer = build_model(config, model_config, env_stats)
+    save_code_for_seed(config)
 
-    # load model
-    new_model_name = '/'.join([model_name, 'model'])
-    model_config = modify_config(
-        model_config, 
-        max_layer=1, 
-        aid=0,
-        algorithm=configs[0].dynamics_name, 
-        n_runners=configs[0].env.n_runners, 
-        n_envs=configs[0].env.n_envs, 
-        root_dir=root_dir, 
-        model_name=new_model_name, 
-        overwrite_existed_only=True, 
-        seed=seed+1000
-    )
-    builder = ElementsBuilder(
-        model_config, 
-        env_stats, 
-        to_save_code=False, 
-        max_steps=config.routine.MAX_STEPS
-    )
-    elements = builder.build_agent_from_scratch(config=model_config)
-    model = elements.agent
-    model_buffer = elements.buffer
-
-    routine_config = configs[0].routine.copy()
+    routine_config = config.routine.copy()
     train(
         agents, 
         model, 

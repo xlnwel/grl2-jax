@@ -4,13 +4,14 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
-from core.utils import configure_gpu, set_seed, save_code
+from core.utils import configure_gpu, set_seed, save_code_for_seed
 from core.typing import ModelPath
 from tools.display import print_dict
 from tools.store import StateStore, TempStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
 from .run import *
+from algo.happo_mb.train import build_model
 
 
 def state_constructor_with_sliced_envs(agent, runner):
@@ -234,6 +235,25 @@ def train(
                 agent, model, runner, env_step, train_step, routine_config)
 
 
+def build_agent(config, env_stats):
+    model_name = config.model_name
+    new_model_name = '/'.join([model_name, f'a0'])
+    modify_config(
+        config, 
+        model_name=new_model_name, 
+    )
+    builder = ElementsBuilder(
+        config, 
+        env_stats, 
+        to_save_code=False, 
+        max_steps=config.routine.MAX_STEPS
+    )
+    elements = builder.build_agent_from_scratch()
+    agent = elements.agent
+    buffer = elements.buffer
+    return agent, buffer
+
+
 def main(configs, train=train):
     config = configs[0]
     seed = config.get('seed')
@@ -254,50 +274,11 @@ def main(configs, train=train):
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
     print_dict(env_stats)
 
-    root_dir = config.root_dir
-    model_name = config.model_name
-    
-    new_model_name = '/'.join([model_name, f'a0'])
-    modify_config(
-        config, 
-        model_name=new_model_name, 
-    )
-    builder = ElementsBuilder(
-        config, 
-        env_stats, 
-        to_save_code=False, 
-        max_steps=config.routine.MAX_STEPS
-    )
-    elements = builder.build_agent_from_scratch()
-    agent = elements.agent
-    buffer = elements.buffer
-    lka_buffer = builder.build_buffer(elements.model, env_stats=env_stats)
-    if seed == 0:
-        save_code(ModelPath(root_dir, model_name))
-
+    # build agents
+    agent, buffer = build_agent(config, env_stats)
     # load model
-    new_model_name = '/'.join([model_name, 'model'])
-    model_config = modify_config(
-        model_config, 
-        max_layer=1, 
-        aid=0,
-        algorithm=config.dynamics_name, 
-        n_runners=config.env.n_runners, 
-        n_envs=config.env.n_envs, 
-        root_dir=root_dir, 
-        model_name=new_model_name, 
-        overwrite_existed_only=True, 
-        seed=seed+1000
-    )
-    builder = ElementsBuilder(
-        model_config, 
-        env_stats, 
-        to_save_code=False, 
-        max_steps=config.routine.MAX_STEPS
-    )
-    elements = builder.build_agent_from_scratch(config=model_config)
-    model = elements.agent
-    model_buffer = elements.buffer
+    model, model_buffer = build_model(config, model_config, env_stats)
+    save_code_for_seed(config)
 
     routine_config = config.routine.copy()
     train(
@@ -305,7 +286,6 @@ def main(configs, train=train):
         model, 
         runner, 
         buffer, 
-        lka_buffer, 
         model_buffer, 
         routine_config
     )

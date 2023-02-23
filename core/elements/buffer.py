@@ -17,7 +17,10 @@ class Buffer:
         self.obs_keys = env_stats.obs_keys[self.aid]
         self.state_keys, self.state_type, \
             self.sample_keys, self.sample_size = \
-                extract_sampling_keys(self.config, env_stats, model)
+                extract_sampling_keys(self.config, env_stats, model, aid)
+
+    def type(self):
+        return self.config.type
 
     def reset(self):
         raise NotImplementedError
@@ -25,14 +28,35 @@ class Buffer:
     def sample(self):
         raise NotImplementedError
 
+    def collect(self, **data):
+        data = self._prepare_data(**data)
+        self.add(**data)
+    
+    def add(self, **data):
+        raise NotImplementedError
+
+    """ Implementation """
+    def _prepare_data(self, obs, next_obs, **data):
+        for k, v in obs.items():
+            if k not in data:
+                data[k] = v
+        for k, v in next_obs.items():
+            data[f'next_{k}'] = v
+        return data
+
 
 def extract_sampling_keys(
     config: AttrDict, 
     env_stats: AttrDict, 
-    model: Model
+    model: Model, 
+    aid: int
 ):
-    state_keys = model.state_keys
-    state_type = model.state_type
+    if model is None:
+        state_keys = model.state_keys
+        state_type = model.state_type
+    else:
+        state_keys = None
+        state_type = None
     sample_keys = config.sample_keys
     sample_size = config.get('sample_size', config.n_steps)
     sample_keys = set(sample_keys)
@@ -44,7 +68,7 @@ def extract_sampling_keys(
     else:
         sample_keys.add('state')
         sample_keys.add('state_reset')
-    obs_keys = env_stats.obs_keys[model.config.aid] if 'aid' in model.config else env_stats.obs_keys
+    obs_keys = env_stats.obs_keys[aid]
     for k in obs_keys:
         sample_keys.add(k)
     if not config.timeout_done:

@@ -48,9 +48,9 @@ class Memory(MemoryBase):
         # state.shape: [B, U, D]; reset.shape: [B, U]
         assert state is not None, state
         reset = jnp.expand_dims(reset, -1)
-        state = jax_utils.tree_map(lambda x: x*(1-reset), state)
-        state_rssm = jax_utils.tree_map(lambda x: x*(1-reset), state_rssm)
-        obs_rssm = jax_utils.tree_map(lambda x: x*(1-reset), obs_rssm)
+        state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
+        state_rssm = jax.tree_util.tree_map(lambda x: x*(1-reset), state_rssm)
+        obs_rssm = jax.tree_util.tree_map(lambda x: x*(1-reset), obs_rssm)
         return state, state_rssm, obs_rssm
 
     def reset_states(self):
@@ -97,7 +97,7 @@ class Strategy(StrategyBase):
     
     def compute_value(self, env_output):
         inp = AttrDict(global_state=env_output.obs['global_state'], action=env_output.prev_action)
-        inp = jax_utils.tree_map(lambda x: jnp.expand_dims(x, 1), inp)
+        inp = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), inp)
         inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
         if isinstance(inp.state, dict) and 'value' in inp.state:
             inp['state'] = inp.state['value']

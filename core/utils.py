@@ -3,7 +3,7 @@ import random
 import numpy as np
 
 from core.log import do_logging
-from core.typing import ModelPath, AttrDict
+from core.typing import ModelPath, AttrDict, get_basic_model_name
 from tools import yaml_op
 
 
@@ -46,7 +46,7 @@ def set_seed(seed: int=None):
         np.random.seed(seed)
     do_logging(f'seed={seed}', backtrack=3)
 
-def save_code(model_path: ModelPath):
+def save_code(model_path: ModelPath, backtrack=3):
     """ Saves the code so that we can check the chagnes latter """
     dest_dir = '/'.join([*model_path, 'src'])
     if os.path.isdir(dest_dir):
@@ -59,10 +59,14 @@ def save_code(model_path: ModelPath):
             '*results*', '*env*', '*.tar', '*__*'))
     do_logging(
         f'Save code: {model_path}', 
-        level='print', 
-        time=True, 
-        backtrack=3, 
+        backtrack=backtrack, 
     )
+
+def save_code_for_seed(config, seed=0):
+    if config.seed == seed:
+        root_dir = config.root_dir
+        model_name = get_basic_model_name(config.model_name)
+        save_code(ModelPath(root_dir, model_name), backtrack=4)
 
 def simplify_datatype(config):
     """ Converts ndarray to list, useful for saving config as a yaml file """

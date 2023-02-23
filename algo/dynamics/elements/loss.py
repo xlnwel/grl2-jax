@@ -3,14 +3,14 @@ import jax.numpy as jnp
 import chex
 
 from core.elements.loss import LossBase
-from core.typing import dict2AttrDict, AttrDict
+from core.typing import dict2AttrDict
 from jax_tools import jax_dist, jax_loss
 
 
 def ensemble_obs(obs, n_models):
-    ensemble_obs = jnp.expand_dims(obs, -2)
-    ensemble_obs = jnp.tile(ensemble_obs, [n_models, 1])
-    return ensemble_obs
+    eobs = jnp.expand_dims(obs, -2)
+    eobs = jnp.tile(eobs, [n_models, 1])
+    return eobs
 
 
 class Loss(LossBase):
@@ -21,16 +21,17 @@ class Loss(LossBase):
         data, 
         name='theta'
     ):
-        next_obs_ensemble = ensemble_obs(data.next_obs, self.config.n_models)
         rngs = random.split(rng, 3)
         dist = self.modules.emodels(
             theta.emodels, rngs[0], data.obs, data.action, 
         )
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
-            obs_ensemble = ensemble_obs(data.obs, self.config.n_models)
-            pred_ensemble = next_obs_ensemble - obs_ensemble
+            pred_ensemble = ensemble_obs(
+                data.next_obs - data.obs, self.config.n_models)
         else:
+            next_obs_ensemble = ensemble_obs(
+                data.next_obs, self.config.n_models)
             pred_ensemble = jnp.array(next_obs_ensemble, dtype=jnp.int32)
 
         stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
@@ -99,11 +100,15 @@ def compute_reward_loss(
     config, reward_dist, reward, stats
 ):
     pred_reward = reward_dist.mode()
-    reward_loss = jnp.mean(.5 * (pred_reward - reward)**2)
+    raw_reward_loss = .5 * (pred_reward - reward)**2
     stats.pred_reward = pred_reward
     stats.reward_mae = lax.abs(pred_reward - reward)
     stats.reward_consistency = jnp.mean(stats.reward_mae < .1)
-    stats.reward_loss = config.reward_coef * reward_loss
+    stats.scaled_reward_loss, reward_loss = jax_loss.to_loss(
+        raw_reward_loss, 
+        config.reward_coef, 
+    )
+    stats.reward_loss = reward_loss
 
     return reward_loss, stats
 
@@ -111,11 +116,15 @@ def compute_reward_loss(
 def compute_discount_loss(
     config, discount_dist, discount, stats
 ):
-    discount_loss = - discount_dist.log_prob(discount)
-    discount_loss = jnp.mean(discount_loss)
+    raw_discount_loss = - discount_dist.log_prob(discount)
     discount = discount_dist.mode()
     stats.pred_discount = discount
+    stats.discount_mae = lax.abs(discount_dist.mode() - discount)
     stats.discount_consistency = jnp.mean(stats.discount == discount)
-    stats.discount_loss = config.discount_coef * discount_loss
+    stats.scaled_discount_loss, discount_loss = jax_loss.to_loss(
+        raw_discount_loss, 
+        config.discount_coef, 
+    )
+    stats.discount_loss = discount_loss
 
     return discount_loss, stats

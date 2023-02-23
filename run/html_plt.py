@@ -16,6 +16,8 @@ from tools.utils import flatten_dict, recursively_remove
 
 ModelPath = collections.namedtuple('ModelPath', 'root_dir model_name')
 DataPath = collections.namedtuple('data_path', 'path data')
+
+
 def get_model_path(dirpath) -> ModelPath:
     d = dirpath.split('/')
     model_path = ModelPath('/'.join(d[:3]), '/'.join(d[3:]))
@@ -164,13 +166,19 @@ def rename_env(config: dict):
 
 
 def to_csv(v):
-    if v == [] or 'metrics/score' not in v[0].data:
+    SCORE = 'metrics/score'
+    if v == []:
         return
-    max_scores = np.max(np.concatenate([vv.data['metrics/score'] for vv in v if 'metrics/score' in vv.data]))
+    scores = [vv.data[SCORE] for vv in v if SCORE in vv.data]
+    if scores:
+        scores = np.concatenate(scores)
+        max_score = np.max(scores)
+        min_score = np.min(scores)
     for csv_path, data in v:
-        if 'metrics/score' in data:
-            data['metrics/score'] /= max_scores
+        if SCORE in data:
+            data[SCORE] = (data[SCORE] - min_score) / (max_score - min_score)
         data.to_csv(csv_path)
+
 
 if __name__ == '__main__':
     args = parse_args()
@@ -207,89 +215,84 @@ if __name__ == '__main__':
         process = subprocess.Popen(cmd)
 
     search_dir = directory
-    all_data = []
-    env_name = ''
-    for p in args.prefix:
-        do_logging(f'Finding directories with prefix {p} in {search_dir}')
-
-        for d in yield_dirs(search_dir, p, is_suffix=False, root_matches=args.name):
-            if date is not None and date not in d:
-                do_logging(f'Pass directory "{d}" due to mismatch date')
-                continue
-                
-            if args.ignore and args.ignore in d:
-                do_logging(f'Pass directory "{d}" as it contains ignore pattern "{args.ignore}"')
-                continue
-
-            # load config
-            yaml_path = '/'.join([d, config_name])
-            if not os.path.exists(yaml_path):
-                new_yaml_path = '/'.join([d, player0_config_name])
-                if os.path.exists(new_yaml_path):
-                    yaml_path = new_yaml_path
-                else:
-                    do_logging(f'{yaml_path} does not exist', color='magenta')
-                    continue
-            config = yaml_op.load_config(yaml_path)
-            root_dir = config.root_dir
-            model_name = config.model_name
-            strs = f'{root_dir}/{model_name}'.split('/')
-            for s in strs[::-1]:
-                if directory.endswith(s):
-                    directory = directory.removesuffix(f'/{s}')
-
-            target_dir = d.replace(directory, target)
-            do_logging(f'Copy from {d} to {target_dir}')
-            if not os.path.isdir(target_dir):
-                Path(target_dir).mkdir(parents=True)
-            assert os.path.isdir(target_dir), target_dir
+    all_data = collections.defaultdict(list)
+    for d in yield_dirs(search_dir, args.prefix, is_suffix=False, root_matches=args.name):
+        if date is not None and date not in d:
+            do_logging(f'Pass directory "{d}" due to mismatch date')
+            continue
             
-            # define paths
-            json_path = '/'.join([target_dir, js_name])
-            record_path = '/'.join([d, record_name])
-            csv_path = '/'.join([target_dir, process_name])
-            # do_logging(f'yaml path: {yaml_path}')
-            if not os.path.exists(record_path):
-                do_logging(f'{record_path} does not exist', color='magenta')
+        if args.ignore and args.ignore in d:
+            do_logging(f'Pass directory "{d}" as it contains ignore pattern "{args.ignore}"')
+            continue
+
+        # load config
+        yaml_path = '/'.join([d, config_name])
+        if not os.path.exists(yaml_path):
+            new_yaml_path = '/'.join([d, player0_config_name])
+            if os.path.exists(new_yaml_path):
+                yaml_path = new_yaml_path
+            else:
+                do_logging(f'{yaml_path} does not exist', color='magenta')
                 continue
-            # save config
-            to_remove_keys = ['root_dir', 'seed']
-            seed = config['seed']
-            config = recursively_remove(config, to_remove_keys)
-            config['seed'] = seed
-            config = remove_lists(config)
-            config = flatten_dict(config)
-            config = rename_env(config)
-            config = remove_redundancies(config)
-            config['model_name'] = config['model_name'].split('/')[1]
+        config = yaml_op.load_config(yaml_path)
+        root_dir = config.root_dir
+        model_name = config.model_name
+        strs = f'{root_dir}/{model_name}'.split('/')
+        for s in strs[::-1]:
+            if directory.endswith(s):
+                directory = directory.removesuffix(f'/{s}')
 
-            # save stats
-            try:
-                data = pd.read_table(record_path, on_bad_lines='skip')
-            except:
-                do_logging(f'Record path ({record_path}) constains no data', color='magenta')
-                continue
-            if len(data.keys()) == 1:
-                data = pd.read_csv(record_path)
-            for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
-                if k not in data.keys():
-                    try:
-                        data[k] = (data[f'{k}1'] + data[f'{k}2']) / 2
-                    except:
-                        pass
+        target_dir = d.replace(directory, target)
+        do_logging(f'Copy from {d} to {target_dir}')
+        if not os.path.isdir(target_dir):
+            Path(target_dir).mkdir(parents=True)
+        assert os.path.isdir(target_dir), target_dir
+        
+        # define paths
+        json_path = '/'.join([target_dir, js_name])
+        record_path = '/'.join([d, record_name])
+        csv_path = '/'.join([target_dir, process_name])
+        # do_logging(f'yaml path: {yaml_path}')
+        if not os.path.exists(record_path):
+            do_logging(f'{record_path} does not exist', color='magenta')
+            continue
+        # save config
+        to_remove_keys = ['root_dir', 'seed']
+        seed = config['seed']
+        config = recursively_remove(config, to_remove_keys)
+        config['seed'] = seed
+        config = remove_lists(config)
+        config = flatten_dict(config)
+        config = rename_env(config)
+        config = remove_redundancies(config)
+        config['model_name'] = config['model_name'].split('/')[1]
 
-            with open(json_path, 'w') as json_file:
-                json.dump(config, json_file)
+        # save stats
+        try:
+            data = pd.read_table(record_path, on_bad_lines='skip')
+        except:
+            do_logging(f'Record path ({record_path}) constains no data', color='magenta')
+            continue
+        if len(data.keys()) == 1:
+            data = pd.read_csv(record_path)
+        for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
+            if k not in data.keys():
+                try:
+                    data[k] = (data[f'{k}1'] + data[f'{k}2']) / 2
+                except:
+                    pass
 
-            if f'{config.env_suite}-{config.env_name}' != env_name:
-                env = f'{config.env_suite}-{config.env_name}'
-                to_csv(all_data)
-                all_data.clear()
-            all_data.append(
-                DataPath(csv_path, data))
-            # print(list(data))
-            # exit()
+        with open(json_path, 'w') as json_file:
+            json.dump(config, json_file)
 
+        all_data[config.env_name].append(DataPath(csv_path, data))
+        # print(list(data))
+        # exit()
+
+    for v in all_data.values():
+        to_csv(v)
+    all_data.clear()
+        
     if process is not None:
         do_logging('Waiting for rsync to complete...')
         process.wait()

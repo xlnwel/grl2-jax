@@ -22,7 +22,7 @@ configs=(
     "${suite}"
 )
 # configs=$envs
-args1=(100 100 200)
+args1=(False)
 args2=(
     True True
 )
@@ -65,11 +65,12 @@ a3=${args3[$idx]}
 
 commands=()
 # kws="trainer:n_epochs=$a1 stoch_trans=$a2 model_loss_type=$a3"
+kws="compute_return_at_once=$a1 target_type=vtrace"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do
         # py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

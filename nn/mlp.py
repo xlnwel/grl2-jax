@@ -27,7 +27,7 @@ def _recover_shape(x, shape):
     return x
 
 def _rnn_reshape(rnn_out, shape):
-    rnn_out = jax_utils.tree_map(lambda x: x.reshape(shape), rnn_out)
+    rnn_out = jax.tree_util.tree_map(lambda x: x.reshape(shape), rnn_out)
     return rnn_out
     
 @nn_registry.register('mlp')

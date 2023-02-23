@@ -39,7 +39,6 @@ env:
     timeout_done: &td False
     env_args:
         agent_obsk: 0
-    single_agent: False
 
 agent: {}
 

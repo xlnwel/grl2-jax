@@ -68,13 +68,24 @@ def change_config_with_key_value(config, key, value, prefix=''):
     return modified_configs
 
 
-def change_config_with_kw_string(kw, config):
+def change_config_with_kw_string(kw, config, config_idx=None):
     """ Changes configs based on kw. model_name will
     be modified accordingly to embody changes 
     """
     if kw:
         for s in kw:
             key, value = s.split('=', 1)
+            if '#' in key:
+                i, key = key.split('#')
+                modify_config = False
+                if ',' in i:
+                    for ii in i.split(','):
+                        if eval_str(ii) == config_idx:
+                            modify_config = True
+                elif eval_str(i) == config_idx:
+                    modify_config = True
+                if not modify_config:
+                    continue
             value = eval_str(value)
 
             # change kwargs in config

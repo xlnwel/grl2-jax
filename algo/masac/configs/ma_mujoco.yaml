@@ -29,7 +29,7 @@ routine:
     n_simulated_envs: &nse 40
     n_simulated_steps: &nss 10
     lookahead_rollout: sim
-    n_recent_trajectories: 10
+    n_recent_trajectories: 1000
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -119,8 +119,8 @@ buffer:
 
     n_runners: *nrunners
     n_envs: *nenvs
-    max_size: 1e6
-    min_size: 5e4
+    max_size: 1e5
+    min_size: 1e3
     batch_size: 256
     sample_size: 1
 

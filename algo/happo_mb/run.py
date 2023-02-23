@@ -1,10 +1,8 @@
 import numpy as np
+import jax
 
-from core.typing import AttrDict
-from tools.run import RunnerWithState
 from tools.utils import batch_dicts
 from env.typing import EnvOutput
-from jax_tools import jax_utils
 from algo.ppo.run import prepare_buffer, concate_along_unit_dim, Runner as RunnerBase
 
 
@@ -37,15 +35,16 @@ class Runner(RunnerBase):
 
             next_obs = self.env.prev_obs()
             for i in collect_ids:
-                kwargs = dict(
+                data = dict(
                     obs=env_outputs[i].obs, 
                     action=acts[i], 
                     reward=new_env_outputs[i].reward, 
                     discount=new_env_outputs[i].discount, 
                     next_obs=next_obs[i], 
+                    reset=new_env_outputs[i].reset, 
                     **stats[i]
                 )
-                buffers[i].collect(self.env, 0, new_env_outputs[i].reset, **kwargs)
+                buffers[i].collect(**data)
 
             state = [s['state'] for s in stats] if 'state' in stats[0] else None
             if state is not None:
@@ -56,9 +55,9 @@ class Runner(RunnerBase):
                     reset=concate_along_unit_dim(new_env_output.reset),
                     obs=batch_dicts(env_output.obs, func=concate_along_unit_dim),
                     action=action, 
-                    next_obs=batch_dicts(next_obs, func=concate_along_unit_dim), 
                     reward=concate_along_unit_dim(new_env_output.reward),
                     discount=concate_along_unit_dim(new_env_output.discount),
+                    next_obs=batch_dicts(next_obs, func=concate_along_unit_dim), 
                     state=state,
                 )
 
@@ -87,7 +86,7 @@ class Runner(RunnerBase):
 
 def split_env_output(env_output):
     env_outputs = [
-        jax_utils.tree_map(lambda x: x[:, i:i+1], env_output) 
+        jax.tree_util.tree_map(lambda x: x[:, i:i+1], env_output) 
         for i in range(2)
     ]
     return env_outputs
@@ -113,15 +112,16 @@ def simultaneous_rollout(env, agents, buffers, env_output, rountine_config):
         env.store(**env_stats)
 
         for aid, agent in enumerate(agents):
-            kwargs = dict(
+            data = dict(
                 obs=env_outputs[aid].obs, 
                 action=acts[aid], 
                 reward=new_env_outputs[aid].reward, 
                 discount=new_env_outputs[aid].discount, 
                 next_obs=new_env_outputs[aid].obs, 
+                reset=new_env_outputs[aid].reset, 
                 **stats[aid]
             )
-            buffers[aid].collect(env, 0, new_env_outputs[aid].reset, **kwargs)
+            buffers[aid].collect(**data)
 
         env_output = new_env_output
         env_outputs = new_env_outputs
@@ -153,15 +153,16 @@ def unilateral_rollout(env, agents, buffers, env_output, rountine_config):
             new_env_outputs = split_env_output(new_env_output)
             env.store(**env_stats)
 
-            kwargs = dict(
+            data = dict(
                 obs=env_outputs[aid].obs, 
                 action=acts[aid], 
                 reward=new_env_outputs[aid].reward, 
                 discount=new_env_outputs[aid].discount, 
                 next_obs=new_env_outputs[aid].obs, 
+                reset=new_env_outputs[aid].reset
                 **stats[aid]
             )
-            buffers[aid].collect(env, 0, new_env_outputs[aid].reset, **kwargs)
+            buffers[aid].collect(**data)
 
             env_output = new_env_output
             env_outputs = new_env_outputs
@@ -175,12 +176,12 @@ def unilateral_rollout(env, agents, buffers, env_output, rountine_config):
 
 def run_on_model(env, buffer, agents, buffers, routine_config):
     sample_keys = buffer.obs_keys + ['state'] \
-        if routine_config.restore_state else buffer.obs_keys 
+        if routine_config.restore_state else buffer.obs_keys
     obs = buffer.sample_from_recency(
         batch_size=routine_config.n_simulated_envs,
         sample_keys=sample_keys, 
-        sample_size=1, 
-        squeeze=True, 
+        # sample_size=1, 
+        # squeeze=True, 
         n=routine_config.n_recent_trajectories
     )
     reward = np.zeros(obs.obs.shape[:-1])

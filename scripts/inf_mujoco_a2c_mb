@@ -4,6 +4,11 @@ export PYTHONPATH=.
 
 algos=(
     happo_mb
+    happo_mb
+    happo_mb
+    happo_mb
+    happo_mb
+    happo_mb
 )
 suite=$1
 shift
@@ -15,27 +20,23 @@ envs=(
 )
 e=${envs[0]}
 configs=(
-    "${e}"
+    "${suite}_a2c"
 )
-args1=(25 50)
+args1=(
+    16
+    16
+    32
+    32
+)
 args2=(
-    "256,256" 
-    "256,256" 
-    "256,256,256,256" 
-    "256,256,256,256"
-    "256,256" 
-    "256,256" 
-    "256,256,256,256" 
-    "256,256,256,256"
+    5
+    5
+    5
+    5
 )
 args3=(
-    layer
-    None
-    layer
-    None
-    layer
-    None
-    layer
+    1
+    5
 )
 args4=(5 10)
 date=$(date +"%m%d")
@@ -74,12 +75,11 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="n_epochs=$a1"
+kws="0#n_envs=$a1 0#n_simulated_envs=$a1 0#n_steps=$a2 0#n_simulated_steps=$a2 1#n_epochs=$a3"
 for e in "${envs[@]}"; do
-    config=$suite
     env="${suite}-${e}"
-    for s in {0..9}; do
-        py_script="python run/train.py -a ${a} ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
+    for s in {0..4}; do
+        py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

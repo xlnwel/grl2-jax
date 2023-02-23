@@ -146,7 +146,7 @@ def setup_configs(cmd_args, algo_env_config):
         algo = _get_algo_name(algo)
         config = load_config_with_algo_env(algo, env, config)
         if i in kwidx:
-            change_config_with_kw_string(cmd_args.kwargs, config)
+            change_config_with_kw_string(cmd_args.kwargs, config, i)
         if model_name == '':
             model_name = 'baseline'
 

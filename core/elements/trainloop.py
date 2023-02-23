@@ -37,16 +37,13 @@ class TrainingLoop:
 
     def _train(self, **kwargs):
         data = self.sample_data()
-        if data is None:
-            return 0, None
+        stats = self._train_with_data(data)
 
-        with Timer('train'):
-            stats = self.trainer.train(data, **kwargs)
         if isinstance(stats, tuple):
             assert len(stats) == 2, stats
             n, stats = stats
         else:
-            n = self.trainer.config.n_epochs * self.trainer.config.n_mbs
+            n = 1
 
         return n, stats
 
@@ -62,6 +59,13 @@ class TrainingLoop:
         if 'next_obs' in data:
             data.setdefault('next_global_state', data.next_obs)
         return data
+
+    def _train_with_data(self, data):
+        if data is None:
+            return {}
+        with Timer('train'):
+            stats = self.trainer.train(data)
+        return stats
 
     def change_buffer(self, buffer):
         old_buffer = self.buffer

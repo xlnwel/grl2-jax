@@ -26,7 +26,10 @@ def parse_train_args():
                         type=str,
                         nargs='*',
                         default=[],
-                        help="key-values in config.yaml needed to be overwrite")
+                        help='key-values in config.yaml required to be overwrite, '
+                            'we use "#" in key to specify configs, e.g., "0,1/key=value" overwrites key-value in the 0th and 1st configs only;'
+                            '":" in key to specify a nested config, e.g., "policy_opt:lr=1e-3" overwrites lr in policy_opt only;'
+                            '"," in value to denote a list of elements')
     parser.add_argument('--kwidx', '-ki',
                         type=int,
                         nargs='*',

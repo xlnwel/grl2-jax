@@ -1,3 +1,3 @@
 from tools.registry import Registry
 
-buffer_registry = Registry('buffer')
+replay_registry = Registry('replay')

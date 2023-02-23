@@ -265,6 +265,8 @@ def str2bool(v):
 def eval_str(val):
     try:
         val = ast.literal_eval(val)
+        if isinstance(val, float) and val == int(val):
+            val = int(val)
     except:
         pass
     return val

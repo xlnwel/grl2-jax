@@ -60,7 +60,7 @@ class Trainer(TrainerBase):
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
         stats = prefix_name(stats, 'model_train')
-
+        stats.update(data)
         with Timer('model_stats_subsampling'):
             stats = sample_stats(
                 stats, 
@@ -100,10 +100,8 @@ class Trainer(TrainerBase):
                 'data': data, 
             }, 
             opt=self.opts.theta, 
-            name='train/theta'
+            name='train/dynamics'
         )
-        stats.update({f'data/{k}': lax.stop_gradient(v) 
-            for k, v in data.items() if v is not None})
 
         return theta, opt_state, stats
 
