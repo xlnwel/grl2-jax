@@ -46,6 +46,7 @@ class EpisodicReplay(Buffer):
         self.max_episodes = self.config.get('max_episodes', 1000)
         self.min_episodes = self.config.get('min_episodes', 10)
         self.batch_size = self.config.batch_size
+        self.n_recency = self.config.get('n_recency', self.min_episodes)
 
         self._tmp_bufs: List[EpisodicBuffer] = [
             EpisodicBuffer(config, env_stats, model, aid, 0) 
@@ -184,18 +185,20 @@ class EpisodicReplay(Buffer):
         self, 
         batch_size=None, 
         sample_keys=None, 
-        sample_size=None, 
-        squeeze=None, 
+        sample_size=1, 
+        squeeze=True, 
         n=None
     ):
         """ Sample from the most n recent trajectories. 
         """
         batch_size = batch_size or self.batch_size
-        samples = [self._sample(sample_keys, sample_size, squeeze, n) 
+        n = n or self.n_recency
+        samples = batch_dicts(
+            [self._sample(sample_keys, sample_size, squeeze, n) 
             for _ in range(batch_size)]
-        data = batch_dicts(samples)
+        )
 
-        return data
+        return samples
 
     def _sample(self, sample_keys=None, sample_size=None, squeeze=False, n=None):
         """ Samples a sequence """

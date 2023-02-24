@@ -82,6 +82,12 @@ def compute_model_loss(
         stats.model_mae = lax.abs(stats.model_loc - pred_obs)
         chex.assert_rank([stats.mean_loss], 1)
         loss = jnp.sum(stats.mean_loss)
+    elif config.model_loss_type == 'mse':
+        loss = .5 * (stats.model_loc - pred_obs)**2
+        stats.model_mae = lax.abs(stats.model_loc - pred_obs)
+        stats.mean_loss = jnp.mean(loss, [0, 1, 2])
+        chex.assert_rank([stats.mean_loss], 1)
+        loss = jnp.sum(stats.mean_loss)
     elif config.model_loss_type == 'discrete':
         loss = - dist.log_prob(pred_obs)
         pred_next_obs = jnp.argmax(stats.model_logits, -1)

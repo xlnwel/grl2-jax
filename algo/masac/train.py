@@ -9,6 +9,7 @@ from tools.display import print_dict
 from tools.store import StateStore, TempStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
+from replay.dual import DualReplay
 from .run import *
 from algo.happo_mb.train import build_model
 
@@ -40,18 +41,24 @@ def set_states(states, agent, runner):
 
 
 def model_train(model, model_buffer):
-    if model_buffer.ready_to_sample():
-        with Timer('model_train'):
-            model.train_record()
+    if model_buffer is None or not model_buffer.ready_to_sample():
+        return
+    with Timer('model_train'):
+        model.train_record()
 
 
 def lookahead_run(agent, model, buffer, model_buffer, routine_config):
     def get_agent_states():
         state = agent.get_states()
+        # we collect lookahead data into the slow replay
+        if isinstance(buffer, DualReplay):
+            buffer.set_default_replay('slow')
         return state
     
     def set_agent_states(states):
         agent.set_states(states)
+        if isinstance(buffer, DualReplay):
+            buffer.set_default_replay('fast')
 
     # train lookahead agent
     with Timer('lookahead_run'):
@@ -66,7 +73,7 @@ def lookahead_optimize(agent):
 
 def lookahead_train(agent, model, buffer, model_buffer, routine_config, 
         n_runs, run_fn, opt_fn):
-    if not model_buffer.ready_to_sample():
+    if model_buffer is None or not model_buffer.ready_to_sample():
         return
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
@@ -84,7 +91,7 @@ def ego_run(agent, runner, buffer, model_buffer, routine_config):
             runner.run(
                 routine_config.n_steps, 
                 agent, buffer, 
-                model_buffer if routine_config.n_lookahead_steps > 0 else None, 
+                model_buffer, 
                 [], 
             )
 
@@ -249,9 +256,8 @@ def build_agent(config, env_stats):
     buffer = elements.buffer
     return agent, buffer
 
-
 def main(configs, train=train):
-    config = configs[0]
+    config, model_config = configs[0], configs[-1]
     seed = config.get('seed')
     set_seed(seed)
 
@@ -264,7 +270,6 @@ def main(configs, train=train):
 
     runner = Runner(config.env)
 
-    config, model_config = configs[0], configs[-1]
     # load agent
     env_stats = runner.env_stats()
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
@@ -273,8 +278,12 @@ def main(configs, train=train):
     # build agents
     agent, buffer = build_agent(config, env_stats)
     # load model
-    model, model_buffer = build_model(config, model_config, env_stats)
+    if config.algorithm == 'masac':
+        model, model_buffer = None, None
+    else:
+        model, model_buffer = build_model(config, model_config, env_stats)
     save_code_for_seed(config)
+
 
     routine_config = config.routine.copy()
     train(

@@ -22,7 +22,6 @@ def run_model(model, buffer, routine_config):
         sample_keys=sample_keys,
         sample_size=1,
         squeeze=True,
-        n=routine_config.n_recent_trajectories
     )
     shape = obs.obs.shape[-1]
 

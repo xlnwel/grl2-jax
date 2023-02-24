@@ -50,9 +50,6 @@ def run_model(model, buffer, routine_config):
     obs = buffer.sample_from_recency(
         batch_size=routine_config.n_envs, 
         sample_keys=sample_keys, 
-        sample_size=1, 
-        squeeze=True, 
-        n=routine_config.n_recent_trajectories
     )
     shape = obs.obs.shape[:-1]
     reward = np.zeros(shape)

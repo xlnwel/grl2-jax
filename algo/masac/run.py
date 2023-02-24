@@ -198,9 +198,8 @@ def run_on_model(env, model_buffer, agent, buffer, routine_config):
     obs = model_buffer.sample_from_recency(
         batch_size=routine_config.n_simulated_envs,
         sample_keys=sample_keys, 
-        sample_size=1, 
-        squeeze=True, 
-        n=routine_config.n_recent_trajectories
+        # sample_size=1, 
+        # squeeze=True, 
     )
     reward = np.zeros(obs.obs.shape[:-1])
     discount = np.ones(obs.obs.shape[:-1])

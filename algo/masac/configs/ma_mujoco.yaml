@@ -29,7 +29,6 @@ routine:
     n_simulated_envs: &nse 40
     n_simulated_steps: &nss 10
     lookahead_rollout: sim
-    n_recent_trajectories: 1000
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3

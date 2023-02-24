@@ -26,6 +26,7 @@ class UniformReplay(Buffer):
         self.max_size = int(self.config.max_size)
         self.min_size = int(self.config.min_size)
         self.batch_size = self.config.batch_size
+        self.n_recency = self.config.get('n_recency', self.min_size)
         self.n_steps = self.config.n_steps
 
         self._memory = collections.deque(maxlen=config.max_size)
@@ -94,7 +95,9 @@ class UniformReplay(Buffer):
             self._memory.append(traj)
         return popped_data
 
-    def sample_from_recency(self, batch_size, sample_keys, n, **kwargs):
+    def sample_from_recency(self, batch_size, sample_keys, n=None, **kwargs):
+        batch_size = batch_size or self.batch_size
+        n = n or self.n_recency
         idxes = np.arange(len(self)-n, len(self))
         idxes = np.random.choice(idxes, size=batch_size, replace=False)
 

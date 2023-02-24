@@ -33,7 +33,6 @@ routine:
     ignore_ratio_for_lookahead: False
     perm: null
     restore_state: False
-    n_recent_trajectories: 4000
     switch_model_at_every_step: False
 
 env:
