@@ -39,6 +39,7 @@ env:
     env_args:
         agent_obsk: 0
     single_agent: False
+    norm_obs: False
 
 agent: {}
 
@@ -48,8 +49,8 @@ monitor:
 strategy:
     algorithm: *algo
     train_loop: 
-        n_epochs: 200
-        n_lka_epochs: 200
+        n_epochs: 100
+        n_lka_epochs: 100
 
 model:
     aid: 0
@@ -68,6 +69,7 @@ model:
         rnn_units: 64
         LOG_STD_MIN: -20
         LOG_STD_MAX: 2
+        use_feature_norm: False
     Q:
         nn_id: Q
         units_list: [256, 256]
@@ -76,6 +78,7 @@ model:
         norm: null
         rnn_type: &vrnn null
         rnn_units: 64
+        use_feature_norm: False
     temp:
         nn_id: temp
         type: variable

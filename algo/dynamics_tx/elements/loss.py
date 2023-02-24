@@ -44,7 +44,6 @@ class Loss(LossBase):
 
         loss = model_loss + reward_loss + discount_loss
         stats.loss = loss
-        stats.elite_indices = jnp.argsort(stats.mean_loss)
 
         return loss, stats
 

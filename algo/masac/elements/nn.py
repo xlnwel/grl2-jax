@@ -17,6 +17,7 @@ class Policy(hk.Module):
         action_dim, 
         LOG_STD_MIN=-20, 
         LOG_STD_MAX=2, 
+        use_feature_norm=False, 
         name='policy', 
         **config
     ):
@@ -27,6 +28,7 @@ class Policy(hk.Module):
 
         self.LOG_STD_MIN = LOG_STD_MIN
         self.LOG_STD_MAX = LOG_STD_MAX
+        self.use_feature_norm = use_feature_norm
 
     def __call__(self, x, reset=None, state=None, action_mask=None):
         net = self.build_net()
@@ -65,14 +67,19 @@ class Q(hk.Module):
         is_action_discrete, 
         out_size=1, 
         name='q', 
+        use_feature_norm=False, 
         **config
     ):
         super().__init__(name=name)
         self.config = dict2AttrDict(config, to_copy=True)
         self.is_action_discrete = is_action_discrete
         self.out_size = out_size
+        self.use_feature_norm = use_feature_norm
 
     def __call__(self, x, a, reset=None, state=None):
+        if self.use_feature_norm:
+            ln = hk.LayerNorm(-1, True, True)
+            x = ln(x)
         x = concat_sa(x, a)
         net = self.build_net()
 

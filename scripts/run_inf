@@ -1,0 +1,3 @@
+./scripts/inf ma_mujoco 1 inf_masac
+./scripts/inf ma_mujoco 2 inf_mambpo
+./scripts/inf ma_mujoco 3 inf_masac_lka

@@ -46,6 +46,7 @@ model:
     n_elites: 1
     global_state_type: obs
     rn_std: .1
+    model_loss_type: &mlt mse
     stoch_trans: True
 
     emodels:
@@ -78,7 +79,7 @@ model:
         norm: layer
 
 loss:
-    model_loss_type: ce
+    model_loss_type: *mlt
     n_models: *n
 
     model_coef: 1
@@ -88,11 +89,12 @@ loss:
 trainer:
     algorithm: *algo
     aid: 0
+    trust_threshold: 1000
     timeout_done: *td
 
     model_opt:
         opt_name: adam
-        lr: 3e-4
+        lr: 5e-4
         clip_norm: 10
         eps: 1e-5
 

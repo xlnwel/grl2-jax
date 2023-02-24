@@ -187,7 +187,13 @@ def to_array32(x):
 
 def isscalar(x):
     return isinstance(x, (int, float))
-    
+
+def except_axis(x, except_axis):
+    if isinstance(except_axis, int):
+        except_axis = [except_axis]
+    axis = [i for i in range(x.ndim) if i not in except_axis]
+    return axis
+
 def step_str(step):
     if step < 1000:
         return f'{step}'

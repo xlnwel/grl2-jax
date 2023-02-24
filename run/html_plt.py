@@ -165,7 +165,7 @@ def rename_env(config: dict):
 #     data.to_csv(csv_path)
 
 
-def to_csv(v):
+def to_csv(env_name, v):
     SCORE = 'metrics/score'
     if v == []:
         return
@@ -174,11 +174,13 @@ def to_csv(v):
         scores = np.concatenate(scores)
         max_score = np.max(scores)
         min_score = np.min(scores)
+    print(f'env: {env_name}\tmax={max_score}\tmin={min_score}')
     for csv_path, data in v:
         if SCORE in data:
             data[SCORE] = (data[SCORE] - min_score) / (max_score - min_score)
+            print(f'\t{csv_path}. norm score max={np.max(data[SCORE])}, min={np.min(data[SCORE])}')
         data.to_csv(csv_path)
-
+        
 
 if __name__ == '__main__':
     args = parse_args()
@@ -289,8 +291,8 @@ if __name__ == '__main__':
         # print(list(data))
         # exit()
 
-    for v in all_data.values():
-        to_csv(v)
+    for k, v in all_data.items():
+        to_csv(k, v)
     all_data.clear()
         
     if process is not None:

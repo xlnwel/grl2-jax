@@ -41,7 +41,7 @@ def set_states(states, agent, runner):
 
 
 def model_train(model, model_buffer):
-    if model_buffer is None or not model_buffer.ready_to_sample():
+    if model is None:
         return
     with Timer('model_train'):
         model.train_record()
@@ -73,7 +73,7 @@ def lookahead_optimize(agent):
 
 def lookahead_train(agent, model, buffer, model_buffer, routine_config, 
         n_runs, run_fn, opt_fn):
-    if model_buffer is None or not model_buffer.ready_to_sample():
+    if model is None or not model.trainer.is_trust_worthy():
         return
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
@@ -142,7 +142,8 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
 
     with Timer('save'):
         agent.save()
-        model.save()
+        if model is not None: 
+            model.save()
 
     with Timer('log'):
         if video is not None:
@@ -166,19 +167,20 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
         )
         agent.record(step=env_step)
 
-        train_step = model.get_train_step()
-        model_train_duration = Timer('model_train').last()
-        if model_train_duration == 0:
-            tps = 0
-        else:
-            tps = model.get_train_step_intervals() / model_train_duration
-        model.store(**{
-                'stats/train_step': train_step, 
-                'time/tps': tps, 
-            }, 
-            **Timer.all_stats()
-        )
-        model.record(step=env_step)
+        if model is not None:
+            train_step = model.get_train_step()
+            model_train_duration = Timer('model_train').last()
+            if model_train_duration == 0:
+                tps = 0
+            else:
+                tps = model.get_train_step_intervals() / model_train_duration
+            model.store(**{
+                    'stats/train_step': train_step, 
+                    'time/tps': tps, 
+                }, 
+                **Timer.all_stats()
+            )
+            model.record(step=env_step)
 
 
 def train(

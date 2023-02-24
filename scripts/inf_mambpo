@@ -18,10 +18,11 @@ configs=(
 )
 args1=(
     "dynamics" 
-    "dynamics_tx"
+    ""
 )
 args2=(
-    2000
+    "ce"
+    "mse"
 )
 args3=(
     100 50 25
@@ -63,11 +64,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-if [[ "$a" == 'mambpo' ]]; then
-    kws="0#dynamics_name=$a1 0#n_simulated_envs=$a2"
-else
-    kws="0#dynamics_name=$a1 0#n_simulated_envs=$a2 0#n_lka_epochs=$a3"
-fi
+kws="0#dynamics_name=$a1 model_loss_type=$a2"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"

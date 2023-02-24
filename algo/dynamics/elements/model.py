@@ -174,6 +174,9 @@ def setup_config_from_envstats(config, env_stats):
     config.model = config.emodels.copy()
     config.model.nn_id = 'model'
     config.model.pop('n_models')
+    if config.model_loss_type == 'mse':
+        # for MSE loss, we only consider deterministic transitions since the variance is unconstrained.
+        config.stoch_trans = False
 
     return config
 
