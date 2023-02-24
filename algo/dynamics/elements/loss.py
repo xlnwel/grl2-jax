@@ -20,21 +20,29 @@ class Loss(LossBase):
         theta, 
         rng, 
         data, 
-        name='theta'
+        name='theta',
+        **kwargs,
     ):
         next_obs_ensemble = ensemble_obs(data.next_obs, self.config.n_models)
         rngs = random.split(rng, 3)
-        dist = self.modules.emodels(
-            theta.emodels, rngs[0], data.obs, data.action, 
-        )
+
+        if self.config.obs_normalization:
+            dist, stats = self.model.normalized_emodels(
+                theta, rngs[0], data.obs, data.action,
+                **kwargs
+            )
+        else:
+            dist = self.modules.emodels(
+                theta.emodels, rngs[0], data.obs, data.action
+            )
+            stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
+        
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
             obs_ensemble = ensemble_obs(data.obs, self.config.n_models)
             pred_ensemble = next_obs_ensemble - obs_ensemble
         else:
             pred_ensemble = jnp.array(next_obs_ensemble, dtype=jnp.int32)
-
-        stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
 
         model_loss, stats = compute_model_loss(
             self.config, pred_ensemble, stats)
@@ -47,7 +55,8 @@ class Loss(LossBase):
         discount_loss, stats = compute_discount_loss(
             self.config, discount_dist, data.discount, stats)
 
-        loss = model_loss + reward_loss + discount_loss
+        # loss = model_loss + reward_loss + discount_loss
+        loss = self.config.model_coef * model_loss + self.config.reward_coef * reward_loss + self.config.discount_coef * discount_loss
         stats.loss = loss
         stats.elite_indices = jnp.argsort(stats.mean_loss)
 

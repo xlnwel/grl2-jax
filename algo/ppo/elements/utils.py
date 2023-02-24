@@ -25,11 +25,18 @@ def compute_values(
     state_reset, 
     state, 
     bptt, 
-    seq_axis=1
+    seq_axis=1,
+    **kwargs
 ):
     if state is None:
-        value, _ = func(params, rng, x)
-        next_value, _ = func(params, rng, next_x)
+        if kwargs.get("vrnn", None) is not None:
+            state_reset, next_state_reset = jax_utils.split_data(
+                state_reset, axis=seq_axis)
+            value, _ = func(params, rng, x, state_reset)
+            next_value, _ = func(params, rng, next_x, next_state_reset)
+        else:
+            value, _ = func(params, rng, x)
+            next_value, _ = func(params, rng, next_x) 
     else:
         state_reset, next_state_reset = jax_utils.split_data(
             state_reset, axis=seq_axis)
@@ -105,7 +112,6 @@ def compute_policy(
     jax_assert.assert_shape_compatibility([pi_logprob, mu_logprob])
     log_ratio = pi_logprob - mu_logprob
     ratio = lax.exp(log_ratio)
-
     return act_dist, pi_logprob, log_ratio, ratio
 
 

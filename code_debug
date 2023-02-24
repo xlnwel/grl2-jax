@@ -4,6 +4,7 @@ export PYTHONPATH=.
 
 # algos=(happo)
 algos=(dreamer)
+# algos=(happo)
 suite=magw
 envs=(escalation)
 config=escalation
@@ -36,9 +37,10 @@ for e in "${envs[@]}"; do
                 env="${suite}-${e}"
                 if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
                     gpu=$(($i % $gpus))
-                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s --gpu $gpu -na $na -kw $kws &"
+		    # py_script="python run/train.py -a happo_mb happo_mb dynamics -e ma_mujoco-Ant_2x4 -c ma_mujoco -ld debug -n debug -s 0 --gpu 0 -na 2"
+                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s --gpu $gpu -na $na -kw $kws" #  &"
                 else
-                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s -na $na -kw $kws &"
+                    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n debug -s $s -na $na -kw $kws" # &"
                 fi
                 echo $py_script
                 eval $py_script

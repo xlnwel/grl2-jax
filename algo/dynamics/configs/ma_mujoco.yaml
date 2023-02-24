@@ -45,6 +45,8 @@ model:
     n_elites: 1
     global_state_type: obs
     rn_std: .1
+    obs_normalization: &obs_norm True
+    deterministic_pred: True
 
     emodels:
         nn_id: emodels
@@ -63,6 +65,9 @@ model:
         activation: relu
         norm: layer
         out_scale: .01
+        balance_dimension: True
+        obs_units_list: [128]
+        action_units_list: [64]
     discount:
         nn_id: discount
         out_size: 1
@@ -71,9 +76,10 @@ model:
         norm: layer
 
 loss:
-    model_loss_type: mbpo
+    model_loss_type: mse # mbpo
     n_models: *n
-
+    obs_normalization: *obs_norm
+    
     model_coef: 1
     reward_coef: 1
     discount_coef: 1
@@ -83,6 +89,7 @@ trainer:
     aid: 0
     n_epochs: &nepochs 25
     timeout_done: *td
+    obs_normalization: *obs_norm
 
     model_opt:
         opt_name: adam

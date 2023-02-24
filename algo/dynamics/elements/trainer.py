@@ -38,6 +38,9 @@ def construct_fake_data(env_stats, aid):
 class Trainer(TrainerBase):
     def build_optimizers(self):
         theta = self.model.theta.copy()
+        if self.config.obs_normalization:
+            theta.pop("obs_normalizer_params")
+            theta.pop("diff_normalizer_params")
         self.opts.theta, self.params.theta = optimizer.build_optimizer(
             params=theta, 
             **self.config.model_opt, 
@@ -56,6 +59,10 @@ class Trainer(TrainerBase):
                 )
         self.model.set_weights(theta)
         self.model.rank_elites(stats.elite_indices)
+
+        # update normalization parameters
+        if self.config.obs_normalization:
+            self.model.update_normalizers(data.obs, data.next_obs)
 
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
@@ -91,6 +98,13 @@ class Trainer(TrainerBase):
         data, 
     ):
         do_logging('train is traced', backtrack=4)
+        if self.config.obs_normalization:
+            extra_kwargs = {
+                'obs_normalizer_params': theta.pop('obs_normalizer_params'),
+                'diff_normalizer_params': theta.pop('diff_normalizer_params'),
+            }
+        else:
+            extra_kwargs = {}
         theta, opt_state, stats = optimizer.optimize(
             self.loss.loss, 
             theta, 
@@ -98,6 +112,7 @@ class Trainer(TrainerBase):
             kwargs={
                 'rng': rng, 
                 'data': data, 
+                **extra_kwargs
             }, 
             opt=self.opts.theta, 
             name='train/theta'

@@ -87,8 +87,13 @@ class Memory:
         return np.float32(1. - reset)
 
     def apply_reset_to_state(self, state: NamedTuple, reset: np.ndarray):
-        assert state is not None, state
-        reset = reset.reshape(-1, 1)
+        if state is None or (state.policy is None and state.value is None):
+            return state
+        if hasattr(state.policy, 'cell'):
+            basic_shape = state.policy.cell.shape[:2]
+        else:
+            basic_shape = state.policy.shape[:2]
+        reset = reset.reshape((*basic_shape, 1))
         state = jax_utils.tree_map(lambda x: x*(1-reset), state)
         return state
 

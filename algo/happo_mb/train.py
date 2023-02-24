@@ -258,8 +258,8 @@ def main(configs, train=train):
         elements = builder.build_agent_from_scratch()
         agents.append(elements.agent)
         buffers.append(elements.buffer)
-    if seed == 0:
-        save_code(ModelPath(root_dir, model_name))
+    # if seed == 0:
+    #     save_code(ModelPath(root_dir, model_name))
 
     # load model
     new_model_name = '/'.join([model_name, 'model'])

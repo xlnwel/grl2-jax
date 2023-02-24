@@ -118,8 +118,15 @@ class Reward(hk.Module):
         self.config = dict2AttrDict(config, to_copy=True)
 
     def __call__(self, x, action):
-        net = self.build_net()
-        x = combine_sa(x, action)
+        if self.config.balance_dimension:
+            obs_transform, action_transform, net = self.build_net()
+            obs_embed = obs_transform(x)
+            actions = joint_actions(action)
+            action_embed = action_transform(actions)
+            x = jnp.concatenate([obs_embed, action_embed], -1)
+        else:
+            net = self.build_net()
+            x = combine_sa(x, action)
         x = net(x)
         if self.out_size == 1:
             x = jnp.squeeze(x, -1)
@@ -131,9 +138,24 @@ class Reward(hk.Module):
 
     @hk.transparent
     def build_net(self):
-        net = mlp(**self.config, out_size=self.out_size)
-
-        return net
+        if self.config.balance_dimension:
+            tmp_config = self.config.copy()
+            tmp_config.pop('balance_dimension')
+            obs_units_list, action_units_list = tmp_config.pop('obs_units_list'), tmp_config.pop('action_units_list')
+            tmp_config.units_list = obs_units_list
+            obs_transform = mlp(**tmp_config)
+            
+            tmp_config.units_list = action_units_list
+            action_transform = mlp(**tmp_config)
+            
+            [self.config.pop(_key) for _key in ['balance_dimension', 'obs_units_list', 'action_units_list']]
+            net = mlp(**self.config, out_size=self.out_size)
+            return obs_transform, action_transform, net
+        else:
+            if 'balance_dimension' in self.config:
+                [self.config.pop(_key) for _key in ['balance_dimension', 'obs_units_list', 'action_units_list']]
+            net = mlp(**self.config, out_size=self.out_size)
+            return net
 
 
 @nn_registry.register('discount')
