@@ -115,10 +115,10 @@ class ElementsBuilder:
         **kwargs
     ):
         constructors = constructors or self.constructors
-        config = dict2AttrDict(config or self.config)
+        config = dict2AttrDict(config or self.config.buffer)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
         buffer = constructors.buffer(
-            config.buffer, 
+            config, 
             model, 
             env_stats, 
             **kwargs
@@ -239,6 +239,7 @@ class ElementsBuilder:
         to_build_for_eval: bool=False
     ):
         constructors = self.get_constructors(config)
+        config = self.config if config is None else config
         env_stats = self.env_stats if env_stats is None else env_stats
         
         elements = AttrDict()
@@ -273,6 +274,7 @@ class ElementsBuilder:
         save_config: bool=True
     ):
         constructors = self.get_constructors(config)
+        config = self.config if config is None else config
         env_stats = self.env_stats if env_stats is None else env_stats
         
         elements = AttrDict()
@@ -287,7 +289,7 @@ class ElementsBuilder:
             constructors=constructors)
         elements.buffer = self.build_buffer(
             model=elements.model, 
-            config=config, 
+            config=config.buffer, 
             env_stats=env_stats, 
             constructors=constructors)
         # elements.buffer = self.build_dataset(
@@ -323,6 +325,7 @@ class ElementsBuilder:
         save_config: bool=True
     ):
         constructors = self.get_constructors(config)
+        config = self.config if config is None else config
         env_stats = self.env_stats if env_stats is None else env_stats
         
         elements = AttrDict()
@@ -341,7 +344,7 @@ class ElementsBuilder:
             constructors=constructors)
         elements.buffer = self.build_buffer(
             model=elements.model, 
-            config=config, 
+            config=config.buffer, 
             env_stats=env_stats, 
             constructors=constructors)
         # elements.buffer = self.build_dataset(

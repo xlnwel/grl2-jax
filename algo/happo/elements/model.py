@@ -6,10 +6,9 @@ from jax import lax, nn, random
 import jax.numpy as jnp
 import haiku as hk
 
-from core.log import do_logging
-from core.typing import AttrDict, dict2AttrDict
+from core.typing import dict2AttrDict
 from tools.file import source_file
-from jax_tools import jax_dist, jax_utils
+from jax_tools import jax_utils
 from tools.display import print_dict_info
 from algo.ppo.elements.model import Model as ModelBase, setup_config_from_envstats
 from algo.ppo.elements.utils import get_initial_state
@@ -35,6 +34,7 @@ def construct_fake_data(env_stats, aid, batch_size=1):
     # print_dict_info(data)
 
     return data
+
 
 class Model(ModelBase):
     def compile_model(self):

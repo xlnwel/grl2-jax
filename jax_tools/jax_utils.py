@@ -99,3 +99,10 @@ def jnp2np(data):
 def compute_norms(tree):
     tree = tree_util.tree_map(jnp.linalg.norm, tree)
     return tree
+
+def split_rng(rng, n):
+    if rng is None:
+        rngs = [None for _ in range(n)]
+    else:
+        rngs = random.split(rng, n)
+    return rngs

@@ -38,10 +38,12 @@ class NormalizedActions(gym.ActionWrapper):
 
 class MujocoMulti(MultiAgentEnv):
 
-    def __init__(self, batch_size=None, **kwargs):
+    def __init__(self, batch_size=None, norm_obs=True, **kwargs):
         super().__init__(batch_size, **kwargs)
+
         self.scenario = kwargs["env_args"]["scenario"]  # e.g. Ant-v2
         self.agent_conf = kwargs["env_args"]["agent_conf"]  # e.g. '2x3'
+        self.norm_obs = norm_obs
 
         self.agent_partitions, self.mujoco_edges, self.mujoco_globals = get_parts_and_edges(self.scenario,
                                                                                             self.agent_conf)
@@ -155,7 +157,8 @@ class MujocoMulti(MultiAgentEnv):
             # obs_n.append(np.concatenate([state, self.get_obs_agent(a), agent_id_feats]))
             # obs_n.append(np.concatenate([self.get_obs_agent(a), agent_id_feats]))
             obs_i = np.concatenate([state, agent_id_feats])
-            obs_i = (obs_i - np.mean(obs_i)) / np.std(obs_i)
+            if self.norm_obs:
+                obs_i = (obs_i - np.mean(obs_i)) / np.std(obs_i)
             obs_n.append(obs_i)
         return obs_n
 
@@ -192,7 +195,8 @@ class MujocoMulti(MultiAgentEnv):
             agent_id_feats[a] = 1.0
             # share_obs.append(np.concatenate([state, self.get_obs_agent(a), agent_id_feats]))
             state_i = np.concatenate([state, agent_id_feats])
-            state_i = (state_i - np.mean(state_i)) / np.std(state_i)
+            if self.norm_obs:
+                state_i = (state_i - np.mean(state_i)) / np.std(state_i)
             share_obs.append(state_i)
         return share_obs
 

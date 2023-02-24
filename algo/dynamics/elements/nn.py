@@ -1,4 +1,4 @@
-from jax import lax, nn
+from jax import lax
 import jax.numpy as jnp
 import haiku as hk
 
@@ -24,6 +24,8 @@ def get_discrete_dist(x, out_size, n_classes):
 
 CONTINUOUS_MODEL = 'continuous'
 DISCRETE_MODEL = 'discrete'
+
+
 @nn_registry.register('model')
 class Model(hk.Module):
     def __init__(
@@ -57,6 +59,7 @@ class Model(hk.Module):
         net = mlp(
             **self.config, 
             out_size=out_size, 
+            name='model_mlp'
         )
         return net
 
@@ -95,7 +98,7 @@ class EnsembleModels(Model):
         nets = [mlp(
             **self.config,
             out_size=out_size, 
-            name=f'model{i}'
+            name=f'model{i}_mlp'
         ) for i in range(self.n_models)]
         return nets
 

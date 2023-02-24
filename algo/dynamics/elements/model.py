@@ -3,11 +3,9 @@ import numpy as np
 import logging
 import collections
 import jax
-from jax import lax, nn, random
+from jax import nn, random
 import jax.numpy as jnp
-import haiku as hk
 
-from core.log import do_logging
 from core.elements.model import Model as ModelBase
 from core.typing import dict2AttrDict, AttrDict
 from tools.file import source_file
@@ -32,6 +30,10 @@ def construct_fake_data(env_stats, aid):
     data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
 
     return data
+
+
+def get_ith_model_prefix(i):
+    return f'emodels/model{i}'
 
 
 class Model(ModelBase):
@@ -76,20 +78,16 @@ class Model(ModelBase):
             idx = np.random.randint(self.config.n_elites)
         self.elite_idx = self.elite_indices[idx]
         self.n_selected_elites[f'elite{self.elite_idx}'] += 1
-        model = {f'model/mlp/{k.split("/")[-1]}': v 
-            for k, v in self.params.emodels.items() 
-            if k.startswith(f'emodels/model{self.elite_idx}')
-        }
-        assert set(model) == set(self.params.model)
+        model = self.get_ith_model(self.elite_idx)
+        assert set(model) == set(self.params.model), (set(model), set(self.params.model))
         self.params.model = model
         return self.elite_idx
     
     def evolve_model(self, score):
         indices = np.argsort(score)
-        model = {k.replace(f'model{indices[-1]}', f'model{indices[0]}'): v
-            for k, v in self.params.emodels.items() 
-            if k.startswith(f'emodels/model{indices[-1]}')
-        }
+        # replace the worst model with the best one
+        model = self.get_ith_model(indices[-1], f'model/model{indices[0]}')
+        # perturb the model with Gaussian noise
         for k, v in model.items():
             init = nn.initializers.normal(self.config.rn_std, dtype=jnp.float32)
             self.act_rng, rng = random.split(self.act_rng)
@@ -98,10 +96,10 @@ class Model(ModelBase):
         self.params.emodels.update(model)
         assert keys == set(self.params.emodels), (keys, set(self.params.emodels))
 
-    def get_ith_model(self, i):
-        model = {f'model/mlp/{k.split("/")[-1]}': v 
+    def get_ith_model(self, i, new_prefix='model/model'):
+        model = {k.replace(get_ith_model_prefix(i), new_prefix): v 
             for k, v in self.params.emodels.items() 
-            if k.startswith(f'emodels/model{i}')
+            if k.startswith(get_ith_model_prefix(i))
         }
         return model
 
@@ -143,6 +141,7 @@ class Model(ModelBase):
 
         return env_out, stats, data.state
 
+<<<<<<< HEAD
     def next_obs(self, params, rng, obs, action, stats, evaluation, **kwargs):
         if self.config.obs_normalization:
             rngs = random.split(rng, 2)
@@ -170,6 +169,19 @@ class Model(ModelBase):
                 # for continuous obs, we predict 𝛥(o)
                 next_obs = obs + next_obs
             stats.update(dist.get_stats('model'))
+=======
+    def next_obs(self, params, rng, obs, action, stats, evaluation):
+        rngs = random.split(rng, 2)
+        dist = self.modules.model(params, rngs[0], obs, action)
+        if self.config.stoch_trans and not evaluation:
+            next_obs = dist.sample(seed=rngs[1])
+        else:
+            next_obs = dist.mode()
+        if isinstance(dist, jax_dist.MultivariateNormalDiag):
+            # for continuous obs, we predict 𝛥(o)
+            next_obs = obs + next_obs
+        stats.update(dist.get_stats('model'))
+>>>>>>> ea7be7a15ae53b296f073d6bb55502bb3ca4a298
 
         return next_obs, stats
 
@@ -222,6 +234,9 @@ def setup_config_from_envstats(config, env_stats):
     config.model = config.emodels.copy()
     config.model.nn_id = 'model'
     config.model.pop('n_models')
+    if config.model_loss_type == 'mse':
+        # for MSE loss, we only consider deterministic transitions since the variance is unconstrained.
+        config.stoch_trans = False
 
     return config
 

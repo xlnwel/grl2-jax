@@ -3,7 +3,7 @@
 export PYTHONPATH=.
 
 algos=(
-    happo_mb
+    happo
 )
 suite=$1
 envs=(
@@ -22,32 +22,21 @@ configs=(
     "${suite}"
 )
 # configs=$envs
+<<<<<<< HEAD
 # args1=(50 50 100 100 150 150)
 args1=(50)
+=======
+args1=(False)
+>>>>>>> ea7be7a15ae53b296f073d6bb55502bb3ca4a298
 args2=(
-    256
-    # .9,.09,.009,.0009,.00009,.00001 
-    # .00001,.9,.09,.009,.0009,.00009 
-    # .00009,.00001,.9,.09,.009,.0009 
-    # .0009,.00009,.00001,.9,.09,.009 
-    # .009,.0009,.00009,.00001,.9,.09 
-    # .09,.009,.0009,.00009,.00001,.9 
-    # .005,.045,.45,.005,.045,.45 
-    # .166,.167,.167,.166,.167,.167
-    # .45,.045,.005,.45,.045,.005 
-    # .9,.09,.01
-    # .01,.9,.09
-    # .09,.01,.9
-    # .33,.33,.34
-    # .9,.1
-    # .1,.9
-    # .5,.5
-    # .9,.1
-    # .1,.9
-    # .5,.5
+    True True
 )
+<<<<<<< HEAD
 # args3=(1 10)
 args3=(10)
+=======
+args3=(ce mbpo)
+>>>>>>> ea7be7a15ae53b296f073d6bb55502bb3ca4a298
 date=$(date +"%m%d")
 # date="0204"
 info=""
@@ -85,11 +74,13 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-kws="n_epochs=$a1 batch_size=$a2 sample_size=$a3"
+# kws="trainer:n_epochs=$a1 stoch_trans=$a2 model_loss_type=$a3"
+kws="compute_return_at_once=$a1 target_type=vtrace"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do
-        py_script="python run/train.py -a ${a} ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
+        # py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script
@@ -98,69 +89,5 @@ done
 # echo ${commands[@]}s
 lc=${#commands[@]}
 p=$((lc / le))
-# echo $p
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 
-# nn="${n}_so"
-# for s in {0..5}; do
-#     py_script="python run/train.py -a ${a} -e $env -c ${config}_so -ld $ld -n $nn -s $s -na $na -kw $kws &"
-#     echo $py_script
-#     eval $py_script
-# done
-# done
-# for config in "${configs[@]}"; do
-#     for s in {0..5}; do
-#         # echo $kws
-#         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
-#             gpus=$(nvidia-smi -L | wc -l)
-#             gpu=$(($i % $gpus))
-#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
-#         else
-#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
-#         fi
-#         echo $py_script
-#         eval $py_script
-#         ((i=(i+1) ))
-#     done
-# done
-# wait
 echo "Script completed"
-# for e in "${envs[@]}"; do
-# le=${#envs[@]}
-# idx=$(($INF_MAC_NODE_RANK % $le))
-# e=${envs[$idx]}
-# lc=${#configs[@]}
-# idx=$(($INF_MAC_NODE_RANK % $lc))
-# config=${configs[$idx]}
-# la1=${#args1[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la1))
-# a1=${args1[$idx]}
-# la2=${#args2[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la2))
-# a2=${args2[$idx]}
-# la3=${#args3[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la3))
-# a3=${args3[$idx]}
-# if [[ "${suite}" == "mpe" ]]; then
-#     na=3
-# else
-#     na=2
-# fi
-# for a in "${algos[@]}"; do
-#     for s in {0..9}; do
-#         kws="n_lookahead_steps=$a1"
-#         # echo $kws
-#         env="${suite}-${e}"
-#         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
-#             gpu=$(($i % $gpus))
-#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s --gpu $gpu -na $na -kw $kws &"
-#         else
-#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -na $na -kw $kws &"
-#         fi
-#         echo $py_script
-#         eval $py_script
-#         ((i=(i+1) ))
-#     done
-#     # wait
-# done
-# wait
-# echo "Script completed"

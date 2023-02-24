@@ -24,7 +24,7 @@ def kl_from_distributions(
             q_logits = jnp.where(action_mask, q_logits, 1e-8)
         pd = distrax.Categorical(p_logits)
         qd = distrax.Categorical(q_logits)
-    kl =pd.kl_divergence(qd)
+    kl = pd.kl_divergence(qd)
 
     return kl
 

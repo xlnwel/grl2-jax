@@ -3,8 +3,6 @@ import copy
 import collections
 from jax import tree_util
 
-from jax_tools import jax_utils
-
 
 """ Attribute Dictionary """
 @tree_util.register_pytree_node_class
@@ -88,7 +86,7 @@ def exclude_subdict(d, *args):
     return res
 
 def tree_slice(d, loc):
-    return jax_utils.tree_map(lambda x: x[loc], d)
+    return tree_util.tree_map(lambda x: x[loc], d)
 
 def dict2AttrDict(d: dict, shallow=False, to_copy=False):
     if isinstance(d, AttrDict) and not to_copy:

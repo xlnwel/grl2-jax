@@ -15,10 +15,12 @@ from replay.local import EpisodicBuffer
 from replay.utils import load_data, save_data
 from tools.utils import batch_dicts
 from tools.display import print_dict_info
+from replay import replay_registry
 
 logger = logging.getLogger(__name__)
 
 
+@replay_registry.register('eps')
 class EpisodicReplay(Buffer):
     def __init__(
         self, 
@@ -44,6 +46,7 @@ class EpisodicReplay(Buffer):
         self.max_episodes = self.config.get('max_episodes', 1000)
         self.min_episodes = self.config.get('min_episodes', 10)
         self.batch_size = self.config.batch_size
+        self.n_recency = self.config.get('n_recency', self.min_episodes)
 
         self._tmp_bufs: List[EpisodicBuffer] = [
             EpisodicBuffer(config, env_stats, model, aid, 0) 
@@ -55,14 +58,6 @@ class EpisodicReplay(Buffer):
 
     def __len__(self):
         return len(self._filenames)
-
-    def collect(self, reset, obs, next_obs, **kwargs):
-        for k, v in obs.items():
-            if k not in kwargs:
-                kwargs[k] = v
-        for k, v in next_obs.items():
-            kwargs[f'next_{k}'] = v
-        self.add(**kwargs, reset=reset)
 
     def add(self, idxes=None, **data):
         if self.n_envs > 1:
@@ -190,18 +185,20 @@ class EpisodicReplay(Buffer):
         self, 
         batch_size=None, 
         sample_keys=None, 
-        sample_size=None, 
-        squeeze=None, 
+        sample_size=1, 
+        squeeze=True, 
         n=None
     ):
         """ Sample from the most n recent trajectories. 
         """
         batch_size = batch_size or self.batch_size
-        samples = [self._sample(sample_keys, sample_size, squeeze, n) 
+        n = n or self.n_recency
+        samples = batch_dicts(
+            [self._sample(sample_keys, sample_size, squeeze, n) 
             for _ in range(batch_size)]
-        data = batch_dicts(samples)
+        )
 
-        return data
+        return samples
 
     def _sample(self, sample_keys=None, sample_size=None, squeeze=False, n=None):
         """ Samples a sequence """
@@ -242,4 +239,5 @@ class EpisodicReplay(Buffer):
             filename.unlink()
             
     def clear_temp_bufs(self):
-        self._tmp_bufs = []
+        for b in self._tmp_bufs:
+            b.reset()

@@ -43,7 +43,7 @@ def run(
 
 def split_env_output(env_output):
     env_outputs = [
-        jax_utils.tree_map(lambda x: x[:, i:i+1], env_output) 
+        jax.tree_util.tree_map(lambda x: x[:, i:i+1], env_output) 
         for i in range(2)
     ]
     return env_outputs

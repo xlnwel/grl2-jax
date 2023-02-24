@@ -28,12 +28,11 @@ routine:
     n_simulated_envs: &nse 400
     n_simulated_steps: &nss 10
     lookahead_rollout: sim
-    compute_return_at_once: True
+    compute_return_at_once: False
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
     restore_state: False
-    n_recent_trajectories: 40
     switch_model_at_every_step: False
 
 env:

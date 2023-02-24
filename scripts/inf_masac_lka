@@ -1,0 +1,87 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+algos=(
+    # mambpo
+    masac_lka
+)
+suite=$1
+shift
+# envs=(escalation staghunt harvest)
+envs=(
+    Ant_2x4
+    HalfCheetah_2x3
+    Walker2d_2x3
+)
+configs=(
+    "${suite}"
+)
+args1=(
+    "dynamics" 
+    "dynamics" 
+    "dynamics" 
+    # "dynamics_tx"
+    # "dynamics_tx"
+    # "dynamics_tx"
+)
+args2=(
+    slow slow fast fast
+)
+args3=(
+    100 50
+)
+args4=(5 10)
+date=$(date +"%m%d")
+info=""
+ld="${suite}-logs"
+gpus=$(nvidia-smi -L | wc -l)
+# for x in $(seq 1 1); do
+#     shift
+# done
+
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
+
+# INF_MAC_NODE_RANK=$1
+le=${#envs[@]}
+idx=$(($INF_MAC_NODE_RANK % $le))
+e=${envs[$idx]}
+env="${suite}-${e}"
+lc=${#configs[@]}
+idx=$(($INF_MAC_NODE_RANK % $lc))
+config=${configs[$idx]}
+la=${#algos[@]}
+idx=$(($INF_MAC_NODE_RANK % $la))
+a=${algos[$idx]}
+la1=${#args1[@]}
+idx=$(($INF_MAC_NODE_RANK % $la1))
+a1=${args1[$idx]}
+la2=${#args2[@]}
+idx=$(($INF_MAC_NODE_RANK % $la2))
+a2=${args2[$idx]}
+la3=${#args3[@]}
+idx=$(($INF_MAC_NODE_RANK % $la3))
+a3=${args3[$idx]}
+
+commands=()
+kws="0#dynamics_name=$a1 0#lookahead_replay=$a2 0#n_lka_epochs=$a3"
+for e in "${envs[@]}"; do
+    config=${suite}
+    env="${suite}-${e}"
+    for s in {0..4}; do
+        py_script="python run/train.py -a ${a} $a1 -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+        commands+=("$py_script")
+        echo $py_script
+        # eval $py_script
+    done
+done
+# echo ${commands[@]}s
+lc=${#commands[@]}
+p=$((lc / le))
+# echo $p
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
+echo "Script completed"

@@ -4,7 +4,6 @@ import numpy as np
 from tools.run import RunnerWithState
 from tools.utils import batch_dicts
 from env.typing import EnvOutput
-from jax_tools import jax_utils
 from algo.masac.elements.utils import concate_along_unit_dim
 
 
@@ -25,7 +24,7 @@ class Runner(RunnerWithState):
             action, stats = agent(env_output)
             new_env_output = self.env.step(action)
 
-            kwargs = dict(
+            data = dict(
                 obs=batch_dicts(env_output.obs, func=concate_along_unit_dim), 
                 action=action, 
                 reward=concate_along_unit_dim(new_env_output.reward), 
@@ -33,16 +32,16 @@ class Runner(RunnerWithState):
                 next_obs=batch_dicts(self.env.prev_obs(), func=concate_along_unit_dim), 
                 reset=concate_along_unit_dim(new_env_output.reset),
             )
-            buffer.collect(**kwargs, **stats)
+            buffer.collect(**data, **stats)
 
             if model_buffer is not None:
                 model_buffer.collect(
-                    **kwargs,
+                    **data,
                     # state=stats['state'],
                 )
 
             if store_info:
-                done_env_ids = [i for i, r in enumerate(kwargs['reset']) if np.all(r)]
+                done_env_ids = [i for i, r in enumerate(data['reset']) if np.all(r)]
 
                 if done_env_ids:
                     info = self.env.info(done_env_ids)
@@ -146,7 +145,7 @@ def simultaneous_rollout(env, agent, buffer, env_output, rountine_config):
         new_env_output, env_stats = env(env_output)
         env.store(**env_stats)
 
-        kwargs = dict(
+        data = dict(
             obs=env_output.obs, 
             action=action, 
             reward=new_env_output.reward, 
@@ -155,7 +154,7 @@ def simultaneous_rollout(env, agent, buffer, env_output, rountine_config):
             reset=new_env_output.reset, 
             **stats
         )
-        buffer.collect(**kwargs)
+        buffer.collect(**data)
 
         env_output = new_env_output
 
@@ -177,7 +176,7 @@ def unilateral_rollout(env, agents, buffer, env_output, rountine_config):
             new_env_output, env_stats = env(env_output)
             env.store(**env_stats)
 
-            kwargs = dict(
+            data = dict(
                 obs=env_output.obs, 
                 action=action, 
                 reward=new_env_output.reward, 
@@ -186,7 +185,7 @@ def unilateral_rollout(env, agents, buffer, env_output, rountine_config):
                 reset=new_env_output.reset, 
                 **stats
             )
-            buffer.collect(**kwargs)
+            buffer.collect(**data)
 
             env_output = new_env_output
 
@@ -199,9 +198,8 @@ def run_on_model(env, model_buffer, agent, buffer, routine_config):
     obs = model_buffer.sample_from_recency(
         batch_size=routine_config.n_simulated_envs,
         sample_keys=sample_keys, 
-        sample_size=1, 
-        squeeze=True, 
-        n=routine_config.n_recent_trajectories
+        # sample_size=1, 
+        # squeeze=True, 
     )
     reward = np.zeros(obs.obs.shape[:-1])
     discount = np.ones(obs.obs.shape[:-1])

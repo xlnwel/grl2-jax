@@ -3,7 +3,7 @@
 export PYTHONPATH=.
 
 algos=(
-    happo_mb
+    mambpo
 )
 suite=$1
 shift
@@ -13,29 +13,18 @@ envs=(
     HalfCheetah_2x3
     Walker2d_2x3
 )
-e=${envs[0]}
 configs=(
-    "${e}"
+    "${suite}"
 )
-args1=(25 50)
+args1=(
+    "dynamics" 
+)
 args2=(
-    "256,256" 
-    "256,256" 
-    "256,256,256,256" 
-    "256,256,256,256"
-    "256,256" 
-    "256,256" 
-    "256,256,256,256" 
-    "256,256,256,256"
+    "ce"
+    "mse"
 )
 args3=(
-    layer
-    None
-    layer
-    None
-    layer
-    None
-    layer
+    100 50 25
 )
 args4=(5 10)
 date=$(date +"%m%d")
@@ -74,12 +63,12 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="n_epochs=$a1"
+kws="0#dynamics_name=$a1 model_loss_type=$a2"
 for e in "${envs[@]}"; do
-    config=$suite
+    config=${suite}
     env="${suite}-${e}"
-    for s in {0..9}; do
-        py_script="python run/train.py -a ${a} ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
+    for s in {0..4}; do
+        py_script="python run/train.py -a ${a} $a1 -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

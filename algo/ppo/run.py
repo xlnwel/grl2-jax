@@ -55,15 +55,16 @@ class Runner(RunnerWithState):
 
             next_obs = self.env.prev_obs()
             for i in collect_ids:
-                kwargs = dict(
+                data = dict(
                     obs=env_outputs[i].obs, 
                     action=acts[i], 
                     reward=new_env_outputs[i].reward, 
                     discount=new_env_outputs[i].discount, 
                     next_obs=next_obs[i], 
+                    reset=new_env_outputs[i].reset, 
                     **stats[i]
                 )
-                buffers[i].collect(self.env, 0, new_env_outputs[i].reset, **kwargs)
+                buffers[i].collect(**data)
 
             if store_info:
                 done_env_ids = [i for i, r in enumerate(new_env_outputs[0].reset) if np.all(r)]

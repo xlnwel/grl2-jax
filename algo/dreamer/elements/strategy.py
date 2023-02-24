@@ -27,13 +27,30 @@ class Memory(MemoryBase):
 
     def apply_reset_to_state(self, state: NamedTuple, reset: np.ndarray):
         assert state is not None, state
-        if hasattr(state.policy, 'cell'):
-            basic_shape = state.policy.cell.shape[:2]
-        else:
-            basic_shape = state.policy.shape[:2]
-        reset = reset.reshape((*basic_shape, 1))
-        state = jax_utils.tree_map(lambda x: x*(1-reset), state)
-        return state
+        reset = jnp.expand_dims(reset, -1)
+        state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
+        state_rssm = jax.tree_util.tree_map(lambda x: x*(1-reset), state_rssm)
+        obs_rssm = jax.tree_util.tree_map(lambda x: x*(1-reset), obs_rssm)
+        return state, state_rssm, obs_rssm
+
+    def reset_states(self):
+        self._state = None
+        self._state_rssm = None
+        self._obs_rssm = None
+
+    def set_states(self, state: NamedTuple=None, state_rssm: NamedTuple=None, obs_rssm: NamedTuple=None):
+        self._state = state
+        self._state_rssm = state_rssm
+        self._obs_rssm = obs_rssm
+
+    def get_states(self):
+        return self._state, self._state_rssm, self._obs_rssm
+
+    def get_states_for_inputs(self, **kwargs):
+        if self._state is None:
+            self._state, self._state_rssm, self._obs_rssm = self.model.get_initial_state(**kwargs)
+        return self._state, self._state_rssm, self._obs_rssm
+
 
 class Strategy(StrategyBase):
     def _post_init(self):
@@ -62,7 +79,7 @@ class Strategy(StrategyBase):
 
     def compute_value(self, env_output):
         inp = AttrDict(global_state=env_output.obs['global_state'], action=env_output.prev_action)
-        inp = jax_utils.tree_map(lambda x: jnp.expand_dims(x, 1), inp)
+        inp = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), inp)
         inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
         if isinstance(inp.state, dict) and 'value' in inp.state:
             inp['state'] = inp.state['value']

@@ -1,7 +1,7 @@
 ---
-algorithm: &algo model
-name: model
-info: model
+algorithm: &algo dynamics
+name: dynamics
+info: dynamics
 
 precision: 32
 
@@ -38,7 +38,8 @@ monitor:
 
 strategy:
     algorithm: *algo
-    train_loop: {}
+    train_loop:
+        n_epochs: 25
 
 model:
     aid: 0
@@ -80,7 +81,6 @@ loss:
 trainer:
     algorithm: *algo
     aid: 0
-    n_epochs: &nepochs 25
     timeout_done: *td
 
     model_opt:
@@ -93,7 +93,7 @@ actor: {}
 
 
 buffer:
-    type: ac
+    type: eps
 
     n_runners: *nrunners
     n_envs: *nenvs

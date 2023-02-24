@@ -4,7 +4,7 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
-from core.utils import configure_gpu, set_seed, save_code
+from core.utils import configure_gpu, set_seed, save_code_for_seed
 from core.typing import ModelPath
 from tools.display import print_dict, print_dict_info
 from tools.store import StateStore
@@ -263,8 +263,36 @@ def train(
                 agents, runner, env_step, train_step, routine_config)
 
 
+def build_agents(config, env_stats):
+    agents = []
+    buffers = []
+    model_name = config.model_name
+    for i in range(env_stats.n_agents):
+        if model_name.endswith(f'a{i}'):
+            new_model_name = model_name
+        else:
+            new_model_name = '/'.join([model_name, f'a{i}'])
+        modify_config(
+            config, 
+            model_name=new_model_name, 
+        )
+        builder = ElementsBuilder(
+            config, 
+            env_stats, 
+            to_save_code=False, 
+            max_steps=config.routine.MAX_STEPS
+        )
+        elements = builder.build_agent_from_scratch()
+        agents.append(elements.agent)
+        buffers.append(elements.buffer)
+    
+    return agents, buffers
+
+
 def main(configs, train=train):
     config = configs[0]
+    if config.routine.compute_return_at_once:
+        config.buffer.sample_keys += ['advantage', 'v_target']
     seed = config.get('seed')
     set_seed(seed)
 
@@ -277,41 +305,15 @@ def main(configs, train=train):
 
     runner = Runner(config.env)
 
-    # load agents
     env_stats = runner.env_stats()
-    assert len(configs) == env_stats.n_agents, (len(configs), env_stats.n_agents)
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
     print_dict(env_stats)
 
-    agents = []
-    buffers = []
-    root_dir = config.root_dir
-    model_name = config.model_name
-    for i, c in enumerate(configs):
-        assert c.aid == i, (c.aid, i)
-        if model_name.endswith(f'a{i}'):
-            new_model_name = model_name
-        else:
-            new_model_name = '/'.join([model_name, f'a{i}'])
-        modify_config(
-            configs[i], 
-            model_name=new_model_name, 
-        )
-        if c.routine.compute_return_at_once:
-            c.buffer.sample_keys += ['advantage', 'v_target']
-        builder = ElementsBuilder(
-            configs[i], 
-            env_stats, 
-            to_save_code=False, 
-            max_steps=config.routine.MAX_STEPS
-        )
-        elements = builder.build_agent_from_scratch()
-        agents.append(elements.agent)
-        buffers.append(elements.buffer)
-    if seed == 0:
-        save_code(ModelPath(root_dir, model_name))
+    # build agents
+    agents, buffers = build_agents(config, env_stats)
+    save_code_for_seed(config)
 
-    routine_config = configs[0].routine.copy()
+    routine_config = config.routine.copy()
     train(
         agents, 
         runner, 

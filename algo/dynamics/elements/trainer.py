@@ -1,7 +1,6 @@
 from functools import partial
 import numpy as np
 import jax
-from jax import lax
 import jax.numpy as jnp
 import haiku as hk
 
@@ -36,6 +35,13 @@ def construct_fake_data(env_stats, aid):
 
 
 class Trainer(TrainerBase):
+    def add_attributes(self):
+        super().add_attributes()
+        self._is_trust_worthy = False
+    
+    def is_trust_worthy(self):
+        return self._is_trust_worthy
+
     def build_optimizers(self):
         theta = self.model.theta.copy()
         if self.config.obs_normalization:
@@ -58,7 +64,9 @@ class Trainer(TrainerBase):
                     data=data, 
                 )
         self.model.set_weights(theta)
-        self.model.rank_elites(stats.elite_indices)
+        elite_indices = np.argsort(stats.mean_loss)
+        self.model.rank_elites(elite_indices)
+        self._evaluate_model(stats)
 
         # update normalization parameters
         if self.config.obs_normalization:
@@ -67,7 +75,7 @@ class Trainer(TrainerBase):
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
         stats = prefix_name(stats, 'model_train')
-
+        stats.update(data)
         with Timer('model_stats_subsampling'):
             stats = sample_stats(
                 stats, 
@@ -115,10 +123,8 @@ class Trainer(TrainerBase):
                 **extra_kwargs
             }, 
             opt=self.opts.theta, 
-            name='train/theta'
+            name='train/dynamics'
         )
-        stats.update({f'data/{k}': lax.stop_gradient(v) 
-            for k, v in data.items() if v is not None})
 
         return theta, opt_state, stats
 
@@ -127,7 +133,13 @@ class Trainer(TrainerBase):
             data.action = self.model.process_action(data.action)
         return data
 
-
+    def _evaluate_model(self, stats):
+        if 'model_mae' in stats:
+            self._is_trust_worthy = np.mean(stats.model_mae) <= self.config.trust_threshold
+        else:
+            assert 'mean_loss' in stats, list(stats)
+            self._is_trust_worthy = np.mean(stats.mean_loss) <= self.config.trust_threshold
+        
     # def haiku_tabulate(self, data=None):
     #     rng = jax.random.PRNGKey(0)
     #     if data is None:

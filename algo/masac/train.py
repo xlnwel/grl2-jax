@@ -4,13 +4,14 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
-from core.utils import configure_gpu, set_seed, save_code
-from core.typing import ModelPath
+from core.utils import configure_gpu, set_seed, save_code_for_seed
 from tools.display import print_dict
 from tools.store import StateStore, TempStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
+from replay.dual import DualReplay
 from .run import *
+from algo.happo_mb.train import build_model
 
 
 def state_constructor_with_sliced_envs(agent, runner):
@@ -40,18 +41,24 @@ def set_states(states, agent, runner):
 
 
 def model_train(model, model_buffer):
-    if model_buffer.ready_to_sample():
-        with Timer('model_train'):
-            model.train_record()
+    if model is None:
+        return
+    with Timer('model_train'):
+        model.train_record()
 
 
 def lookahead_run(agent, model, buffer, model_buffer, routine_config):
     def get_agent_states():
         state = agent.get_states()
+        # we collect lookahead data into the slow replay
+        if isinstance(buffer, DualReplay):
+            buffer.set_default_replay(routine_config.lookahead_replay)
         return state
     
     def set_agent_states(states):
         agent.set_states(states)
+        if isinstance(buffer, DualReplay):
+            buffer.set_default_replay('fast')
 
     # train lookahead agent
     with Timer('lookahead_run'):
@@ -66,14 +73,12 @@ def lookahead_optimize(agent):
 
 def lookahead_train(agent, model, buffer, model_buffer, routine_config, 
         n_runs, run_fn, opt_fn):
-    if not model_buffer.ready_to_sample():
+    if model is None or not model.trainer.is_trust_worthy():
         return
     assert n_runs >= 0, n_runs
-    old_buffer = agent.change_buffer(buffer)
     for _ in range(n_runs):
         run_fn(agent, model, buffer, model_buffer, routine_config)
         opt_fn(agent)
-    agent.change_buffer(old_buffer)
 
 
 def ego_run(agent, runner, buffer, model_buffer, routine_config):
@@ -86,7 +91,7 @@ def ego_run(agent, runner, buffer, model_buffer, routine_config):
             runner.run(
                 routine_config.n_steps, 
                 agent, buffer, 
-                model_buffer if routine_config.n_lookahead_steps > 0 else None, 
+                model_buffer, 
                 [], 
             )
 
@@ -137,7 +142,8 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
 
     with Timer('save'):
         agent.save()
-        model.save()
+        if model is not None: 
+            model.save()
 
     with Timer('log'):
         if video is not None:
@@ -160,21 +166,21 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
             **Timer.all_stats()
         )
         agent.record(step=env_step)
-        agent.clear()
 
-        train_step = model.get_train_step()
-        model_train_duration = Timer('model_train').last()
-        if model_train_duration == 0:
-            tps = 0
-        else:
-            tps = model.get_train_step_intervals() / model_train_duration
-        model.store(**{
-                'stats/train_step': train_step, 
-                'time/tps': tps, 
-            }, 
-            **Timer.all_stats()
-        )
-        model.record(step=env_step)
+        if model is not None:
+            train_step = model.get_train_step()
+            model_train_duration = Timer('model_train').last()
+            if model_train_duration == 0:
+                tps = 0
+            else:
+                tps = model.get_train_step_intervals() / model_train_duration
+            model.store(**{
+                    'stats/train_step': train_step, 
+                    'time/tps': tps, 
+                }, 
+                **Timer.all_stats()
+            )
+            model.record(step=env_step)
 
 
 def train(
@@ -182,7 +188,6 @@ def train(
     model, 
     runner, 
     buffer, 
-    lka_buffer, 
     model_buffer, 
     routine_config, 
     lka_run_fn=lookahead_run, 
@@ -211,7 +216,7 @@ def train(
         lka_train_fn(
             agent, 
             model, 
-            lka_buffer, 
+            buffer, 
             model_buffer, 
             routine_config, 
             n_runs=routine_config.n_lookahead_steps, 
@@ -235,29 +240,8 @@ def train(
                 agent, model, runner, env_step, train_step, routine_config)
 
 
-def main(configs, train=train):
-    config = configs[0]
-    seed = config.get('seed')
-    set_seed(seed)
-
-    configure_gpu()
-    use_ray = config.env.get('n_runners', 1) > 1
-    if use_ray:
-        from tools.ray_setup import sigint_shutdown_ray
-        ray.init(num_cpus=config.env.n_runners)
-        sigint_shutdown_ray()
-
-    runner = Runner(config.env)
-
-    config, model_config = configs[0], configs[-1]
-    # load agent
-    env_stats = runner.env_stats()
-    env_stats.n_envs = config.env.n_runners * config.env.n_envs
-    print_dict(env_stats)
-
-    root_dir = config.root_dir
+def build_agent(config, env_stats):
     model_name = config.model_name
-    
     new_model_name = '/'.join([model_name, f'a0'])
     modify_config(
         config, 
@@ -272,33 +256,36 @@ def main(configs, train=train):
     elements = builder.build_agent_from_scratch()
     agent = elements.agent
     buffer = elements.buffer
-    lka_buffer = builder.build_buffer(elements.model, env_stats=env_stats)
-    if seed == 0:
-        save_code(ModelPath(root_dir, model_name))
+    return agent, buffer
 
+def main(configs, train=train):
+    config, model_config = configs[0], configs[-1]
+    seed = config.get('seed')
+    set_seed(seed)
+
+    configure_gpu()
+    use_ray = config.env.get('n_runners', 1) > 1
+    if use_ray:
+        from tools.ray_setup import sigint_shutdown_ray
+        ray.init(num_cpus=config.env.n_runners)
+        sigint_shutdown_ray()
+
+    runner = Runner(config.env)
+
+    # load agent
+    env_stats = runner.env_stats()
+    env_stats.n_envs = config.env.n_runners * config.env.n_envs
+    print_dict(env_stats)
+
+    # build agents
+    agent, buffer = build_agent(config, env_stats)
     # load model
-    new_model_name = '/'.join([model_name, 'model'])
-    model_config = modify_config(
-        model_config, 
-        max_layer=1, 
-        aid=0,
-        algorithm=config.dynamics_name, 
-        n_runners=config.env.n_runners, 
-        n_envs=config.env.n_envs, 
-        root_dir=root_dir, 
-        model_name=new_model_name, 
-        overwrite_existed_only=True, 
-        seed=seed+1000
-    )
-    builder = ElementsBuilder(
-        model_config, 
-        env_stats, 
-        to_save_code=False, 
-        max_steps=config.routine.MAX_STEPS
-    )
-    elements = builder.build_agent_from_scratch(config=model_config)
-    model = elements.agent
-    model_buffer = elements.buffer
+    if config.algorithm == 'masac':
+        model, model_buffer = None, None
+    else:
+        model, model_buffer = build_model(config, model_config, env_stats)
+    save_code_for_seed(config)
+
 
     routine_config = config.routine.copy()
     train(
@@ -306,7 +293,6 @@ def main(configs, train=train):
         model, 
         runner, 
         buffer, 
-        lka_buffer, 
         model_buffer, 
         routine_config
     )

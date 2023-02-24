@@ -2,9 +2,9 @@ import os
 from typing import NamedTuple
 import cloudpickle
 import numpy as np
+import jax
 
 from core.typing import ModelPath
-from jax_tools import jax_utils
 
 
 class StepCounter:
@@ -87,6 +87,7 @@ class Memory:
         return np.float32(1. - reset)
 
     def apply_reset_to_state(self, state: NamedTuple, reset: np.ndarray):
+<<<<<<< HEAD
         if state is None or (state.policy is None and state.value is None):
             return state
         if hasattr(state.policy, 'cell'):
@@ -95,6 +96,11 @@ class Memory:
             basic_shape = state.policy.shape[:2]
         reset = reset.reshape((*basic_shape, 1))
         state = jax_utils.tree_map(lambda x: x*(1-reset), state)
+=======
+        assert state is not None, state
+        reset = reset.reshape(-1, 1)
+        state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
+>>>>>>> ea7be7a15ae53b296f073d6bb55502bb3ca4a298
         return state
 
     def reset_states(self):

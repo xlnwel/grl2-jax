@@ -29,7 +29,6 @@ routine:
     n_simulated_steps: &nss 10
     lookahead_rollout: sim
     restore_state: False
-    n_recent_trajectories: 64
     switch_model_at_every_step: False
     compute_return_at_once: True
     ignore_ratio_for_ego: False

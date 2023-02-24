@@ -16,6 +16,7 @@ def get_activation(act_name, **kwargs):
         'relu': jax.nn.relu,
         'leaky_relu': jax.nn.leaky_relu,
         'elu': jax.nn.elu,
+        'gelu': jax.nn.gelu, 
         'sigmoid': jax.nn.sigmoid, 
         'tanh': jnp.tanh, 
         'atan': jax.lax.atan, 
@@ -52,14 +53,13 @@ def calculate_scale(name, param=None):
         'relu': jnp.sqrt(2.), 
         'leaky_relu': jnp.sqrt(2./(1+(param or 0)**2)),
     }
-    return m[name]
+    return m.get(name, 1)
 
 
-def get_initializer(name, **kwargs):
+def get_initializer(name, scale=1., **kwargs):
     """ 
     Return a parameter initializer by name
     """
-    scale = kwargs.get('scale', 1.)
     inits = {
         'orthogonal': initializers.Orthogonal(scale), 
         'glorot_uniform': initializers.VarianceScaling(1., 'fan_avg', 'uniform'), 
@@ -93,3 +93,9 @@ def call_norm(norm_type, norm_kwargs, x, is_training, name=None):
     else:
         y = norm_layer(x)
     return y
+
+
+def dropout(dropout, training, x):
+    if training and dropout > 0:
+        x = hk.dropout(hk.next_rng_key(), dropout, x)
+    return x

@@ -49,7 +49,7 @@ def add_suffix(s, suffix):
     return s
 
 def flatten_dict(d: dict, prefix=None, suffix=None):
-    result = {}
+    result = AttrDict()
     for k, v in d.items():
         if isinstance(v, dict):
             v = flatten_dict(v, suffix=suffix)
@@ -187,7 +187,13 @@ def to_array32(x):
 
 def isscalar(x):
     return isinstance(x, (int, float))
-    
+
+def except_axis(x, except_axis):
+    if isinstance(except_axis, int):
+        except_axis = [except_axis]
+    axis = [i for i in range(x.ndim) if i not in except_axis]
+    return axis
+
 def step_str(step):
     if step < 1000:
         return f'{step}'
@@ -265,6 +271,8 @@ def str2bool(v):
 def eval_str(val):
     try:
         val = ast.literal_eval(val)
+        if isinstance(val, float) and val == int(val):
+            val = int(val)
     except:
         pass
     return val

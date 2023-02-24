@@ -131,11 +131,10 @@ def search_for_dirs(directory, dirname, is_suffix=True, matches=None):
     return list(all_target_files)
 
 
-def yield_dirs(directory, dirname, is_suffix=True, root_matches=None):
+def yield_dirs(directory, dirnames, is_suffix=True, root_matches=None):
     if not os.path.exists(directory):
         return []
     directory = directory
-    n_slashes = dirname.count('/')
     
     for root, _, _ in os.walk(directory):
         if 'src' in root:
@@ -143,11 +142,15 @@ def yield_dirs(directory, dirname, is_suffix=True, root_matches=None):
         if root_matches is not None and all([m not in root for m in root_matches]):
             continue
 
-        endnames = root.rsplit('/', n_slashes+1)[1:]
-        endname = '/'.join(endnames)
-        if is_suffix:
-            if endname.endswith(dirname):
-                yield root
-        else:
-            if endname.startswith(dirname):
-                yield root
+        for dirname in dirnames:
+            n_slashes = dirname.count('/')
+
+            endnames = root.rsplit('/', n_slashes+1)[1:]
+            endname = '/'.join(endnames)
+
+            if is_suffix:
+                if endname.endswith(dirname):
+                    yield root
+            else:
+                if endname.startswith(dirname):
+                    yield root

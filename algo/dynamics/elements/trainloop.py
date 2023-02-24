@@ -1,13 +1,17 @@
 from core.elements.trainloop import TrainingLoop as TrainingLoopBase
-from tools.timer import Timer
 
 
 class TrainingLoop(TrainingLoopBase):
     def _train(self):
-        for _ in range(self.trainer.config.n_epochs):
-            data = self.sample_data()
-
-            with Timer('train'):
-                stats = self.trainer.train(data)
+        n = 0
+        for _ in range(self.config.n_epochs):
+            if self.config.ergodic:
+                for data in self.buffer.ergodic_sample():
+                    stats = self._train_with_data(data)
+                    n += 1
+            else:
+                data = self.sample_data()
+                stats = self._train_with_data(data)
+                n += 1
         
-        return self.trainer.config.n_epochs, stats
+        return n, stats

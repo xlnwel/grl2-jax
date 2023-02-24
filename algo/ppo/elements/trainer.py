@@ -86,7 +86,7 @@ class Trainer(TrainerBase):
     def train(self, data: AttrDict, **kwargs):
         if self.config.n_runners * self.config.n_envs < self.config.n_mbs:
             self.indices = np.arange(self.config.n_mbs)
-            data = jax_utils.tree_map(
+            data = jax.tree_util.tree_map(
                 lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[2:])), data)
 
         theta = self.model.theta.copy()

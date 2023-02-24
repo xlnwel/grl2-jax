@@ -1,10 +1,11 @@
 import functools
+import jax
 import jax.numpy as jnp
 
 from core.elements.strategy import Strategy as StrategyBase, create_strategy
 from core.mixin.strategy import Memory
 from core.typing import AttrDict
-from jax_tools import jax_utils
+
 
 class Strategy(StrategyBase):
     def _post_init(self):
@@ -22,7 +23,7 @@ class Strategy(StrategyBase):
 
     def compute_value(self, env_output):
         inp = AttrDict(global_state=env_output.obs['global_state'])
-        inp = jax_utils.tree_map(lambda x: jnp.expand_dims(x, 1), inp)
+        inp = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), inp)
         inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
         if isinstance(inp.state, dict) and 'value' in inp.state:
             inp['state'] = inp.state['value']

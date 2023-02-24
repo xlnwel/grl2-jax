@@ -288,7 +288,10 @@ def v_trace_from_ratio(
     advs = jnp.array(errors[::-1])
     vs = advs + value
 
-    clipped_rho_pg = jax_math.upper_clip(ratio, rho_clip_pg)
+    if rho_clip_pg is None:
+        clipped_rho_pg = 1.
+    else:
+        clipped_rho_pg = jax_math.upper_clip(ratio, rho_clip_pg)
     if adv_type == 'vtrace':
         # Following https://github.com/deepmind/rlax/blob/44ef3f04c8286bc9df51c85a0ec2475e85136294/rlax/_src/vtrace.py#L208
         # we the lambda-mixture for the bootstrapped value
@@ -333,7 +336,7 @@ def compute_target_advantage(
             lam=lam, 
             c_clip=config.c_clip, 
             rho_clip=config.rho_clip, 
-            rho_clip_pg=config.get('rho_clip_pg', config.rho_clip), 
+            rho_clip_pg=config.rho_clip_pg, 
             adv_type=config.get('adv_type', 'vtrace'), 
             axis=axis
         )

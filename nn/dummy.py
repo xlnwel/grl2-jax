@@ -1,10 +1,7 @@
-class Dummy:
-    def __init__(self, **kwargs):
-        pass
+from tools.dummy import Dummy as DummyBase
 
-    def __call__(self, x, **kwargs):
-        return x
 
+class Dummy(DummyBase):
     def get_weights(self):
         pass
 
