@@ -1,4 +1,4 @@
-mport jax.numpy as jnp
+import jax.numpy as jnp
 import haiku as hk
 
 from core.typing import dict2AttrDict

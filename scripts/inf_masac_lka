@@ -3,7 +3,7 @@
 export PYTHONPATH=.
 
 algos=(
-    mambpo
+    # mambpo
     masac_lka
 )
 suite=$1
@@ -17,12 +17,19 @@ envs=(
 configs=(
     "${suite}"
 )
-args1=(2000)
+args1=(
+    "dynamics" 
+    "dynamics" 
+    "dynamics" 
+    # "dynamics_tx"
+    # "dynamics_tx"
+    # "dynamics_tx"
+)
 args2=(
-    1
+    2000
 )
 args3=(
-    200 
+    100 50 25
 )
 args4=(5 10)
 date=$(date +"%m%d")
@@ -59,14 +66,18 @@ a2=${args2[$idx]}
 la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
-dynamics="dynamics_tx"
+
 commands=()
-kws="dynamics=dynamics_tx n_simulated_envs=$a1 n_simulated_steps=$a2 trainer:n_epochs=$a3"
+if [[ "$a" == 'mambpo' ]]; then
+    kws="0#dynamics_name=$a1 0#n_simulated_envs=$a2"
+else
+    kws="0#dynamics_name=$a1 0#n_simulated_envs=$a2 0#n_lka_epochs=$a3"
+fi
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"
     for s in {0..4}; do
-        py_script="python run/train.py -a ${a} $dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+        py_script="python run/train.py -a ${a} $a1 -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

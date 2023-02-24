@@ -5,7 +5,6 @@ import ray
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code_for_seed
-from core.typing import ModelPath
 from tools.display import print_dict
 from tools.store import StateStore, TempStore
 from tools.utils import modify_config
@@ -70,11 +69,9 @@ def lookahead_train(agent, model, buffer, model_buffer, routine_config,
     if not model_buffer.ready_to_sample():
         return
     assert n_runs >= 0, n_runs
-    old_buffer = agent.change_buffer(buffer)
     for _ in range(n_runs):
         run_fn(agent, model, buffer, model_buffer, routine_config)
         opt_fn(agent)
-    agent.change_buffer(old_buffer)
 
 
 def ego_run(agent, runner, buffer, model_buffer, routine_config):
@@ -182,7 +179,6 @@ def train(
     model, 
     runner, 
     buffer, 
-    lka_buffer, 
     model_buffer, 
     routine_config, 
     lka_run_fn=lookahead_run, 
@@ -211,7 +207,7 @@ def train(
         lka_train_fn(
             agent, 
             model, 
-            lka_buffer, 
+            buffer, 
             model_buffer, 
             routine_config, 
             n_runs=routine_config.n_lookahead_steps, 

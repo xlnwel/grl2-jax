@@ -5,7 +5,6 @@ import ray
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code_for_seed
-from core.typing import ModelPath
 from tools.display import print_dict
 from tools.store import StateStore, TempStore
 from tools.timer import Every, Timer
@@ -234,7 +233,7 @@ def train(
 
 
 def main(configs, train=train):
-    config = configs[0]
+    config, model_config = configs[0], configs[-1]
     seed = config.get('seed')
     set_seed(seed)
 
@@ -247,7 +246,6 @@ def main(configs, train=train):
 
     runner = Runner(config.env)
 
-    config, model_config = configs[0], configs[-1]
     # load agent
     env_stats = runner.env_stats()
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
