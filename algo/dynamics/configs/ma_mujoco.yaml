@@ -46,13 +46,10 @@ model:
     n_elites: 1
     global_state_type: obs
     rn_std: .1
-<<<<<<< HEAD
     obs_normalization: &obs_norm True
     deterministic_pred: True
-=======
     model_loss_type: &mlt mse
     stoch_trans: True
->>>>>>> ea7be7a15ae53b296f073d6bb55502bb3ca4a298
 
     emodels:
         nn_id: emodels
@@ -82,11 +79,7 @@ model:
         norm: layer
 
 loss:
-<<<<<<< HEAD
-    model_loss_type: mse # mbpo
-=======
     model_loss_type: *mlt
->>>>>>> ea7be7a15ae53b296f073d6bb55502bb3ca4a298
     n_models: *n
     obs_normalization: *obs_norm
     

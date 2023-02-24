@@ -214,39 +214,9 @@ def train(
 
 def build_model(config, model_config, env_stats):
     root_dir = config.root_dir
-<<<<<<< HEAD
-    model_name = config.model_name
-    for i, c in enumerate(configs):
-        assert c.aid == i, (c.aid, i)
-        if model_name.endswith(f'a{i}'):
-            new_model_name = model_name
-        else:
-            new_model_name = '/'.join([model_name, f'a{i}'])
-        modify_config(
-            configs[i], 
-            model_name=new_model_name, 
-        )
-        if c.routine.compute_return_at_once:
-            c.buffer.sample_keys += ['advantage', 'v_target']
-        builder = ElementsBuilder(
-            configs[i], 
-            env_stats, 
-            to_save_code=False, 
-            max_steps=config.routine.MAX_STEPS
-        )
-        elements = builder.build_agent_from_scratch()
-        agents.append(elements.agent)
-        buffers.append(elements.buffer)
-    # if seed == 0:
-    #     save_code(ModelPath(root_dir, model_name))
-
-    # load model
-    new_model_name = '/'.join([model_name, 'model'])
-=======
     model_name = get_basic_model_name(config.model_name)
     seed = config.seed
     new_model_name = '/'.join([model_name, 'dynamics'])
->>>>>>> ea7be7a15ae53b296f073d6bb55502bb3ca4a298
     model_config = modify_config(
         model_config, 
         max_layer=1, 

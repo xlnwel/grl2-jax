@@ -15,21 +15,8 @@ def concate_along_unit_dim(x):
     x = jnp.concatenate(x, axis=1)
     return x
 
-<<<<<<< HEAD
 def fake_action(basic_shape, action_dim):
     return jnp.zeros((*basic_shape, action_dim))
-=======
-
-def run_model(model, buffer, routine_config):
-    sample_keys = buffer.obs_keys + ['state', 'state_rssm', 'obs_rssm']
-    obs = buffer.sample_from_recency(
-        batch_size=routine_config.n_envs,
-        sample_keys=sample_keys,
-        sample_size=1,
-        squeeze=True,
-    )
-    shape = obs.obs.shape[-1]
->>>>>>> ea7be7a15ae53b296f073d6bb55502bb3ca4a298
 
 class Runner(RunnerWithState):
     def env_run(

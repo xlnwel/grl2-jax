@@ -141,7 +141,6 @@ class Model(ModelBase):
 
         return env_out, stats, data.state
 
-<<<<<<< HEAD
     def next_obs(self, params, rng, obs, action, stats, evaluation, **kwargs):
         if self.config.obs_normalization:
             rngs = random.split(rng, 2)
@@ -169,19 +168,6 @@ class Model(ModelBase):
                 # for continuous obs, we predict 𝛥(o)
                 next_obs = obs + next_obs
             stats.update(dist.get_stats('model'))
-=======
-    def next_obs(self, params, rng, obs, action, stats, evaluation):
-        rngs = random.split(rng, 2)
-        dist = self.modules.model(params, rngs[0], obs, action)
-        if self.config.stoch_trans and not evaluation:
-            next_obs = dist.sample(seed=rngs[1])
-        else:
-            next_obs = dist.mode()
-        if isinstance(dist, jax_dist.MultivariateNormalDiag):
-            # for continuous obs, we predict 𝛥(o)
-            next_obs = obs + next_obs
-        stats.update(dist.get_stats('model'))
->>>>>>> ea7be7a15ae53b296f073d6bb55502bb3ca4a298
 
         return next_obs, stats
 
