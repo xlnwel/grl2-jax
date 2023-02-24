@@ -14,7 +14,6 @@ from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
 from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
-from jax_tools import jax_utils
 
 
 def construct_fake_data(env_stats, aid):

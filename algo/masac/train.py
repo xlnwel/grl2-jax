@@ -52,7 +52,7 @@ def lookahead_run(agent, model, buffer, model_buffer, routine_config):
         state = agent.get_states()
         # we collect lookahead data into the slow replay
         if isinstance(buffer, DualReplay):
-            buffer.set_default_replay('slow')
+            buffer.set_default_replay(routine_config.lookahead_replay)
         return state
     
     def set_agent_states(states):

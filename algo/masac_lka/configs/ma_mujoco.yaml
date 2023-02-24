@@ -29,6 +29,7 @@ routine:
     n_simulated_envs: &nse 2000
     n_simulated_steps: &nss 1
     lookahead_rollout: sim
+    lookahead_replay: slow
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
