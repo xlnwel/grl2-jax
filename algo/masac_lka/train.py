@@ -12,7 +12,7 @@ def ego_run(agent, runner, buffer, model_buffer, routine_config):
                 routine_config.n_steps, 
                 agent, buffer, 
                 model_buffer, 
-                [], 
+                None, 
             )
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
