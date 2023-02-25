@@ -2,36 +2,70 @@
 
 export PYTHONPATH=.
 
-mcoefs=(1 1 1)
-rcoefs=(0.1 0.1 0.1)
-dcoefs=(0.01 0.01 0.01)
-envs=(ma_mujoco-Ant_4x2 ma_mujoco-HalfCheetah_2x3 ma_mujoco-Walker2d_2x3)
-nas=(4 2 2)
-gpus=$(nvidia-smi -L | wc -l)
+# mcoefs=(1 1 1)
+# rcoefs=(0.1 0.1 0.1)
+# dcoefs=(0.01 0.01 0.01)
+# envs=(ma_mujoco-Ant_4x2 ma_mujoco-HalfCheetah_2x3 ma_mujoco-Walker2d_2x3)
+# nas=(4 2 2)
+# gpus=$(nvidia-smi -L | wc -l)
 
+# i=0
+# j=0
+# for ins in {0..2}; do
+#     for s in {0..3}; do
+#         gpu=$(($i % $gpus))
+#         mcoef=${mcoefs[$j]}
+#         rcoef=${rcoefs[$j]}
+#         dcoef=${dcoefs[$j]}
+#         env=${envs[$j]}
+#         na=${nas[$j]}
+#         # kws="n_epochs=200 batch_size=256 sample_size=10 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
+#         kws="n_epochs=200 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
+#         # kws="n_epochs=100 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
+#         if (( $na == 2 ))
+#         then
+#             py_script="python run/train.py -a happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws -ki 2 &"
+#             echo $na
+#             echo $py_script
+#         else
+#             py_script="python run/train.py -a happo_mb happo_mb happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws -ki 4 &"
+#             echo $na
+#             echo $py_script
+#         fi
+#         eval $py_script
+#         ((i=(i+1) ))
+#     done
+#     ((j=(j+1) ))
+# done
+
+i=0
+j=0
+args2=(
+    slow
+    slow
+    slow
+    # fast
+    # fast
+    # fast
+)
+envs=(
+    ma_mujoco-Ant_2x4
+    ma_mujoco-HalfCheetah_2x3
+    ma_mujoco-Walker2d_2x3
+    # ma_mujoco-Ant_2x4
+    # ma_mujoco-HalfCheetah_2x3
+    # ma_mujoco-Walker2d_2x3
+)
 i=0
 j=0
 for ins in {0..2}; do
     for s in {0..3}; do
-        gpu=$(($i % $gpus))
-        mcoef=${mcoefs[$j]}
-        rcoef=${rcoefs[$j]}
-        dcoef=${dcoefs[$j]}
         env=${envs[$j]}
-        na=${nas[$j]}
-        # kws="n_epochs=200 batch_size=256 sample_size=10 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-        kws="n_epochs=200 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-        # kws="n_epochs=100 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-        if (( $na == 2 ))
-        then
-            py_script="python run/train.py -a happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws -ki 2 &"
-            echo $na
-            echo $py_script
-        else
-            py_script="python run/train.py -a happo_mb happo_mb happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws -ki 4 &"
-            echo $na
-            echo $py_script
-        fi
+        a2=${args2[$j]}
+        kws="0#dynamics_name=dynamics 0#lookahead_replay=$a2 0#n_lka_epochs=50"
+        py_script="python run/train.py -a masac_lka dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n masac_lka_obs_norm -s $s -kw $kws &"
+        commands+=("$py_script")
+        echo $py_script
         eval $py_script
         ((i=(i+1) ))
     done

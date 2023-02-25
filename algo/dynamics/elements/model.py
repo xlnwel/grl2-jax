@@ -146,7 +146,7 @@ class Model(ModelBase):
             rngs = random.split(rng, 2)
             normalized_obs = self.normalizers.obs.normalize(params.obs_normalizer_params, obs)
             dist = self.modules.model(params.model, rngs[0], normalized_obs, action)
-            if evaluation or self.config.deterministic_pred:
+            if evaluation or not self.config.stoch_trans:
                 next_obs = dist.mode()
             else:
                 next_obs = dist.sample(seed=rngs[1])
@@ -160,7 +160,7 @@ class Model(ModelBase):
         else:
             rngs = random.split(rng, 2)
             dist = self.modules.model(params.model, rngs[0], obs, action)
-            if evaluation or self.config.deterministic_pred:
+            if evaluation or not self.config.stoch_trans:
                 next_obs = dist.mode()
             else:
                 next_obs = dist.sample(seed=rngs[1])

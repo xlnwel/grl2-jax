@@ -47,8 +47,7 @@ model:
     global_state_type: obs
     rn_std: .1
     obs_normalization: &obs_norm True
-    deterministic_pred: True
-    model_loss_type: &mlt mse
+    model_loss_type: &mlt mbpo
     stoch_trans: True
 
     emodels:
