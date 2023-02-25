@@ -13,9 +13,9 @@ envs=(
     # Ant_4x2
     # HalfCheetah_3x2
     # Walker2d_3x2
-    Ant_2x4
+    # Ant_2x4
     HalfCheetah_2x3
-    Walker2d_2x3
+    # Walker2d_2x3
 )
 # e=${suite}
 configs=(

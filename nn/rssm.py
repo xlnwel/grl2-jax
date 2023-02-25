@@ -45,6 +45,8 @@ class RSSM:
         repre_layer,
         stoch=32,
         deter=32,
+        rnn_type='gru',
+        rng=None
     ):
         self._stoch = stoch
         self._deter = deter
@@ -52,27 +54,26 @@ class RSSM:
         self.rssm_rnn_layer = rssm_rnn_layer
         self.trans_layer = trans_layer
         self.repre_layer = repre_layer
+        self.rnn_type = rnn_type
+        self.net_rng = rng
 
-    def initial_rssm_state(self, batch_size, n_units):
+    def initial_rssm_state(self, params, rng, batch_size, n_units):
         mean = jnp.zeros([batch_size, n_units, self._stoch])
         std = jnp.zeros([batch_size, n_units, self._stoch])
         stoch = jnp.zeros([batch_size, n_units, self._stoch])
-        return RSSMState(mean=mean, std=std, stoch=stoch, deter=self._deter)
+        deter = _rnn_reshape(self.rssm_rnn_layer(params.rssm_rnn, rng, batch_size=batch_size * n_units, init=True), (batch_size, n_units, -1))
+        return RSSMState(mean=mean, std=std, stoch=stoch, deter=deter)
 
-    def observe(self, embed, action, reset, state=None, just_step=False):
-        """
-            TODO: add introduction str
-        """
+    def observe(self, params, rng, embed, action, reset, state=None):
         if state is None:
-            state = self.initial_rssm_state(action.shape[0], action.shape[2])
-        if just_step:
-            return self.obs_step(state, action, embed, reset)
+            state = self.initial_rssm_state(params, rng, action.shape[0], action.shape[2])
+        
         # assume action.shape and embed.shape is [B, T, U, *]
         embed = jnp.swapaxes(embed, 0, 1)
         action = jnp.swapaxes(action, 0, 1) if action is not None else action
         reset = jnp.swapaxes(reset, 0, 1)
         post, prior = static_scan(
-            lambda prev, inputs: self.obs_step(prev[0], *inputs),
+            lambda prev, inputs: self.obs_step(params, rng, prev[0], *inputs),
             (action, embed, reset), (state, state)
         )
         post = {_key: jnp.swapaxes(post[_key], 0, 1) for _key in post}
@@ -82,21 +83,19 @@ class RSSM:
         ), RSSMState(
             mean=prior["mean"], std=prior["std"], stoch=prior["stoch"], deter=prior["deter"]
         )
-        
-    def imagine(self, action, reset, state=None, just_step=False):
+
+    def imagine(self, params, rng, action, reset, state=None):
         """
             TODO: introduce the function of this function
         """
         if state is None:
-            state = self.initial_rssm_state(action.shape[0], action.shape[2])
-        if just_step:
-            return self.img_step(state, action, reset)
+            state = self.initial_rssm_state(params, rng, action.shape[0], action.shape[2])
         # assume that action.shape is [B, T, U, *]
         action = jnp.swapaxes(action, 0, 1) if action is not None else action
         reset = jnp.swapaxes(reset, 0, 1)
         # the shape of each element is [T, B, U, *]
         prior = static_scan(
-            lambda prev, inputs: self.img_step(prev, *inputs),
+            lambda prev, inputs: self.img_step(params, rng, prev, *inputs),
             (action, reset), state
         )
         for _key in prior:
@@ -113,11 +112,15 @@ class RSSM:
         prior = self.img_step(params, rng, prev_state, prev_action, reset=reset, is_training=is_training)
         x = jnp.concatenate([prior.deter, embed], -1)
         x = self.repre_layer(params.rssm_repre, rng, x, is_training)
-        post = self._compute_rssm_state(x, prior.deter)
+        post = self._compute_rssm_state(rng, x, prior.deter)
         return post, prior
 
     def img_step(self, params, rng, prev_state, prev_action, reset, is_training=True):
         if len(reset.shape) == 3: # [B, T, U, *] -> [B, U, *]
+            print('=-='*20)
+            print(prev_action.shape)
+            print(reset.shape)
+            print('=-='*20)
             prev_action = prev_action[:, -1] if prev_action is not None else prev_action
             reset = reset[:, -1]
 
@@ -130,7 +133,9 @@ class RSSM:
         prev_stoch = prev_state.stoch   # [B, U, *]
         prev_deter_state = prev_state.deter
         x = jnp.concatenate([prev_stoch, prev_action], -1)
-
+        print("*-*"*30)
+        print(prev_stoch.shape)
+        print(x.shape)
         # Embed x
         x = self.embed_layer(params.rssm_embed, rng, x, is_training) 
         # Conduct rnn process
@@ -138,7 +143,7 @@ class RSSM:
         # Do trans
         x = self.trans_layer(params.rssm_trans, rng, x, is_training)
         
-        return self._compute_rssm_state(x, deter)
+        return self._compute_rssm_state(rng, x, deter)
 
     def get_feat(self, state):
         if self.rnn_type == "gru":
@@ -148,14 +153,14 @@ class RSSM:
         else:
             assert 0
 
-    def get_dist(self, mean, std):
+    def get_dist(selfd, mean, std):
         return MultivariateNormalDiag(mean, std)
 
-    def _compute_rssm_state(self, x, deter):
+    def _compute_rssm_state(self, rng, x, deter):
         mean, std = jnp.split(x, 2, -1)
         std = jax.nn.softplus(std) + .1
         # here stoch gradient stop ##
-        self.net_rng, rng = random.split(self.net_rng, 2)
+        # self.net_rng, rng = random.split(self.net_rng, 2)
         stoch, _ = self.get_dist(mean, std).sample_and_log_prob(seed=rng)
         state = RSSMState(mean=mean, std=std, stoch=stoch, deter=deter)
         return state
@@ -270,25 +275,25 @@ class RSSMRNNLayer(hk.Module):
         self.rnn_units = rnn_units
         self.net_rng = rng
 
-    def __call__(self, x, reset, state):
+    def __call__(self, x=None, reset=None, state=None, batch_size=1, init=False):
         rnn_cell = self.build_net()
 
-        # We assert x.shape is [B, U, *]
-        # Transform the shape
-        x, shape = _prepare_for_rnn(x)
-        reset, _ = _prepare_for_rnn(reset)
-        x = (x, reset)
-        state = _rnn_reshape(state, (shape[0]*shape[1], -1))
-        # Perform RNN
-        print(x[0].shape)
-        print(x[1].shape)
-        print(state.shape)
-        x, state = hk.dynamic_unroll(rnn_cell, x, state)
-        # Recover the shape
-        x = _recover_shape(x, shape)
-        state = _rnn_reshape(state, (shape[0], shape[1], -1))
+        if init:
+            return rnn_cell.initial_state(batch_size)
+        else:
+            # We assert x.shape is [B, U, *]
+            # Transform the shape
+            x, shape = _prepare_for_rnn(x)
+            reset, _ = _prepare_for_rnn(reset)
+            x = (x, reset)
+            state = _rnn_reshape(state, (shape[0]*shape[1], -1))
+            # Perform RNN
+            x, state = hk.dynamic_unroll(rnn_cell, x, state)
+            # Recover the shape
+            x = _recover_shape(x, shape)
+            state = _rnn_reshape(state, (shape[0], shape[1], -1))
         
-        return x, state
+            return x, state
 
     @hk.transparent
     def build_net(self):

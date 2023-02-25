@@ -13,18 +13,18 @@ from algo.dreamer.elements.utils import *
 """ Source this file to register Networks """
 
 
-class RSSMModel:
-    def __init__(
-        self,
-        embed_layer,
-        rssm_rnn_layer,
-        trans_layer,
-        repre_layer,
-        stoch=32,
-        deter=32,
-    ):
-        self.rssm = RSSM(
-            embed_layer, rssm_rnn_layer, trans_layer, repre_layer, stoch, deter)
+# class RSSMModel:
+#     def __init__(
+#         self,
+#         embed_layer,
+#         rssm_rnn_layer,
+#         trans_layer,
+#         repre_layer,
+#         stoch=32,
+#         deter=32,
+#     ):
+#         self.rssm = RSSM(
+#             embed_layer, rssm_rnn_layer, trans_layer, repre_layer, stoch, deter)
 
 @nn_registry.register('stateencoder')
 class StateEncoder(hk.Module):

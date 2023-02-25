@@ -18,7 +18,9 @@ routine:
     n_steps: &nsteps 100
     LOG_PERIOD: 2e5
 
-    n_envs: &nenvs 64
+    n_envs: &nenvs 32 # 64
+    n_recent_trajectories: 16
+    rollout_length: 10
 
 env:
     env_name: &env_name magw-escalation
@@ -47,6 +49,9 @@ model:
     rn_std: .1
     stoch_size: 32
     deter_size: 64
+    rssm_rnn_type: &rrnn gru
+
+    gamma: &gamma .99
 
     reprelayer:
         nn_id: reprelayer
@@ -58,7 +63,7 @@ model:
         embed_units_list: [64, 64]
     rssmrnnlayer:
         nn_id: rssmrnnlayer
-        rnn_type: gru
+        rnn_type: *rrnn
         rnn_units: 64
     translayer:
         nn_id: translayer
@@ -111,9 +116,42 @@ model:
 
 
 loss:
-    model_loss_type: discrete
-    # n: *n
+    # hyperparams for value target and advantage
+    target_type: gae
+    c_clip: 1
+    rho_clip: 1
+    adv_type: vtrace
+    norm_adv: True
 
+    prnn_bptt: 10
+    vrnn_bptt: 10
+
+    # hyperparams for policy optimization
+    pg_type: ppo
+    ppo_clip_range: .2
+    kl_type: reverse
+    kl_coef: 0
+    policy_sample_mask: True
+
+    # hyperparams for value learning
+    value_loss: mse
+    value_clip_range: .2
+    value_sample_mask: False
+
+    stats:
+        gamma: *gamma
+        lam: &lam .95
+        pg_coef: 1
+        entropy_coef: .01
+        value_coef: 1
+
+    model_loss_type: discrete
+    reconstruction_loss_type: mse
+    vrnn: *vrnn
+
+    rssm_coef: 1
+    reg_coef: 1
+    recons_coef: 1
     model_coef: 1
     reward_coef: 1
     discount_coef: 1
@@ -125,6 +163,12 @@ trainer:
     n_envs: *nenvs
     n_epochs: &nepochs 50
     timeout_done: *td
+
+    rl_opt:
+        opt_name: adam
+        lr: 5e-4
+        clip_norm: null
+        eps: 1e-5
 
     model_opt:
         opt_name: adam
@@ -140,8 +184,9 @@ buffer:
 
     n_runners: *nrunners
     n_envs: *nenvs
+    n_simulated_envs: 4
     n_steps: 10
-    batch_size: 128
+    batch_size: 16 # 128
 
     auto_state: False
 

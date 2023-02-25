@@ -41,38 +41,51 @@ def set_states(states, agents, runner):
     runner.set_states(runner_states)
 
 def train(
-    agents,
+    agent,
     model,
-    runner, 
-    env_buffer,
-    model_buffers, 
-    routine_config, 
+    runner,
+    buffer,
+    routine_config,
  ):
     do_logging('Training starts...')
-    env_step = agents[0].get_env_step()
+    env_step = agent.get_env_step()
     to_record = Every(
         routine_config.LOG_PERIOD, 
         start=env_step, 
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    all_aids = list(range(len(agents)))
+    all_aids = list(range(agent.env_stats.n_agents))
     steps_per_iter = runner.env.n_envs * routine_config.n_steps
 
     while env_step < routine_config.MAX_STEPS:
 
+        # Real world interaction
         runner.env_run(
             routine_config.n_steps,
-            agents, env_buffer,
+            agent, buffer,
             all_aids, False,
             # compute_return=routine_config.compute_return_at_once
         )
-        
-        if env_buffer.ready_to_sample():
+
+        # Buffer sampling to train
+        if buffer.ready_to_sample():
             # train the model
             with Timer('train'):
                 model.model_train_record()
-    
+
+        sample_keys = ['state']
+        obs = buffer.sample_from_recency(
+            batch_size=routine_config.n_envs, 
+            sample_keys=sample_keys, 
+            sample_size=1, 
+            squeeze=True, 
+            n=routine_config.n_recent_trajectories
+        )
+        rollout_data = model.model_rollout(obs.state, routine_config.rollout_length)
+
+        model.train_record(data=rollout_data)
+
         env_step += steps_per_iter
         
         print('okkk.')
@@ -95,49 +108,37 @@ def main(configs, train=train):
     # load agents
     env_stats = runner.env_stats()
     
-    assert len(configs) == env_stats.n_agents, (len(configs), env_stats.n_agents)
     env_stats.n_envs = config.env.n_runners * config.env.n_envs
     print_dict(env_stats)
 
-    agents = []
-    model_buffers = []
-    env_buffer = None
     root_dir = config.root_dir
     model_name = config.model_name
-    for i, c in enumerate(configs):
-        assert c.aid == i, (c.aid, i)
-        if model_name.endswith(f'a{i}'):
-            new_model_name = model_name
-        else:
-            new_model_name = '/'.join([model_name, f'a{i}'])
-        modify_config(
-            configs[i], 
-            model_name=new_model_name, 
-        )
-        if c.routine.compute_return_at_once:
-            c.buffer.sample_keys += ['advantage', 'v_target']
-        builder = ElementsBuilder(
-            configs[i], 
-            env_stats, 
-            to_save_code=False, 
-            max_steps=config.routine.MAX_STEPS
-        )
-        elements = builder.build_agent_from_scratch()
-        agents.append(elements.agent)
-        model_buffers.append(elements.buffer)
-    elements = builder.build_agent_from_scratch()
-    model = elements.agent
-    env_buffer = elements.buffer 
-    # TODO
-
-    routine_config = configs[0].routine.copy()
-    train(
-        agents,
-        model,
-        runner, 
-        env_buffer, 
-        model_buffers,
-        routine_config
+    
+    new_model_name = '/'.join([model_name, f'a0'])
+    modify_config(
+        config,
+        model_name=new_model_name,
     )
-
+    if config.routine.compute_return_at_once:
+        config.buffer.sample_keys += ['advantage', 'v_target']
+    builder = ElementsBuilder(
+        config, 
+        env_stats, 
+        to_save_code=False, 
+        max_steps=config.routine.MAX_STEPS
+    )
+    elements = builder.build_agent_from_scratch()
+    model = agent = elements.agent
+    buffer = elements.buffer
+    # if seed == 0:
+    #     save_code(ModelPath(root_dir, model_name))
+    
+    routine_config = config.routine.copy()
+    train(
+        agent,
+        model,
+        runner,
+        buffer,
+        routine_config,
+    )
     do_logging('Training completed')

@@ -61,6 +61,7 @@ class EpisodicBuffer(LocalBuffer):
 
     def add(self, **data):
         self._buffer.append(data)
+
         if np.all(data['reset']) or np.all(data['discount'] == 0):
             eps = batch_dicts(self._buffer)
             self._buffer = []

@@ -2,6 +2,7 @@ import collections
 import numpy as np
 import ray
 import jax
+import jax.numpy as jnp
 
 from tools.run import RunnerWithState
 from tools.timer import NamedEvery
@@ -11,51 +12,33 @@ from env.typing import RSSMEnvOutput
 
 
 def concate_along_unit_dim(x):
-    x = np.concatenate(x, axis=1)
+    x = jnp.concatenate(x, axis=1)
     return x
 
-
-def run_model(model, buffer, routine_config):
-    sample_keys = buffer.obs_keys + ['state', 'state_rssm', 'obs_rssm']
-    obs = buffer.sample_from_recency(
-        batch_size=routine_config.n_envs,
-        sample_keys=sample_keys,
-        sample_size=1,
-        squeeze=True,
-    )
-    shape = obs.obs.shape[-1]
+def fake_action(basic_shape, action_dim):
+    return jnp.zeros((*basic_shape, action_dim))
 
 class Runner(RunnerWithState):
-    
-    def model_run(
-        self,
-    ):
-        # consider sampling in model
-        pass
-
     def env_run(
         self, 
         n_steps, 
-        agents, 
+        agent, 
         buffer, 
         lka_aids, 
-        # collect_ids, 
         store_info=True, 
-        # compute_return=True, 
     ):  
         # consider lookahead agents
-        for aid, agent in enumerate(agents):
-            if aid in lka_aids:
-                agent.strategy.model.switch_params(True)
-            else:
-                agent.strategy.model.check_params(False)
+        agent.strategy.model.switch_params(True, lka_aids)
         
         env_output = self.env_output
-        env_outputs = [RSSMEnvOutput(*o, None) for o in zip(*env_output)]
+        env_outputs = [RSSMEnvOutput(*o, fake_action(o[0].obs.shape[:2], self.env_stats().action_dim[0])) for o in zip(*env_output)]
         for _ in range(n_steps):
-            acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
+            # acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
+            action, _ = agent(env_outputs)
+            acts = []
+            for aid in range(len(env_outputs)):
+                acts.append(jnp.expand_dims(action[:, aid], axis=1))
 
-            action = concate_along_unit_dim(acts)
             new_env_output = self.env.step(action)
             new_env_outputs = [RSSMEnvOutput(*o, jax.nn.one_hot(acts[i], self.env_stats().action_dim[0])) for i, o in enumerate(zip(*new_env_output))]
 
@@ -69,20 +52,7 @@ class Runner(RunnerWithState):
                 reward=np.concatenate(new_env_output.reward, -1), 
                 discount=np.concatenate(new_env_output.discount, -1)
             )
-            
-            # next_obs = self.env.prev_obs()
-            
-            # for i in collect_ids:
-            #     kwargs = dict(
-            #         obs=env_outputs[i].obs, 
-            #         action=acts[i], 
-            #         reward=new_env_outputs[i].reward, 
-            #         discount=new_env_outputs[i].discount, 
-            #         next_obs=next_obs[i], 
-            #         **stats[i]
-            #     )
-            #     buffers[i].collect(self.env, 0, new_env_outputs[i].reset, **kwargs)
-
+                
             if store_info:
                 done_env_ids = [i for i, r in enumerate(new_env_outputs[0].reset) if np.all(r)]
 
@@ -90,17 +60,12 @@ class Runner(RunnerWithState):
                     info = self.env.info(done_env_ids)
                     if info:
                         info = batch_dicts(info, list)
-                        for agent in agents:
-                            agent.store(**info)
+                        agent.store(**info)
             env_output = new_env_output
             env_outputs = new_env_outputs
 
-        # prepare_buffer(collect_ids, agents, buffers, env_outputs, compute_return)
-
-        for i in lka_aids:
-            agents[i].strategy.model.switch_params(False)
-        # for agent in agents:
-            # agent.strategy.model.check_params(False)
+        agent.strategy.model.switch_params(False, lka_aids)
+        agent.strategy.model.check_params(False)
 
         self.env_output = env_output
         return env_outputs

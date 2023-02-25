@@ -46,6 +46,8 @@ model:
     n_elites: 1
     global_state_type: obs
     rn_std: .1
+    obs_normalization: &obs_norm True
+    deterministic_pred: True
     model_loss_type: &mlt mse
     stoch_trans: True
 
@@ -66,6 +68,9 @@ model:
         activation: relu
         norm: layer
         out_scale: .01
+        balance_dimension: True
+        obs_units_list: [128]
+        action_units_list: [64]
     discount:
         nn_id: discount
         out_size: 1
@@ -76,7 +81,8 @@ model:
 loss:
     model_loss_type: *mlt
     n_models: *n
-
+    obs_normalization: *obs_norm
+    
     model_coef: 1
     reward_coef: 1
     discount_coef: 1
@@ -86,6 +92,7 @@ trainer:
     aid: 0
     trust_threshold: 1000
     timeout_done: *td
+    obs_normalization: *obs_norm
 
     model_opt:
         opt_name: adam

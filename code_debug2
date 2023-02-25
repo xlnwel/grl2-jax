@@ -1,0 +1,10 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+s=0
+gpu=1
+py_script="python run/train.py -a happo_mb happo_mb dynamics -e ma_mujoco-Ant_2x4 -c ma_mujoco -ld debug-logs -n debug -s $s --gpu $gpu -ki 2"
+echo $py_script
+eval $py_script
+echo "Script completed"
