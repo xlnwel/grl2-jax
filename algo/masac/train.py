@@ -73,7 +73,8 @@ def lookahead_optimize(agent):
 
 def lookahead_train(agent, model, buffer, model_buffer, routine_config, 
         n_runs, run_fn, opt_fn):
-    if model is None or not model.trainer.is_trust_worthy():
+    if model is None or not model.trainer.is_trust_worthy() \
+        or not model_buffer.ready_to_sample():
         return
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
@@ -132,12 +133,20 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
 
     with Timer('eval'):
         with StateStore('eval', constructor, get_fn, set_fn):
-            scores, epslens, _, video = runner.eval_with_video(
+            eval_scores, eval_epslens, _, video = runner.eval_with_video(
                 agent, record_video=routine_config.RECORD_VIDEO
             )
+    
+    score = agent.get_raw_item('score')
     agent.store(**{
-        'eval_score': np.mean(scores), 
-        'eval_epslen': np.mean(epslens), 
+        'score': score, 
+        'eval_score': eval_scores, 
+        'eval_epslen': eval_epslens, 
+    })
+    model.store(**{
+        'score': score, 
+        'eval_score': eval_scores, 
+        'eval_epslen': eval_epslens, 
     })
 
     with Timer('save'):
@@ -207,7 +216,7 @@ def train(
         final=routine_config.MAX_STEPS
     )
 
-    while env_step < routine_config.MAX_STEPS:        
+    while env_step < routine_config.MAX_STEPS:
         model_train_fn(
             model, 
             model_buffer

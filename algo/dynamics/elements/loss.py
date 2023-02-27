@@ -56,8 +56,7 @@ class Loss(LossBase):
         discount_loss, stats = compute_discount_loss(
             self.config, discount_dist, data.discount, stats)
 
-        # loss = model_loss + reward_loss + discount_loss
-        loss = self.config.model_coef * model_loss + self.config.reward_coef * reward_loss + self.config.discount_coef * discount_loss
+        loss = model_loss + reward_loss + discount_loss
         stats.loss = loss
 
         return loss, stats

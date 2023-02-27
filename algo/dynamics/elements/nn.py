@@ -43,7 +43,7 @@ class Model(hk.Module):
         self.out_type = self.out_config.pop('type')
         assert self.out_type in (DISCRETE_MODEL, CONTINUOUS_MODEL)
 
-    def __call__(self, x, action):
+    def __call__(self, x, action, training=False):
         net = self.build_net()
         x = combine_sa(x, action)
         x = self.call_net(net, x)

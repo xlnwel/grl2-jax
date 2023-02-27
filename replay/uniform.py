@@ -45,9 +45,9 @@ class UniformReplay(Buffer):
     def reset(self):
         pass
     
-    def collect_and_pop(self, **data):
+    def collect_and_pop(self, idxes=None, **data):
         data = self._prepare_data(**data)
-        return self.add_and_pop(**data)
+        return self.add_and_pop(idxes=idxes, **data)
 
     def add(self, idxes=None, **data):
         if self.n_envs > 1:
@@ -55,6 +55,9 @@ class UniformReplay(Buffer):
                 idxes = range(self.n_envs)
             for i in idxes:
                 d = tree_slice(data, i)
+                if i >= len(self._tmp_bufs):
+                    self._tmp_bufs.append(NStepBuffer(
+                        self.config, self.env_stats, self.model, self.aid, 0))
                 traj = self._tmp_bufs[i].add(**d)
                 if traj is not None:
                     self.merge(traj)
@@ -70,6 +73,9 @@ class UniformReplay(Buffer):
                 idxes = range(self.n_envs)
             for i in idxes:
                 d = tree_slice(data, i)
+                if i >= len(self._tmp_bufs):
+                    self._tmp_bufs.append(NStepBuffer(
+                        self.config, self.env_stats, self.model, self.aid, 0))
                 traj = self._tmp_bufs[i].add(**d)
                 if traj is not None:
                     popped_data.extend(self.merge_and_pop(traj))
@@ -98,6 +104,7 @@ class UniformReplay(Buffer):
     def sample_from_recency(self, batch_size, sample_keys, n=None, **kwargs):
         batch_size = batch_size or self.batch_size
         n = n or self.n_recency
+        assert n <= len(self._memory), (n, len(self._memory))
         idxes = np.arange(len(self)-n, len(self))
         idxes = np.random.choice(idxes, size=batch_size, replace=False)
 
@@ -129,6 +136,14 @@ class UniformReplay(Buffer):
         data = self._memory
         self._memory = collections.deque(max_len=self.config.max_size)
         return data
+
+    def clear_local_buffer(self, drop_data=False):
+        for b in self._tmp_bufs:
+            if drop_data:
+                b.reset()
+            else:
+                traj = b.retrieve_all_data()
+                self.merge(traj)
 
     def _sample(self, batch_size=None):
         batch_size = batch_size or self.batch_size

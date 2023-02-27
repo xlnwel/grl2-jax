@@ -4,7 +4,8 @@ import numpy as np
 from tools.utils import expand_dims_match, moments
 
 
-Stats = collections.namedtuple('RMS', 'mean var count')
+Stats = collections.namedtuple('RMS', 'mean var')
+StatsWithCount = collections.namedtuple('RMS', 'mean var count')
 
 
 def combine_rms(rms1, rms2):
@@ -25,7 +26,7 @@ def combine_rms(rms1, rms2):
     assert np.all(np.isfinite(M2)), f'M2: {M2}'
     new_var = M2 / total_count
 
-    return Stats(new_mean, new_var, total_count)
+    return StatsWithCount(new_mean, new_var, total_count)
 
 
 def denormalize(x, mean, std, zero_center=True, mask=None):
@@ -114,8 +115,11 @@ class RunningMeanStd:
         self._std = np.sqrt(self._var)
         self._count = count
 
-    def get_rms_stats(self):
-        return Stats(self._mean, self._var, self._count)
+    def get_rms_stats(self, with_count=True):
+        if with_count:
+            return StatsWithCount(self._mean, self._var, self._count)
+        else:
+            return Stats(self._mean, self._var)
 
     def update(self, x, mask=None, axis=None):
         x = x.astype(np.float64)
@@ -145,8 +149,8 @@ class RunningMeanStd:
         assert self._var.shape == batch_var.shape
 
         new_mean, new_var, total_count = combine_rms(
-            Stats(self._mean, self._var, self._count), 
-            Stats(batch_mean, batch_var, batch_count))
+            StatsWithCount(self._mean, self._var, self._count), 
+            StatsWithCount(batch_mean, batch_var, batch_count))
         self._mean = new_mean
         self._var = new_var
         self._std = np.sqrt(self._var + self._epsilon)

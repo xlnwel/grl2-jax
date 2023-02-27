@@ -7,7 +7,6 @@ algos=(
 )
 suite=$1
 shift
-# envs=(escalation staghunt harvest)
 envs=(
     Ant_2x4
     HalfCheetah_2x3
@@ -17,16 +16,21 @@ configs=(
     "${suite}"
 )
 args1=(
-    "dynamics" 
+    True
+    True
+    False
+    False
 )
 args2=(
-    "ce"
+    "mbpo"
     "mse"
 )
 args3=(
     100 50 25
 )
-args4=(5 10)
+dynamics=(
+    "dynamics"
+)
 date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"
@@ -52,6 +56,9 @@ config=${configs[$idx]}
 la=${#algos[@]}
 idx=$(($INF_MAC_NODE_RANK % $la))
 a=${algos[$idx]}
+ldy=${#dynamics[@]}
+idx=$(($INF_MAC_NODE_RANK % $ldy))
+d=${dynamics[$idx]}
 la1=${#args1[@]}
 idx=$(($INF_MAC_NODE_RANK % $la1))
 a1=${args1[$idx]}
@@ -63,7 +70,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="0#dynamics_name=$a1 model_loss_type=$a2"
+kws="0#dynamics_name=$d 0#lookahead_replay=fast 1#obs_normalization=$a1 1#model_loss_type=$a2"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"

@@ -54,7 +54,7 @@ class EpisodicBuffer(LocalBuffer):
         self._size = 0
 
     def retrieve_all_data(self):
-        data = stack_data_with_state(self._buffer, seq_axis=0)
+        data = [stack_data_with_state(d, seq_axis=0) for d in self._buffer]
         self.reset()
 
         return data
@@ -82,6 +82,12 @@ class NStepBuffer(LocalBuffer):
 
     def reset(self):
         self._buffer.clear()
+
+    def retrieve_all_data(self):
+        data = list(self._buffer)
+        self.reset()
+
+        return data
 
     def add(self, **data):
         """ Add experience to local memory """
