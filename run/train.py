@@ -162,6 +162,8 @@ def setup_configs(cmd_args, algo_env_config):
             max_layer=1, 
             root_dir=root_dir, 
             model_name=f'{date}/{model_name}', 
+            algorithm=algo, 
+            name=algo, 
             seed=cmd_args.seed
         )
         config.date = date

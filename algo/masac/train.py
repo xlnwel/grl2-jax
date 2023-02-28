@@ -143,11 +143,12 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
         'eval_score': eval_scores, 
         'eval_epslen': eval_epslens, 
     })
-    model.store(**{
-        'score': score, 
-        'eval_score': eval_scores, 
-        'eval_epslen': eval_epslens, 
-    })
+    if model is not None:
+        model.store(**{
+            'score': score, 
+            'eval_score': eval_scores, 
+            'eval_epslen': eval_epslens, 
+        })
 
     with Timer('save'):
         agent.save()
@@ -266,6 +267,7 @@ def build_agent(config, env_stats):
     agent = elements.agent
     buffer = elements.buffer
     return agent, buffer
+
 
 def main(configs, train=train):
     config, model_config = configs[0], configs[-1]

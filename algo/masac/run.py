@@ -172,7 +172,7 @@ def unilateral_rollout(env, agent, buffer, env_output, routine_config):
 
     if not routine_config.switch_model_at_every_step:
         env.model.choose_elite()
-    for aid, uids in enumerate(agent.model.aid2uids):
+    for aid in range(agent.env_stats.n_agents):
         lka_aids = [i for i in range(agent.env_stats.n_agents) if i != aid]
         agent.model.switch_params(True, lka_aids)
 

@@ -29,7 +29,7 @@ class UniformReplay(Buffer):
         self.n_recency = self.config.get('n_recency', self.min_size)
         self.n_steps = self.config.n_steps
 
-        self._memory = collections.deque(maxlen=config.max_size)
+        self._memory = collections.deque(maxlen=self.max_size)
 
         self._tmp_bufs: List[NStepBuffer] = [
             NStepBuffer(config, env_stats, model, aid, 0) 
