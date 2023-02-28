@@ -89,7 +89,7 @@ loss:
 trainer:
     algorithm: *algo
     aid: 0
-    trust_threshold: 1000
+    trust_threshold: .03
     timeout_done: *td
     obs_normalization: *obs_norm
 
@@ -107,8 +107,8 @@ buffer:
 
     n_runners: *nrunners
     n_envs: *nenvs
-    max_size: 1e5
-    min_size: 5e3
+    max_size: 5e4
+    min_size: 1e3
     batch_size: 256
     sample_size: 1
 

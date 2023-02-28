@@ -5,10 +5,10 @@ export PYTHONPATH=.
 algos=(
     masac_lka
     masac_lka
-    masac_lka
-    masac_lka
-    masac_lka2
-    masac_lka2
+    # masac_lka
+    # masac_lka
+    # masac_lka2
+    # masac_lka2
     masac_lka2
     masac_lka2
 )
@@ -29,14 +29,14 @@ args1=(
     # 200
 )
 args2=(
-    50
-    50
+    # 50
+    # 50
     100
     100
 )
 args3=(
+    100
     1000
-    2000
 )
 dynamics=(
     "dynamics"

@@ -30,6 +30,7 @@ routine:
     n_simulated_steps: &nss 1
     lookahead_rollout: sim
     lookahead_replay: slow
+    quantify_model_errors: True
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3

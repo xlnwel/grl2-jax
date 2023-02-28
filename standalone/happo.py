@@ -496,8 +496,6 @@ def evaluate(pi, reward, rho, transition):
 def process_data(data, dir_path, name):
     data = pd.DataFrame.from_dict(data=data)
     data.to_csv(f'{dir_path}/{name}.txt')
-    columns = [c for c in data.columns if c != 'steps']
-    data.pivot(index='steps', columns=columns, values=columns)
     return data
 
 

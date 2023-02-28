@@ -217,7 +217,7 @@ if __name__ == '__main__':
         process = subprocess.Popen(cmd)
 
     search_dir = directory
-    all_data = collections.defaultdict(list)
+    # all_data = collections.defaultdict(list)
     for d in yield_dirs(search_dir, args.prefix, is_suffix=False, root_matches=args.name):
         if date is not None and date not in d:
             do_logging(f'Pass directory "{d}" due to mismatch date')
@@ -286,14 +286,13 @@ if __name__ == '__main__':
 
         with open(json_path, 'w') as json_file:
             json.dump(config, json_file)
+        data.to_csv(csv_path)
+        # all_data[config.env_name].append(DataPath(csv_path, data))
+        # to_csv(config.env_name, DataPath(csv_path, data))
 
-        all_data[config.env_name].append(DataPath(csv_path, data))
-        # print(list(data))
-        # exit()
-
-    for k, v in all_data.items():
-        to_csv(k, v)
-    all_data.clear()
+    # for k, v in all_data.items():
+    #     to_csv(k, v)
+    # all_data.clear()
         
     if process is not None:
         do_logging('Waiting for rsync to complete...')

@@ -4,8 +4,10 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
+from core.typing import get_basic_model_name
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from tools.display import print_dict
+from tools.plot import prepare_data_for_plotting, lineplot_dataframe
 from tools.store import StateStore, TempStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
@@ -120,44 +122,61 @@ def ego_train(agent, runner, buffer, model_buffer, routine_config,
     return env_step, train_step
 
 
-def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
-    get_fn = partial(get_states, agent=agent, runner=runner)
-    set_fn = partial(set_states, agent=agent, runner=runner)
-    def constructor():
-        env_config = runner.env_config()
-        if routine_config.n_eval_envs:
-            env_config.n_envs = routine_config.n_eval_envs
-        agent_states = agent.build_memory()
-        runner_states = runner.build_env()
-        return agent_states, runner_states
+def evaluate(agent, model, runner, env_step, routine_config):
+    if routine_config.EVAL_PERIOD:
+        get_fn = partial(get_states, agent=agent, runner=runner)
+        set_fn = partial(set_states, agent=agent, runner=runner)
+        def constructor():
+            env_config = runner.env_config()
+            if routine_config.n_eval_envs:
+                env_config.n_envs = routine_config.n_eval_envs
+            agent_states = agent.build_memory()
+            runner_states = runner.build_env()
+            return agent_states, runner_states
 
-    with Timer('eval'):
-        with StateStore('eval', constructor, get_fn, set_fn):
-            eval_scores, eval_epslens, _, video = runner.eval_with_video(
-                agent, record_video=routine_config.RECORD_VIDEO
-            )
-    
-    score = agent.get_raw_item('score')
-    agent.store(**{
-        'score': score, 
-        'eval_score': eval_scores, 
-        'eval_epslen': eval_epslens, 
-    })
-    if model is not None:
-        model.store(**{
-            'score': score, 
+        with Timer('eval'):
+            with StateStore('eval', constructor, get_fn, set_fn):
+                eval_scores, eval_epslens, _, video = runner.eval_with_video(
+                    agent, record_video=routine_config.RECORD_VIDEO
+                )
+        
+        agent.store(**{
             'eval_score': eval_scores, 
             'eval_epslen': eval_epslens, 
         })
+        if model is not None:
+            model.store(**{
+                'model_eval_score': eval_scores, 
+                'model_eval_epslen': eval_epslens, 
+            })
+        if video is not None:
+            agent.video_summary(video, step=env_step, fps=1)
 
+
+def save(agent, model):
     with Timer('save'):
         agent.save()
         if model is not None: 
             model.save()
+            
 
+def log_model_errors(errors, outdir, env_step):
+    if errors:
+        data = collections.defaultdict(dict)
+        for k1, errs in errors.items():
+            for k2, v in errs.items():
+                data[k2][k1] = v
+        y = 'abs error'
+        for k, v in data.items():
+            filename = f'{k}-{env_step}'
+            filepath = '/'.join([outdir, filename])
+            data[k] = prepare_data_for_plotting(
+                v, y=y, smooth_radius=1, filepath=filepath)
+            lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
+
+
+def log(agent, model, env_step, train_step):
     with Timer('log'):
-        if video is not None:
-            agent.video_summary(video, step=env_step, fps=1)
         run_time = Timer('run').last()
         train_time = Timer('train').last()
         if run_time == 0:
@@ -175,6 +194,8 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
             }, 
             **Timer.all_stats()
         )
+        score = agent.get_raw_item('score')
+        agent.store(score=score)
         agent.record(step=env_step)
 
         if model is not None:
@@ -190,6 +211,7 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
                 }, 
                 **Timer.all_stats()
             )
+            model.store(model_score=score)
             model.record(step=env_step)
 
 
@@ -208,6 +230,8 @@ def train(
     ego_train_fn=ego_train, 
     model_train_fn=model_train
 ):
+    MODEL_EVAL_STEPS = runner.env.max_episode_steps
+    print('Model evaluation steps:', MODEL_EVAL_STEPS)
     do_logging('Training starts...')
     env_step = agent.get_env_step()
     to_record = Every(
@@ -218,10 +242,16 @@ def train(
     )
 
     while env_step < routine_config.MAX_STEPS:
-        model_train_fn(
-            model, 
-            model_buffer
-        )
+        errors = AttrDict()
+        env_step = ego_run_fn(
+            agent, runner, buffer, model_buffer, routine_config)
+        time2record = agent.contains_stats('score') \
+            and to_record(env_step)
+        
+        model_train_fn(model, model_buffer)
+        if routine_config.quantify_model_errors and time2record:
+            errors.train = quantify_model_errors(
+                agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         lka_train_fn(
             agent, 
@@ -233,21 +263,21 @@ def train(
             run_fn=lka_run_fn, 
             opt_fn=lka_opt_fn
         )
-        env_step, train_step = ego_train_fn(
-            agent, 
-            runner, 
-            buffer, 
-            model_buffer, 
-            routine_config, 
-            run_fn=ego_run_fn, 
-            opt_fn=ego_opt_fn
-        )
 
-        time2record = agent.contains_stats('score') \
-            and to_record(env_step)
+        train_step = ego_opt_fn(agent)
+        if routine_config.quantify_model_errors and time2record:
+            errors.ego = quantify_model_errors(
+                agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
+
         if time2record:
-            eval_and_log(
-                agent, model, runner, env_step, train_step, routine_config)
+            evaluate(agent, model, runner, env_step, routine_config)
+            if routine_config.quantify_model_errors:
+                root_dir, model_name = agent.get_model_path()
+                model_name = get_basic_model_name(model_name)
+                outdir = '/'.join([root_dir, model_name])
+                log_model_errors(errors, outdir, env_step)
+            save(agent, model)
+            log(agent, model, env_step, train_step)
 
 
 def build_agent(config, env_stats):
