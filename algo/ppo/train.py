@@ -274,6 +274,8 @@ def build_agents(config, env_stats):
             new_model_name = '/'.join([model_name, f'a{i}'])
         modify_config(
             config, 
+            aid=i,
+            seed=i*100 if config.seed is None else config.seed+i*100, 
             model_name=new_model_name, 
         )
         builder = ElementsBuilder(

@@ -16,7 +16,7 @@ envs=(
 configs=(
     "${suite}"
 )
-args1=(100 100 400 400)
+args1=(400 100)
 args2=(
     128
     256
@@ -69,7 +69,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-# kws="n_lookahead_steps=0 n_epochs=$a1 batch_size=$a2"
+kws="n_epochs=$a1"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"
