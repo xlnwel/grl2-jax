@@ -17,18 +17,22 @@ configs=(
 )
 args1=(
     100
+    100
+    100
+    100
+    1000
+    1000
+    1000
     1000
 )
 args2=(
-    False
-    False
-    True
-    True
+    100
+    100
+    400
+    400
 )
 args3=(
-    100
-    100
-    5
+    1
     5
 )
 dynamics=(
@@ -73,7 +77,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="0#dynamics_name=$d 0#n_simulated_envs=$a1 1#ergodic=$a2 1#n_epochs=$a3 1#model_loss_type=mbpo"
+kws="0#dynamics_name=$d 0#n_epochs=$a2 0#n_simulated_envs=$a1 1#ergodic=True 1#n_epochs=$a3"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"

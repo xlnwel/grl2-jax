@@ -42,7 +42,7 @@ def set_states(states, agent, runner):
     runner.set_states(runner_states)
 
 
-def model_train(model, model_buffer):
+def model_train(model):
     if model is None:
         return
     with Timer('model_train'):
@@ -160,22 +160,30 @@ def save(agent, model):
             model.save()
             
 
+def modelpath2outdir(model_path):
+    root_dir, model_name = model_path
+    model_name = get_basic_model_name(model_name)
+    outdir = '/'.join([root_dir, model_name])
+    return outdir
+
+
 def log_model_errors(errors, outdir, env_step):
     if errors:
-        data = collections.defaultdict(dict)
-        for k1, errs in errors.items():
-            for k2, v in errs.items():
-                data[k2][k1] = v
-        y = 'abs error'
-        for k, v in data.items():
-            filename = f'{k}-{env_step}'
-            filepath = '/'.join([outdir, filename])
-            data[k] = prepare_data_for_plotting(
-                v, y=y, smooth_radius=1, filepath=filepath)
-            lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
+        with Timer('error_log'):
+            data = collections.defaultdict(dict)
+            for k1, errs in errors.items():
+                for k2, v in errs.items():
+                    data[k2][k1] = v
+            y = 'abs error'
+            for k, v in data.items():
+                filename = f'{k}-{env_step}'
+                filepath = '/'.join([outdir, filename])
+                data[k] = prepare_data_for_plotting(
+                    v, y=y, smooth_radius=1, filepath=filepath)
+                lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
 
 
-def log(agent, model, env_step, train_step):
+def log(agent, model, env_step, train_step, errors):
     with Timer('log'):
         run_time = Timer('run').last()
         train_time = Timer('train').last()
@@ -187,11 +195,16 @@ def log(agent, model, env_step, train_step):
             tps = 0
         else:
             tps = agent.get_train_step_intervals() / train_time
+        error_stats = {}
+        for k1, errs in errors.items():
+            for k2, v in errs.items():
+                error_stats[f'{k2}-{k1}'] = v
         agent.store(**{
                 'stats/train_step': train_step, 
                 'time/fps': fps, 
                 'time/tps': tps, 
             }, 
+            **error_stats, 
             **Timer.all_stats()
         )
         score = agent.get_raw_item('score')
@@ -248,7 +261,7 @@ def train(
         time2record = agent.contains_stats('score') \
             and to_record(env_step)
         
-        model_train_fn(model, model_buffer)
+        model_train_fn(model)
         if routine_config.quantify_model_errors and time2record:
             errors.train = quantify_model_errors(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
@@ -272,12 +285,10 @@ def train(
         if time2record:
             evaluate(agent, model, runner, env_step, routine_config)
             if routine_config.quantify_model_errors:
-                root_dir, model_name = agent.get_model_path()
-                model_name = get_basic_model_name(model_name)
-                outdir = '/'.join([root_dir, model_name])
+                outdir = modelpath2outdir(agent.get_model_path())
                 log_model_errors(errors, outdir, env_step)
             save(agent, model)
-            log(agent, model, env_step, train_step)
+            log(agent, model, env_step, train_step, errors)
 
 
 def build_agent(config, env_stats):
@@ -326,7 +337,6 @@ def main(configs, train=train):
     else:
         model, model_buffer = build_model(config, model_config, env_stats)
     save_code_for_seed(config)
-
 
     routine_config = config.routine.copy()
     train(

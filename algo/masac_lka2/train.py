@@ -3,6 +3,9 @@ from algo.masac.run import quantify_model_errors
 
 
 def mix_run(agent, model, buffer, model_buffer, routine_config):
+    if not model.trainer.is_trust_worthy() \
+        or not model_buffer.ready_to_sample():
+        return
     def get_agent_states():
         state = agent.get_states()
         # we collect lookahead data into the slow replay
@@ -57,7 +60,7 @@ def train(
         time2record = agent.contains_stats('score') \
             and to_record(env_step)
         
-        model_train_fn(model, model_buffer)
+        model_train_fn(model)
         if routine_config.quantify_model_errors and time2record:
             errors.train = quantify_model_errors(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
@@ -76,8 +79,7 @@ def train(
             errors.lka = quantify_model_errors(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, None)
 
-        if model_buffer.ready_to_sample():
-            mix_run(agent, model, buffer, model_buffer, routine_config)
+        mix_run(agent, model, buffer, model_buffer, routine_config)
         train_step = ego_opt_fn(agent)
         if routine_config.quantify_model_errors and time2record:
             errors.ego = quantify_model_errors(
@@ -87,10 +89,8 @@ def train(
             evaluate(agent, model, runner, env_step, routine_config)
             save(agent, model)
             if routine_config.quantify_model_errors:
-                root_dir, model_name = agent.get_model_path()
-                model_name = get_basic_model_name(model_name)
-                outdir = '/'.join([root_dir, model_name])
+                outdir = modelpath2outdir(agent.get_model_path())
                 log_model_errors(errors, outdir, env_step)
-            log(agent, model, env_step, train_step)
+            log(agent, model, env_step, train_step, errors)
 
 main = partial(main, train=train)

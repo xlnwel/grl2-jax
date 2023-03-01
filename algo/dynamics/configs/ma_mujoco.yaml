@@ -38,8 +38,8 @@ monitor:
 strategy:
     algorithm: *algo
     train_loop:
-        ergodic: False
-        n_epochs: &nepochs 100
+        ergodic: True
+        n_epochs: &nepochs 1
 
 model:
     aid: 0
@@ -48,7 +48,7 @@ model:
     rn_std: .1
     obs_normalization: &obs_norm True
     deterministic_trans: False
-    model_loss_type: &mlt mse
+    model_loss_type: &mlt mbpo
 
     emodels:
         nn_id: emodels
@@ -89,7 +89,7 @@ loss:
 trainer:
     algorithm: *algo
     aid: 0
-    trust_threshold: .03
+    trust_threshold: 1000
     timeout_done: *td
     obs_normalization: *obs_norm
 

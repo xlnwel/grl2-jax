@@ -72,7 +72,6 @@ def lineplot_dataframe(data, title, *, y, x='steps', fig=None, ax=None, legend='
         fig = plt.figure(figsize=(20, 10))
         fig.tight_layout(pad=2)
         ax = fig.add_subplot()
-    print(data)
     sns.set(style="whitegrid", font_scale=1.5)
     sns.set_palette('Set2') # or husl
     sns.lineplot(x=x, y=y, 

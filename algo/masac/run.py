@@ -5,6 +5,7 @@ from core.typing import AttrDict
 from tools.run import RunnerWithState
 from tools.utils import batch_dicts
 from tools.display import print_dict_info
+from tools.timer import Timer
 from env.typing import EnvOutput
 from algo.masac.elements.utils import concate_along_unit_dim
 from env.func import create_env
@@ -245,33 +246,34 @@ def concat_env_output(env_output):
 
 
 def quantify_model_errors(agent, model, env_config, n_steps, lka_aids):
-    agent.model.check_params(False)
-    agent.model.switch_params(True, lka_aids)
+    with Timer('error_quantify'):
+        agent.model.check_params(False)
+        agent.model.switch_params(True, lka_aids)
 
-    errors = AttrDict()
-    errors.trans = []
-    errors.reward = []
-    errors.discount = []
+        errors = AttrDict()
+        errors.trans = []
+        errors.reward = []
+        errors.discount = []
 
-    env = create_env(env_config)
-    env_output = env.output()
-    env_output = concat_env_output(env_output)
-    for _ in range(n_steps):
-        action, _ = agent(env_output)
-        new_env_output = env.step(action)
-        new_env_output = concat_env_output(new_env_output)
-        env_output.obs['action'] = action
-        new_model_output, _ = model(env_output)
-        errors.trans.append(
-            np.sum(np.abs(new_env_output.obs['obs'] - new_model_output.obs['obs']), -1).reshape(-1))
-        errors.reward.append(
-            np.abs(new_env_output.reward - new_model_output.reward).reshape(-1))
-        errors.discount.append(
-            np.abs(new_env_output.discount - new_model_output.discount).reshape(-1))
-        env_output = new_env_output
+        env = create_env(env_config)
+        env_output = env.output()
+        env_output = concat_env_output(env_output)
+        for _ in range(n_steps):
+            action, _ = agent(env_output)
+            new_env_output = env.step(action)
+            new_env_output = concat_env_output(new_env_output)
+            env_output.obs['action'] = action
+            new_model_output, _ = model(env_output)
+            errors.trans.append(
+                np.mean(np.abs(new_env_output.obs['obs'] - new_model_output.obs['obs']), -1).reshape(-1))
+            errors.reward.append(
+                np.abs(new_env_output.reward - new_model_output.reward).reshape(-1))
+            errors.discount.append(
+                np.abs(new_env_output.discount - new_model_output.discount).reshape(-1))
+            env_output = new_env_output
 
-    for k, v in errors.items():
-        errors[k] = np.stack(v, -1)
-    agent.model.switch_params(False, lka_aids)
+        for k, v in errors.items():
+            errors[k] = np.stack(v, -1)
+        agent.model.switch_params(False, lka_aids)
 
     return errors

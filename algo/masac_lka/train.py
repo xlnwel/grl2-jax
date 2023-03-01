@@ -54,7 +54,7 @@ def train(
         time2record = agent.contains_stats('score') \
             and to_record(env_step)
         
-        model_train_fn(model, model_buffer)
+        model_train_fn(model)
         if routine_config.quantify_model_errors and time2record:
             errors.train = quantify_model_errors(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
@@ -82,10 +82,8 @@ def train(
             evaluate(agent, model, runner, env_step, routine_config)
             save(agent, model)
             if routine_config.quantify_model_errors:
-                root_dir, model_name = agent.get_model_path()
-                model_name = get_basic_model_name(model_name)
-                outdir = '/'.join([root_dir, model_name])
+                outdir = modelpath2outdir(agent.get_model_path())
                 log_model_errors(errors, outdir, env_step)
-            log(agent, model, env_step, train_step)
+            log(agent, model, env_step, train_step, errors)
 
 main = partial(main, train=train)
