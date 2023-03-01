@@ -283,7 +283,7 @@ def build_agents(config, env_stats):
             agent_config, 
             env_stats, 
             to_save_code=False, 
-            max_steps=agent_config.routine.MAX_STEPS
+            max_steps=agent_config.routine['MAX_STEPS']
         )
         elements = builder.build_agent_from_scratch()
         agents.append(elements.agent)

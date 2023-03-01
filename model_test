@@ -11,8 +11,7 @@ gpus=$(nvidia-smi -L | wc -l)
 
 # i=0
 # j=0
-# # for ins in {0..2}; do
-# for s in {0..1}; do
+# for s in {0..2}; do
 #     gpu=$((($i + 2) % $gpus))
 #     mcoef=${mcoefs[$j]}
 #     rcoef=${rcoefs[$j]}
@@ -35,13 +34,10 @@ gpus=$(nvidia-smi -L | wc -l)
 #     eval $py_script
 #     ((i=(i+1) ))
 # done
-# ((j=(j+1) ))
-# # done
 
 i=0
 j=0
-# for ins in {0..2}; do
-for s in {0..1}; do
+for s in {0..2}; do
     gpu=$((($i + 2) % $gpus))
     env=${envs[$j]}
     na=${nas[$j]}
@@ -50,8 +46,6 @@ for s in {0..1}; do
     eval $py_script
     ((i=(i+1) ))
 done
-((j=(j+1) ))
-# done
 
 # i=0
 # j=0

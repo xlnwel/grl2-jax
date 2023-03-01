@@ -234,7 +234,8 @@ def train(
     runner, 
     buffer, 
     model_buffer, 
-    routine_config, 
+    routine_config,
+    model_routine_config,
     lka_run_fn=lookahead_run, 
     lka_opt_fn=lookahead_optimize, 
     lka_train_fn=lookahead_train, 
@@ -266,16 +267,19 @@ def train(
             errors.train = quantify_model_errors(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
 
-        lka_train_fn(
-            agent, 
-            model, 
-            buffer, 
-            model_buffer, 
-            routine_config, 
-            n_runs=routine_config.n_lookahead_steps, 
-            run_fn=lka_run_fn, 
-            opt_fn=lka_opt_fn
-        )
+        if model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
+            continue
+        else:
+            lka_train_fn(
+                agent, 
+                model, 
+                buffer, 
+                model_buffer, 
+                routine_config, 
+                n_runs=routine_config.n_lookahead_steps, 
+                run_fn=lka_run_fn, 
+                opt_fn=lka_opt_fn
+            )
 
         train_step = ego_opt_fn(agent)
         if routine_config.quantify_model_errors and time2record:
@@ -339,13 +343,15 @@ def main(configs, train=train):
     save_code_for_seed(config)
 
     routine_config = config.routine.copy()
+    model_routine_config = model_config.routine.copy()
     train(
         agent, 
         model, 
         runner, 
         buffer, 
         model_buffer, 
-        routine_config
+        routine_config,
+        model_routine_config
     )
 
     do_logging('Training completed')

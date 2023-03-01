@@ -20,6 +20,9 @@ routine:
 
     n_envs: &nenvs 64
 
+    model_warm_up: True
+    model_warm_up_steps: 5e4 
+
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
     n_runners: &nrunners 1
