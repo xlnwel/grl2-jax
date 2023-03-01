@@ -37,6 +37,8 @@ class TrainingLoop:
 
     def _train(self, **kwargs):
         data = self.sample_data()
+        if data is None:
+            return 0, AttrDict()
         stats = self._train_with_data(data)
 
         if isinstance(stats, tuple):

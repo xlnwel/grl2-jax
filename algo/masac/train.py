@@ -4,8 +4,10 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
+from core.typing import get_basic_model_name
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from tools.display import print_dict
+from tools.plot import prepare_data_for_plotting, lineplot_dataframe
 from tools.store import StateStore, TempStore
 from tools.utils import modify_config
 from tools.timer import Every, Timer
@@ -40,7 +42,7 @@ def set_states(states, agent, runner):
     runner.set_states(runner_states)
 
 
-def model_train(model, model_buffer):
+def model_train(model):
     if model is None:
         return
     with Timer('model_train'):
@@ -73,7 +75,8 @@ def lookahead_optimize(agent):
 
 def lookahead_train(agent, model, buffer, model_buffer, routine_config, 
         n_runs, run_fn, opt_fn):
-    if model is None or not model.trainer.is_trust_worthy():
+    if model is None or not model.trainer.is_trust_worthy() \
+        or not model_buffer.ready_to_sample():
         return
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
@@ -119,35 +122,69 @@ def ego_train(agent, runner, buffer, model_buffer, routine_config,
     return env_step, train_step
 
 
-def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
-    get_fn = partial(get_states, agent=agent, runner=runner)
-    set_fn = partial(set_states, agent=agent, runner=runner)
-    def constructor():
-        env_config = runner.env_config()
-        if routine_config.n_eval_envs:
-            env_config.n_envs = routine_config.n_eval_envs
-        agent_states = agent.build_memory()
-        runner_states = runner.build_env()
-        return agent_states, runner_states
+def evaluate(agent, model, runner, env_step, routine_config):
+    if routine_config.EVAL_PERIOD:
+        get_fn = partial(get_states, agent=agent, runner=runner)
+        set_fn = partial(set_states, agent=agent, runner=runner)
+        def constructor():
+            env_config = runner.env_config()
+            if routine_config.n_eval_envs:
+                env_config.n_envs = routine_config.n_eval_envs
+            agent_states = agent.build_memory()
+            runner_states = runner.build_env()
+            return agent_states, runner_states
 
-    with Timer('eval'):
-        with StateStore('eval', constructor, get_fn, set_fn):
-            scores, epslens, _, video = runner.eval_with_video(
-                agent, record_video=routine_config.RECORD_VIDEO
-            )
-    agent.store(**{
-        'eval_score': np.mean(scores), 
-        'eval_epslen': np.mean(epslens), 
-    })
+        with Timer('eval'):
+            with StateStore('eval', constructor, get_fn, set_fn):
+                eval_scores, eval_epslens, _, video = runner.eval_with_video(
+                    agent, record_video=routine_config.RECORD_VIDEO
+                )
+        
+        agent.store(**{
+            'eval_score': eval_scores, 
+            'eval_epslen': eval_epslens, 
+        })
+        if model is not None:
+            model.store(**{
+                'model_eval_score': eval_scores, 
+                'model_eval_epslen': eval_epslens, 
+            })
+        if video is not None:
+            agent.video_summary(video, step=env_step, fps=1)
 
+
+def save(agent, model):
     with Timer('save'):
         agent.save()
         if model is not None: 
             model.save()
+            
 
+def modelpath2outdir(model_path):
+    root_dir, model_name = model_path
+    model_name = get_basic_model_name(model_name)
+    outdir = '/'.join([root_dir, model_name])
+    return outdir
+
+
+def log_model_errors(errors, outdir, env_step):
+    if errors:
+        with Timer('error_log'):
+            data = collections.defaultdict(dict)
+            for k1, errs in errors.items():
+                for k2, v in errs.items():
+                    data[k2][k1] = v
+            y = 'abs error'
+            for k, v in data.items():
+                filename = f'{k}-{env_step}'
+                filepath = '/'.join([outdir, filename])
+                data[k] = prepare_data_for_plotting(
+                    v, y=y, smooth_radius=1, filepath=filepath)
+                lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
+
+
+def log(agent, model, env_step, train_step, errors):
     with Timer('log'):
-        if video is not None:
-            agent.video_summary(video, step=env_step, fps=1)
         run_time = Timer('run').last()
         train_time = Timer('train').last()
         if run_time == 0:
@@ -158,13 +195,20 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
             tps = 0
         else:
             tps = agent.get_train_step_intervals() / train_time
+        error_stats = {}
+        for k1, errs in errors.items():
+            for k2, v in errs.items():
+                error_stats[f'{k2}-{k1}'] = v
         agent.store(**{
                 'stats/train_step': train_step, 
                 'time/fps': fps, 
                 'time/tps': tps, 
             }, 
+            **error_stats, 
             **Timer.all_stats()
         )
+        score = agent.get_raw_item('score')
+        agent.store(score=score)
         agent.record(step=env_step)
 
         if model is not None:
@@ -180,6 +224,7 @@ def eval_and_log(agent, model, runner, env_step, train_step, routine_config):
                 }, 
                 **Timer.all_stats()
             )
+            model.store(model_score=score)
             model.record(step=env_step)
 
 
@@ -198,6 +243,8 @@ def train(
     ego_train_fn=ego_train, 
     model_train_fn=model_train
 ):
+    MODEL_EVAL_STEPS = runner.env.max_episode_steps
+    print('Model evaluation steps:', MODEL_EVAL_STEPS)
     do_logging('Training starts...')
     env_step = agent.get_env_step()
     to_record = Every(
@@ -207,11 +254,17 @@ def train(
         final=routine_config.MAX_STEPS
     )
 
-    while env_step < routine_config.MAX_STEPS:        
-        model_train_fn(
-            model, 
-            model_buffer
-        )
+    while env_step < routine_config.MAX_STEPS:
+        errors = AttrDict()
+        env_step = ego_run_fn(
+            agent, runner, buffer, model_buffer, routine_config)
+        time2record = agent.contains_stats('score') \
+            and to_record(env_step)
+        
+        model_train_fn(model)
+        if routine_config.quantify_model_errors and time2record:
+            errors.train = quantify_model_errors(
+                agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         lka_train_fn(
             agent, 
@@ -223,21 +276,19 @@ def train(
             run_fn=lka_run_fn, 
             opt_fn=lka_opt_fn
         )
-        env_step, train_step = ego_train_fn(
-            agent, 
-            runner, 
-            buffer, 
-            model_buffer, 
-            routine_config, 
-            run_fn=ego_run_fn, 
-            opt_fn=ego_opt_fn
-        )
 
-        time2record = agent.contains_stats('score') \
-            and to_record(env_step)
+        train_step = ego_opt_fn(agent)
+        if routine_config.quantify_model_errors and time2record:
+            errors.ego = quantify_model_errors(
+                agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
+
         if time2record:
-            eval_and_log(
-                agent, model, runner, env_step, train_step, routine_config)
+            evaluate(agent, model, runner, env_step, routine_config)
+            if routine_config.quantify_model_errors:
+                outdir = modelpath2outdir(agent.get_model_path())
+                log_model_errors(errors, outdir, env_step)
+            save(agent, model)
+            log(agent, model, env_step, train_step, errors)
 
 
 def build_agent(config, env_stats):
@@ -257,6 +308,7 @@ def build_agent(config, env_stats):
     agent = elements.agent
     buffer = elements.buffer
     return agent, buffer
+
 
 def main(configs, train=train):
     config, model_config = configs[0], configs[-1]
@@ -285,7 +337,6 @@ def main(configs, train=train):
     else:
         model, model_buffer = build_model(config, model_config, env_stats)
     save_code_for_seed(config)
-
 
     routine_config = config.routine.copy()
     train(

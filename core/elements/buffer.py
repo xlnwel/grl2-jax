@@ -12,6 +12,7 @@ class Buffer:
     ):
         self.config = dict2AttrDict(config, to_copy=True)
         self.env_stats = dict2AttrDict(env_stats, to_copy=True)
+        self.model = model
         self.aid = aid
 
         self.obs_keys = env_stats.obs_keys[self.aid]
@@ -28,9 +29,9 @@ class Buffer:
     def sample(self):
         raise NotImplementedError
 
-    def collect(self, **data):
+    def collect(self, idxes=None, **data):
         data = self._prepare_data(**data)
-        self.add(**data)
+        self.add(idxes=idxes, **data)
     
     def add(self, **data):
         raise NotImplementedError

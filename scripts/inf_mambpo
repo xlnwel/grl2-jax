@@ -7,7 +7,6 @@ algos=(
 )
 suite=$1
 shift
-# envs=(escalation staghunt harvest)
 envs=(
     Ant_2x4
     HalfCheetah_2x3
@@ -17,16 +16,28 @@ configs=(
     "${suite}"
 )
 args1=(
-    "dynamics" 
+    100
+    100
+    100
+    100
+    1000
+    1000
+    1000
+    1000
 )
 args2=(
-    "ce"
-    "mse"
+    100
+    100
+    400
+    400
 )
 args3=(
-    100 50 25
+    1
+    5
 )
-args4=(5 10)
+dynamics=(
+    "dynamics"
+)
 date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"
@@ -52,6 +63,9 @@ config=${configs[$idx]}
 la=${#algos[@]}
 idx=$(($INF_MAC_NODE_RANK % $la))
 a=${algos[$idx]}
+ldy=${#dynamics[@]}
+idx=$(($INF_MAC_NODE_RANK % $ldy))
+d=${dynamics[$idx]}
 la1=${#args1[@]}
 idx=$(($INF_MAC_NODE_RANK % $la1))
 a1=${args1[$idx]}
@@ -63,12 +77,12 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="0#dynamics_name=$a1 model_loss_type=$a2"
+kws="0#dynamics_name=$d 0#n_epochs=$a2 0#n_simulated_envs=$a1 1#ergodic=True 1#n_epochs=$a3"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"
     for s in {0..4}; do
-        py_script="python run/train.py -a ${a} $a1 -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

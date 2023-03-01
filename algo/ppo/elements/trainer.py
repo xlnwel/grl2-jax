@@ -110,6 +110,7 @@ class Trainer(TrainerBase):
                         )
                 v_target.append(stats.v_target)
         self.model.set_weights(theta)
+        self.sync_lookahead_params()
         if self.config.popart:
             v_target = np.concatenate(v_target)
             self.popart.update(v_target)

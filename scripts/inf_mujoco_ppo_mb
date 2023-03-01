@@ -4,11 +4,6 @@ export PYTHONPATH=.
 
 algos=(
     happo_mb
-    happo_mb
-    happo_mb
-    happo_mb
-    happo_mb
-    happo_mb
 )
 suite=$1
 shift
@@ -23,26 +18,17 @@ configs=(
     "${suite}"
 )
 args1=(
-    False
-    False
-    False
-    False
+    dynamics
 )
 args2=(
-    32
-    64
-    128
-    32
-    64
-    128
+    True
+    True
+    False
+    False
 )
 args3=(
-    100 
-    100 
-    100 
-    150 
-    150 
-    150
+    True
+    False
 )
 args4=(5 10)
 date=$(date +"%m%d")
@@ -70,6 +56,9 @@ config=${configs[$idx]}
 la=${#algos[@]}
 idx=$(($INF_MAC_NODE_RANK % $la))
 a=${algos[$idx]}
+ldy=${#dynamics[@]}
+idx=$(($INF_MAC_NODE_RANK % $ldy))
+d=${dynamics[$idx]}
 la1=${#args1[@]}
 idx=$(($INF_MAC_NODE_RANK % $la1))
 a1=${args1[$idx]}
@@ -79,14 +68,13 @@ a2=${args2[$idx]}
 la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
-dynamics="dynamics_tx"
 
 commands=()
-kws="0#dynamics_name=$dynamics 1#in_config:out_size=$a2 1#n_epochs=$a3"
+kws="0#dynamics_name=$d 1#obs_normalization=$a2 1#balance_dimension=$a3"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do
-        py_script="python run/train.py -a ${a} $dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

@@ -103,7 +103,17 @@ class DualReplay(Buffer):
             self.slow_replay.merge(local_buffer)
         else:
             raise NotImplementedError(target_replay)
-    
+
+    def clear_local_buffer(self, target_replay=None):
+        if target_replay is None:
+            target_replay = self.default_replay
+        if target_replay == FAST_REPLAY:
+            self.fast_replay.clear_local_buffer()
+        if target_replay == SLOW_REPLAY:
+            self.slow_replay.clear_local_buffer()
+        else:
+            raise NotImplementedError(target_replay)
+
     """ Implementation """
     def _sample(self, batch_size=None):
         if batch_size is not None:

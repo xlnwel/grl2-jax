@@ -107,6 +107,7 @@ class Trainer(TrainerBase):
         stats = prefix_name(stats, 'train')
         stats.update(data)
         self.model.update_target_params()
+        self.sync_lookahead_params()
 
         return 1, stats
 

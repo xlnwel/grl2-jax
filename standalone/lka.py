@@ -34,6 +34,7 @@ def look_ahead(
     horizon, 
     epochs, 
 ):
+    # NOTE: x does not converge
     for _ in range(n):
         mu = prob_from_logits(x_logits)
         x_logits, states = happo_train(
@@ -111,6 +112,8 @@ def lka_train(
     return steps, scores
 
 
+# reimplementation of happo.main since
+# ray does not acccept func.partial function as a remote
 def lka_main(
     args, 
     build_initial_policy=build_initial_policy, 
@@ -119,10 +122,12 @@ def lka_main(
     train=lka_train
 ):
     horizon = args.horizon
+    epochs = args.epochs
     state_size = args.state_size
     action_dims = args.action_dims
     n_agents = len(action_dims)
     print('Horizon:', horizon)
+    print('Epochs:', epochs)
     print('#Agents:', n_agents)
     print('State size:', state_size)
     print('Action dimensions:', action_dims)
@@ -130,11 +135,8 @@ def lka_main(
     data = {}
     points = 100
     max_seed = args.seed
-    processes = []
-    ray_bt = ray.remote(build_and_train)
-    for seed in range(max_seed):
-        args.seed = seed
-        p = ray_bt.remote(
+    if max_seed == 0:
+        steps, scores = build_and_train(
             args, 
             points=points, 
             build_initial_policy=build_initial_policy, 
@@ -142,12 +144,27 @@ def lka_main(
             build_dynamics=build_dynamics, 
             train=train
         )
-        processes.append(p)
+    else:
+        processes = []
+        ray_bt = ray.remote(build_and_train)
+        for seed in range(max_seed):
+            args.seed = seed
+            p = ray_bt.remote(
+                args, 
+                points=points, 
+                build_initial_policy=build_initial_policy, 
+                build_optimizers=build_optimizers, 
+                build_dynamics=build_dynamics, 
+                train=train
+            )
+            processes.append(p)
 
-    results = ray.get(processes)
-    steps, scores = list(zip(*results))
-    data['steps'] = np.concatenate(steps)
-    data['score'] = np.concatenate(scores)
+        results = ray.get(processes)
+        steps, scores = list(zip(*results))
+        steps = np.concatenate(steps)
+        scores = np.concatenate(scores)
+    data['steps'] = steps
+    data['score'] = scores
     data['legend'] = [args.name] * data['steps'].shape[0]
 
     return data

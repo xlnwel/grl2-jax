@@ -4,6 +4,7 @@ export PYTHONPATH=.
 
 algos=(
     happo
+    # happo_mb
 )
 suite=$1
 envs=(
@@ -13,20 +14,28 @@ envs=(
     # Ant_4x2
     # HalfCheetah_3x2
     # Walker2d_3x2
-    # Ant_2x4
+    Ant_2x4
     HalfCheetah_2x3
-    # Walker2d_2x3
+    Walker2d_2x3
 )
 # e=${suite}
 configs=(
     "${suite}"
 )
 # configs=$envs
-args1=(False)
-args2=(
-    True True
+args1=(
+    dynamics
 )
-args3=(ce mbpo)
+args2=(
+    True
+    True
+    False
+    False
+)
+args3=(
+    True
+    False
+)
 date=$(date +"%m%d")
 # date="0204"
 info=""
@@ -65,12 +74,12 @@ a3=${args3[$idx]}
 
 commands=()
 # kws="trainer:n_epochs=$a1 stoch_trans=$a2 model_loss_type=$a3"
-kws="compute_return_at_once=$a1 target_type=vtrace"
+kws="0#dynamics_name=$a1 1#obs_normalization=$a2 1#balance_dimension=$a3"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do
         # py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+        py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

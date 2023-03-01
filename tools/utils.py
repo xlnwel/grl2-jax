@@ -1,5 +1,6 @@
 import ast
 import collections
+import copy
 import inspect
 import itertools
 import math
@@ -162,8 +163,11 @@ def modify_config(
     curr_layer=0, 
     max_layer=1, 
     overwrite_existed_only=False, 
+    in_place=True, 
     **kwargs
 ):
+    if not in_place:
+        config = copy.deepcopy(config)
     for k, v in kwargs.items():
         if not overwrite_existed_only or k in config:
             config[k] = v

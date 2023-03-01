@@ -11,7 +11,6 @@ from core.typing import dict2AttrDict, AttrDict
 from tools.file import source_file
 from jax_tools import jax_dist
 from env.typing import EnvOutput
-
 from .utils import *
 
 # register ppo-related networks 
@@ -115,7 +114,7 @@ class Model(ModelBase):
         params, 
         rng, 
         data, 
-        evaluation=False,
+        evaluation=False, 
     ):
         rngs = random.split(rng, 3)
         action = self.process_action(data.action)
@@ -146,7 +145,7 @@ class Model(ModelBase):
             rngs = random.split(rng, 2)
             normalized_obs = self.normalizers.obs.normalize(params.obs_normalizer_params, obs)
             dist = self.modules.model(params.model, rngs[0], normalized_obs, action)
-            if evaluation or not self.config.stoch_trans:
+            if evaluation or self.config.deterministic_trans:
                 next_obs = dist.mode()
             else:
                 next_obs = dist.sample(seed=rngs[1])
@@ -160,7 +159,7 @@ class Model(ModelBase):
         else:
             rngs = random.split(rng, 2)
             dist = self.modules.model(params.model, rngs[0], obs, action)
-            if evaluation or not self.config.stoch_trans:
+            if evaluation or self.config.deterministic_trans:
                 next_obs = dist.mode()
             else:
                 next_obs = dist.sample(seed=rngs[1])
@@ -209,7 +208,7 @@ class Model(ModelBase):
         else:
             raise NotImplementedError
         return dist, stats
-        
+
 
 def setup_config_from_envstats(config, env_stats):
     if 'aid' in config:
@@ -222,7 +221,7 @@ def setup_config_from_envstats(config, env_stats):
     config.model.pop('n_models')
     if config.model_loss_type == 'mse':
         # for MSE loss, we only consider deterministic transitions since the variance is unconstrained.
-        config.stoch_trans = False
+        config.deterministic_trans = True
 
     return config
 

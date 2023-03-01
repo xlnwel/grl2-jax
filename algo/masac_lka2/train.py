@@ -1,24 +1,30 @@
 from algo.masac.train import *
+from algo.masac.run import quantify_model_errors
 
 
-def ego_run(agent, runner, buffer, model_buffer, routine_config):
-    constructor = partial(state_constructor, agent=agent, runner=runner)
-    get_fn = partial(get_states, agent=agent, runner=runner)
-    set_fn = partial(set_states, agent=agent, runner=runner)
+def mix_run(agent, model, buffer, model_buffer, routine_config):
+    if not model.trainer.is_trust_worthy() \
+        or not model_buffer.ready_to_sample():
+        return
+    def get_agent_states():
+        state = agent.get_states()
+        # we collect lookahead data into the slow replay
+        if isinstance(buffer, DualReplay):
+            buffer.set_default_replay(routine_config.lookahead_replay)
+        return state
+    
+    def set_agent_states(states):
+        agent.set_states(states)
+        if isinstance(buffer, DualReplay):
+            buffer.set_default_replay('fast')
 
-    with Timer('run'):
-        with StateStore('real', constructor, get_fn, set_fn):
-            runner.run(
-                routine_config.n_steps, 
-                agent, buffer, 
-                model_buffer, 
-                None, 
-            )
-
-    env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
-    agent.add_env_step(env_steps_per_run)
-
-    return agent.get_env_step()
+    # train lookahead agent
+    routine_config = routine_config.copy()
+    routine_config.lookahead_rollout = 'uni'
+    with Timer('mix_run'):
+        with TempStore(get_agent_states, set_agent_states):
+            run_on_model(
+                model, model_buffer, agent, buffer, routine_config)
 
 
 def train(
@@ -73,6 +79,7 @@ def train(
             errors.lka = quantify_model_errors(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, None)
 
+        mix_run(agent, model, buffer, model_buffer, routine_config)
         train_step = ego_opt_fn(agent)
         if routine_config.quantify_model_errors and time2record:
             errors.ego = quantify_model_errors(

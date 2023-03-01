@@ -10,6 +10,83 @@ from tensorboard.backend.event_processing import event_accumulator
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
+def smooth(v, radius=1):
+    kernel = np.ones(2 * radius + 1)
+    v = np.convolve(v, kernel, mode='same') / np.convolve(np.ones_like(v), kernel, mode='same')
+    return v
+
+def prepare_data_for_plotting(data: dict, *, y, x='steps', smooth_radius=1, legend='legend', filepath=None):
+    """ Convert a dict ot pd.DataFrame for seaborn plotting
+    All values in data except data[x] will be concatenated to form the 
+    y-column of the final DataFrame
+    """
+    new_data = {}
+    # make x
+    if x in data:
+        new_data[x] = data.pop(x)
+        v = next(iter(data.values()))
+    else:
+        v = next(iter(data.values()))
+        new_data[x] = np.arange(v.shape[-1])
+    assert new_data[x].ndim == 1, new_data[x].shape
+    n_legends = len(data)
+    if v.ndim == 2:
+        n_batches = v.shape[0]
+    else:
+        assert v.ndim == 1, v.shape
+        n_batches = 1
+    seqlen = v.size
+    new_data[x] = np.tile(new_data[x], n_legends * n_batches)
+    
+    # make y and legend
+    new_data[y] = []
+    new_data[legend] = []
+    for k, v in data.items():
+        assert v.size == seqlen, v.shape
+        if smooth_radius > 1:
+            if v.ndim == 1:
+                new_data[y].append(smooth(v, smooth_radius))
+            else:
+                for vv in v:
+                    new_data[y].append(smooth(vv, smooth_radius))
+        else:
+            new_data[y].append(v.reshape(-1))
+        new_data[legend] += [k] * seqlen
+    new_data[y] = np.concatenate(new_data[y])
+    
+    for k, v in new_data.items():
+        assert len(v) == n_legends * seqlen, (k, len(v), n_legends * seqlen)
+
+    # make data frame
+    data = pd.DataFrame.from_dict(data=new_data)
+    columns = [c for c in data.columns if c != x]
+    # data.pivot(index=x, columns=columns, values=columns)
+    if filepath:
+        data.to_csv(f'{filepath}.txt')
+
+    return data
+
+
+def lineplot_dataframe(data, title, *, y, x='steps', fig=None, ax=None, legend='legend', outdir=None):
+    if fig is None:
+        fig = plt.figure(figsize=(20, 10))
+        fig.tight_layout(pad=2)
+        ax = fig.add_subplot()
+    sns.set(style="whitegrid", font_scale=1.5)
+    sns.set_palette('Set2') # or husl
+    sns.lineplot(x=x, y=y, 
+        ax=ax, data=data, dashes=False, linewidth=3, hue=legend)
+    ax.grid(True, alpha=0.8, linestyle=':')
+    ax.legend(loc='best').set_draggable(True)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.set_title(title)
+    if outdir:
+        fig_path = '/'.join([outdir, f'{title}.png'])
+        fig.savefig(fig_path)
+        print(f'File saved at "{fig_path}"')
+
+
 def plot_data_dict(data, *, x='step', outdir='results', figname='data'):
     fig = plt.figure(figsize=(40, 30))
     fig.tight_layout(pad=2)
@@ -27,6 +104,7 @@ def plot_data_dict(data, *, x='step', outdir='results', figname='data'):
         os.makedirs(outdir)
     fig.savefig(f'{outdir}/{figname}.png')
 
+
 def plot_data(
     data, 
     *, 
@@ -40,7 +118,8 @@ def plot_data(
     ncols=1, 
     idx=1, 
     avg_data=False,
-    savefig=True
+    savefig=True, 
+    return_img=False
 ):
     if isinstance(data, np.ndarray):
         seqlen = data.shape[-1]
@@ -85,6 +164,11 @@ def plot_data(
         outpath = f'{outdir}/{title}.png'
         fig.savefig(outpath)
         print(f'Plot Path: {outpath}')
+    if return_img:
+        fig.canvas.draw()
+        img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        return img
 
 def get_datasets(filedir, tag, condition=None):
     unit = 0

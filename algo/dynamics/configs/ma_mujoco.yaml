@@ -38,8 +38,8 @@ monitor:
 strategy:
     algorithm: *algo
     train_loop:
-        ergodic: False
-        n_epochs: &nepochs 100
+        ergodic: True
+        n_epochs: &nepochs 1
 
 model:
     aid: 0
@@ -47,8 +47,8 @@ model:
     global_state_type: obs
     rn_std: .1
     obs_normalization: &obs_norm True
-    model_loss_type: &mlt mse # mbpo
-    stoch_trans: False # True
+    deterministic_trans: False
+    model_loss_type: &mlt mbpo
 
     emodels:
         nn_id: emodels
@@ -67,7 +67,7 @@ model:
         activation: relu
         norm: layer
         out_scale: .01
-        balance_dimension: True
+        balance_dimension: False
         obs_units_list: [128]
         action_units_list: [64]
     discount:
@@ -81,7 +81,7 @@ loss:
     model_loss_type: *mlt
     n_models: *n
     obs_normalization: *obs_norm
-    
+
     model_coef: 1
     reward_coef: 1
     discount_coef: 1
@@ -107,8 +107,8 @@ buffer:
 
     n_runners: *nrunners
     n_envs: *nenvs
-    max_size: 1e5
-    min_size: 5e3
+    max_size: 5e4
+    min_size: 1e3
     batch_size: 256
     sample_size: 1
 

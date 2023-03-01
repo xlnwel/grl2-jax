@@ -37,7 +37,7 @@ def parse_args():
                         default=[3, 3])
     parser.add_argument('--gamma', 
                         type=float, 
-                        default=1.)
+                        default=.99)
     parser.add_argument('--seed', '-s', 
                         type=int, 
                         default=1)
@@ -50,11 +50,11 @@ def parse_args():
     parser.add_argument('--reward_set', '-rs', 
                         type=int, 
                         nargs='*', 
-                        default=[-5, 0, 3])
+                        default=[-5, 0, 3, 1])
     parser.add_argument('--reward_dist', '-rd', 
                         type=float, 
                         nargs='*', 
-                        default=[.2, .7, .1])
+                        default=[.2, .5, 1, .2])
     parser.add_argument('--n_lka_steps', '-lka', 
                         type=int,  
                         default=1)
@@ -180,8 +180,8 @@ def advantage(joint_mu, reward, transition, next_value, gamma):
 def vectorized_advantage(
         joint_mu, reward, transition, next_value, gamma):
     va = jax.vmap(advantage, (0, 0, 0, None, None))
-    adv = va(joint_mu, reward, transition, next_value, gamma)
-    return adv
+    adv, v = va(joint_mu, reward, transition, next_value, gamma)
+    return adv, v
 
 
 def weighted_advantage(joint_mu, teammate_ratio, adv):
@@ -207,21 +207,26 @@ def vectorized_weighted_advantage(joint_mu, teammate_ratio, adv):
 
 def ppo_loss(
     advantage, 
-    ratio, 
+    pi, 
+    mu, 
     clip_range, 
+    gamma, 
 ):
     neg_adv = -advantage
-    pg_loss = neg_adv * ratio
+    ratio_ = ratio(pi, mu)
+    pg_loss = neg_adv * ratio_
     if clip_range is None:
-        clipped_loss = pg_loss
+        max_A = jnp.max(jnp.abs(advantage))
+        tv = jnp.max(jnp.sum(pi - mu, -1), 0)
+        loss = pg_loss - (4 * max_A * gamma * tv**2) / (1 - gamma)**2
     else:
-        clipped_loss = neg_adv * jnp.clip(ratio, 1. - clip_range, 1. + clip_range)
-    loss = jnp.maximum(pg_loss, clipped_loss)
+        clipped_loss = neg_adv * jnp.clip(ratio_, 1. - clip_range, 1. + clip_range)
+        loss = jnp.maximum(pg_loss, clipped_loss)
     
     return loss
 
 
-def happo_loss_i(pi_logits_i, mu_i, joint_mu, teammate_ratio, adv):
+def happo_loss_i(pi_logits_i, mu_i, joint_mu, teammate_ratio, adv, gamma):
     """ Compute the HAPPO loss function for agent i: 
     E_\mu[(ratio_i - 1) * teammate_ratio * adv]. 
     NOTE: 
@@ -244,16 +249,15 @@ def happo_loss_i(pi_logits_i, mu_i, joint_mu, teammate_ratio, adv):
     pi_i = nn.softmax(pi_logits_i, -1)
     chex.assert_rank([pi_i, mu_i, adv], 2)
     chex.assert_equal_shape([pi_i, mu_i, adv])
-    ratio = pi_i / mu_i
-    loss = ppo_loss(adv, ratio, .2)
+    loss = ppo_loss(adv, pi_i, mu_i, None, gamma)
     loss = jnp.sum(loss)
 
     return loss
 
 
-def happo_optimize_i(pi_logits, mu, joint_mu, teammate_ratio, adv, opt, state):
+def happo_optimize_i(pi_logits, mu, joint_mu, teammate_ratio, adv, opt, state, gamma):
     grads = jax.grad(happo_loss_i)(
-        pi_logits, mu, joint_mu, teammate_ratio, adv)
+        pi_logits, mu, joint_mu, teammate_ratio, adv, gamma)
     updates, state = opt.update(grads, state)
     pi_logits = optax.apply_updates(pi_logits, updates)
     
@@ -275,7 +279,7 @@ def update_teammate_ratio(teammate_ratio, pi_logits_i, mu_i):
     return teammate_ratio
 
 
-def happo_optimize(rng, pi_logits, mu, joint_mu, adv, opts, states):
+def happo_optimize(rng, pi_logits, mu, joint_mu, adv, opts, states, gamma):
     """ Perform one-step HAPG optimization 
     Params:
         transition (s, a, s)
@@ -300,7 +304,7 @@ def happo_optimize(rng, pi_logits, mu, joint_mu, adv, opts, states):
         assert pi_logits[i].shape[-1] == joint_mu.shape[idx], (idx, pi_logits[i].shape, joint_mu.shape)
         pi_logits[i], states[i] = jit_happo_optimize_i(
             pi_logits[i], mu[i], joint_mu, teammate_ratio, adv, 
-            opts[i], states[i]
+            opts[i], states[i], gamma, 
         )
         teammate_ratio = update_teammate_ratio(
             teammate_ratio, pi_logits[i], mu[i]
@@ -314,23 +318,20 @@ def happo_train_t(
     rng, 
     pi_logits, 
     mu, 
-    reward, 
-    transition, 
-    next_value, 
+    joint_mu, 
+    adv, 
     gamma,
     opt, 
     state, 
-    epochs, 
 ):
-    joint_mu = joint_prob_from_marginals(mu)
-    adv, v = vectorized_advantage(
-        joint_mu, reward, transition, next_value, gamma)
+    # joint_mu = joint_prob_from_marginals(mu)
+    # adv, v = vectorized_advantage(
+    #     joint_mu, reward, transition, next_value, gamma)
     adv = adv.reshape(joint_mu.shape)
-    for _ in range(epochs):
-        pi_logits, state = happo_optimize(
-            rng, pi_logits, mu, joint_mu, adv, opt, state)
+    pi_logits, state = happo_optimize(
+        rng, pi_logits, mu, joint_mu, adv, opt, state, gamma)
 
-    return pi_logits, state, adv, v
+    return pi_logits, state
 
 
 def happo_train(
@@ -349,20 +350,36 @@ def happo_train(
         jnp.zeros(transition.shape[0])
         for _ in range(horizon+1)
     ]
+    advs = [
+        jnp.zeros(transition.shape[:2])
+        for _ in range(horizon)
+    ]
+    joint_mus = [
+        jnp.zeros(transition.shape[:2])
+        for _ in range(horizon)
+    ]
     for t in reversed(range(horizon)):
-        rng, train_rng = random.split(rng)
-        pi_logits[t], states[t], adv, values[t] = happo_train_t(
-            rng=train_rng, 
-            pi_logits=pi_logits[t], 
-            mu=mu[t], 
-            reward=reward[t], 
-            transition=transition, 
-            next_value=values[t+1], 
-            gamma=gamma, 
-            opt=opts[t], 
-            state=states[t], 
-            epochs=epochs
-        )
+        joint_mu = joint_prob_from_marginals(mu[t])
+        adv, v = vectorized_advantage(
+            joint_mu, reward[t], transition, values[t+1], gamma)
+        joint_mus[t] = joint_mu
+        advs[t] = adv
+        values[t] = v
+
+    for _ in range(epochs):
+        for t in reversed(range(horizon)):
+            rng, train_rng = random.split(rng)
+            pi_logits[t], states[t] = happo_train_t(
+                rng=train_rng, 
+                pi_logits=pi_logits[t], 
+                mu=mu[t], 
+                joint_mu=joint_mus[t], 
+                adv=advs[t], 
+                gamma=gamma, 
+                opt=opts[t], 
+                state=states[t], 
+            )
+
     return pi_logits, states
 
 
@@ -406,25 +423,29 @@ def build_dynamics(
     reward_set, reward_dist
 ):
     rng = random.PRNGKey(seed)
-    rngs = random.split(rng)
+    rngs = random.split(rng, horizon+1)
     reward_set = jnp.array(reward_set)
     reward_dist = jnp.array(reward_dist)
     joint_action_dim = np.prod(action_dims)
     reward = [
         random.choice(
-            rngs[0], 
+            rngs[h], 
             reward_set, 
             shape=[state_size, joint_action_dim], 
             p=reward_dist
-        ) for _ in range(horizon)
+        ) for h in range(horizon)
     ]
-
     # initial state distributiion
-    rho = random.uniform(rngs[1], (state_size, ))
+    rngs = random.split(rngs[-1], 2)
+    rho = random.uniform(rngs[0], (state_size, ))
     rho = rho / jnp.sum(rho)
     
-    transition = random.uniform(rngs[1], 
-        (state_size, joint_action_dim, state_size))
+    trans_shape = (state_size, joint_action_dim, state_size)
+    transition = random.uniform(rngs[1], trans_shape, minval=1, maxval=10)
+    mask_prob = jnp.array([.8, .2])
+    mask = random.choice(rngs[2], jnp.arange(2), shape=trans_shape, p=mask_prob)
+    masked_trans = transition * mask
+    transition = jnp.where(jnp.sum(masked_trans, -1, keepdims=True) == 0, transition, masked_trans)
     transition = transition / jnp.sum(transition, -1, keepdims=True)
     chex.assert_trees_all_close(jnp.sum(transition, -1), 1, rtol=1e-4, atol=1e-4)
 
@@ -456,7 +477,7 @@ def evaluate(pi, reward, rho, transition):
         reward_t = reward[t]
         joint_pi = joint_prob_from_marginals(pi_t)
         joint_pi = joint_pi.reshape(reward_t.shape)
-        vs.append(vectorized_value(joint_pi, reward_t, transition, vs[0], 1))
+        vs.append(vectorized_value(joint_pi, reward_t, transition, vs[-1], 1))
     vs = vs[::-1]
     score = jnp.mean(vs[0] * rho)
     
@@ -475,8 +496,6 @@ def evaluate(pi, reward, rho, transition):
 def process_data(data, dir_path, name):
     data = pd.DataFrame.from_dict(data=data)
     data.to_csv(f'{dir_path}/{name}.txt')
-    columns = [c for c in data.columns if c != 'steps']
-    data.pivot(index='steps', columns=columns, values=columns)
     return data
 
 
@@ -602,11 +621,8 @@ def main(
     data = {}
     points = 100
     max_seed = args.seed
-    processes = []
-    ray_bt = ray.remote(build_and_train)
-    for seed in range(max_seed):
-        args.seed = seed
-        p = ray_bt.remote(
+    if max_seed == 0:
+        steps, scores = build_and_train(
             args, 
             points=points, 
             build_initial_policy=build_initial_policy, 
@@ -614,12 +630,27 @@ def main(
             build_dynamics=build_dynamics, 
             train=train
         )
-        processes.append(p)
+    else:
+        processes = []
+        ray_bt = ray.remote(build_and_train)
+        for seed in range(max_seed):
+            args.seed = seed
+            p = ray_bt.remote(
+                args, 
+                points=points, 
+                build_initial_policy=build_initial_policy, 
+                build_optimizers=build_optimizers, 
+                build_dynamics=build_dynamics, 
+                train=train
+            )
+            processes.append(p)
 
-    results = ray.get(processes)
-    steps, scores = list(zip(*results))
-    data['steps'] = np.concatenate(steps)
-    data['score'] = np.concatenate(scores)
+        results = ray.get(processes)
+        steps, scores = list(zip(*results))
+        steps = np.concatenate(steps)
+        scores = np.concatenate(scores)
+    data['steps'] = steps
+    data['score'] = scores
     data['legend'] = [args.name] * data['steps'].shape[0]
 
     return data

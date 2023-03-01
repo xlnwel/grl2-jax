@@ -272,15 +272,18 @@ def build_agents(config, env_stats):
             new_model_name = model_name
         else:
             new_model_name = '/'.join([model_name, f'a{i}'])
-        modify_config(
+        agent_config = modify_config(
             config, 
+            in_place=False, 
+            aid=i, 
+            seed=i*100 if config.seed is None else config.seed+i*100, 
             model_name=new_model_name, 
         )
         builder = ElementsBuilder(
-            config, 
+            agent_config, 
             env_stats, 
             to_save_code=False, 
-            max_steps=config.routine.MAX_STEPS
+            max_steps=agent_config.routine.MAX_STEPS
         )
         elements = builder.build_agent_from_scratch()
         agents.append(elements.agent)
