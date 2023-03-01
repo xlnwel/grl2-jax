@@ -47,8 +47,8 @@ model:
     global_state_type: obs
     rn_std: .1
     obs_normalization: &obs_norm True
-    model_loss_type: &mlt mbpo
-    stoch_trans: True
+    model_loss_type: &mlt mse # mbpo
+    stoch_trans: False # True
 
     emodels:
         nn_id: emodels
