@@ -166,9 +166,6 @@ class DualReplay(Buffer):
         else:
             primal_data = self.primal_replay.sample(fast_bs)
             secondary_data = self.secondary_replay.sample(slow_bs)
-            from tools.display import print_dict_info
-            print_dict_info(primal_data, prefix='primal')
-            print_dict_info(secondary_data, prefix='secondary')
             data = batch_dicts([primal_data, secondary_data], np.concatenate)
         
         return data
