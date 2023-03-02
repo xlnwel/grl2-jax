@@ -7,8 +7,8 @@ from tools.utils import batch_dicts
 from replay import replay_registry
 
 
-FAST_REPLAY = 'fast'
-SLOW_REPLAY = 'slow'
+PRIMAL_REPLAY = 'primal'
+SECONDARY_REPLAY = 'secondary'
 
 
 @replay_registry.register('dual')
@@ -24,42 +24,43 @@ class DualReplay(Buffer):
 
         self.n_envs = self.config.n_runners * self.config.n_envs
 
+        self._detached =  config.detached
         self._batch_size = config.batch_size
-        self._fast_percentage = config.fast_percentage
-        fast_config = config.fast_replay
-        slow_config = config.slow_replay
-        fast_config.batch_size = int(self._batch_size * self._fast_percentage)
-        slow_config.batch_size = int(self._batch_size * (1 - self._fast_percentage))
-        assert fast_config.batch_size + slow_config.batch_size == self._batch_size, f'batch size({self._batch_size}) can not be partitioned by fast_percentation({self._fast_percentage})'
+        self._fast_percentage = config.primal_percentage
+        primal_config = config.primal_replay
+        secondary_config = config.secondary_replay
+        primal_config.batch_size = int(self._batch_size * self._fast_percentage)
+        secondary_config.batch_size = int(self._batch_size * (1 - self._fast_percentage))
+        assert primal_config.batch_size + secondary_config.batch_size == self._batch_size, f'batch size({self._batch_size}) can not be partitioned by fast_percentation({self._fast_percentage})'
 
-        if config.recent_fast_replay:
-            fast_config.max_size = self.n_envs * config.n_steps
-            fast_config.min_size = fast_config.batch_size
-        self._fast_config = fast_config
-        self._slow_config = slow_config
-        self._fast_type = self._fast_config.type
-        self._slow_type = self._slow_config.type
+        if config.recent_primal_replay:
+            primal_config.max_size = self.n_envs * config.n_steps
+            primal_config.min_size = primal_config.batch_size
+        self._primal_config = primal_config
+        self._secondary_config = secondary_config
+        self._primal_type = self._primal_config.type
+        self._secondary_type = self._secondary_config.type
 
-        self.fast_replay = self.build_replay(self._fast_config, model)
-        self.slow_replay = self.build_replay(self._slow_config, model)
+        self.primal_replay = self.build_replay(self._primal_config, model)
+        self.secondary_replay = self.build_replay(self._secondary_config, model)
 
-        self.default_replay = FAST_REPLAY
-
-    @property
-    def fast_config(self):
-        return self._fast_config
+        self.default_replay = PRIMAL_REPLAY
 
     @property
-    def slow_config(self):
-        return self._slow_config
+    def primal_config(self):
+        return self._primal_config
+
+    @property
+    def secondary_config(self):
+        return self._secondary_config
     
     @property
-    def fast_type(self):
-        return self._fast_type
+    def primal_type(self):
+        return self._primal_type
 
     @property
-    def slow_type(self):
-        return self._slow_type
+    def secondary_type(self):
+        return self._secondary_type
 
     def build_replay(self, config: AttrDict, model: Model):
         Cls = replay_registry.get(config.type)
@@ -67,68 +68,111 @@ class DualReplay(Buffer):
         return replay
     
     def set_default_replay(self, target_replay):
-        assert target_replay in [FAST_REPLAY, SLOW_REPLAY], target_replay
+        assert target_replay in [PRIMAL_REPLAY, SECONDARY_REPLAY], target_replay
         self.default_replay = target_replay
         
-    def ready_to_sample(self):
-        return self.slow_replay.ready_to_sample() and self.fast_replay.ready_to_sample()
+    def ready_to_sample(self, target_replay=None):
+        if target_replay == PRIMAL_REPLAY:
+            return self.primal_replay.ready_to_sample()
+        elif target_replay == SECONDARY_REPLAY:
+            return self.secondary_replay.ready_to_sample()
+        else:
+            return self.secondary_replay.ready_to_sample() and self.primal_replay.ready_to_sample()
 
     def __len__(self):
-        return len(self.slow_replay) + len(self.fast_replay)
+        return len(self.secondary_replay) + len(self.primal_replay)
 
     def collect(self, target_replay=None, **data):
         if target_replay is None:
             target_replay = self.default_replay
-        if target_replay == FAST_REPLAY:
-            popped_data = self.fast_replay.collect_and_pop(**data)
-            self.slow_replay.merge(popped_data)
-        elif target_replay == SLOW_REPLAY:
-            self.slow_replay.collect(**data)
+        if target_replay == PRIMAL_REPLAY:
+            if self._detached:
+                self.primal_replay.collect(**data)
+            else:
+                popped_data = self.primal_replay.collect_and_pop(**data)
+                self.secondary_replay.merge(popped_data)
+        elif target_replay == SECONDARY_REPLAY:
+            self.secondary_replay.collect(**data)
         else:
             raise NotImplementedError(target_replay)
 
-    def sample(self, batch_size=None):
-        if self.ready_to_sample():
-            return self._sample(batch_size)
+    def ergodic_sample(self, target_replay=PRIMAL_REPLAY, batch_size=None):
+        if target_replay == PRIMAL_REPLAY:
+            return self.primal_replay.ergodic_sample(batch_size)
+        elif target_replay == SECONDARY_REPLAY:
+            return self.secondary_replay.ergodic_sample(batch_size)
+        else:
+            raise NotImplementedError(target_replay)
+
+    def sample(self, batch_size=None, primal_percentage=None):
+        if not self.ready_to_sample(SECONDARY_REPLAY):
+            primal_percentage = 1
+        if primal_percentage == 1:
+            target_replay = PRIMAL_REPLAY
+        elif primal_percentage == 0:
+            target_replay = SECONDARY_REPLAY
+        else:
+            target_replay = None
+        if self.ready_to_sample(target_replay):
+            return self._sample(batch_size, primal_percentage=primal_percentage)
         else:
             return None
+
+    def sample_from_recency(self, target_replay=PRIMAL_REPLAY, **kwargs):
+        if target_replay == PRIMAL_REPLAY:
+            return self.primal_replay.sample_from_recency(**kwargs)
+        elif target_replay == SECONDARY_REPLAY:
+            return self.secondary_replay.sample_from_recency(**kwargs)
+        else:
+            raise NotImplementedError(target_replay)
 
     def merge(self, local_buffer, target_replay=None):
         if target_replay is None:
             target_replay = self.default_replay
-        if target_replay == FAST_REPLAY:
-            popped_data = self.fast_replay.merge_and_pop(local_buffer)
-            self.slow_replay.merge(popped_data)
-        elif target_replay == SLOW_REPLAY:
-            self.slow_replay.merge(local_buffer)
+        if target_replay == PRIMAL_REPLAY:
+            if self._detached:
+                self.primal_replay.merge(local_buffer)
+            else:
+                popped_data = self.primal_replay.merge_and_pop(local_buffer)
+                self.secondary_replay.merge(popped_data)
+        elif target_replay == SECONDARY_REPLAY:
+            self.secondary_replay.merge(local_buffer)
         else:
             raise NotImplementedError(target_replay)
 
     def clear_local_buffer(self, target_replay=None):
         if target_replay is None:
             target_replay = self.default_replay
-        if target_replay == FAST_REPLAY:
-            self.fast_replay.clear_local_buffer()
-        if target_replay == SLOW_REPLAY:
-            self.slow_replay.clear_local_buffer()
+        if target_replay == PRIMAL_REPLAY:
+            self.primal_replay.clear_local_buffer()
+        if target_replay == SECONDARY_REPLAY:
+            self.secondary_replay.clear_local_buffer()
         else:
             raise NotImplementedError(target_replay)
 
     """ Implementation """
-    def _sample(self, batch_size=None):
-        if batch_size is not None:
-            assert int(batch_size * self._fast_percentage) == batch_size * self._fast_percentage
-            fast_bs = int(batch_size * self._fast_percentage)
-            slow_bs = int(batch_size * (1 - self._fast_percentage))
+    def _sample(self, batch_size=None, primal_percentage=None):
+        if primal_percentage is None:
+            primal_percentage = self._fast_percentage
+        if batch_size is None:
+            batch_size = self._batch_size
+        fast_bs = int(batch_size * primal_percentage)
+        slow_bs = batch_size - fast_bs
+
+        if primal_percentage == 1:
+            data = self.primal_replay.sample(fast_bs)
+        elif primal_percentage == 0:
+            data = self.secondary_replay.sample(slow_bs)
         else:
-            fast_bs, slow_bs = None, None
-        
-        fast_data = self.fast_replay.sample(fast_bs)
-        slow_data = self.slow_replay.sample(slow_bs)
-        data = batch_dicts([fast_data, slow_data], np.concatenate)
+            primal_data = self.primal_replay.sample(fast_bs)
+            secondary_data = self.secondary_replay.sample(slow_bs)
+            from tools.display import print_dict_info
+            print_dict_info(primal_data, prefix='primal')
+            print_dict_info(secondary_data, prefix='secondary')
+            data = batch_dicts([primal_data, secondary_data], np.concatenate)
         
         return data
         
     def _move_data_from_fast_to_slow(self):
-        data = self.fast_replay.retrive_all_data()
-        self.slow_replay.merge(data)
+        data = self.primal_replay.retrive_all_data()
+        self.secondary_replay.merge(data)

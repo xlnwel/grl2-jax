@@ -42,7 +42,7 @@ strategy:
     algorithm: *algo
     train_loop:
         ergodic: True
-        n_epochs: &nepochs 1
+        n_epochs: &nepochs 5
 
 model:
     aid: 0

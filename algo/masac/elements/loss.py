@@ -54,6 +54,7 @@ class Loss(LossBase):
             next_logprob
         )
         q_target = lax.stop_gradient(q_target)
+        stats.q_target = q_target
 
         qs_state = None if q_data.state is None else q_data.state.qs
         action = data.action.reshape(*data.action.shape[:2], 1, -1)

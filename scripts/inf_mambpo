@@ -16,24 +16,24 @@ configs=(
     "${suite}"
 )
 args1=(
+    # 1000
+    # 1000
+    # 1000
+    # 1000
+    $1
     100
     100
     100
-    100
-    1000
-    1000
-    1000
-    1000
 )
 args2=(
-    100
-    100
-    400
+    $2
+    # 1000
+    # 400
     400
 )
 args3=(
-    1
-    5
+    $3
+    # 1
 )
 dynamics=(
     "dynamics"
@@ -77,11 +77,11 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="0#dynamics_name=$d 0#n_epochs=$a2 0#n_simulated_envs=$a1 1#ergodic=True 1#n_epochs=$a3"
+kws="0#dynamics_name=$d 0#n_epochs=$a1 0#n_simulated_envs=$a2 primal_percentage=$a3"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"
-    for s in {0..4}; do
+    for s in {0..2}; do
         py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
