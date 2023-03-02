@@ -1,3 +1,4 @@
+import os
 from functools import partial
 import numpy as np
 import ray
@@ -176,9 +177,12 @@ def log_model_errors(errors, outdir, env_step):
                 for k2, v in errs.items():
                     data[k2][k1] = v
             y = 'abs error'
+            outdir = '/'.join([outdir, 'errors'])
+            if not os.path.isdir(outdir):
+                os.makedirs(outdir, exist_ok=True)
             for k, v in data.items():
                 filename = f'{k}-{env_step}'
-                filepath = '/'.join([outdir, 'errors', filename])
+                filepath = '/'.join([outdir, filename])
                 data[k] = prepare_data_for_plotting(
                     v, y=y, smooth_radius=1, filepath=filepath)
                 lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
