@@ -16,7 +16,7 @@ def smooth(v, radius=1):
     return v
 
 def prepare_data_for_plotting(data: dict, *, y, x='steps', smooth_radius=1, legend='legend', filepath=None):
-    """ Convert a dict ot pd.DataFrame for seaborn plotting
+    """ Convert a dict to pd.DataFrame for seaborn plotting
     All values in data except data[x] will be concatenated to form the 
     y-column of the final DataFrame
     """
@@ -31,18 +31,22 @@ def prepare_data_for_plotting(data: dict, *, y, x='steps', smooth_radius=1, lege
     assert new_data[x].ndim == 1, new_data[x].shape
     n_legends = len(data)
     if v.ndim == 2:
-        n_batches = v.shape[0]
+        n_batches, seqlen = v.shape
     else:
         assert v.ndim == 1, v.shape
         n_batches = 1
-    seqlen = v.size
-    new_data[x] = np.tile(new_data[x], n_legends * n_batches)
-    
+        seqlen = v.size
+    data_size = n_batches * seqlen
+    if new_data[x].size == seqlen:
+        new_data[x] = np.tile(new_data[x], n_legends * n_batches)
+    elif new_data[x].size == data_size:
+        new_data[x] = np.tile(new_data[x], n_legends)
+    assert new_data[x].size == n_legends * n_batches * seqlen, (new_data[x].size, n_legends, n_batches, seqlen)
     # make y and legend
     new_data[y] = []
     new_data[legend] = []
     for k, v in data.items():
-        assert v.size == seqlen, v.shape
+        assert v.size == data_size, v.shape
         if smooth_radius > 1:
             if v.ndim == 1:
                 new_data[y].append(smooth(v, smooth_radius))
@@ -51,16 +55,14 @@ def prepare_data_for_plotting(data: dict, *, y, x='steps', smooth_radius=1, lege
                     new_data[y].append(smooth(vv, smooth_radius))
         else:
             new_data[y].append(v.reshape(-1))
-        new_data[legend] += [k] * seqlen
+        new_data[legend] += [k] * data_size
     new_data[y] = np.concatenate(new_data[y])
     
     for k, v in new_data.items():
-        assert len(v) == n_legends * seqlen, (k, len(v), n_legends * seqlen)
+        assert len(v) == n_legends * data_size, (k, len(v), n_legends, data_size)
 
     # make data frame
     data = pd.DataFrame.from_dict(data=new_data)
-    columns = [c for c in data.columns if c != x]
-    # data.pivot(index=x, columns=columns, values=columns)
     if filepath:
         data.to_csv(f'{filepath}.txt')
 

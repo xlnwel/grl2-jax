@@ -200,7 +200,7 @@ class Model(ModelBase):
     def normalized_emodels(self, theta, rng, obs, action, obs_normalizer_params=None, diff_normalizer_params=None):
         normalized_obs = self.normalizers.obs.normalize(obs_normalizer_params, obs)
         dist = self.modules.emodels(
-            theta.emodels, rng, normalized_obs, action
+            theta.emodels, rng, normalized_obs, action, training=True
         )
         if isinstance(dist, jax_dist.MultivariateNormalDiag):    
             stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)

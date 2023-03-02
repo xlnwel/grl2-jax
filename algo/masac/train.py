@@ -1,3 +1,4 @@
+import os
 from functools import partial
 import numpy as np
 import ray
@@ -9,7 +10,7 @@ from core.utils import configure_gpu, set_seed, save_code_for_seed
 from tools.display import print_dict
 from tools.plot import prepare_data_for_plotting, lineplot_dataframe
 from tools.store import StateStore, TempStore
-from tools.utils import modify_config
+from tools.utils import modify_config, prefix_name
 from tools.timer import Every, Timer
 from replay.dual import DualReplay
 from .run import *
@@ -60,7 +61,7 @@ def lookahead_run(agent, model, buffer, model_buffer, routine_config):
     def set_agent_states(states):
         agent.set_states(states)
         if isinstance(buffer, DualReplay):
-            buffer.set_default_replay('fast')
+            buffer.set_default_replay('primal')
 
     # train lookahead agent
     with Timer('lookahead_run'):
@@ -109,6 +110,7 @@ def ego_optimize(agent):
     train_step = agent.get_train_step()
 
     return train_step
+
 
 def ego_train(agent, runner, buffer, model_buffer, routine_config, 
         run_fn, opt_fn):
@@ -175,6 +177,9 @@ def log_model_errors(errors, outdir, env_step):
                 for k2, v in errs.items():
                     data[k2][k1] = v
             y = 'abs error'
+            outdir = '/'.join([outdir, 'errors'])
+            if not os.path.isdir(outdir):
+                os.makedirs(outdir, exist_ok=True)
             for k, v in data.items():
                 filename = f'{k}-{env_step}'
                 filepath = '/'.join([outdir, filename])
@@ -198,7 +203,13 @@ def log(agent, model, env_step, train_step, errors):
         error_stats = {}
         for k1, errs in errors.items():
             for k2, v in errs.items():
-                error_stats[f'{k2}-{k1}'] = v
+                error_stats[f'{k1}-{k2}'] = v
+        TRAIN = 'train'
+        for k1, errs in errors.items():
+            for k2 in errs.keys():
+                if k1 != TRAIN:
+                    error_stats[f'{k1}&{TRAIN}-{k2}'] = error_stats[f'{k1}-{k2}'] - error_stats[f'{TRAIN}-{k2}']
+        error_stats = prefix_name(error_stats, 'model_error')
         agent.store(**{
                 'stats/train_step': train_step, 
                 'time/fps': fps, 
@@ -268,7 +279,7 @@ def train(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
-            continue
+            pass
         else:
             lka_train_fn(
                 agent, 
