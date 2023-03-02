@@ -2,12 +2,12 @@
 
 export PYTHONPATH=.
 
-# mcoefs=(1 1 1)
-# rcoefs=(0.1 0.1 0.1)
-# dcoefs=(0.01 0.01 0.01)
-# envs=(ma_mujoco-Ant_2x4 ma_mujoco-HalfCheetah_2x3 ma_mujoco-Walker2d_2x3)
-# nas=(2 2 2)
-# gpus=$(nvidia-smi -L | wc -l)
+mcoefs=(1 1 1)
+rcoefs=(0.1 0.1 0.1)
+dcoefs=(0.01 0.01 0.01)
+envs=(ma_mujoco-Ant_2x4 ma_mujoco-HalfCheetah_2x3 ma_mujoco-Walker2d_2x3)
+nas=(2 2 2)
+gpus=$(nvidia-smi -L | wc -l)
 
 # i=0
 # j=0
@@ -35,52 +35,54 @@ export PYTHONPATH=.
 #     ((i=(i+1) ))
 # done
 
-# i=0
-# j=0
-# for s in {0..2}; do
-#     gpu=$((($i + 2) % $gpus))
-#     env=${envs[$j]}
-#     na=${nas[$j]}
-#     py_script="python run/train.py -a happo -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu &"
-#     echo $py_script
-#     eval $py_script
-#     ((i=(i+1) ))
-# done
-
-n_epochs=(
-    1200
-    1000
-    1000
-)
-model_n_epochs=(
-    1
-    1
-    2
-)
-warm_ups=(
-    "False"
-    "True"
-    "False"
-)
-envs=(
-    ma_mujoco-Ant_2x4
-    ma_mujoco-Ant_2x4
-    ma_mujoco-Ant_2x4
-)
-gpus=$(nvidia-smi -L | wc -l)
 i=0
+j=0
 for j in {0..2}; do
     for s in {0..3}; do
-        gpu=$(($i % $gpus))
+        gpu=$((($i + 2) % $gpus))
         env=${envs[$j]}
-        n_epoch=${n_epochs[$j]}
-        model_n_epoch=${model_n_epochs[$j]}
-        model_warm_up=${warm_ups[$j]}
-        kws="0#dynamics_name=dynamics 0#n_epochs=$n_epoch 0#n_simulated_envs=100 1#ergodic=True 1#n_epochs=$model_n_epoch 1#model_warm_up=$model_warm_up"
-        py_script="python run/train.py -a mambpo dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n masac_lka_obs_norm -s $s --gpu $gpu -kw $kws &"
-        commands+=("$py_script")
+        na=${nas[$j]}
+        py_script="python run/train.py -a happo -e $env -c ma_mujoco -ld ma_mujoco-logs -n div_seed -s $s -na $na --gpu $gpu &"
         echo $py_script
         eval $py_script
         ((i=(i+1) ))
     done
 done
+
+# n_epochs=(
+#     1200
+#     1000
+#     1000
+# )
+# model_n_epochs=(
+#     1
+#     1
+#     2
+# )
+# warm_ups=(
+#     "False"
+#     "True"
+#     "False"
+# )
+# envs=(
+#     ma_mujoco-Ant_2x4
+#     ma_mujoco-Ant_2x4
+#     ma_mujoco-Ant_2x4
+# )
+# gpus=$(nvidia-smi -L | wc -l)
+# i=0
+# for j in {0..2}; do
+#     for s in {0..3}; do
+#         gpu=$(($i % $gpus))
+#         env=${envs[$j]}
+#         n_epoch=${n_epochs[$j]}
+#         model_n_epoch=${model_n_epochs[$j]}
+#         model_warm_up=${warm_ups[$j]}
+#         kws="0#dynamics_name=dynamics 0#n_epochs=$n_epoch 0#n_simulated_envs=100 1#ergodic=True 1#n_epochs=$model_n_epoch 1#model_warm_up=$model_warm_up"
+#         py_script="python run/train.py -a mambpo dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n masac_lka_obs_norm -s $s --gpu $gpu -kw $kws &"
+#         commands+=("$py_script")
+#         echo $py_script
+#         eval $py_script
+#         ((i=(i+1) ))
+#     done
+# done
