@@ -16,7 +16,7 @@ def mix_run(agent, model, buffer, model_buffer, routine_config):
     def set_agent_states(states):
         agent.set_states(states)
         if isinstance(buffer, DualReplay):
-            buffer.set_default_replay('fast')
+            buffer.set_default_replay('primal')
 
     # train lookahead agent
     routine_config = routine_config.copy()

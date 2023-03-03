@@ -86,7 +86,7 @@ for j in {0..3}; do
         py_script="python run/train.py -a $a dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n new_buffer -s $s --gpu $gpu -kw $kws &"
         commands+=("$py_script")
         echo $py_script
-        # eval $py_script
+        eval $py_script
         ((i=(i+1) ))
     done
 done
