@@ -21,6 +21,9 @@ def ego_run(agent, runner, buffer, model_buffer, routine_config):
     return agent.get_env_step()
 
 
+def dummy_lookahead_optimize(agent):
+    return
+
 def train(
     agent, 
     model, 
@@ -77,6 +80,21 @@ def train(
         if routine_config.quantify_model_errors and time2record:
             errors.lka = quantify_model_errors(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, None)
+
+        if (not routine_config.use_latest_model) or \
+            model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
+            pass
+        else:
+            lka_train_fn(
+                agent, 
+                model, 
+                buffer, 
+                model_buffer, 
+                routine_config, 
+                n_runs=routine_config.n_lookahead_steps, 
+                run_fn=lka_run_fn, 
+                opt_fn=dummy_lookahead_optimize
+            )
 
         train_step = ego_opt_fn(agent)
         if routine_config.quantify_model_errors and time2record:

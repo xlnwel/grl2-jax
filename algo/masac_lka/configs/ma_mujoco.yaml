@@ -31,6 +31,7 @@ routine:
     lookahead_rollout: sim
     lookahead_replay: secondary
     quantify_model_errors: True
+    use_latest_model: False
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
