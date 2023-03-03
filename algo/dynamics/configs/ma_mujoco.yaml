@@ -20,7 +20,7 @@ routine:
 
     n_envs: &nenvs 64
 
-    model_warm_up: False
+    model_warm_up: True
     model_warm_up_steps: 5e4 
 
 env:

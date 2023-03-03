@@ -162,7 +162,6 @@ def simultaneous_rollout(env, agent, buffer, env_output, routine_config):
             **stats
         )
         buffer.collect(idxes=idxes, **data)
-
         env_output = new_env_output
 
     agent.model.switch_params(False)
