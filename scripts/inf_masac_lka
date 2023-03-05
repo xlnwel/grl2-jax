@@ -2,7 +2,10 @@
 
 export PYTHONPATH=.
 
+suite=$1
+shift
 algos=(
+    $1
     masac_lka
     masac_lka
     # masac_lka
@@ -12,7 +15,6 @@ algos=(
     masac_lka2
     masac_lka2
 )
-suite=$1
 shift
 envs=(
     Ant_2x4
@@ -23,22 +25,26 @@ configs=(
     "${suite}"
 )
 args1=(
+    $1
     100
     100
     # 200
     # 200
 )
 args2=(
+    $2
     # 50
     # 50
     100
     100
 )
 args3=(
-    100
-    1000
+    $3
+    # 100
+    # 1000
 )
 dynamics=(
+    $4
     "dynamics"
 )
 date=$(date +"%m%d")
@@ -80,7 +86,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="0#dynamics_name=$d 0#n_epochs=$a1 0#n_lka_epochs=$a2 0#n_simulated_envs=$a3 1#model_loss_type=mbpo"
+kws="0#dynamics_name=$d 0#n_epochs=$a1 0#n_simulated_envs=$a2 0#n_lka_epochs=$a3"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"

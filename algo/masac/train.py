@@ -208,7 +208,12 @@ def log(agent, model, env_step, train_step, errors):
         for k1, errs in errors.items():
             for k2 in errs.keys():
                 if k1 != TRAIN:
-                    error_stats[f'{k1}&{TRAIN}-{k2}'] = error_stats[f'{k1}-{k2}'] - error_stats[f'{TRAIN}-{k2}']
+                    k1_err = np.mean(error_stats[f'{k1}-{k2}'])
+                    train_err = np.mean(error_stats[f'{TRAIN}-{k2}'])
+                    k1_train_err = k1_err - train_err
+                    error_stats[f'{k1}&{TRAIN}-{k2}'] = k1_train_err
+                    error_stats[f'norm_{k1}&{TRAIN}-{k2}'] = \
+                        k1_train_err / train_err if train_err else k1_train_err
         error_stats = prefix_name(error_stats, 'model_error')
         agent.store(**{
                 'stats/train_step': train_step, 

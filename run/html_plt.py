@@ -165,6 +165,16 @@ def rename_env(config: dict):
 #     data.to_csv(csv_path)
 
 
+def process_data(data):
+    if 'model_error/ego&train-trans' in data:
+        k1_err = data[f'model_error/ego-trans']
+        train_err = data[f'model_error/train-trans']
+        k1_train_err = k1_err - train_err
+        data[f'model_error/ego&train-trans'] = k1_train_err
+        data[f'model_error/norm_ego&train-trans'] = np.where(train_err != 0,
+            k1_train_err / train_err, k1_train_err)
+    return data
+
 def to_csv(env_name, v):
     SCORE = 'metrics/score'
     if v == []:
@@ -277,6 +287,7 @@ if __name__ == '__main__':
             continue
         if len(data.keys()) == 1:
             data = pd.read_csv(record_path)
+        data = process_data(data)
         for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
             if k not in data.keys():
                 try:

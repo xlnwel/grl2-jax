@@ -16,7 +16,7 @@ envs=(
 configs=(
     "${suite}"
 )
-args1=(100 400)
+args1=(dual uniform)
 args2=(
     128
     256
@@ -47,7 +47,7 @@ else
     n="$date-$info"
 fi
 
-# INF_MAC_NODE_RANK=$1
+# INF_MAC_NODE_RANK=0
 le=${#envs[@]}
 idx=$(($INF_MAC_NODE_RANK % $le))
 e=${envs[$idx]}
@@ -69,15 +69,17 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="buffer:type=dual n_epochs=$a1"
-for e in "${envs[@]}"; do
-    config=${suite}
-    env="${suite}-${e}"
-    for s in {0..4}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-        # eval $py_script
+for a1 in "${args1[@]}"; do
+    kws="buffer:type=$a1 n_epochs=400"
+    for e in "${envs[@]}"; do
+        config=${suite}
+        env="${suite}-${e}"
+        for s in {0..4}; do
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+            commands+=("$py_script")
+            echo $py_script
+            # eval $py_script
+        done
     done
 done
 # echo ${commands[@]}s
