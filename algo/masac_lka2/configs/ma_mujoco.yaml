@@ -26,7 +26,7 @@ routine:
     size: [256, 256]
 
     n_lookahead_steps: 1
-    n_simulated_envs: &nse 2000
+    n_simulated_envs: &nse 10000
     n_simulated_steps: &nss 1
     lookahead_rollout: sim
     lookahead_replay: secondary
@@ -53,7 +53,7 @@ strategy:
     algorithm: *algo
     train_loop: 
         n_epochs: 400
-        n_lka_epochs: 100
+        n_lka_epochs: 50
 
 model:
     aid: 0

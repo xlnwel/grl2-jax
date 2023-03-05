@@ -26,7 +26,7 @@ routine:
     size: [256, 256]
 
     n_lookahead_steps: 1
-    n_simulated_envs: &nse 2000
+    n_simulated_envs: &nse 10000
     n_simulated_steps: &nss 1
     lookahead_rollout: sim
     lookahead_replay: secondary
