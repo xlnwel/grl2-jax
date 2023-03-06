@@ -103,6 +103,13 @@ class RunningMeanStd:
     def std(self):
         return self._std
 
+    @property
+    def count(self):
+        return self._count
+
+    def is_initialized(self):
+        return self._count > self._epsilon
+
     def reset_rms_stats(self):
         self._mean = 0
         self._var = 1

@@ -21,20 +21,13 @@ class Loss(LossBase):
         rng, 
         data, 
         name='theta',
-        **kwargs,
     ):
         rngs = random.split(rng, 3)
 
-        if self.config.obs_normalization:
-            dist, stats = self.model.normalized_emodels(
-                theta, rngs[0], data.obs, data.action,
-                **kwargs
-            )
-        else:
-            dist = self.modules.emodels(
-                theta.emodels, rngs[0], data.obs, data.action
-            )
-            stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
+        dist = self.modules.emodels(
+            theta.emodels, rngs[0], data.obs, data.action, training=True
+        )
+        stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
         
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)

@@ -11,6 +11,7 @@ from core.typing import dict2AttrDict, AttrDict
 from tools.file import source_file
 from jax_tools import jax_dist
 from env.typing import EnvOutput
+from tools.rms import *
 from .utils import *
 
 # register ppo-related networks 
@@ -41,9 +42,8 @@ class Model(ModelBase):
         self.elite_idx = None
         self.n_selected_elites = collections.defaultdict(lambda: 0)
 
-        if self.config.obs_normalization:
-            self.obs_dim = self.env_stats.obs_shape[0]['obs'][0]
-            self.normalizers = Normalizers(self.obs_dim)
+        if self.config.model_norm_obs:
+            self.obs_rms = RunningMeanStd([0, 1, 2])
             
     def build_nets(self):
         aid = self.config.get('aid', 0)
@@ -53,21 +53,15 @@ class Model(ModelBase):
         self.params.model, self.modules.model = self.build_net(
             data.obs[:, 0, :], data.action[:, 0], name='model')
         self.params.emodels, self.modules.emodels = self.build_net(
-            data.obs, data.action, name='emodels')
+            data.obs, data.action, True, name='emodels')
         self.params.reward, self.modules.reward = self.build_net(
             data.obs, data.action, name='reward')
         self.params.discount, self.modules.discount = self.build_net(
             data.obs, name='discount')
-        if self.config.obs_normalization:
-            self.params.obs_normalizer_params = construct_normalizer_params(self.obs_dim)
-            self.params.diff_normalizer_params = construct_normalizer_params(self.obs_dim)
 
     @property
     def theta(self):
-        if self.config.obs_normalization:
-            return self.params.subdict('emodels', 'reward', 'discount', 'obs_normalizer_params', 'diff_normalizer_params')
-        else:
-            return self.params.subdict('emodels', 'reward', 'discount')
+        return self.params.subdict('emodels', 'reward', 'discount')
 
     def rank_elites(self, elite_indices):
         self.elite_indices = elite_indices
@@ -103,7 +97,8 @@ class Model(ModelBase):
         return model
 
     def action(self, data, evaluation):
-        self.act_rng, act_rng = jax.random.split(self.act_rng) 
+        self.act_rng, act_rng = jax.random.split(self.act_rng)
+        data.obs_mean, data.obs_std = self.obs_rms.get_rms_stats(with_count=False)
         env_out, stats, state = self.jit_action(
             self.params, act_rng, data, evaluation)
         stats.update(self.n_selected_elites)
@@ -120,8 +115,10 @@ class Model(ModelBase):
         action = self.process_action(data.action)
 
         stats = AttrDict()
+        data.obs = normalize(data.obs, data.obs_mean, data.obs_std)
         next_obs, stats = self.next_obs(
             params, rngs[0], data.obs, action, stats, evaluation)
+        next_obs = denormalize(next_obs, data.obs_mean, data.obs_std)
         reward, stats = self.reward(
             params.reward, rngs[1], data.obs, action, stats)
         discount, stats = self.discount(
@@ -140,33 +137,17 @@ class Model(ModelBase):
 
         return env_out, stats, data.state
 
-    def next_obs(self, params, rng, obs, action, stats, evaluation, **kwargs):
-        if self.config.obs_normalization:
-            rngs = random.split(rng, 2)
-            normalized_obs = self.normalizers.obs.normalize(params.obs_normalizer_params, obs)
-            dist = self.modules.model(params.model, rngs[0], normalized_obs, action)
-            if evaluation or self.config.deterministic_trans:
-                next_obs = dist.mode()
-            else:
-                next_obs = dist.sample(seed=rngs[1])
-            if isinstance(dist, jax_dist.MultivariateNormalDiag):
-                # for continuous obs, we predict 𝛥(o)
-                next_obs = self.normalizers.diff.normalize(params.diff_normalizer_params, next_obs, inverse=True)
-                next_obs = obs + next_obs
-            else:
-                next_obs = self.normalizers.obs.normalize(params.obs_normalizer_params, next_obs, inverse=True)
-            stats.update(dist.get_stats('model'))
+    def next_obs(self, params, rng, obs, action, stats, evaluation):
+        rngs = random.split(rng, 2)
+        dist = self.modules.model(params.model, rngs[0], obs, action)
+        if evaluation or self.config.deterministic_trans:
+            next_obs = dist.mode()
         else:
-            rngs = random.split(rng, 2)
-            dist = self.modules.model(params.model, rngs[0], obs, action)
-            if evaluation or self.config.deterministic_trans:
-                next_obs = dist.mode()
-            else:
-                next_obs = dist.sample(seed=rngs[1])
-            if isinstance(dist, jax_dist.MultivariateNormalDiag):
-                # for continuous obs, we predict 𝛥(o)
-                next_obs = obs + next_obs
-            stats.update(dist.get_stats('model'))
+            next_obs = dist.sample(seed=rngs[1])
+        if isinstance(dist, jax_dist.MultivariateNormalDiag):
+            # for continuous obs, we predict 𝛥(o)
+            next_obs = obs + next_obs
+        stats.update(dist.get_stats('model'))
 
         return next_obs, stats
 
@@ -190,24 +171,6 @@ class Model(ModelBase):
         if self.env_stats.is_action_discrete[0]:
             action = nn.one_hot(action, self.env_stats.action_dim[0])
         return action
-
-    def update_normalizers(self, obs, next_obs):
-        obs, next_obs = obs.reshape(-1, self.obs_dim), next_obs.reshape(-1, self.obs_dim)
-        diff = next_obs - obs
-        self.params.obs_normalizer_params = normalizer_update(self.params.obs_normalizer_params, obs)
-        self.params.diff_normalizer_params = normalizer_update(self.params.diff_normalizer_params, diff)
-
-    def normalized_emodels(self, theta, rng, obs, action, obs_normalizer_params=None, diff_normalizer_params=None):
-        normalized_obs = self.normalizers.obs.normalize(obs_normalizer_params, obs)
-        dist = self.modules.emodels(
-            theta.emodels, rng, normalized_obs, action, training=True
-        )
-        if isinstance(dist, jax_dist.MultivariateNormalDiag):    
-            stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
-            stats.model_loc = self.normalizers.diff.normalize(diff_normalizer_params, stats.model_loc, inverse=True)
-        else:
-            raise NotImplementedError
-        return dist, stats
 
 
 def setup_config_from_envstats(config, env_stats):

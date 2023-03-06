@@ -7,6 +7,7 @@ from core.elements.model import Model
 from core.typing import AttrDict, tree_slice, subdict
 from replay.local import NStepBuffer
 from tools.utils import batch_dicts
+from tools.rms import RunningMeanStd
 from replay import replay_registry
 
 
@@ -31,6 +32,8 @@ class UniformReplay(Buffer):
 
         self._memory = collections.deque(maxlen=self.max_size)
 
+        if self.config.model_norm_obs:
+            self.obs_rms = RunningMeanStd([0])
         self._tmp_bufs: List[NStepBuffer] = [
             NStepBuffer(config, env_stats, model, aid, 0) 
             for _ in range(self.n_envs)
@@ -90,6 +93,9 @@ class UniformReplay(Buffer):
         if isinstance(trajs, dict):
             trajs = [trajs]
         self._memory.extend(trajs)
+        if self.config.model_norm_obs:
+            for traj in trajs:
+                self.obs_rms.update(traj['obs'])
 
     def merge_and_pop(self, trajs):
         if isinstance(trajs, dict):
@@ -159,6 +165,14 @@ class UniformReplay(Buffer):
 
     def _get_samples(self, idxes, memory):
         fn = lambda x: np.expand_dims(np.stack(x), 1)
-        results = batch_dicts([memory[i] for i in idxes], func=fn)
+        samples = batch_dicts([memory[i] for i in idxes], func=fn)
 
-        return results
+        if self.config.model_norm_obs:
+            if self.obs_rms.is_initialized():
+                samples = samples, self.obs_rms.get_rms_stats()
+            else:
+                samples = samples, None
+            self.obs_rms.reset_rms_stats()
+            assert not self.obs_rms.is_initialized(), (self.obs_rms._count, self.obs_rms._epsilon, self.obs_rms.is_initialized())
+
+        return samples

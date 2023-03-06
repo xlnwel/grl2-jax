@@ -68,17 +68,19 @@ def train(
         if model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
             pass
         else:
-            lka_train_fn(
-                agent, 
-                model, 
-                buffer, 
-                model_buffer, 
-                routine_config, 
-                n_runs=routine_config.n_lookahead_steps, 
-                run_fn=lka_run_fn, 
-                opt_fn=lka_opt_fn
-            )
-            mix_run(agent, model, buffer, model_buffer, routine_config)
+            lka_opt_fn(agent)
+            # lka_train_fn(
+            #     agent, 
+            #     model, 
+            #     buffer, 
+            #     model_buffer, 
+            #     routine_config, 
+            #     n_runs=routine_config.n_lookahead_steps, 
+            #     run_fn=lka_run_fn, 
+            #     opt_fn=lka_opt_fn
+            # )
+            # mix_run(agent, model, buffer, model_buffer, routine_config)
+            lka_run_fn(agent, model, buffer, model_buffer, routine_config)
         
         if routine_config.quantify_model_errors and time2record:
             errors.lka = quantify_model_errors(

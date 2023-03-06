@@ -44,9 +44,6 @@ class Trainer(TrainerBase):
 
     def build_optimizers(self):
         theta = self.model.theta.copy()
-        if self.config.obs_normalization:
-            theta.pop("obs_normalizer_params")
-            theta.pop("diff_normalizer_params")
         self.opts.theta, self.params.theta = optimizer.build_optimizer(
             params=theta, 
             **self.config.model_opt, 
@@ -67,10 +64,6 @@ class Trainer(TrainerBase):
         elite_indices = np.argsort(stats.mean_loss)
         self.model.rank_elites(elite_indices)
         self._evaluate_model(stats)
-
-        # update normalization parameters
-        if self.config.obs_normalization:
-            self.model.update_normalizers(data.obs, data.next_obs)
 
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
@@ -106,13 +99,6 @@ class Trainer(TrainerBase):
         data, 
     ):
         do_logging('train is traced', backtrack=4)
-        if self.config.obs_normalization:
-            extra_kwargs = {
-                'obs_normalizer_params': theta.pop('obs_normalizer_params'),
-                'diff_normalizer_params': theta.pop('diff_normalizer_params'),
-            }
-        else:
-            extra_kwargs = {}
         theta, opt_state, stats = optimizer.optimize(
             self.loss.loss, 
             theta, 
@@ -120,7 +106,6 @@ class Trainer(TrainerBase):
             kwargs={
                 'rng': rng, 
                 'data': data, 
-                **extra_kwargs
             }, 
             opt=self.opts.theta, 
             name='train/dynamics'
@@ -131,6 +116,14 @@ class Trainer(TrainerBase):
     def process_data(self, data):
         if self.env_stats.is_action_discrete[0]:
             data.action = self.model.process_action(data.action)
+        
+        if self.model.config.model_norm_obs:
+            data, rms = data
+            if rms is not None:
+                self.model.obs_rms.update_from_moments(*rms)
+            data.obs = self.model.obs_rms.normalize(data.obs)
+            data.next_obs = self.model.obs_rms.normalize(data.next_obs)
+
         return data
 
     def _evaluate_model(self, stats):

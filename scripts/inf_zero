@@ -74,7 +74,7 @@ a3=${args3[$idx]}
 
 commands=()
 # kws="trainer:n_epochs=$a1 stoch_trans=$a2 model_loss_type=$a3"
-kws="0#dynamics_name=$a1 1#obs_normalization=$a2 1#balance_dimension=$a3"
+kws="0#dynamics_name=$a1 1#model_norm_obs=$a2 1#balance_dimension=$a3"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

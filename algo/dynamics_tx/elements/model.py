@@ -25,9 +25,6 @@ class Model(ModelBase):
             data.obs, data.action, name='reward')
         self.params.discount, self.modules.discount = self.build_net(
             data.obs, name='discount')
-        if self.config.obs_normalization:
-            self.params.obs_normalizer_params = construct_normalizer_params(self.obs_dim)
-            self.params.diff_normalizer_params = construct_normalizer_params(self.obs_dim)
 
 
 def create_model(
