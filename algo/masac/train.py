@@ -210,7 +210,7 @@ def log(agent, model, env_step, train_step, errors):
                 if k1 != TRAIN:
                     k1_err = np.mean(error_stats[f'{k1}-{k2}'])
                     train_err = np.mean(error_stats[f'{TRAIN}-{k2}'])
-                    k1_train_err = k1_err - train_err
+                    k1_train_err = np.abs(k1_err - train_err)
                     error_stats[f'{k1}&{TRAIN}-{k2}'] = k1_train_err
                     error_stats[f'norm_{k1}&{TRAIN}-{k2}'] = \
                         k1_train_err / train_err if train_err else k1_train_err

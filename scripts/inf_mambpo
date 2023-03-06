@@ -16,13 +16,17 @@ configs=(
     "${suite}"
 )
 args1=(
-    $1
+    # $1
+    True
+    False
 )
 args2=(
     $2
+    1
 )
 args3=(
     $3
+    1
 )
 dynamics=(
     $4
@@ -67,7 +71,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="0#dynamics_name=$d 0#n_epochs=$a1 0#n_simulated_envs=$a2 primal_percentage=$a3"
+kws="0#dynamics_name=$d 0#norm_obs=$a1"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"

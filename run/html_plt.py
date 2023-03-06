@@ -169,7 +169,7 @@ def process_data(data):
     if 'model_error/ego&train-trans' in data:
         k1_err = data[f'model_error/ego-trans']
         train_err = data[f'model_error/train-trans']
-        k1_train_err = k1_err - train_err
+        k1_train_err = np.abs(k1_err - train_err)
         data[f'model_error/ego&train-trans'] = k1_train_err
         data[f'model_error/norm_ego&train-trans'] = np.where(train_err != 0,
             k1_train_err / train_err, k1_train_err)
