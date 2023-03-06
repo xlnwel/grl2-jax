@@ -43,8 +43,9 @@ def lookahead_train(agents, model, buffers, model_buffer, routine_config,
         return
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
-        run_fn(agents, model, buffers, model_buffer, routine_config)
-        opt_fn(agents, routine_config, aids)
+        out = run_fn(agents, model, buffers, model_buffer, routine_config)
+        if out is not None:
+            opt_fn(agents, routine_config, aids)
 
 
 def ego_run(agents, runner, buffers, model_buffer, routine_config):

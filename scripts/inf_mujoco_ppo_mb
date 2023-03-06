@@ -16,8 +16,10 @@ configs=(
     "${suite}"
 )
 args1=(
-    $1
-    1
+    True
+    True
+    False
+    Falss
 )
 args2=(
     $2
@@ -71,7 +73,7 @@ a3=${args3[$idx]}
 
 commands=()
 # for d in "${dynamics[@]}"; do
-kws="0#dynamics_name=$d"
+kws="0#dynamics_name=$d norm_obs=$a1"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

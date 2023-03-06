@@ -92,20 +92,20 @@ def split_env_output(env_output):
     return env_outputs
 
 
-def simultaneous_rollout(env, agents, buffers, env_output, rountine_config):
+def simultaneous_rollout(env, agents, buffers, env_output, routine_config):
     env_outputs = split_env_output(env_output)
     for agent in agents:
         agent.model.switch_params(True)
         agent.set_states()
     
-    if not rountine_config.switch_model_at_every_step:
+    if not routine_config.switch_model_at_every_step:
         env.model.choose_elite()
-    for i in range(rountine_config.n_simulated_steps):
+    for i in range(routine_config.n_simulated_steps):
         acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
         action = concate_along_unit_dim(acts)
         env_output.obs['action'] = action
-        if rountine_config.switch_model_at_every_step:
+        if routine_config.switch_model_at_every_step:
             env.model.choose_elite()
         new_env_output, env_stats = env(env_output)
         new_env_outputs = split_env_output(new_env_output)
@@ -127,7 +127,7 @@ def simultaneous_rollout(env, agents, buffers, env_output, rountine_config):
         env_outputs = new_env_outputs
 
     prepare_buffer(list(range(len(agents))), agents, buffers, env_outputs, 
-        rountine_config.compute_return_at_once)
+        routine_config.compute_return_at_once)
 
     for agent in agents:
         agent.model.switch_params(False)
@@ -135,7 +135,7 @@ def simultaneous_rollout(env, agents, buffers, env_output, rountine_config):
     return env_outputs
 
 
-def unilateral_rollout(env, agents, buffers, env_output, rountine_config):
+def unilateral_rollout(env, agents, buffers, env_output, routine_config):
     env_outputs = split_env_output(env_output)
     for aid, agent in enumerate(agents):
         for a in agents:
@@ -143,11 +143,11 @@ def unilateral_rollout(env, agents, buffers, env_output, rountine_config):
         agent.model.switch_params(True)
         env.model.choose_elites()
 
-        for i in range(rountine_config.n_simulated_steps):
+        for i in range(routine_config.n_simulated_steps):
             acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
             action = concate_along_unit_dim(acts)
-            assert action.shape == (rountine_config.n_simulated_envs, 2), action.shape
+            assert action.shape == (routine_config.n_simulated_envs, 2), action.shape
             env_output.obs['action'] = action
             new_env_output, env_stats = env(env_output)
             new_env_outputs = split_env_output(new_env_output)
@@ -169,7 +169,7 @@ def unilateral_rollout(env, agents, buffers, env_output, rountine_config):
         agent.model.switch_params(False)
 
         prepare_buffer(list(range(len(agents))), agents, buffers, env_outputs, 
-            rountine_config.compute_return_at_once)
+            routine_config.compute_return_at_once)
 
     return env_outputs
 
@@ -183,6 +183,8 @@ def run_on_model(env, buffer, agents, buffers, routine_config):
         # sample_size=1, 
         # squeeze=True, 
     )
+    if obs is None:
+        return
     reward = np.zeros(obs.obs.shape[:-1])
     discount = np.ones(obs.obs.shape[:-1])
     reset = np.zeros(obs.obs.shape[:-1])

@@ -208,7 +208,7 @@ def unilateral_rollout(env, agent, buffer, env_output, routine_config):
 
 def run_on_model(env, model_buffer, agent, buffer, routine_config):
     sample_keys = buffer.obs_keys + ['state'] \
-        if routine_config.restore_state else buffer.obs_keys 
+        if routine_config.restore_state else buffer.obs_keys
     obs = model_buffer.sample_from_recency(
         batch_size=routine_config.n_simulated_envs,
         sample_keys=sample_keys, 
