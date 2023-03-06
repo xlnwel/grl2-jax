@@ -2,37 +2,40 @@
 
 export PYTHONPATH=.
 
-# mcoefs=(1 1 1)
-# rcoefs=(0.1 0.1 0.1)
-# dcoefs=(0.01 0.01 0.01)
+mcoefs=(1 1 1)
+rcoefs=(0.1 0.1 0.1)
+dcoefs=(0.01 0.01 0.01)
 # envs=(ma_mujoco-Ant_2x4 ma_mujoco-HalfCheetah_2x3 ma_mujoco-Walker2d_2x3)
-# nas=(2 2 2)
-# gpus=$(nvidia-smi -L | wc -l)
+# envs=(ma_mujoco-Ant_2x4 ma_mujoco-Walker2d_2x3)
+envs=(ma_mujoco-HalfCheetah_2x3)
+nas=(2 2 2)
+gpus=$(nvidia-smi -L | wc -l)
 
-# i=0
-# j=0
-# for s in {0..2}; do
-#     gpu=$((($i + 2) % $gpus))
-#     mcoef=${mcoefs[$j]}
-#     rcoef=${rcoefs[$j]}
-#     dcoef=${dcoefs[$j]}
-#     env=${envs[$j]}
-#     na=${nas[$j]}
-#     # kws="n_epochs=200 batch_size=256 sample_size=10 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-#     kws="2#n_epochs=200 2#batch_size=256 2#sample_size=1 2#model_coef=$mcoef 2#reward_coef=$rcoef 2#discount_coef=$dcoef"
-#     # kws="n_epochs=100 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-#     if (( $na == 2 ))
-#     then
-#         py_script="python run/train.py -a happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws &"
-#         echo $na
-#         echo $py_script
-#     else
-#         py_script="python run/train.py -a happo_mb happo_mb happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws &"
-#         echo $na
-#         echo $py_script
-#     fi
-#     eval $py_script
-#     ((i=(i+1) ))
+i=0
+# for j in {0..1}; do
+for s in {0..2}; do
+    gpu=$((($i + 2) % $gpus))
+    mcoef=${mcoefs[$j]}
+    rcoef=${rcoefs[$j]}
+    dcoef=${dcoefs[$j]}
+    env=${envs[$j]}
+    na=${nas[$j]}
+    # kws="n_epochs=200 batch_size=256 sample_size=10 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
+    kws="2#n_epochs=200 2#batch_size=256 2#sample_size=1 2#model_coef=$mcoef 2#reward_coef=$rcoef 2#discount_coef=$dcoef"
+    # kws="n_epochs=100 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
+    if (( $na == 2 ))
+    then
+        py_script="python run/train.py -a happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws &"
+        echo $na
+        echo $py_script
+    else
+        py_script="python run/train.py -a happo_mb happo_mb happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws &"
+        echo $na
+        echo $py_script
+    fi
+    eval $py_script
+    ((i=(i+1) ))
+done
 # done
 
 # i=0
@@ -49,44 +52,44 @@ export PYTHONPATH=.
 #     done
 # done
 
-n_epochs=(
-    1000
-    1000
-    1000
-    1000
-)
-algos=(
-    masac_lka
-    masac_lka2
-    masac_lka
-    masac_lka2
-)
-model_n_epochs=(
-    5
-    5
-    5
-    5
-)
-envs=(
-    ma_mujoco-Ant_2x4
-    ma_mujoco-Ant_2x4
-    ma_mujoco-Walker2d_2x3
-    ma_mujoco-Walker2d_2x3
-)
-gpus=$(nvidia-smi -L | wc -l)
-i=0
-for j in {0..3}; do
-    for s in {0..3}; do
-        gpu=$(($i % $gpus))
-        a=${algos[$j]}
-        env=${envs[$j]}
-        n_epoch=${n_epochs[$j]}
-        model_n_epoch=${model_n_epochs[$j]}
-        kws="0#dynamics_name=dynamics 0#n_epochs=$n_epoch 0#n_lka_epochs=100 0#n_simulated_envs=100 1#ergodic=True 1#n_epochs=$model_n_epoch 1#model_loss_type=mbpo"
-        py_script="python run/train.py -a $a dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n new_buffer -s $s --gpu $gpu -kw $kws &"
-        commands+=("$py_script")
-        echo $py_script
-        eval $py_script
-        ((i=(i+1) ))
-    done
-done
+# n_epochs=(
+#     # 1000
+#     1000
+#     # 1000
+#     1000
+# )
+# algos=(
+#     # masac_lka
+#     masac_lka2
+#     # masac_lka
+#     masac_lka2
+# )
+# model_n_epochs=(
+#     # 5
+#     5
+#     # 5
+#     5
+# )
+# envs=(
+#     # ma_mujoco-Ant_2x4
+#     ma_mujoco-Ant_2x4
+#     # ma_mujoco-Walker2d_2x3
+#     ma_mujoco-Walker2d_2x3
+# )
+# gpus=$(nvidia-smi -L | wc -l)
+# i=0
+# for j in {0..1}; do
+#     for s in {0..3}; do
+#         gpu=$(($i % $gpus))
+#         a=${algos[$j]}
+#         env=${envs[$j]}
+#         n_epoch=${n_epochs[$j]}
+#         model_n_epoch=${model_n_epochs[$j]}
+#         kws="0#dynamics_name=dynamics 0#n_epochs=$n_epoch 0#n_lka_epochs=100 0#n_simulated_envs=100 1#ergodic=True 1#n_epochs=$model_n_epoch 1#model_loss_type=mbpo"
+#         py_script="python run/train.py -a $a dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n new_buffer -s $s --gpu $gpu -kw $kws &"
+#         commands+=("$py_script")
+#         echo $py_script
+#         eval $py_script
+#         ((i=(i+1) ))
+#     done
+# done
