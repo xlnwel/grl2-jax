@@ -108,8 +108,9 @@ class UniformReplay(Buffer):
 
     def sample_from_recency(self, batch_size, sample_keys, n=None, **kwargs):
         batch_size = batch_size or self.batch_size
-        n = n or self.n_recency
-        assert n <= len(self._memory), (n, len(self._memory))
+        n = max(batch_size, n or self.n_recency)
+        if n <= len(self._memory):
+            return None
         idxes = np.arange(len(self)-n, len(self))
         idxes = np.random.choice(idxes, size=batch_size, replace=False)
 

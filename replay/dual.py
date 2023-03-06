@@ -67,7 +67,7 @@ class DualReplay(Buffer):
         replay = Cls(config, self.env_stats, model, self.aid)
         return replay
     
-    def set_default_replay(self, target_replay):
+    def set_default_replay(self, target_replay=PRIMAL_REPLAY):
         assert target_replay in [PRIMAL_REPLAY, SECONDARY_REPLAY], target_replay
         self.default_replay = target_replay
         

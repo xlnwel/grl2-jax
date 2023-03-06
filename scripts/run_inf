@@ -1,8 +1,11 @@
-./scripts/inf ma_mujoco 1 inf_mambpo 400 400 .5
-./scripts/inf ma_mujoco 1 inf_mambpo 400 1000 .5
-./scripts/inf ma_mujoco 1 inf_mambpo 1000 400 .5
-./scripts/inf ma_mujoco 1 inf_mambpo 1000 1000 .5
-./scripts/inf ma_mujoco 1 inf_mambpo 400 400 .25
-./scripts/inf ma_mujoco 1 inf_mambpo 400 1000 .25
-./scripts/inf ma_mujoco 1 inf_mambpo 1000 400 .25
-./scripts/inf ma_mujoco 1 inf_mambpo 1000 1000 .25
+./scripts/inf ma_mujoco 2 inf_mambpo
+# ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka 400 10000 50 dynamics
+# ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka 400 10000 100 dynamics
+# ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka2 400 10000 50 dynamics
+# ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka2 400 10000 100 dynamics
+# ./scripts/inf ma_mujoco 1 inf_mambpo 1000 10000 .5 dynamics_tx
+# ./scripts/inf ma_mujoco 1 inf_mambpo 1000 20000 .5 dynamics
+# ./scripts/inf ma_mujoco 1 inf_mambpo 1000 50000 .5 dynamics
+# ./scripts/inf ma_mujoco 1 inf_mambpo 400 10000 .5 dynamics_tx
+# ./scripts/inf ma_mujoco 1 inf_mambpo 1000 20000 .5 dynamics_tx
+# ./scripts/inf ma_mujoco 1 inf_mambpo 1000 50000 .5 dynamics_tx

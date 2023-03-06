@@ -215,6 +215,8 @@ def run_on_model(env, model_buffer, agent, buffer, routine_config):
         # sample_size=1, 
         # squeeze=True, 
     )
+    if obs is None:
+        return
     reward = np.zeros(obs.obs.shape[:-1])
     discount = np.ones(obs.obs.shape[:-1])
     reset = np.zeros(obs.obs.shape[:-1])
