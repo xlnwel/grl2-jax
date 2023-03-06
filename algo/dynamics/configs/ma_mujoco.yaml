@@ -50,8 +50,8 @@ model:
     global_state_type: obs
     rn_std: .1
     obs_normalization: &obs_norm True
-    deterministic_trans: False
-    model_loss_type: &mlt mbpo
+    deterministic_trans: True
+    model_loss_type: &mlt mse
 
     emodels:
         nn_id: emodels
@@ -114,6 +114,7 @@ buffer:
     min_size: 1e3
     batch_size: 256
     sample_size: 1
+    ret_latest_data: *obs_norm
 
     max_steps: 1
 

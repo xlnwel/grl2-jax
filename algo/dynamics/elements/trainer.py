@@ -53,8 +53,11 @@ class Trainer(TrainerBase):
             name='theta'
         )
 
-    def train(self, data):
-        data = self.process_data(data)
+    def train(self, data, **kwargs):
+        if self.config.obs_normalization:
+            latest_data, data = self.process_data(data)
+        else:
+            data = self.process_data(data)
         theta = self.model.theta.copy()
         with Timer('model_train'):
             theta, self.params.theta, stats = \
@@ -69,8 +72,8 @@ class Trainer(TrainerBase):
         self._evaluate_model(stats)
 
         # update normalization parameters
-        if self.config.obs_normalization:
-            self.model.update_normalizers(data.obs, data.next_obs)
+        if self.config.obs_normalization and kwargs['update_norm_params']:
+            self.model.update_normalizers(latest_data.obs, latest_data.next_obs)
 
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})

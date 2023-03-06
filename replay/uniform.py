@@ -30,6 +30,9 @@ class UniformReplay(Buffer):
         self.n_steps = self.config.n_steps
 
         self._memory = collections.deque(maxlen=self.max_size)
+        self._ret_latest = config.ret_latest_data
+        if self._ret_latest:
+            self._latest_memory = None
 
         self._tmp_bufs: List[NStepBuffer] = [
             NStepBuffer(config, env_stats, model, aid, 0) 
@@ -90,6 +93,8 @@ class UniformReplay(Buffer):
         if isinstance(trajs, dict):
             trajs = [trajs]
         self._memory.extend(trajs)
+        if self._ret_latest:
+            self._latest_memory = trajs
 
     def merge_and_pop(self, trajs):
         if isinstance(trajs, dict):
@@ -130,7 +135,10 @@ class UniformReplay(Buffer):
         np.random.shuffle(idxes)
         i = 0
         for i in range(0, maxlen, batch_size):
-            yield self._get_samples(idxes[i:i+batch_size], self._memory)
+            if self._ret_latest:
+                yield self._get_samples(range(len(self._latest_memory)), self._latest_memory), self._get_samples(idxes[i:i+batch_size], self._memory)
+            else:
+                yield self._get_samples(idxes[i:i+batch_size], self._memory)
     
     def retrieve_all_data(self):
         data = self._memory
@@ -153,6 +161,9 @@ class UniformReplay(Buffer):
         # idxes = np.random.choice(size, size=batch_size, replace=False)
         
         samples = self._get_samples(idxes, self._memory)
+        if self._ret_latest:
+            latest_samples = self._get_samples(range(len(self._latest_memory)), self._latest_memory)
+            return latest_samples, samples
 
         return samples
 
