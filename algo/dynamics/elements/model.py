@@ -43,7 +43,7 @@ class Model(ModelBase):
         self.n_selected_elites = collections.defaultdict(lambda: 0)
 
         if self.config.model_norm_obs:
-            self.obs_rms = RunningMeanStd([0, 1, 2])
+            self.obs_rms = RunningMeanStd([0, 1])
             
     def build_nets(self):
         aid = self.config.get('aid', 0)
@@ -98,7 +98,8 @@ class Model(ModelBase):
 
     def action(self, data, evaluation):
         self.act_rng, act_rng = jax.random.split(self.act_rng)
-        data.obs_mean, data.obs_std = self.obs_rms.get_rms_stats(with_count=False)
+        if self.config.model_norm_obs:
+            data.obs_loc, data.obs_scale = self.obs_rms.get_rms_stats(with_count=False)
         env_out, stats, state = self.jit_action(
             self.params, act_rng, data, evaluation)
         stats.update(self.n_selected_elites)
@@ -115,10 +116,9 @@ class Model(ModelBase):
         action = self.process_action(data.action)
 
         stats = AttrDict()
-        data.obs = normalize(data.obs, data.obs_mean, data.obs_std)
         next_obs, stats = self.next_obs(
-            params, rngs[0], data.obs, action, stats, evaluation)
-        next_obs = denormalize(next_obs, data.obs_mean, data.obs_std)
+            params.model, rngs[0], data.obs, action, stats, evaluation, 
+            data.obs_loc, data.obs_scale)
         reward, stats = self.reward(
             params.reward, rngs[1], data.obs, action, stats)
         discount, stats = self.discount(
@@ -137,9 +137,13 @@ class Model(ModelBase):
 
         return env_out, stats, data.state
 
-    def next_obs(self, params, rng, obs, action, stats, evaluation):
+    def next_obs(self, params, rng, obs, action, stats, evaluation, 
+            obs_loc, obs_scale):
         rngs = random.split(rng, 2)
-        dist = self.modules.model(params.model, rngs[0], obs, action)
+        if self.config.model_norm_obs:
+            obs = normalize(obs, obs_loc, obs_scale)
+
+        dist = self.modules.model(params, rngs[0], obs, action)
         if evaluation or self.config.deterministic_trans:
             next_obs = dist.mode()
         else:
@@ -148,6 +152,9 @@ class Model(ModelBase):
             # for continuous obs, we predict 𝛥(o)
             next_obs = obs + next_obs
         stats.update(dist.get_stats('model'))
+
+        if self.config.model_norm_obs:
+            next_obs = denormalize(next_obs, obs_loc, obs_scale)
 
         return next_obs, stats
 

@@ -1,8 +1,11 @@
 import numpy as np
 import jax
 
+from core.typing import AttrDict
 from tools.utils import batch_dicts
+from tools.timer import Timer
 from env.typing import EnvOutput
+from env.func import create_env
 from algo.ppo.run import prepare_buffer, concate_along_unit_dim, Runner as RunnerBase
 
 
@@ -84,16 +87,16 @@ class Runner(RunnerBase):
         return env_outputs
 
 
-def split_env_output(env_output):
+def split_env_output(env_output, n):
     env_outputs = [
         jax.tree_util.tree_map(lambda x: x[:, i:i+1], env_output) 
-        for i in range(2)
+        for i in range(n)
     ]
     return env_outputs
 
 
 def simultaneous_rollout(env, agents, buffers, env_output, routine_config):
-    env_outputs = split_env_output(env_output)
+    env_outputs = split_env_output(env_output, len(agents))
     for agent in agents:
         agent.model.switch_params(True)
         agent.set_states()
@@ -108,7 +111,7 @@ def simultaneous_rollout(env, agents, buffers, env_output, routine_config):
         if routine_config.switch_model_at_every_step:
             env.model.choose_elite()
         new_env_output, env_stats = env(env_output)
-        new_env_outputs = split_env_output(new_env_output)
+        new_env_outputs = split_env_output(new_env_output, len(agents))
         env.store(**env_stats)
 
         for aid, agent in enumerate(agents):
@@ -136,7 +139,7 @@ def simultaneous_rollout(env, agents, buffers, env_output, routine_config):
 
 
 def unilateral_rollout(env, agents, buffers, env_output, routine_config):
-    env_outputs = split_env_output(env_output)
+    env_outputs = split_env_output(env_output, len(agents))
     for aid, agent in enumerate(agents):
         for a in agents:
             a.set_states()
@@ -150,7 +153,7 @@ def unilateral_rollout(env, agents, buffers, env_output, routine_config):
             assert action.shape == (routine_config.n_simulated_envs, 2), action.shape
             env_output.obs['action'] = action
             new_env_output, env_stats = env(env_output)
-            new_env_outputs = split_env_output(new_env_output)
+            new_env_outputs = split_env_output(new_env_output, len(agents))
             env.store(**env_stats)
 
             data = dict(
@@ -200,9 +203,62 @@ def run_on_model(env, buffer, agents, buffers, routine_config):
         for a in agents:
             a.set_states()
 
-    if routine_config.lookahead_rollout == 'sim':
-        return simultaneous_rollout(env, agents, buffers, env_output, routine_config)
-    elif routine_config.lookahead_rollout == 'uni':
-        return unilateral_rollout(env, agents, buffers, env_output, routine_config)
-    else:
-        raise NotImplementedError
+    with Timer('model_rollout'):
+        if routine_config.lookahead_rollout == 'sim':
+            return simultaneous_rollout(env, agents, buffers, env_output, routine_config)
+        elif routine_config.lookahead_rollout == 'uni':
+            return unilateral_rollout(env, agents, buffers, env_output, routine_config)
+        else:
+            raise NotImplementedError
+
+
+def concat_env_output(env_output):
+    obs = batch_dicts(env_output.obs, concate_along_unit_dim)
+    reward = concate_along_unit_dim(env_output.reward)
+    discount = concate_along_unit_dim(env_output.discount)
+    reset = concate_along_unit_dim(env_output.reset)
+    return EnvOutput(obs, reward, discount, reset)
+
+
+def quantify_model_errors(agents, model, env_config, n_steps, lka_aids):
+    model.model.choose_elite()
+    if lka_aids is None:
+        lka_aids = list(range(len(agents)))
+    with Timer('error_quantify'):
+        for aid in lka_aids:
+            agents[aid].model.check_params(False)
+            agents[aid].model.switch_params(True)
+
+        errors = AttrDict()
+        errors.trans = []
+        errors.reward = []
+        errors.discount = []
+
+        env = create_env(env_config)
+        env_output = env.output()
+        env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
+        env_output = concat_env_output(env_output)
+        for _ in range(n_steps):
+            acts, _ = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
+            action = concate_along_unit_dim(acts)
+
+            new_env_output = env.step(action)
+            new_env_outputs = [EnvOutput(*o) for o in zip(*new_env_output)]
+            new_env_output = concat_env_output(new_env_output)
+            env_output.obs['action'] = action
+            new_model_output, _ = model(env_output)
+            errors.trans.append(
+                np.abs(new_env_output.obs['obs'] - new_model_output.obs['obs']).reshape(-1))
+            errors.reward.append(
+                np.abs(new_env_output.reward - new_model_output.reward).reshape(-1))
+            errors.discount.append(
+                np.abs(new_env_output.discount - new_model_output.discount).reshape(-1))
+            env_output = new_env_output
+            env_outputs = new_env_outputs
+
+        for k, v in errors.items():
+            errors[k] = np.stack(v, -1)
+        for aid in lka_aids:
+            agents[aid].model.switch_params(False)
+
+    return errors

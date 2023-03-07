@@ -69,11 +69,6 @@ class Trainer(TrainerBase):
             for k, v in data.items() if v is not None})
         stats = prefix_name(stats, 'model_train')
         stats.update(data)
-        with Timer('model_stats_subsampling'):
-            stats = sample_stats(
-                stats, 
-                max_record_size=100, 
-            )
         for v in theta.values():
             stats.update(flatten_dict(
                 jax.tree_util.tree_map(np.linalg.norm, v)))
@@ -121,8 +116,8 @@ class Trainer(TrainerBase):
             data, rms = data
             if rms is not None:
                 self.model.obs_rms.update_from_moments(*rms)
-            data.obs = self.model.obs_rms.normalize(data.obs)
-            data.next_obs = self.model.obs_rms.normalize(data.next_obs)
+            data.obs_loc, data.obs_scale = \
+                self.model.obs_rms.get_rms_stats(with_count=False)
 
         return data
 

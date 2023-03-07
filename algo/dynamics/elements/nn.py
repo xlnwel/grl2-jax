@@ -103,7 +103,7 @@ class EnsembleModels(Model):
         return nets
 
     def call_net(self, nets, x):
-        x = jnp.stack([net(x) for net in nets], -2)
+        x = jnp.stack([net(x) for net in nets], 0)
         return x
 
 

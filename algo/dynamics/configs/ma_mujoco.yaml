@@ -79,6 +79,7 @@ model:
         units_list: [200, 200]
         activation: relu
         norm: layer
+        out_scale: .01
 
 loss:
     model_loss_type: *mlt

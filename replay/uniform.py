@@ -94,8 +94,7 @@ class UniformReplay(Buffer):
             trajs = [trajs]
         self._memory.extend(trajs)
         if self.config.model_norm_obs:
-            for traj in trajs:
-                self.obs_rms.update(traj['obs'])
+            self.obs_rms.update(np.stack([traj['obs'] for traj in trajs]))
 
     def merge_and_pop(self, trajs):
         if isinstance(trajs, dict):
@@ -110,7 +109,7 @@ class UniformReplay(Buffer):
     def sample_from_recency(self, batch_size, sample_keys, n=None, **kwargs):
         batch_size = batch_size or self.batch_size
         n = max(batch_size, n or self.n_recency)
-        if n <= len(self._memory):
+        if n > len(self):
             return None
         idxes = np.arange(len(self)-n, len(self))
         idxes = np.random.choice(idxes, size=batch_size, replace=False)

@@ -34,6 +34,7 @@ routine:
     perm: null
     restore_state: False
     switch_model_at_every_step: False
+    quantify_model_errors: True
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3

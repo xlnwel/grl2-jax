@@ -230,12 +230,13 @@ def run_on_model(env, model_buffer, agent, buffer, routine_config):
     else:
         agent.set_states()
 
-    if routine_config.lookahead_rollout == 'sim':
-        return simultaneous_rollout(env, agent, buffer, env_output, routine_config)
-    elif routine_config.lookahead_rollout == 'uni':
-        return unilateral_rollout(env, agent, buffer, env_output, routine_config)
-    else:
-        raise NotImplementedError
+    with Timer('model_rollout'):
+        if routine_config.lookahead_rollout == 'sim':
+            return simultaneous_rollout(env, agent, buffer, env_output, routine_config)
+        elif routine_config.lookahead_rollout == 'uni':
+            return unilateral_rollout(env, agent, buffer, env_output, routine_config)
+        else:
+            raise NotImplementedError
 
 
 def concat_env_output(env_output):
@@ -247,6 +248,7 @@ def concat_env_output(env_output):
 
 
 def quantify_model_errors(agent, model, env_config, n_steps, lka_aids):
+    model.model.choose_elite()
     with Timer('error_quantify'):
         agent.model.check_params(False)
         agent.model.switch_params(True, lka_aids)
@@ -266,7 +268,7 @@ def quantify_model_errors(agent, model, env_config, n_steps, lka_aids):
             env_output.obs['action'] = action
             new_model_output, _ = model(env_output)
             errors.trans.append(
-                np.mean(np.abs(new_env_output.obs['obs'] - new_model_output.obs['obs']), -1).reshape(-1))
+                np.abs(new_env_output.obs['obs'] - new_model_output.obs['obs']).reshape(-1))
             errors.reward.append(
                 np.abs(new_env_output.reward - new_model_output.reward).reshape(-1))
             errors.discount.append(
