@@ -38,7 +38,7 @@ def get_ith_model_prefix(i):
 
 class Model(ModelBase):
     def add_attributes(self):
-        self.elite_indices = None
+        self.elite_indices = np.arange(self.config.emodels.n_models)
         self.elite_idx = None
         self.n_selected_elites = collections.defaultdict(lambda: 0)
 
