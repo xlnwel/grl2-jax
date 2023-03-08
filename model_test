@@ -5,51 +5,42 @@ export PYTHONPATH=.
 mcoefs=(1 1 1)
 rcoefs=(0.1 0.1 0.1)
 dcoefs=(0.01 0.01 0.01)
-# envs=(ma_mujoco-Ant_2x4 ma_mujoco-HalfCheetah_2x3 ma_mujoco-Walker2d_2x3)
-# envs=(ma_mujoco-Ant_2x4 ma_mujoco-Walker2d_2x3)
-envs=(ma_mujoco-HalfCheetah_2x3)
+envs=(ma_mujoco-Ant_2x4 ma_mujoco-HalfCheetah_2x3 ma_mujoco-Walker2d_2x3)
 nas=(2 2 2)
 gpus=$(nvidia-smi -L | wc -l)
 
 i=0
-# for j in {0..1}; do
-for s in {0..2}; do
-    gpu=$((($i + 2) % $gpus))
-    mcoef=${mcoefs[$j]}
-    rcoef=${rcoefs[$j]}
-    dcoef=${dcoefs[$j]}
-    env=${envs[$j]}
-    na=${nas[$j]}
-    # kws="n_epochs=200 batch_size=256 sample_size=10 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-    kws="2#n_epochs=200 2#batch_size=256 2#sample_size=1 2#model_coef=$mcoef 2#reward_coef=$rcoef 2#discount_coef=$dcoef"
-    # kws="n_epochs=100 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-    if (( $na == 2 ))
-    then
-        py_script="python run/train.py -a happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws &"
-        echo $na
+j=0
+for j in {0..2}; do
+    for s in {0..3}; do
+        gpu=$((($i + 2) % $gpus))
+        mcoef=${mcoefs[$j]}
+        rcoef=${rcoefs[$j]}
+        dcoef=${dcoefs[$j]}
+        env=${envs[$j]}
+        na=${nas[$j]}
+        # kws="n_epochs=200 batch_size=256 sample_size=10 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
+        kws="0#dynamics_name=dynamics norm_obs=True 2#n_epochs=5 2#deterministic_trans=True 2#model_loss_type=mse"
+        # kws="n_epochs=100 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
+        py_script="python run/train.py -a happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n brand_new -s $s -na $na --gpu $gpu -kw $kws &"
         echo $py_script
-    else
-        py_script="python run/train.py -a happo_mb happo_mb happo_mb happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n obs_norm -s $s -na $na --gpu $gpu -kw $kws &"
-        echo $na
-        echo $py_script
-    fi
-    eval $py_script
-    ((i=(i+1) ))
+        eval $py_script
+        ((i=(i+1) ))
+    done
 done
-# done
 
 # i=0
 # j=0
 # for j in {0..2}; do
-#     for s in {0..3}; do
-#         gpu=$((($i + 2) % $gpus))
-#         env=${envs[$j]}
-#         na=${nas[$j]}
-#         py_script="python run/train.py -a happo -e $env -c ma_mujoco -ld ma_mujoco-logs -n div_seed -s $s -na $na --gpu $gpu &"
-#         echo $py_script
-#         eval $py_script
-#         ((i=(i+1) ))
-#     done
+# for s in {0..3}; do
+#     gpu=$(($i % $gpus))
+#     env=${envs[$j]}
+#     na=${nas[$j]}
+#     py_script="python run/train.py -a happo -e $env -c ma_mujoco -ld ma_mujoco-logs -n brand_new -s $s -na $na --gpu $gpu &"
+#     echo $py_script
+#     eval $py_script
+#     ((i=(i+1) ))
+# done
 # done
 
 # n_epochs=(
