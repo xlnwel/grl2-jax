@@ -72,7 +72,7 @@ class Model(ModelBase):
         self.elite_idx = self.elite_indices[idx]
         self.n_selected_elites[f'elite{self.elite_idx}'] += 1
         model = self.get_ith_model(self.elite_idx)
-        assert set(model) == set(self.params.model), (set(model), set(self.params.model))
+        assert set(model) == set(self.params.model), (set(self.params.model) - set(model))
         self.params.model = model
         return self.elite_idx
     

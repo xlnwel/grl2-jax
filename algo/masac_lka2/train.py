@@ -2,6 +2,7 @@ from algo.masac.train import *
 from algo.masac.run import quantify_model_errors
 
 
+@timeit
 def mix_run(agent, model, buffer, model_buffer, routine_config):
     if not model.trainer.is_trust_worthy() \
         or not model_buffer.ready_to_sample():
@@ -21,10 +22,9 @@ def mix_run(agent, model, buffer, model_buffer, routine_config):
     # train lookahead agent
     routine_config = routine_config.copy()
     routine_config.lookahead_rollout = 'uni'
-    with Timer('mix_run'):
-        with TempStore(get_agent_states, set_agent_states):
-            run_on_model(
-                model, model_buffer, agent, buffer, routine_config)
+    with TempStore(get_agent_states, set_agent_states):
+        run_on_model(
+            model, model_buffer, agent, buffer, routine_config)
 
 
 def train(

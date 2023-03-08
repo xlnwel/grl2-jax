@@ -61,6 +61,7 @@ class Trainer(TrainerBase):
                     data=data, 
                 )
         self.model.set_weights(theta)
+        assert stats.mean_loss.shape[0] == self.model.config.emodels.n_models, (stats.mean_loss)
         elite_indices = np.argsort(stats.mean_loss)
         self.model.rank_elites(elite_indices)
         self._evaluate_model(stats)

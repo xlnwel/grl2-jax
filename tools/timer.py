@@ -1,6 +1,7 @@
 import time
 import datetime
 import collections
+import functools
 
 from core.log import do_logging
 from core.typing import AttrDict
@@ -20,7 +21,7 @@ def compute_time_left(elapsed_time, curr_step, remaining_steps):
     return time_left
 
 
-def timeit(func, *args, name=None, to_print=True, 
+def timeit_now(func, *args, name=None, to_print=True, 
         return_duration=False, **kwargs):
     start_time = time.gmtime()
     start = time.time()
@@ -37,13 +38,23 @@ def timeit(func, *args, name=None, to_print=True,
     return end - start, result if return_duration else result
 
 
+def timeit(func):
+    Timer.aggregators[func.__name__] = Aggregator()
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with Timer(func.__name__):
+            return func(*args, **kwargs)
+    return wrapper
+
+
 class Timer:
     aggregators = collections.defaultdict(Aggregator)
 
-    def __init__(self, summary_name, period=None, mode='average', to_record=True):
+    def __init__(self, summary_name, period=None, mode='average', to_record=True, min_duration=1e-4):
         self._to_record = to_record
         if self._to_record:
-            self.aggregators[summary_name]
+            self._min_duration = min_duration
+            self.aggregators[summary_name] = Aggregator()
             self._summary_name = summary_name
             self._period = period
             assert mode in ['average', 'sum']
@@ -62,7 +73,8 @@ class Timer:
         if self._to_record:
             duration = time.time() - self._start
             aggregator = self.aggregators[self._summary_name]
-            aggregator.add(duration)
+            if duration > self._min_duration:
+                aggregator.add(duration)
             if self._period is not None and aggregator.count >= self._period:
                 if self._mode == 'average':
                     duration = aggregator.average()

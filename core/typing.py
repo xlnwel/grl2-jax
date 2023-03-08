@@ -353,6 +353,12 @@ def get_basic_model_name(model_name: str):
 
     return name
 
+def modelpath2outdir(model_path):
+    root_dir, model_name = model_path
+    model_name = get_basic_model_name(model_name)
+    outdir = '/'.join([root_dir, model_name])
+    return outdir
+
 def get_algo(model: ModelPath):
     s = model.root_dir.split('/')
     algo = s[-1]

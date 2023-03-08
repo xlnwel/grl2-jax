@@ -5,11 +5,10 @@ import ray
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code_for_seed
-from core.typing import ModelPath
 from tools.display import print_dict, print_dict_info
 from tools.store import StateStore
 from tools.utils import modify_config
-from tools.timer import Every, Timer
+from tools.timer import Every, Timer, timeit
 from .run import *
 
 
@@ -41,37 +40,38 @@ def set_states(states, agents, runner):
     runner.set_states(runner_states)
 
 
+@timeit
 def lookahead_run(agents, runner, buffers, routine_config):
     all_aids = list(range(len(agents)))
     constructor = partial(state_constructor, agents=agents, runner=runner)
     get_fn = partial(get_states, agents=agents, runner=runner)
     set_fn = partial(set_states, agents=agents, runner=runner)
 
-    with Timer('lookahead_run'):
-        if routine_config.lookahead_rollout == 'sim':
-            with StateStore('sim', constructor, get_fn, set_fn):
+    if routine_config.lookahead_rollout == 'sim':
+        with StateStore('sim', constructor, get_fn, set_fn):
+            runner.run(
+                routine_config.n_steps, 
+                agents, buffers, 
+                all_aids, all_aids, False, 
+                compute_return=routine_config.compute_return_at_once
+            )
+    elif routine_config.lookahead_rollout == 'uni':
+        for i in all_aids:
+            with StateStore(f'uni{i}', constructor, get_fn, set_fn):
                 runner.run(
                     routine_config.n_steps, 
                     agents, buffers, 
-                    all_aids, all_aids, False, 
+                    [i], [i], False, 
                     compute_return=routine_config.compute_return_at_once
                 )
-        elif routine_config.lookahead_rollout == 'uni':
-            for i in all_aids:
-                with StateStore(f'uni{i}', constructor, get_fn, set_fn):
-                    runner.run(
-                        routine_config.n_steps, 
-                        agents, buffers, 
-                        [i], [i], False, 
-                        compute_return=routine_config.compute_return_at_once
-                    )
-        else:
-            raise NotImplementedError
+    else:
+        raise NotImplementedError
 
     for i, buffer in enumerate(buffers):
         assert buffer.ready(), f"buffer {i}: ({buffer.size()}, {len(buffer._queue)})"
 
 
+@timeit
 def lookahead_optimize(agents, routine_config, aids=None):
     if aids is None:
         all_aids = list(range(len(agents)))
@@ -88,6 +88,7 @@ def lookahead_optimize(agents, routine_config, aids=None):
             teammate_log_ratio = tlr
 
 
+@timeit
 def lookahead_train(agents, runner, buffers, routine_config, 
         aids, n_runs, run_fn, opt_fn):
     assert n_runs >= 0, n_runs
@@ -96,6 +97,7 @@ def lookahead_train(agents, runner, buffers, routine_config,
         opt_fn(agents, routine_config, aids)
 
 
+@timeit
 def ego_run(agents, runner, buffers, routine_config):
     all_aids = list(range(len(agents)))
     constructor = partial(state_constructor, agents=agents, runner=runner)
@@ -105,25 +107,24 @@ def ego_run(agents, runner, buffers, routine_config):
     for i, buffer in enumerate(buffers):
         assert buffer.size() == 0, f"buffer {i}: {buffer.size()}"
 
-    with Timer('run'):
-        if routine_config.n_lookahead_steps:
-            for i in all_aids:
-                lka_aids = [aid for aid in all_aids if aid != i]
-                with StateStore(f'real{i}', constructor, get_fn, set_fn):
-                    runner.run(
-                        routine_config.n_steps, 
-                        agents, buffers, 
-                        lka_aids, [i], 
-                        compute_return=routine_config.compute_return_at_once
-                    )
-        else:
-            with StateStore('real', constructor, get_fn, set_fn):
+    if routine_config.n_lookahead_steps:
+        for i in all_aids:
+            lka_aids = [aid for aid in all_aids if aid != i]
+            with StateStore(f'real{i}', constructor, get_fn, set_fn):
                 runner.run(
                     routine_config.n_steps, 
                     agents, buffers, 
-                    [], all_aids, 
+                    lka_aids, [i], 
                     compute_return=routine_config.compute_return_at_once
                 )
+    else:
+        with StateStore('real', constructor, get_fn, set_fn):
+            runner.run(
+                routine_config.n_steps, 
+                agents, buffers, 
+                [], all_aids, 
+                compute_return=routine_config.compute_return_at_once
+            )
 
     for i, buffer in enumerate(buffers):
         assert buffer.ready(), f"buffer {i}: ({buffer.size()}, {len(buffer._queue)})"
@@ -135,6 +136,7 @@ def ego_run(agents, runner, buffers, routine_config):
     return agents[0].get_env_step()
 
 
+@timeit
 def ego_optimize(agents, routine_config, aids=None):
     if aids is None:
         all_aids = list(range(len(agents)))
@@ -155,6 +157,7 @@ def ego_optimize(agents, routine_config, aids=None):
     return train_step
 
 
+@timeit
 def ego_train(agents, runner, buffers, routine_config, 
         aids, run_fn, opt_fn):
     env_step = run_fn(
@@ -164,46 +167,64 @@ def ego_train(agents, runner, buffers, routine_config,
     return env_step, train_step
 
 
-def eval_and_log(agents, runner, env_step, train_step, routine_config):
-    get_fn = partial(get_states, agents=agents, runner=runner)
-    set_fn = partial(set_states, agents=agents, runner=runner)
-    def constructor():
-        env_config = runner.env_config()
-        if routine_config.n_eval_envs:
-            env_config.n_envs = routine_config.n_eval_envs
-        agent_states = [a.build_memory() for a in agents]
-        runner_states = runner.build_env()
-        return agent_states, runner_states
+@timeit
+def evaluate(agents, runner, env_step, routine_config):
+    if routine_config.EVAL_PERIOD:
+        get_fn = partial(get_states, agents=agents, runner=runner)
+        set_fn = partial(set_states, agents=agents, runner=runner)
+        def constructor():
+            env_config = runner.env_config()
+            if routine_config.n_eval_envs:
+                env_config.n_envs = routine_config.n_eval_envs
+            agent_states = [a.build_memory() for a in agents]
+            runner_states = runner.build_env()
+            return agent_states, runner_states
 
-    with Timer('eval'):
         with StateStore('eval', constructor, get_fn, set_fn):
-            scores, epslens, _, video = runner.eval_with_video(
+            eval_scores, eval_epslens, _, video = runner.eval_with_video(
                 agents, record_video=routine_config.RECORD_VIDEO
             )
-    agents[0].store(**{
-        'eval_score': np.mean(scores), 
-        'eval_epslen': np.mean(epslens), 
-    })
 
-    with Timer('save'):
-        for agent in agents:
-            agent.save()
-
-    with Timer('log'):
+        agents[0].store(**{
+            'eval_score': np.mean(eval_scores), 
+            'eval_epslen': np.mean(eval_epslens), 
+        })
         if video is not None:
             agents[0].video_summary(video, step=env_step, fps=1)
-        fps = agents[0].get_env_step_intervals() / Timer('run').last()
-        tps = agents[0].get_train_step_intervals() / Timer('train').last()
-        agents[0].store(**{
-                'stats/train_step': train_step, 
-                'time/fps': fps, 
-                'time/tps': tps, 
-            }, 
-            **Timer.all_stats()
-        )
-        agents[0].record(step=env_step)
-        for i in range(1, len(agents)):
-            agents[i].clear()
+
+
+@timeit
+def save(agents):
+    for agent in agents:
+        agent.save()
+
+
+@timeit
+def log(agents, env_step, train_step):
+    agent = agents[0]
+    run_time = Timer('run').last()
+    train_time = Timer('train').last()
+    if run_time == 0:
+        fps = 0
+    else:
+        fps = agent.get_env_step_intervals() / run_time
+    if train_time == 0:
+        tps = 0
+    else:
+        tps = agent.get_train_step_intervals() / train_time
+    agent.store(**{
+            'stats/train_step': train_step, 
+            'time/fps': fps, 
+            'time/tps': tps, 
+        }, 
+        **Timer.all_stats()
+    )
+    score = agent.get_raw_item('score')
+    agent.store(score=score)
+    agent.record(step=env_step)
+    for agent in agents:
+        agent.clear()
+
 
 
 def training_aids(all_aids, routine_config):
@@ -235,6 +256,8 @@ def train(
 
     while env_step < routine_config.MAX_STEPS:
         aids = aids_fn(all_aids, routine_config)
+        time2record = agents[0].contains_stats('score') \
+            and to_record(env_step)
         
         lka_train_fn(
             agents, 
@@ -256,11 +279,10 @@ def train(
             opt_fn=ego_opt_fn
         )
 
-        time2record = agents[0].contains_stats('score') \
-            and to_record(env_step)
         if time2record:
-            eval_and_log(
-                agents, runner, env_step, train_step, routine_config)
+            evaluate(agents, runner, env_step, routine_config)
+            save(agents)
+            log(agents, env_step, train_step)
 
 
 def build_agents(config, env_stats):

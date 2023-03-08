@@ -5,7 +5,7 @@ from core.typing import AttrDict
 from tools.run import RunnerWithState
 from tools.utils import batch_dicts
 from tools.display import print_dict_info
-from tools.timer import Timer
+from tools.timer import timeit
 from env.typing import EnvOutput
 from algo.masac.elements.utils import concate_along_unit_dim
 from env.func import create_env
@@ -135,6 +135,7 @@ class Runner(RunnerWithState):
             return scores, epslens, stats, None
 
 
+@timeit
 def simultaneous_rollout(env, agent, buffer, env_output, routine_config):
     agent.model.switch_params(True)
     agent.set_states()
@@ -168,6 +169,7 @@ def simultaneous_rollout(env, agent, buffer, env_output, routine_config):
     buffer.clear_local_buffer()
 
 
+@timeit
 def unilateral_rollout(env, agent, buffer, env_output, routine_config):
     agent.set_states()
     buffer.clear_local_buffer()
@@ -206,6 +208,7 @@ def unilateral_rollout(env, agent, buffer, env_output, routine_config):
     agent.model.check_params(False)
 
 
+@timeit
 def run_on_model(env, model_buffer, agent, buffer, routine_config):
     sample_keys = buffer.obs_keys + ['state'] \
         if routine_config.restore_state else buffer.obs_keys
@@ -230,13 +233,12 @@ def run_on_model(env, model_buffer, agent, buffer, routine_config):
     else:
         agent.set_states()
 
-    with Timer('model_rollout'):
-        if routine_config.lookahead_rollout == 'sim':
-            return simultaneous_rollout(env, agent, buffer, env_output, routine_config)
-        elif routine_config.lookahead_rollout == 'uni':
-            return unilateral_rollout(env, agent, buffer, env_output, routine_config)
-        else:
-            raise NotImplementedError
+    if routine_config.lookahead_rollout == 'sim':
+        return simultaneous_rollout(env, agent, buffer, env_output, routine_config)
+    elif routine_config.lookahead_rollout == 'uni':
+        return unilateral_rollout(env, agent, buffer, env_output, routine_config)
+    else:
+        raise NotImplementedError
 
 
 def concat_env_output(env_output):
@@ -247,36 +249,36 @@ def concat_env_output(env_output):
     return EnvOutput(obs, reward, discount, reset)
 
 
+@timeit
 def quantify_model_errors(agent, model, env_config, n_steps, lka_aids):
-    model.model.choose_elite()
-    with Timer('error_quantify'):
-        agent.model.check_params(False)
-        agent.model.switch_params(True, lka_aids)
+    model.model.choose_elite(0)
+    agent.model.check_params(False)
+    agent.model.switch_params(True, lka_aids)
 
-        errors = AttrDict()
-        errors.trans = []
-        errors.reward = []
-        errors.discount = []
+    errors = AttrDict()
+    errors.trans = []
+    errors.reward = []
+    errors.discount = []
 
-        env = create_env(env_config)
-        env_output = env.output()
-        env_output = concat_env_output(env_output)
-        for _ in range(n_steps):
-            action, _ = agent(env_output)
-            new_env_output = env.step(action)
-            new_env_output = concat_env_output(new_env_output)
-            env_output.obs['action'] = action
-            new_model_output, _ = model(env_output)
-            errors.trans.append(
-                np.abs(new_env_output.obs['obs'] - new_model_output.obs['obs']).reshape(-1))
-            errors.reward.append(
-                np.abs(new_env_output.reward - new_model_output.reward).reshape(-1))
-            errors.discount.append(
-                np.abs(new_env_output.discount - new_model_output.discount).reshape(-1))
-            env_output = new_env_output
+    env = create_env(env_config)
+    env_output = env.output()
+    env_output = concat_env_output(env_output)
+    for _ in range(n_steps):
+        action, _ = agent(env_output)
+        new_env_output = env.step(action)
+        new_env_output = concat_env_output(new_env_output)
+        env_output.obs['action'] = action
+        new_model_output, _ = model(env_output)
+        errors.trans.append(
+            np.abs(new_env_output.obs['obs'] - new_model_output.obs['obs']).reshape(-1))
+        errors.reward.append(
+            np.abs(new_env_output.reward - new_model_output.reward).reshape(-1))
+        errors.discount.append(
+            np.abs(new_env_output.discount - new_model_output.discount).reshape(-1))
+        env_output = new_env_output
 
-        for k, v in errors.items():
-            errors[k] = np.stack(v, -1)
-        agent.model.switch_params(False, lka_aids)
+    for k, v in errors.items():
+        errors[k] = np.stack(v, -1)
+    agent.model.switch_params(False, lka_aids)
 
     return errors

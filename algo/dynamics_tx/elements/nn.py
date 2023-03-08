@@ -5,7 +5,8 @@ from core.typing import dict2AttrDict
 from nn.func import mlp, nn_registry
 from algo.dynamics_tx.elements.utils import combine_sa
 from algo.dynamics.elements.nn import Reward, Discount, \
-    get_discrete_dist, get_normal_dist, DISCRETE_MODEL, CONTINUOUS_MODEL
+    get_discrete_dist, get_normal_dist, \
+    DISCRETE_MODEL, CONTINUOUS_MODEL, ENSEMBLE_AXIS
 """ Source this file to register Networks """
 
 
@@ -72,23 +73,23 @@ class EnsembleModels(Model):
         in_config, 
         tx_config, 
         out_config, 
-        name='emodel', 
+        name='emodels', 
     ):
         self.n_models = n_models
         super().__init__(out_size, in_config, tx_config, out_config, name=name)
 
     @hk.transparent
-    def build_net(self):
+    def build_net(self, name='model'):
         if self.out_type == 'discrete':
             out_size = self.out_size * self.out_config.n_classes
         else:
             out_size = self.out_size * 2
-        in_net = [mlp(**self.in_config, name=f'model{i}_in') 
+        in_net = [mlp(**self.in_config, name=f'{name}{i}_in') 
             for i in range(self.n_models)]
         tx_net = [nn_registry.get('tx')(
-            **self.tx_config, name=f'model{i}_tx'
+            **self.tx_config, name=f'{name}{i}_tx'
         ) for i in range(self.n_models)]
-        out_net = [mlp(out_size=out_size, name=f'model{i}_out') 
+        out_net = [mlp(out_size=out_size, name=f'{name}{i}_out') 
             for i in range(self.n_models)]
         return in_net, tx_net, out_net
 
@@ -96,7 +97,7 @@ class EnsembleModels(Model):
         ys = [net(x) for net in in_net]
         ys = [net(y, training=training) for net, y in zip(tx_net, ys)]
         ys = [net(y) for net, y in zip(out_net, ys)]
-        x = jnp.stack(ys, -2)
+        x = jnp.stack(ys, ENSEMBLE_AXIS)
         return x
 
 

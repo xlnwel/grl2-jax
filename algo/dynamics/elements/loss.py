@@ -7,10 +7,12 @@ from core.typing import dict2AttrDict
 from jax_tools import jax_dist, jax_loss
 from tools import utils
 from tools.rms import normalize, denormalize
+from algo.dynamics.elements.nn import ENSEMBLE_AXIS
 
 
 def ensemble_obs(obs, n_models):
-    eobs = jnp.expand_dims(obs, 0)
+    assert ENSEMBLE_AXIS == 0, ENSEMBLE_AXIS
+    eobs = jnp.expand_dims(obs, ENSEMBLE_AXIS)
     eobs = jnp.tile(eobs, [n_models, *[1 for _ in range(obs.ndim)]])
     return eobs
 
@@ -79,7 +81,6 @@ def create_loss(config, model, name='model'):
 def compute_model_loss(
     config, dist, model_target, stats
 ):
-    ENSEMBLE_AXIS = 0
     if config.model_loss_type == 'mbpo':
         mean_loss, var_loss = jax_loss.mbpo_model_loss(
             stats.model_loc, 
