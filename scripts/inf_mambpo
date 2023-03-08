@@ -17,7 +17,7 @@ configs=(
 )
 args1=(
     # $1
-    1 2 4
+    1 2 3 4
 )
 args2=(
     $2
@@ -30,7 +30,7 @@ args3=(
 dynamics=(
     # "dynamics_tx"
     # "dynamics_tx"
-    # "dynamics_tx"
+    "dynamics_tx"
     "dynamics"
 )
 date=$(date +"%m%d")
@@ -72,12 +72,12 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="0#dynamics_name=$d n_blocks=$a1"
+kws="0#dynamics_name=$d 1#n_epochs=$a1"
 kws="0#dynamics_name=$d"
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"
-    for s in {0..4}; do
+    for s in {0..3}; do
         py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
@@ -85,8 +85,8 @@ for e in "${envs[@]}"; do
     done
 done
 # echo ${commands[@]}s
-lc=${#commands[@]}
-p=$((lc / le))
+# lc=${#commands[@]}
+# p=$((lc / le))
 # echo $p
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

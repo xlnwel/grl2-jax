@@ -53,7 +53,7 @@ class Trainer(TrainerBase):
     def train(self, data):
         data = self.process_data(data)
         theta = self.model.theta.copy()
-        with Timer('model_train'):
+        with Timer(f'{self.name}_train'):
             theta, self.params.theta, stats = \
                 self.jit_train(
                     theta, 
@@ -112,15 +112,16 @@ class Trainer(TrainerBase):
     def process_data(self, data):
         if self.env_stats.is_action_discrete[0]:
             data.action = self.model.process_action(data.action)
-        
         if self.model.config.model_norm_obs:
-            data, rms = data
-            if rms is not None:
-                self.model.obs_rms.update_from_moments(*rms)
             data.obs_loc, data.obs_scale = \
                 self.model.obs_rms.get_rms_stats(with_count=False)
 
         return data
+
+    def update_rms(self, rms):
+        if rms is not None:
+            assert self.model.config.model_norm_obs, self.model.config.model_norm_obs
+            self.model.obs_rms.update_from_moments(*rms)
 
     def _evaluate_model(self, stats):
         if not self._is_trust_worthy:

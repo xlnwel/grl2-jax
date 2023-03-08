@@ -1,5 +1,6 @@
 from algo.masac.train import *
 from algo.masac.run import quantify_model_errors
+from algo.mambpo.train import main
 
 
 @timeit

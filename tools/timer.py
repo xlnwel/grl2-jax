@@ -39,7 +39,7 @@ def timeit_now(func, *args, name=None, to_print=True,
 
 
 def timeit(func):
-    Timer.aggregators[func.__name__] = Aggregator()
+    Timer.aggregators[func.__name__]
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         with Timer(func.__name__):
@@ -54,7 +54,7 @@ class Timer:
         self._to_record = to_record
         if self._to_record:
             self._min_duration = min_duration
-            self.aggregators[summary_name] = Aggregator()
+            self.aggregators[summary_name]
             self._summary_name = summary_name
             self._period = period
             assert mode in ['average', 'sum']
@@ -84,7 +84,7 @@ class Timer:
                         f'{self._summary_name} duration: "{duration}" averaged over {self._period} times',
                         backtrack=3
                     )
-                    aggregator.reset()
+                    # aggregator.reset()
                 else:
                     duration = aggregator.sum
                     do_logging(

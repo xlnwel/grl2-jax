@@ -1,4 +1,5 @@
 from algo.masac.train import *
+from algo.mambpo.train import main
 
 
 @timeit

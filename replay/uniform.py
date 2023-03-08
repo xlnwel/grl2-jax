@@ -93,8 +93,7 @@ class UniformReplay(Buffer):
         if isinstance(trajs, dict):
             trajs = [trajs]
         self._memory.extend(trajs)
-        if self.config.model_norm_obs:
-            self.obs_rms.update(np.stack([traj['obs'] for traj in trajs]))
+        self._update_obs_rms(trajs)
 
     def merge_and_pop(self, trajs):
         if isinstance(trajs, dict):
@@ -104,6 +103,7 @@ class UniformReplay(Buffer):
             if len(self._memory) == self._memory.maxlen:
                 popped_data.append(self._memory.popleft())
             self._memory.append(traj)
+        self._update_obs_rms(trajs)
         return popped_data
 
     def sample_from_recency(self, batch_size, sample_keys, n=None, **kwargs):
@@ -125,7 +125,7 @@ class UniformReplay(Buffer):
             samples = None
 
         return samples
-    
+
     def ergodic_sample(self, batch_size=None):
         if not self.ready_to_sample():
             return None
@@ -138,6 +138,14 @@ class UniformReplay(Buffer):
         for i in range(0, maxlen, batch_size):
             yield self._get_samples(idxes[i:i+batch_size], self._memory)
     
+    def get_obs_rms(self):
+        if self.config.model_norm_obs:
+            rms = self.obs_rms.get_rms_stats() \
+                if self.obs_rms.is_initialized() else None
+            self.obs_rms.reset_rms_stats()
+            assert not self.obs_rms.is_initialized(), (self.obs_rms._count, self.obs_rms._epsilon, self.obs_rms.is_initialized())
+            return rms        
+
     def retrieve_all_data(self):
         data = self._memory
         self._memory = collections.deque(max_len=self.config.max_size)
@@ -166,12 +174,8 @@ class UniformReplay(Buffer):
         fn = lambda x: np.expand_dims(np.stack(x), 1)
         samples = batch_dicts([memory[i] for i in idxes], func=fn)
 
-        if self.config.model_norm_obs:
-            if self.obs_rms.is_initialized():
-                samples = samples, self.obs_rms.get_rms_stats()
-            else:
-                samples = samples, None
-            self.obs_rms.reset_rms_stats()
-            assert not self.obs_rms.is_initialized(), (self.obs_rms._count, self.obs_rms._epsilon, self.obs_rms.is_initialized())
-
         return samples
+
+    def _update_obs_rms(self, trajs):
+        if self.config.model_norm_obs:
+            self.obs_rms.update(np.stack([traj['obs'] for traj in trajs]))

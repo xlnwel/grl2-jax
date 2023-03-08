@@ -285,6 +285,7 @@ def train(
             log(agents, env_step, train_step)
 
 
+@timeit
 def build_agents(config, env_stats):
     agents = []
     buffers = []

@@ -184,14 +184,13 @@ def log_model_errors(errors, outdir, env_step):
             with Timer('prepare_data'):
                 data[k] = prepare_data_for_plotting(
                     v, y=y, smooth_radius=1, filepath=filepath)
-            with Timer('linplot'):
-                lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
+            # lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
 
 
 @timeit
 def log(agent, model, env_step, train_step, errors):
-    run_time = Timer('run').last()
-    train_time = Timer('train').last()
+    run_time = Timer('ego_run').last()
+    train_time = Timer('ego_optimize').last()
     if run_time == 0:
         fps = 0
     else:
@@ -238,6 +237,7 @@ def log(agent, model, env_step, train_step, errors):
                 'stats/train_step': train_step, 
                 'time/tps': tps, 
             }, 
+            **error_stats, 
             **Timer.all_stats()
         )
         model.store(model_score=score)

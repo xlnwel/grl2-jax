@@ -8,6 +8,7 @@ from core.ensemble import Ensemble
 from core.optimizer import build_optimizer
 from core.typing import ModelPath, dict2AttrDict
 from core.typing import AttrDict
+from tools.timer import Timer
 from tools.utils import set_path
 
 
@@ -48,7 +49,8 @@ class TrainerBase(ParamsCheckpointBase):
         )
 
     def compile_train(self):
-        _jit_train = jax.jit(self.theta_train)
+        with Timer(f'{self.name}_jit_train'):
+            _jit_train = jax.jit(self.theta_train)
         def jit_train(*args, **kwargs):
             self.rng, rng = jax.random.split(self.rng)
             return _jit_train(*args, rng=rng, **kwargs)
