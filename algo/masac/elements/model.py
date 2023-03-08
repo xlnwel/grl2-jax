@@ -118,7 +118,7 @@ class Model(ModelBase):
     
     def sync_target_params(self):
         self.target_params = self.params
-        chex.assert_tree_all_close(self.params, self.target_params)
+        chex.assert_trees_all_close(self.params, self.target_params)
 
     def update_target_params(self):
         self.target_params = update_params(

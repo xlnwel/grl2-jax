@@ -9,6 +9,8 @@ from algo.dynamics.elements.utils import *
 """ Source this file to register Networks """
 
 
+ENSEMBLE_AXIS = 0
+
 def get_normal_dist(x, max_logvar, min_logvar):
     loc, logvar = compute_mean_logvar(x, max_logvar, min_logvar)
     scale = lax.exp(logvar / 2)
@@ -83,7 +85,7 @@ class EnsembleModels(Model):
         n_models, 
         out_size, 
         out_config, 
-        name='emodel', 
+        name='emodels', 
         **config, 
     ):
         self.n_models = n_models
@@ -103,7 +105,7 @@ class EnsembleModels(Model):
         return nets
 
     def call_net(self, nets, x):
-        x = jnp.stack([net(x) for net in nets], 0)
+        x = jnp.stack([net(x) for net in nets], ENSEMBLE_AXIS)
         return x
 
 

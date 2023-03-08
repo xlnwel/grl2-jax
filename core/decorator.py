@@ -22,6 +22,7 @@ def config(init_fn):
 
     return wrapper
 
+
 def override(cls):
     @functools.wraps(cls)
     def check_override(method):
@@ -31,3 +32,4 @@ def override(cls):
         return method
 
     return check_override
+

@@ -12,9 +12,9 @@ from core.elements.trainer import TrainerBase
 from core.elements.monitor import Monitor, create_monitor
 from core.log import do_logging
 from core.typing import *
-from core.utils import save_code, save_config
+from core.utils import save_code_for_seed, save_config
 from env.func import get_env_stats
-from tools.timer import timeit
+from tools.timer import timeit_now
 from tools.utils import set_path
 from tools import pkg, yaml_op
 
@@ -43,7 +43,7 @@ class ElementsBuilder:
         self.constructors = self.retrieve_constructor(algo)
 
         if to_save_code:
-            timeit(save_code, self._model_path)
+            timeit_now(save_code_for_seed, self.config)
 
     @property
     def name(self):

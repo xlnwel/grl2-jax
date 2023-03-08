@@ -5,13 +5,13 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
-from core.typing import get_basic_model_name
+from core.typing import modelpath2outdir
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from tools.display import print_dict
 from tools.plot import prepare_data_for_plotting, lineplot_dataframe
 from tools.store import StateStore, TempStore
 from tools.utils import modify_config, prefix_name
-from tools.timer import Every, Timer
+from tools.timer import Every, Timer, timeit
 from replay.dual import DualReplay
 from .run import *
 from algo.happo_mb.train import build_model
@@ -43,13 +43,14 @@ def set_states(states, agent, runner):
     runner.set_states(runner_states)
 
 
+@timeit
 def model_train(model):
     if model is None:
         return
-    with Timer('model_train'):
-        model.train_record()
+    model.train_record()
 
 
+@timeit
 def lookahead_run(agent, model, buffer, model_buffer, routine_config):
     def get_agent_states():
         state = agent.get_states()
@@ -64,16 +65,17 @@ def lookahead_run(agent, model, buffer, model_buffer, routine_config):
             buffer.set_default_replay('primal')
 
     # train lookahead agent
-    with Timer('lookahead_run'):
-        with TempStore(get_agent_states, set_agent_states):
-            run_on_model(
-                model, model_buffer, agent, buffer, routine_config)
+    with TempStore(get_agent_states, set_agent_states):
+        run_on_model(
+            model, model_buffer, agent, buffer, routine_config)
 
 
+@timeit
 def lookahead_optimize(agent):
     agent.lookahead_train()
 
 
+@timeit
 def lookahead_train(agent, model, buffer, model_buffer, routine_config, 
         n_runs, run_fn, opt_fn):
     if model is None or not model.trainer.is_trust_worthy() \
@@ -85,19 +87,19 @@ def lookahead_train(agent, model, buffer, model_buffer, routine_config,
         opt_fn(agent)
 
 
+@timeit
 def ego_run(agent, runner, buffer, model_buffer, routine_config):
     constructor = partial(state_constructor, agent=agent, runner=runner)
     get_fn = partial(get_states, agent=agent, runner=runner)
     set_fn = partial(set_states, agent=agent, runner=runner)
 
-    with Timer('run'):
-        with StateStore('real', constructor, get_fn, set_fn):
-            runner.run(
-                routine_config.n_steps, 
-                agent, buffer, 
-                model_buffer, 
-                [], 
-            )
+    with StateStore('real', constructor, get_fn, set_fn):
+        runner.run(
+            routine_config.n_steps, 
+            agent, buffer, 
+            model_buffer, 
+            [], 
+        )
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
     agent.add_env_step(env_steps_per_run)
@@ -105,6 +107,7 @@ def ego_run(agent, runner, buffer, model_buffer, routine_config):
     return agent.get_env_step()
 
 
+@timeit
 def ego_optimize(agent):
     agent.train_record()
     train_step = agent.get_train_step()
@@ -112,6 +115,7 @@ def ego_optimize(agent):
     return train_step
 
 
+@timeit
 def ego_train(agent, runner, buffer, model_buffer, routine_config, 
         run_fn, opt_fn):
     env_step = run_fn(
@@ -124,6 +128,7 @@ def ego_train(agent, runner, buffer, model_buffer, routine_config,
     return env_step, train_step
 
 
+@timeit
 def evaluate(agent, model, runner, env_step, routine_config):
     if routine_config.EVAL_PERIOD:
         get_fn = partial(get_states, agent=agent, runner=runner)
@@ -155,93 +160,88 @@ def evaluate(agent, model, runner, env_step, routine_config):
             agent.video_summary(video, step=env_step, fps=1)
 
 
+@timeit
 def save(agent, model):
-    with Timer('save'):
-        agent.save()
-        if model is not None: 
-            model.save()
-            
-
-def modelpath2outdir(model_path):
-    root_dir, model_name = model_path
-    model_name = get_basic_model_name(model_name)
-    outdir = '/'.join([root_dir, model_name])
-    return outdir
+    agent.save()
+    if model is not None: 
+        model.save()
 
 
+@timeit
 def log_model_errors(errors, outdir, env_step):
     if errors:
-        with Timer('error_log'):
-            data = collections.defaultdict(dict)
-            for k1, errs in errors.items():
-                for k2, v in errs.items():
-                    data[k2][k1] = v
-            y = 'abs error'
-            outdir = '/'.join([outdir, 'errors'])
-            if not os.path.isdir(outdir):
-                os.makedirs(outdir, exist_ok=True)
-            for k, v in data.items():
-                filename = f'{k}-{env_step}'
-                filepath = '/'.join([outdir, filename])
+        data = collections.defaultdict(dict)
+        for k1, errs in errors.items():
+            for k2, v in errs.items():
+                data[k2][k1] = v
+        y = 'abs error'
+        outdir = '/'.join([outdir, 'errors'])
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir, exist_ok=True)
+        for k, v in data.items():
+            filename = f'{k}-{env_step}'
+            filepath = '/'.join([outdir, filename])
+            with Timer('prepare_data'):
                 data[k] = prepare_data_for_plotting(
                     v, y=y, smooth_radius=1, filepath=filepath)
+            with Timer('linplot'):
                 lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
 
 
+@timeit
 def log(agent, model, env_step, train_step, errors):
-    with Timer('log'):
-        run_time = Timer('run').last()
-        train_time = Timer('train').last()
-        if run_time == 0:
-            fps = 0
-        else:
-            fps = agent.get_env_step_intervals() / run_time
-        if train_time == 0:
+    run_time = Timer('run').last()
+    train_time = Timer('train').last()
+    if run_time == 0:
+        fps = 0
+    else:
+        fps = agent.get_env_step_intervals() / run_time
+    if train_time == 0:
+        tps = 0
+    else:
+        tps = agent.get_train_step_intervals() / train_time
+    error_stats = {}
+    for k1, errs in errors.items():
+        for k2, v in errs.items():
+            error_stats[f'{k1}-{k2}'] = v
+    TRAIN = 'train'
+    for k1, errs in errors.items():
+        for k2 in errs.keys():
+            if k1 != TRAIN:
+                k1_err = np.mean(error_stats[f'{k1}-{k2}'])
+                train_err = np.mean(error_stats[f'{TRAIN}-{k2}'])
+                k1_train_err = np.abs(k1_err - train_err)
+                error_stats[f'{k1}&{TRAIN}-{k2}'] = k1_train_err
+                error_stats[f'norm_{k1}&{TRAIN}-{k2}'] = \
+                    k1_train_err / train_err if train_err else k1_train_err
+    error_stats = prefix_name(error_stats, 'model_error')
+    agent.store(**{
+            'stats/train_step': train_step, 
+            'time/fps': fps, 
+            'time/tps': tps, 
+        }, 
+        **error_stats, 
+        **Timer.all_stats()
+    )
+    score = agent.get_raw_item('score')
+    agent.store(score=score)
+    agent.record(step=env_step)
+
+    if model is not None:
+        train_step = model.get_train_step()
+        model_train_duration = Timer('model_train').last()
+        if model_train_duration == 0:
             tps = 0
         else:
-            tps = agent.get_train_step_intervals() / train_time
-        error_stats = {}
-        for k1, errs in errors.items():
-            for k2, v in errs.items():
-                error_stats[f'{k1}-{k2}'] = v
-        TRAIN = 'train'
-        for k1, errs in errors.items():
-            for k2 in errs.keys():
-                if k1 != TRAIN:
-                    k1_err = np.mean(error_stats[f'{k1}-{k2}'])
-                    train_err = np.mean(error_stats[f'{TRAIN}-{k2}'])
-                    k1_train_err = np.abs(k1_err - train_err)
-                    error_stats[f'{k1}&{TRAIN}-{k2}'] = k1_train_err
-                    error_stats[f'norm_{k1}&{TRAIN}-{k2}'] = \
-                        k1_train_err / train_err if train_err else k1_train_err
-        error_stats = prefix_name(error_stats, 'model_error')
-        agent.store(**{
+            tps = model.get_train_step_intervals() / model_train_duration
+        model.store(**{
                 'stats/train_step': train_step, 
-                'time/fps': fps, 
                 'time/tps': tps, 
             }, 
-            **error_stats, 
             **Timer.all_stats()
         )
-        score = agent.get_raw_item('score')
-        agent.store(score=score)
-        agent.record(step=env_step)
-
-        if model is not None:
-            train_step = model.get_train_step()
-            model_train_duration = Timer('model_train').last()
-            if model_train_duration == 0:
-                tps = 0
-            else:
-                tps = model.get_train_step_intervals() / model_train_duration
-            model.store(**{
-                    'stats/train_step': train_step, 
-                    'time/tps': tps, 
-                }, 
-                **Timer.all_stats()
-            )
-            model.store(model_score=score)
-            model.record(step=env_step)
+        model.store(model_score=score)
+        model.record(step=env_step)
 
 
 def train(
@@ -311,6 +311,7 @@ def train(
             log(agent, model, env_step, train_step, errors)
 
 
+@timeit
 def build_agent(config, env_stats):
     model_name = config.model_name
     new_model_name = '/'.join([model_name, f'a0'])
