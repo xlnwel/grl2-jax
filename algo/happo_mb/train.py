@@ -107,7 +107,7 @@ def log_model_errors(errors, outdir, env_step):
             filepath = '/'.join([outdir, filename])
             with Timer('prepare_data'):
                 data[k] = prepare_data_for_plotting(
-                    v, y=y, smooth_radius=1, filepath=filepath)
+                    v, y=y, smooth_radius=0, filepath=filepath)
             # lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
 
 
@@ -206,7 +206,7 @@ def log_model(model, env_step, score, error_stats):
             'time/tps': tps, 
         }, 
         **error_stats, 
-        **Timer.sorted_stats()
+        **Timer.all_stats()
     )
     model.store(model_score=score)
     model.record(step=env_step)

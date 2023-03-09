@@ -15,7 +15,7 @@ def smooth(v, radius=1):
     v = np.convolve(v, kernel, mode='same') / np.convolve(np.ones_like(v), kernel, mode='same')
     return v
 
-def prepare_data_for_plotting(data: dict, *, y, x='steps', smooth_radius=1, legend='legend', filepath=None):
+def prepare_data_for_plotting(data: dict, *, y, x='steps', smooth_radius=0, legend='legend', filepath=None):
     """ Convert a dict to pd.DataFrame for seaborn plotting
     All values in data except data[x] will be concatenated to form the 
     y-column of the final DataFrame
@@ -47,7 +47,7 @@ def prepare_data_for_plotting(data: dict, *, y, x='steps', smooth_radius=1, lege
     new_data[legend] = []
     for k, v in data.items():
         assert v.size == data_size, v.shape
-        if smooth_radius > 1:
+        if smooth_radius > 0:
             if v.ndim == 1:
                 new_data[y].append(smooth(v, smooth_radius))
             else:
