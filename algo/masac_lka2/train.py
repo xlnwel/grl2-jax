@@ -1,5 +1,6 @@
 from algo.masac.train import *
 from algo.masac.run import quantify_model_errors
+from algo.mambpo.train import main
 
 
 @timeit
@@ -58,8 +59,7 @@ def train(
         errors = AttrDict()
         env_step = ego_run_fn(
             agent, runner, buffer, model_buffer, routine_config)
-        time2record = agent.contains_stats('score') \
-            and to_record(env_step)
+        time2record = to_record(env_step)
         
         model_train_fn(model)
         if routine_config.quantify_model_errors and time2record:

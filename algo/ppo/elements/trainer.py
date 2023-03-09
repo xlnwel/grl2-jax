@@ -97,7 +97,7 @@ class Trainer(TrainerBase):
             indices = np.split(self.indices, self.config.n_mbs)
             v_target = []
             for idx in indices:
-                with Timer('theta_train'):
+                with Timer(f'{self.name}_train'):
                     d = data.slice(idx)
                     if self.config.popart:
                         d.popart_mean = self.popart.mean
@@ -141,7 +141,7 @@ class Trainer(TrainerBase):
             np.random.shuffle(self.indices)
             indices = np.split(self.indices, self.config.n_mbs)
             for idx in indices:
-                with Timer('lookahead_train'):
+                with Timer(f'{self.name}_lka_train'):
                     d = data.slice(idx)
                     if self.config.popart:
                         d.popart_mean = self.popart.mean

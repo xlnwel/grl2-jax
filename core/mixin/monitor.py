@@ -2,6 +2,7 @@ import os, atexit
 import logging
 from collections import defaultdict
 import numpy as np
+import pandas as pd
 import jax.numpy as jnp
 from tools.display import print_dict_info
 
@@ -29,31 +30,50 @@ def prefix_stats(stats, check_fn=check_key, prefix='metrics'):
         for k, v in stats.items()}
     return stats
 
+def is_nonempty_file(path):
+    return os.path.exists(path) and os.stat(path).st_size != 0
+
+def get_new_path(filename, suffix, i=1):
+    path = filename + suffix
+    if is_nonempty_file(path):
+        path = filename + f"{i}" + suffix
+        i += 1
+    return path
+
+def merge_data(filename, suffix):
+    path = filename + suffix
+    data = []
+    i = 1
+    while is_nonempty_file(path):
+        data.append(pd.read_csv(path, sep='\t', on_bad_lines='skip'))
+        os.remove(path)
+        path = filename + f"{i}" + suffix
+        i += 1
+    if data:
+        data = pd.concat(data)
+
+    return data
+
 
 """ Recorder """
 class Recorder:
-    def __init__(self, model_path: ModelPath=None, record_file='record.txt', max_steps=None):
+    def __init__(self, model_path: ModelPath=None, record_file='record', suffix='.txt', max_steps=None):
         self._model_path = model_path
         self._max_steps = max_steps
 
-        record_file = record_file if record_file.endswith('record.txt') \
-            else record_file + '/record.txt'
         if model_path is not None:
             recorder_dir = f'{model_path.root_dir}/{model_path.model_name}'
-            path = os.path.join(recorder_dir, record_file)
-            # if os.path.exists(path) and os.stat(path).st_size != 0:
-            #     i = 1
-            #     name, suffix = path.rsplit('.', 1)
-            #     while os.path.exists(name + f'{i}.' + suffix):
-            #         i += 1
-            #     pwc(f'Warning: Log file "{path}" already exists!', 
-            #         f'Data will be logged to "{name + f"{i}." + suffix}" instead.',
-            #         color='magenta')
-            #     path = name + f"{i}." + suffix
+            self.record_filename = os.path.join(recorder_dir, record_file)
+            self.record_suffix = suffix
+            path = self.record_filename + suffix
+            if is_nonempty_file(path):
+                data = merge_data(self.record_filename, suffix)
+                data.to_csv(path, sep='\t', index=False)
+            path = get_new_path(self.record_filename, suffix)
             if not os.path.isdir(recorder_dir):
                 os.makedirs(recorder_dir)
             self.record_path = path
-            self._out_file = open(path, 'a')
+            self._out_file = open(path, 'w')
             atexit.register(self._out_file.close)
             do_logging(f'Record data to "{self._out_file.name}"', logger=logger)
         else:
@@ -179,11 +199,16 @@ class Recorder:
     def record_stats(self, stats, print_terminal_info=True):
         if not self._first_row and not set(stats).issubset(set(self._headers)):
             if self._headers and not set(stats).issubset(set(self._headers)):
-                do_logging(f'All previous records are erased because stats does not match the first row\n'
-                    f'difference = {set(stats) - set(self._headers)}', 
+                do_logging(f'Header Mismatch!\nDifference: {set(stats) - set(self._headers)}', 
                     logger=logger)
-            self._out_file.seek(0)
-            self._out_file.truncate()
+            self._out_file.close()
+            data = merge_data(self.record_filename, self.record_suffix)
+            path = self.record_filename + self.record_suffix
+            data.to_csv(path, sep='\t', index=False)
+            path = get_new_path(self.record_filename, self.record_suffix)
+            self.record_path = path
+            self._out_file = open(path, 'w')
+            do_logging(f'Record data to "{self._out_file.name}"', logger=logger)
             self._first_row = True
         [self.record_tabular(k, v) for k, v in stats.items()]
         self.dump_tabular(print_terminal_info=print_terminal_info)

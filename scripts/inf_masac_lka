@@ -90,7 +90,7 @@ kws="0#dynamics_name=$d 0#n_epochs=$a1 0#n_simulated_envs=$a2 0#n_lka_epochs=$a3
 for e in "${envs[@]}"; do
     config=${suite}
     env="${suite}-${e}"
-    for s in {0..4}; do
+    for s in {0..3}; do
         py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script

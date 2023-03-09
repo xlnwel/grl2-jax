@@ -15,6 +15,7 @@ from jax_tools import jax_dist, jax_utils
 from tools.file import source_file
 from tools.utils import batch_dicts
 from tools.display import print_dict_info
+from tools.timer import Timer
 from algo.masac.elements.utils import concate_along_unit_dim
 
 # register ppo-related networks 
@@ -79,7 +80,6 @@ class Model(ModelBase):
             self.params.Qs.append(q_init(
                 rng, global_state, action, data.state_reset, data.state
             ))
-        
         self.params.temp, self.modules.temp = self.build_net(name='temp')
         
         self.sync_target_params()

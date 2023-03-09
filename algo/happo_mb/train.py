@@ -94,21 +94,21 @@ def ego_train(agents, runner, buffers, model_buffer, routine_config,
 @timeit
 def log_model_errors(errors, outdir, env_step):
     if errors:
-        with Timer('error_log'):
-            data = collections.defaultdict(dict)
-            for k1, errs in errors.items():
-                for k2, v in errs.items():
-                    data[k2][k1] = v
-            y = 'abs error'
-            outdir = '/'.join([outdir, 'errors'])
-            if not os.path.isdir(outdir):
-                os.makedirs(outdir, exist_ok=True)
-            for k, v in data.items():
-                filename = f'{k}-{env_step}'
-                filepath = '/'.join([outdir, filename])
+        data = collections.defaultdict(dict)
+        for k1, errs in errors.items():
+            for k2, v in errs.items():
+                data[k2][k1] = v
+        y = 'abs error'
+        outdir = '/'.join([outdir, 'errors'])
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir, exist_ok=True)
+        for k, v in data.items():
+            filename = f'{k}-{env_step}'
+            filepath = '/'.join([outdir, filename])
+            with Timer('prepare_data'):
                 data[k] = prepare_data_for_plotting(
-                    v, y=y, smooth_radius=1, filepath=filepath)
-                lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
+                    v, y=y, smooth_radius=0, filepath=filepath)
+            # lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
 
 
 @timeit
@@ -150,18 +150,7 @@ def save(agents, model):
 
 
 @timeit
-def log(agents, model, env_step, train_step, errors):
-    agent = agents[0]
-    run_time = Timer('run').last()
-    train_time = Timer('train').last()
-    if run_time == 0:
-        fps = 0
-    else:
-        fps = agent.get_env_step_intervals() / run_time
-    if train_time == 0:
-        tps = 0
-    else:
-        tps = agent.get_train_step_intervals() / train_time
+def prepare_model_errors(errors):
     error_stats = {}
     for k1, errs in errors.items():
         for k2, v in errs.items():
@@ -177,36 +166,60 @@ def log(agents, model, env_step, train_step, errors):
                 error_stats[f'norm_{k1}&{TRAIN}-{k2}'] = \
                     k1_train_err / train_err if train_err else k1_train_err
     error_stats = prefix_name(error_stats, 'model_error')
+
+    return error_stats
+
+
+@timeit
+def log_agent(agent, env_step, train_step, error_stats):
+    run_time = Timer('ego_run').last()
+    train_time = Timer('ego_optimize').last()
+    fps = 0 if run_time == 0 else \
+        agent.get_env_step_intervals() / run_time
+    tps = 0 if train_time == 0 else \
+        agent.get_train_step_intervals() / train_time
+    
     agent.store(**{
             'stats/train_step': train_step, 
             'time/fps': fps, 
             'time/tps': tps, 
         }, 
         **error_stats, 
-        **Timer.all_stats()
+        **Timer.top_stats()
     )
     score = agent.get_raw_item('score')
     agent.store(score=score)
     agent.record(step=env_step)
+    return score
+
+
+@timeit
+def log_model(model, env_step, score, error_stats):
+    if model is None:
+        return
+    train_step = model.get_train_step()
+    train_time = Timer('model_train').last()
+    tps = 0 if train_time == 0 else \
+        model.get_train_step_intervals() / train_time
+    model.store(**{
+            'stats/train_step': train_step, 
+            'time/tps': tps, 
+        }, 
+        **error_stats, 
+        **Timer.top_stats()
+    )
+    model.store(model_score=score)
+    model.record(step=env_step)
+
+
+@timeit
+def log(agents, model, env_step, train_step, errors):
+    error_stats = prepare_model_errors(errors)
+    score = log_agent(agents[0], env_step, train_step, error_stats)
+    log_model(model, env_step, score, error_stats)
+
     for agent in agents:
         agent.clear()
-
-    if model is not None:
-        train_step = model.get_train_step()
-        model_train_duration = Timer('model_train').last()
-        if model_train_duration == 0:
-            tps = 0
-        else:
-            tps = model.get_train_step_intervals() / model_train_duration
-        model.store(**{
-                'stats/train_step': train_step, 
-                'time/tps': tps, 
-            }, 
-            **error_stats, 
-            **Timer.all_stats()
-        )
-        model.store(model_score=score)
-        model.record(step=env_step)
 
 
 def training_aids(all_aids, routine_config):
@@ -244,12 +257,12 @@ def train(
         final=routine_config.MAX_STEPS
     )
     all_aids = list(range(len(agents)))
+    runner.run(MODEL_EVAL_STEPS, agents, buffers, None, [], [])
 
     while env_step < routine_config.MAX_STEPS:
         errors = AttrDict()
         aids = aids_fn(all_aids, routine_config)
-        time2record = agents[0].contains_stats('score') \
-            and to_record(env_step)
+        time2record = to_record(env_step)
         
         model_train_fn(
             model, 
@@ -259,20 +272,20 @@ def train(
             errors.train = quantify_model_errors(
                 agents, model, runner.env_config(), MODEL_EVAL_STEPS, [])
 
-        # if model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
-        #     pass
-        # else:
-        lka_train_fn(
-            agents, 
-            model, 
-            buffers, 
-            model_buffer, 
-            routine_config, 
-            aids=aids, 
-            n_runs=routine_config.n_lookahead_steps, 
-            run_fn=lka_run_fn, 
-            opt_fn=lka_opt_fn
-        )
+        if model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
+            pass
+        else:
+            lka_train_fn(
+                agents, 
+                model, 
+                buffers, 
+                model_buffer, 
+                routine_config, 
+                aids=aids, 
+                n_runs=routine_config.n_lookahead_steps, 
+                run_fn=lka_run_fn, 
+                opt_fn=lka_opt_fn
+            )
         if routine_config.quantify_model_errors and time2record:
             errors.lka = quantify_model_errors(
                 agents, model, runner.env_config(), MODEL_EVAL_STEPS, None)
@@ -351,7 +364,6 @@ def main(configs, train=train):
         sigint_shutdown_ray()
 
     runner = Runner(config.env)
-    print('runner', runner, Runner)
 
     env_stats = runner.env_stats()
     # assert len(configs) == env_stats.n_agents, (len(configs), env_stats.n_agents)

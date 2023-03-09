@@ -10,6 +10,7 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import do_logging
+from core.mixin.monitor import is_nonempty_file, merge_data
 from tools.file import yield_dirs
 from tools import yaml_op
 from tools.utils import flatten_dict, recursively_remove
@@ -198,7 +199,7 @@ if __name__ == '__main__':
     config_name = 'config.yaml' 
     player0_config_name = 'config_p0.yaml' 
     js_name = 'parameter.json'
-    record_name = 'record.txt'
+    record_name = 'record'
     process_name = 'progress.csv'
     date = args.date
     do_logging(f'Loading logs on date: {date}')
@@ -262,10 +263,11 @@ if __name__ == '__main__':
         
         # define paths
         json_path = '/'.join([target_dir, js_name])
-        record_path = '/'.join([d, record_name])
+        record_name = '/'.join([d, record_name])
+        record_path = record_name + '.txt'
         csv_path = '/'.join([target_dir, process_name])
         # do_logging(f'yaml path: {yaml_path}')
-        if not os.path.exists(record_path):
+        if is_nonempty_file(record_path):
             do_logging(f'{record_path} does not exist', color='magenta')
             continue
         # save config
@@ -280,13 +282,7 @@ if __name__ == '__main__':
         config['model_name'] = config['model_name'].split('/')[1]
 
         # save stats
-        try:
-            data = pd.read_table(record_path, on_bad_lines='skip')
-        except:
-            do_logging(f'Record path ({record_path}) constains no data', color='magenta')
-            continue
-        if len(data.keys()) == 1:
-            data = pd.read_csv(record_path)
+        data = merge_data(record_name, '.txt')
         data = process_data(data)
         for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
             if k not in data.keys():
@@ -297,7 +293,7 @@ if __name__ == '__main__':
 
         with open(json_path, 'w') as json_file:
             json.dump(config, json_file)
-        data.to_csv(csv_path)
+        data.to_csv(csv_path, index=False)
         # all_data[config.env_name].append(DataPath(csv_path, data))
         # to_csv(config.env_name, DataPath(csv_path, data))
 

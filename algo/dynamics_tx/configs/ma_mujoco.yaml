@@ -42,7 +42,7 @@ strategy:
     algorithm: *algo
     train_loop:
         ergodic: True
-        n_epochs: &nepochs 5
+        n_epochs: &nepochs 3
 
 model:
     aid: 0
@@ -84,6 +84,7 @@ model:
         units_list: [200, 200]
         activation: relu
         norm: layer
+        out_scale: .01
 
 loss:
     model_loss_type: *mlt

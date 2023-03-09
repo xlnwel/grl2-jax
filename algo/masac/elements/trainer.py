@@ -72,13 +72,15 @@ class Trainer(TrainerBase):
         self.lookahead_opt_state = self.params.theta.policy
 
     def compile_train(self):
-        _jit_train = jax.jit(self.theta_train)
+        with Timer(f'{self.name}_jit_train'):
+            _jit_train = jax.jit(self.theta_train)
         def jit_train(*args, **kwargs):
             self.rng, rng = random.split(self.rng)
             return _jit_train(*args, rng=rng, **kwargs)
         self.jit_train = jit_train
 
-        _jit_lka_train = jax.jit(self.lka_train)
+        with Timer(f'{self.name}_jit_lka_train'):
+            _jit_lka_train = jax.jit(self.lka_train)
         def jit_lka_train(*args, **kwargs):
             self.rng, rng = random.split(self.rng)
             return _jit_lka_train(*args, rng=rng, **kwargs)

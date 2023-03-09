@@ -16,7 +16,11 @@ envs=(
 configs=(
     "${suite}"
 )
-args1=(dual uniform)
+args1=(
+    100
+    200
+    400
+)
 args2=(
     128
     256
@@ -70,9 +74,9 @@ a3=${args3[$idx]}
 
 commands=()
 for a1 in "${args1[@]}"; do
-    kws="buffer:type=$a1 n_epochs=400"
+    kws="n_epochs=$a1"
     for e in "${envs[@]}"; do
-        config=${suite}
+        config="${suite}"
         env="${suite}-${e}"
         for s in {0..4}; do
             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
@@ -83,8 +87,8 @@ for a1 in "${args1[@]}"; do
     done
 done
 # echo ${commands[@]}s
-lc=${#commands[@]}
-p=$((lc / le))
-echo $commands
+# lc=${#commands[@]}
+# p=$((lc / le))
+# echo $commands
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

@@ -200,28 +200,30 @@ def save(agents):
 
 
 @timeit
-def log(agents, env_step, train_step):
-    agent = agents[0]
-    run_time = Timer('run').last()
-    train_time = Timer('train').last()
-    if run_time == 0:
-        fps = 0
-    else:
-        fps = agent.get_env_step_intervals() / run_time
-    if train_time == 0:
-        tps = 0
-    else:
-        tps = agent.get_train_step_intervals() / train_time
+def log_agent(agent, env_step, train_step):
+    run_time = Timer('ego_run').last()
+    train_time = Timer('ego_optimize').last()
+    fps = 0 if run_time == 0 else \
+        agent.get_env_step_intervals() / run_time
+    tps = 0 if train_time == 0 else \
+        agent.get_train_step_intervals() / train_time
+    
     agent.store(**{
             'stats/train_step': train_step, 
             'time/fps': fps, 
             'time/tps': tps, 
         }, 
-        **Timer.all_stats()
+        **Timer.top_stats()
     )
     score = agent.get_raw_item('score')
     agent.store(score=score)
     agent.record(step=env_step)
+    return score
+
+
+@timeit
+def log(agents, env_step, train_step):
+    log_agent(agents[0], env_step, train_step)
     for agent in agents:
         agent.clear()
 
@@ -244,6 +246,8 @@ def train(
     ego_opt_fn=ego_optimize, 
     ego_train_fn=ego_train, 
 ):
+    MODEL_EVAL_STEPS = runner.env.max_episode_steps
+    print('Model evaluation steps:', MODEL_EVAL_STEPS)
     do_logging('Training starts...')
     env_step = agents[0].get_env_step()
     to_record = Every(
@@ -253,11 +257,11 @@ def train(
         final=routine_config.MAX_STEPS
     )
     all_aids = list(range(len(agents)))
+    runner.run(MODEL_EVAL_STEPS, agents, buffers, [], [])
 
     while env_step < routine_config.MAX_STEPS:
         aids = aids_fn(all_aids, routine_config)
-        time2record = agents[0].contains_stats('score') \
-            and to_record(env_step)
+        time2record = to_record(env_step)
         
         lka_train_fn(
             agents, 
@@ -285,6 +289,7 @@ def train(
             log(agents, env_step, train_step)
 
 
+@timeit
 def build_agents(config, env_stats):
     agents = []
     buffers = []

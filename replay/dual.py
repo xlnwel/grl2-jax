@@ -26,12 +26,12 @@ class DualReplay(Buffer):
 
         self._detached =  config.detached
         self._batch_size = config.batch_size
-        self._fast_percentage = config.primal_percentage
+        self._primal_percentage = config.primal_percentage
         primal_config = config.primal_replay
         secondary_config = config.secondary_replay
-        primal_config.batch_size = int(self._batch_size * self._fast_percentage)
-        secondary_config.batch_size = int(self._batch_size * (1 - self._fast_percentage))
-        assert primal_config.batch_size + secondary_config.batch_size == self._batch_size, f'batch size({self._batch_size}) can not be partitioned by fast_percentation({self._fast_percentage})'
+        primal_config.batch_size = int(self._batch_size * self._primal_percentage)
+        secondary_config.batch_size = int(self._batch_size * (1 - self._primal_percentage))
+        assert primal_config.batch_size + secondary_config.batch_size == self._batch_size, f'batch size({self._batch_size}) can not be partitioned by fast_percentation({self._primal_percentage})'
 
         if config.recent_primal_replay:
             primal_config.max_size = self.n_envs * config.n_steps
@@ -96,11 +96,17 @@ class DualReplay(Buffer):
         else:
             raise NotImplementedError(target_replay)
 
-    def ergodic_sample(self, target_replay=PRIMAL_REPLAY, batch_size=None):
+    def merge(self, local_buffer, target_replay=None):
+        if target_replay is None:
+            target_replay = self.default_replay
         if target_replay == PRIMAL_REPLAY:
-            return self.primal_replay.ergodic_sample(batch_size)
+            if self._detached:
+                self.primal_replay.merge(local_buffer)
+            else:
+                popped_data = self.primal_replay.merge_and_pop(local_buffer)
+                self.secondary_replay.merge(popped_data)
         elif target_replay == SECONDARY_REPLAY:
-            return self.secondary_replay.ergodic_sample(batch_size)
+            self.secondary_replay.merge(local_buffer)
         else:
             raise NotImplementedError(target_replay)
 
@@ -108,9 +114,9 @@ class DualReplay(Buffer):
         if not self.ready_to_sample(SECONDARY_REPLAY):
             primal_percentage = 1
         if primal_percentage == 1:
-            target_replay = PRIMAL_REPLAY
+            return self.primal_replay.sample(self._batch_size)
         elif primal_percentage == 0:
-            target_replay = SECONDARY_REPLAY
+            return self.secondary_replay.sample(self._batch_size)
         else:
             target_replay = None
         if self.ready_to_sample(target_replay):
@@ -126,17 +132,19 @@ class DualReplay(Buffer):
         else:
             raise NotImplementedError(target_replay)
 
-    def merge(self, local_buffer, target_replay=None):
-        if target_replay is None:
-            target_replay = self.default_replay
+    def ergodic_sample(self, target_replay=PRIMAL_REPLAY, batch_size=None):
         if target_replay == PRIMAL_REPLAY:
-            if self._detached:
-                self.primal_replay.merge(local_buffer)
-            else:
-                popped_data = self.primal_replay.merge_and_pop(local_buffer)
-                self.secondary_replay.merge(popped_data)
+            return self.primal_replay.ergodic_sample(batch_size)
         elif target_replay == SECONDARY_REPLAY:
-            self.secondary_replay.merge(local_buffer)
+            return self.secondary_replay.ergodic_sample(batch_size)
+        else:
+            raise NotImplementedError(target_replay)
+
+    def get_obs_rms(self, target_replay=PRIMAL_REPLAY):
+        if target_replay == PRIMAL_REPLAY:
+            return self.primal_replay.get_obs_rms()
+        elif target_replay == SECONDARY_REPLAY:
+            return self.secondary_replay.get_obs_rms()
         else:
             raise NotImplementedError(target_replay)
 
@@ -145,7 +153,7 @@ class DualReplay(Buffer):
             target_replay = self.default_replay
         if target_replay == PRIMAL_REPLAY:
             self.primal_replay.clear_local_buffer()
-        if target_replay == SECONDARY_REPLAY:
+        elif target_replay == SECONDARY_REPLAY:
             self.secondary_replay.clear_local_buffer()
         else:
             raise NotImplementedError(target_replay)
@@ -153,7 +161,7 @@ class DualReplay(Buffer):
     """ Implementation """
     def _sample(self, batch_size=None, primal_percentage=None):
         if primal_percentage is None:
-            primal_percentage = self._fast_percentage
+            primal_percentage = self._primal_percentage
         if batch_size is None:
             batch_size = self._batch_size
         fast_bs = int(batch_size * primal_percentage)
