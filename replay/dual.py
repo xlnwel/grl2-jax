@@ -153,7 +153,7 @@ class DualReplay(Buffer):
             target_replay = self.default_replay
         if target_replay == PRIMAL_REPLAY:
             self.primal_replay.clear_local_buffer()
-        if target_replay == SECONDARY_REPLAY:
+        elif target_replay == SECONDARY_REPLAY:
             self.secondary_replay.clear_local_buffer()
         else:
             raise NotImplementedError(target_replay)
