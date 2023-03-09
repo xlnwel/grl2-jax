@@ -200,18 +200,14 @@ def save(agents):
 
 
 @timeit
-def log(agents, env_step, train_step):
-    agent = agents[0]
-    run_time = Timer('run').last()
-    train_time = Timer('train').last()
-    if run_time == 0:
-        fps = 0
-    else:
-        fps = agent.get_env_step_intervals() / run_time
-    if train_time == 0:
-        tps = 0
-    else:
-        tps = agent.get_train_step_intervals() / train_time
+def log_agent(agent, env_step, train_step):
+    run_time = Timer('ego_run').last()
+    train_time = Timer('ego_optimize').last()
+    fps = 0 if run_time == 0 else \
+        agent.get_env_step_intervals() / run_time
+    tps = 0 if train_time == 0 else \
+        agent.get_train_step_intervals() / train_time
+    
     agent.store(**{
             'stats/train_step': train_step, 
             'time/fps': fps, 
@@ -222,6 +218,12 @@ def log(agents, env_step, train_step):
     score = agent.get_raw_item('score')
     agent.store(score=score)
     agent.record(step=env_step)
+    return score
+
+
+@timeit
+def log(agents, env_step, train_step):
+    log_agent(agents[0], env_step, train_step)
     for agent in agents:
         agent.clear()
 

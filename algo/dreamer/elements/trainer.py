@@ -79,7 +79,7 @@ class Trainer(TrainerBase):
         theta = self.model.theta.copy()
         theta.policies = [p.copy() for p in theta.policies]
         is_lookahead = [p.pop(LOOKAHEAD) for p in theta.policies]
-        with Timer('model_train'):
+        with Timer(f'{self.name}_model_train'):
             theta, self.params.theta.model, stats = \
                 self.jit_model_train(
                     theta, 
@@ -96,7 +96,7 @@ class Trainer(TrainerBase):
         theta = self.model.theta.copy()
         theta.policies = [p.copy() for p in theta.policies]
         is_lookahead = [p.pop(LOOKAHEAD) for p in theta.policies]
-        with Timer('model_train'):
+        with Timer(f'{self.name}_train'):
             theta, self.params.theta.model, stats = \
                 self.jit_train(
                     theta, 

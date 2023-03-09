@@ -4,7 +4,6 @@ import jax.numpy as jnp
 from core.elements.strategy import Strategy as StrategyBase, create_strategy
 from core.mixin.strategy import Memory
 from core.typing import AttrDict, dict2AttrDict
-from jax_tools import jax_utils
 
 
 class Strategy(StrategyBase):

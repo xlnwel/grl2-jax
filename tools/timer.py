@@ -47,6 +47,14 @@ def timeit(func):
     return wrapper
 
 
+def _get_time_prefix(prefix=None):
+    if prefix:
+        prefix = f'time/{prefix}'
+    else:
+        prefix = f'time'
+    return prefix
+
+
 class Timer:
     aggregators = collections.defaultdict(Aggregator)
 
@@ -105,26 +113,51 @@ class Timer:
     def total(self):
         return self.aggregators[self._summary_name].total
     
+    def count(self):
+        return self.aggregators[self._summary_name].count
+    
     def to_stats(self, prefix=None):
-        if prefix:
-            prefix = f'timer/{prefix}/'
-        else:
-            prefix = f'timer/'
+        prefix = _get_time_prefix(prefix)
         return {
-            f'{prefix}/{self.name}_total': self.total(),
-            f'{prefix}/{self.name}': self.average()
+            f'{prefix}/{self.name}_total': self.total(), 
+            f'{prefix}/{self.name}': self.average(), 
+            f'{prefix}/{self.name}_count': self.count()
         }
 
     @staticmethod
     def all_stats(prefix=None):
-        if prefix:
-            prefix = f'time/{prefix}'
-        else:
-            prefix = f'time'
+        prefix = _get_time_prefix(prefix)
         stats = AttrDict()
         for k, v in Timer.aggregators.items():
             stats[f'{prefix}/{k}_total'] = v.total
             stats[f'{prefix}/{k}'] = v.average()
+            stats[f'{prefix}/{k}_count'] = v.count
+        return stats
+
+    @staticmethod
+    def sorted_stats(prefix=None):
+        prefix = _get_time_prefix(prefix)
+        stats_list = sorted([(k, v) for k, v in Timer.aggregators.items()], 
+            key=lambda x: x[1].total, reverse=True)
+        stats = AttrDict()
+        for i, (k, v) in enumerate(stats_list):
+            stats[f'{prefix}/{i:02d}/{k}_total'] = v.total
+            stats[f'{prefix}/{i:02d}/{k}'] = v.average()
+            stats[f'{prefix}/{i:02d}/{k}_count'] = v.count
+        return stats
+
+    @staticmethod
+    def top_stats(prefix=None, n=15):
+        prefix = _get_time_prefix(prefix)
+        stats_list = sorted([(k, v) for k, v in Timer.aggregators.items()], 
+            key=lambda x: x[1].total, reverse=True)
+        if n is not None:
+            stats_list = stats_list[:n]
+        stats = AttrDict()
+        for k, v in stats_list:
+            stats[f'{prefix}/{k}_total'] = v.total
+            stats[f'{prefix}/{k}'] = v.average()
+            stats[f'{prefix}/{k}_count'] = v.count
         return stats
 
 

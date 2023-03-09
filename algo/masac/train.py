@@ -14,7 +14,8 @@ from tools.utils import modify_config, prefix_name
 from tools.timer import Every, Timer, timeit
 from replay.dual import DualReplay
 from .run import *
-from algo.happo_mb.train import build_model
+from algo.happo_mb.train import log_model_errors, build_model, \
+    prepare_model_errors, log_agent, log_model
 
 
 def state_constructor_with_sliced_envs(agent, runner):
@@ -168,80 +169,10 @@ def save(agent, model):
 
 
 @timeit
-def log_model_errors(errors, outdir, env_step):
-    if errors:
-        data = collections.defaultdict(dict)
-        for k1, errs in errors.items():
-            for k2, v in errs.items():
-                data[k2][k1] = v
-        y = 'abs error'
-        outdir = '/'.join([outdir, 'errors'])
-        if not os.path.isdir(outdir):
-            os.makedirs(outdir, exist_ok=True)
-        for k, v in data.items():
-            filename = f'{k}-{env_step}'
-            filepath = '/'.join([outdir, filename])
-            with Timer('prepare_data'):
-                data[k] = prepare_data_for_plotting(
-                    v, y=y, smooth_radius=1, filepath=filepath)
-            # lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
-
-
-@timeit
 def log(agent, model, env_step, train_step, errors):
-    run_time = Timer('ego_run').last()
-    train_time = Timer('ego_optimize').last()
-    if run_time == 0:
-        fps = 0
-    else:
-        fps = agent.get_env_step_intervals() / run_time
-    if train_time == 0:
-        tps = 0
-    else:
-        tps = agent.get_train_step_intervals() / train_time
-    error_stats = {}
-    for k1, errs in errors.items():
-        for k2, v in errs.items():
-            error_stats[f'{k1}-{k2}'] = v
-    TRAIN = 'train'
-    for k1, errs in errors.items():
-        for k2 in errs.keys():
-            if k1 != TRAIN:
-                k1_err = np.mean(error_stats[f'{k1}-{k2}'])
-                train_err = np.mean(error_stats[f'{TRAIN}-{k2}'])
-                k1_train_err = np.abs(k1_err - train_err)
-                error_stats[f'{k1}&{TRAIN}-{k2}'] = k1_train_err
-                error_stats[f'norm_{k1}&{TRAIN}-{k2}'] = \
-                    k1_train_err / train_err if train_err else k1_train_err
-    error_stats = prefix_name(error_stats, 'model_error')
-    agent.store(**{
-            'stats/train_step': train_step, 
-            'time/fps': fps, 
-            'time/tps': tps, 
-        }, 
-        **error_stats, 
-        **Timer.all_stats()
-    )
-    score = agent.get_raw_item('score')
-    agent.store(score=score)
-    agent.record(step=env_step)
-
-    if model is not None:
-        train_step = model.get_train_step()
-        model_train_duration = Timer('model_train').last()
-        if model_train_duration == 0:
-            tps = 0
-        else:
-            tps = model.get_train_step_intervals() / model_train_duration
-        model.store(**{
-                'stats/train_step': train_step, 
-                'time/tps': tps, 
-            }, 
-            **error_stats, 
-            **Timer.all_stats()
-        )
-        model.store(model_score=score)
-        model.record(step=env_step)
+    error_stats = prepare_model_errors(errors)
+    score = log_agent(agent, env_step, train_step, error_stats)
+    log_model(model, env_step, score, error_stats)
 
 
 def train(

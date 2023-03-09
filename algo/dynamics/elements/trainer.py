@@ -68,7 +68,7 @@ class Trainer(TrainerBase):
 
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
-        stats = prefix_name(stats, 'model_train')
+        stats = prefix_name(stats, f'{self.name}_train')
         stats.update(data)
         for v in theta.values():
             stats.update(flatten_dict(
