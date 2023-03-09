@@ -213,7 +213,7 @@ def log_agent(agent, env_step, train_step):
             'time/fps': fps, 
             'time/tps': tps, 
         }, 
-        **Timer.all_stats()
+        **Timer.top_stats()
     )
     score = agent.get_raw_item('score')
     agent.store(score=score)
@@ -246,6 +246,8 @@ def train(
     ego_opt_fn=ego_optimize, 
     ego_train_fn=ego_train, 
 ):
+    MODEL_EVAL_STEPS = runner.env.max_episode_steps
+    print('Model evaluation steps:', MODEL_EVAL_STEPS)
     do_logging('Training starts...')
     env_step = agents[0].get_env_step()
     to_record = Every(
@@ -255,11 +257,11 @@ def train(
         final=routine_config.MAX_STEPS
     )
     all_aids = list(range(len(agents)))
+    runner.run(MODEL_EVAL_STEPS, agents, buffers, [], [])
 
     while env_step < routine_config.MAX_STEPS:
         aids = aids_fn(all_aids, routine_config)
-        time2record = agents[0].contains_stats('score') \
-            and to_record(env_step)
+        time2record = to_record(env_step)
         
         lka_train_fn(
             agents, 

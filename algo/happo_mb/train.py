@@ -185,7 +185,7 @@ def log_agent(agent, env_step, train_step, error_stats):
             'time/tps': tps, 
         }, 
         **error_stats, 
-        **Timer.all_stats()
+        **Timer.top_stats()
     )
     score = agent.get_raw_item('score')
     agent.store(score=score)
@@ -206,7 +206,7 @@ def log_model(model, env_step, score, error_stats):
             'time/tps': tps, 
         }, 
         **error_stats, 
-        **Timer.all_stats()
+        **Timer.top_stats()
     )
     model.store(model_score=score)
     model.record(step=env_step)
@@ -257,12 +257,12 @@ def train(
         final=routine_config.MAX_STEPS
     )
     all_aids = list(range(len(agents)))
+    runner.run(MODEL_EVAL_STEPS, agents, buffers, None, [], [])
 
     while env_step < routine_config.MAX_STEPS:
         errors = AttrDict()
         aids = aids_fn(all_aids, routine_config)
-        time2record = agents[0].contains_stats('score') \
-            and to_record(env_step)
+        time2record = to_record(env_step)
         
         model_train_fn(
             model, 
