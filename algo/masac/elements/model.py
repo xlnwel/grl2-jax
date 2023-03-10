@@ -16,7 +16,7 @@ from tools.file import source_file
 from tools.utils import batch_dicts
 from tools.display import print_dict_info
 from tools.timer import Timer
-from algo.masac.elements.utils import concate_along_unit_dim
+from algo.masac.elements.utils import concat_along_unit_dim
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -166,12 +166,12 @@ class Model(ModelBase):
             all_stats.append(stats)
             all_states.append(state)
 
-        action = concate_along_unit_dim(all_actions)
-        stats = batch_dicts(all_stats, func=concate_along_unit_dim)
+        action = concat_along_unit_dim(all_actions)
+        stats = batch_dicts(all_stats, func=concat_along_unit_dim)
         if state is None:
             states = None
         else:
-            states = batch_dicts(all_states, func=concate_along_unit_dim)
+            states = batch_dicts(all_states, func=concat_along_unit_dim)
 
         return action, stats, states
         

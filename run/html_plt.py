@@ -263,12 +263,12 @@ if __name__ == '__main__':
         
         # define paths
         json_path = '/'.join([target_dir, js_name])
-        record_name = '/'.join([d, record_name])
-        record_path = record_name + '.txt'
+        record_filename = '/'.join([d, record_name])
+        record_path = record_filename + '.txt'
         csv_path = '/'.join([target_dir, process_name])
         # do_logging(f'yaml path: {yaml_path}')
-        if is_nonempty_file(record_path):
-            do_logging(f'{record_path} does not exist', color='magenta')
+        if not is_nonempty_file(record_path):
+            do_logging(f'By passing {record_path} due to its non-existence', color='magenta')
             continue
         # save config
         to_remove_keys = ['root_dir', 'seed']
@@ -282,7 +282,7 @@ if __name__ == '__main__':
         config['model_name'] = config['model_name'].split('/')[1]
 
         # save stats
-        data = merge_data(record_name, '.txt')
+        data = merge_data(record_filename, '.txt')
         data = process_data(data)
         for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
             if k not in data.keys():

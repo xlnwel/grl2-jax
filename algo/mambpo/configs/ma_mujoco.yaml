@@ -53,7 +53,7 @@ strategy:
     algorithm: *algo
     train_loop: 
         n_epochs: 400
-        n_lka_epochs: 50
+        n_lka_epochs: 100
 
 model:
     aid: 0

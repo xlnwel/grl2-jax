@@ -1,10 +1,8 @@
-from algo.masac.train import *
-from algo.masac.run import quantify_model_errors
-from algo.mambpo.train import main
+from algo.mambpo.train import *
 
 
 @timeit
-def mix_run(agent, model, buffer, model_buffer, routine_config):
+def mix_run(agent, model, buffer, model_buffer, routine_config, rng):
     if not model.trainer.is_trust_worthy() \
         or not model_buffer.ready_to_sample():
         return
@@ -25,7 +23,7 @@ def mix_run(agent, model, buffer, model_buffer, routine_config):
     routine_config.lookahead_rollout = 'uni'
     with TempStore(get_agent_states, set_agent_states):
         run_on_model(
-            model, model_buffer, agent, buffer, routine_config)
+            model, model_buffer, agent, buffer, routine_config, rng)
 
 
 def train(
@@ -54,8 +52,11 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
+    runner.run(MODEL_EVAL_STEPS, agent, None, None, [])
+    rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
+        rng, lka_rng = jax.random.split(rng, 2)
         errors = AttrDict()
         env_step = ego_run_fn(
             agent, runner, buffer, model_buffer, routine_config)
@@ -80,7 +81,7 @@ def train(
             #     opt_fn=lka_opt_fn
             # )
             # mix_run(agent, model, buffer, model_buffer, routine_config)
-            lka_run_fn(agent, model, buffer, model_buffer, routine_config)
+            lka_run_fn(agent, model, buffer, model_buffer, routine_config, lka_rng)
         
         if routine_config.quantify_model_errors and time2record:
             errors.lka = quantify_model_errors(

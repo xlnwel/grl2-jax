@@ -2,15 +2,10 @@
 
 export PYTHONPATH=.
 
-suite=$1
-shift
 algos=(
-    # $1
-    masac_lka
-    masac_lka
-    masac_lka2
-    masac_lka2
+    happo
 )
+suite=$1
 shift
 envs=(
     Ant_2x4
@@ -21,21 +16,16 @@ configs=(
     "${suite}"
 )
 args1=(
-    # $1
-    400
+    True
+    False
 )
 args2=(
-    # $2
-    10000
+    $2
+    1
 )
 args3=(
-    # $3
-    400
-    100
-)
-dynamics=(
-    # $4
-    "dynamics"
+    $3
+    1
 )
 date=$(date +"%m%d")
 info=""
@@ -62,9 +52,6 @@ config=${configs[$idx]}
 la=${#algos[@]}
 idx=$(($INF_MAC_NODE_RANK % $la))
 a=${algos[$idx]}
-ldy=${#dynamics[@]}
-idx=$(($INF_MAC_NODE_RANK % $ldy))
-d=${dynamics[$idx]}
 la1=${#args1[@]}
 idx=$(($INF_MAC_NODE_RANK % $la1))
 a1=${args1[$idx]}
@@ -76,17 +63,17 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="0#dynamics_name=$d 0#n_epochs=$a1 0#n_simulated_envs=$a2 0#n_lka_epochs=$a3"
+kws="use_feature_norm=$a1"
 for e in "${envs[@]}"; do
-    config="${suite}"
     env="${suite}-${e}"
-    for s in {0..3}; do
-        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+    for s in {0..4}; do
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script
     done
 done
+# done
 # echo ${commands[@]}s
 lc=${#commands[@]}
 p=$((lc / le))

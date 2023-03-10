@@ -1,5 +1,7 @@
-./scripts/inf ma_mujoco 1 inf_mambpo
-# ./scripts/inf ma_mujoco 4 inf_mambpo
+# ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb
+# ./scripts/inf ma_mujoco 1 inf_mambpo
+./scripts/inf ma_mujoco 2 inf_mambpo
+./scripts/inf ma_mujoco 4 inf_masac_lka
 # ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka 400 10000 50 dynamics
 # ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka 400 10000 100 dynamics
 # ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka2 400 10000 50 dynamics

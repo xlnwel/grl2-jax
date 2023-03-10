@@ -95,6 +95,8 @@ class NStepBuffer(LocalBuffer):
             result = self._buffer.popleft()
         else:
             result = None
+        if self.max_steps == 1:
+            return result
         reward = data['reward']
         for i, d in enumerate(reversed(self._buffer)):
             d['reward'] += self.gamma**(i+1) * reward

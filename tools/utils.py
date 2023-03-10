@@ -439,6 +439,18 @@ def dol2lod(kwargs):
 
     return result
 
+def split_dict(d):
+    keys = d.keys()
+    values = [v for v in zip(*d.values())]
+    d = [{kk: vv for kk, vv in zip(keys, v)} for v in values]
+
+    return d
+
+def yield_from_dict(d):
+    keys = d.keys()
+    for v in zip(*d.values()):
+        yield {kk: vv for kk, vv in zip(keys, v)}
+
 def product_flatten_dict(**kwargs):
     """ Flatten a dict of lists into a list of dicts
     using the Cartesian product

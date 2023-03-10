@@ -73,7 +73,7 @@ model:
         sigmoid_scale: True
         std_x_coef: 1.
         std_y_coef: .5
-        use_feature_norm: True
+        use_feature_norm: False
     value:
         nn_id: value
         units_list: [64, 64]
@@ -82,7 +82,7 @@ model:
         norm: layer
         rnn_type: &vrnn null
         rnn_units: 64
-        use_feature_norm: True
+        use_feature_norm: False
 
 loss:
     # hyperparams for value target and advantage

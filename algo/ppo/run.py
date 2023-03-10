@@ -9,7 +9,7 @@ from tools import pkg
 from env.typing import EnvOutput
 
 
-def concate_along_unit_dim(x):
+def concat_along_unit_dim(x):
     x = np.concatenate(x, axis=1)
     return x
 
@@ -49,7 +49,7 @@ class Runner(RunnerWithState):
         for _ in range(n_steps):
             acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
-            action = concate_along_unit_dim(acts)
+            action = concat_along_unit_dim(acts)
             new_env_output = self.env.step(action)
             new_env_outputs = [EnvOutput(*o) for o in zip(*new_env_output)]
 
@@ -187,7 +187,7 @@ class Runner(RunnerWithState):
         for _ in range(self.env.max_episode_steps):
             acts, stats = zip(*[a(eo, evaluation=True) for a, eo in zip(agents, env_outputs)])
 
-            action = concate_along_unit_dim(acts)
+            action = concat_along_unit_dim(acts)
             env_output = self.env.step(action)
             new_env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
 

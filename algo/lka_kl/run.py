@@ -5,7 +5,7 @@ from tools.utils import batch_dicts
 from env.typing import EnvOutput
 
 
-def concate_along_unit_dim(x):
+def concat_along_unit_dim(x):
     x = np.concatenate(x, axis=1)
     return x
 
@@ -24,7 +24,7 @@ def run_eval(env, agents, lka_aids, prefix=''):
     for _ in range(env.max_episode_steps):
         acts, stats = zip(*[a(eo, evaluation=True) for a, eo in zip(agents, env_outputs)])
 
-        action = concate_along_unit_dim(acts)
+        action = concat_along_unit_dim(acts)
         assert action.shape == (env.n_envs, len(agents)), action.shape
         env_output = env.step(action)
         new_env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
@@ -106,7 +106,7 @@ class Runner(RunnerWithState):
                             stats[i]["future_mu_scale"] = None
                         stats[i]["future_mu_logprob"] = None            
 
-            action = concate_along_unit_dim(acts)
+            action = concat_along_unit_dim(acts)
             env_output = self.env.step(action)
             new_env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
 

@@ -1,11 +1,12 @@
 import jax
 import jax.numpy as jnp
 
-from core.typing import dict2AttrDict, tree_slice
+from core.typing import AttrDict, dict2AttrDict
+from tools.utils import yield_from_dict
 from algo.masac.run import *
 
 
-def rollout(env, env_params, agent, agent_params, rng, env_output, n_steps, n_envs):
+def rollout(env, env_params, agent, agent_params, rng, env_output, n_steps):
     data_list = []
     for _ in jnp.arange(n_steps):
         rng, agent_rng, env_rng = jax.random.split(rng, 3)
@@ -34,35 +35,63 @@ def rollout(env, env_params, agent, agent_params, rng, env_output, n_steps, n_en
     return data_list
 
 
-jit_rollout = jax.jit(rollout, static_argnums=[0, 2, 6, 7])
+jit_rollout = jax.jit(rollout, static_argnums=[0, 2, 6])
 
 
 @timeit
-def simultaneous_rollout(env, agent, buffer, env_output, routine_config):
+def simultaneous_rollout(env, agent, buffer, env_output, routine_config, rng):
     agent.model.switch_params(True)
     agent.set_states()
-    idxes = np.arange(routine_config.n_simulated_envs)
     
     if not routine_config.switch_model_at_every_step:
         env.model.choose_elite()
     env_params = env.model.params
     env_params.obs_loc, env_params.obs_scale = env.model.obs_rms.get_rms_stats(False)
     agent_params = agent.model.params
-    data = jit_rollout(
+    
+    data_list = jit_rollout(
         env.model, env_params, 
         agent.model, agent_params, 
-        jax.random.PRNGKey(0), env_output, 
-        routine_config.n_simulated_steps, 
-        routine_config.n_simulated_envs)
-    for d in data:
-        d = [tree_slice(d, i) for i in idxes]
-        buffer.merge(d)
+        rng, env_output, 
+        routine_config.n_simulated_steps
+    )
+    for data in data_list:
+        for d in yield_from_dict(data):
+            buffer.merge(d)
 
     agent.model.switch_params(False)
 
 
 @timeit
-def run_on_model(env, model_buffer, agent, buffer, routine_config):
+def unilateral_rollout(env, agent, buffer, env_output, routine_config, rng):
+    agent.set_states()
+
+    if not routine_config.switch_model_at_every_step:
+        env.model.choose_elite()
+    env_params = env.model.params
+    env_params.obs_loc, env_params.obs_scale = env.model.obs_rms.get_rms_stats(False)
+    agent_params = agent.model.params
+    
+    for aid in range(agent.env_stats.n_agents):
+        lka_aids = [i for i in range(agent.env_stats.n_agents) if i != aid]
+        agent.model.switch_params(True, lka_aids)
+
+        data_list = jit_rollout(
+            env.model, env_params, 
+            agent.model, agent_params, 
+            rng, env_output, 
+            routine_config.n_simulated_steps, 
+            routine_config.n_simulated_envs)
+        for data in data_list:
+            for d in yield_from_dict(data):
+                buffer.merge(d)
+
+        agent.model.switch_params(False, lka_aids)
+        agent.model.check_params(False)
+
+
+@timeit
+def run_on_model(env, model_buffer, agent, buffer, routine_config, rng):
     sample_keys = buffer.obs_keys + ['state'] \
         if routine_config.restore_state else buffer.obs_keys
     obs = model_buffer.sample_from_recency(
@@ -87,8 +116,51 @@ def run_on_model(env, model_buffer, agent, buffer, routine_config):
         agent.set_states()
 
     if routine_config.lookahead_rollout == 'sim':
-        return simultaneous_rollout(env, agent, buffer, env_output, routine_config)
+        return simultaneous_rollout(env, agent, buffer, env_output, routine_config, rng)
     elif routine_config.lookahead_rollout == 'uni':
         return unilateral_rollout(env, agent, buffer, env_output, routine_config)
     else:
         raise NotImplementedError
+
+
+def concat_env_output(env_output):
+    obs = batch_dicts(env_output.obs, concat_along_unit_dim)
+    reward = concat_along_unit_dim(env_output.reward)
+    discount = concat_along_unit_dim(env_output.discount)
+    reset = concat_along_unit_dim(env_output.reset)
+    return EnvOutput(obs, reward, discount, reset)
+
+
+@timeit
+def quantify_model_errors(agent, model, env_config, n_steps, lka_aids):
+    model.model.choose_elite(0)
+    agent.model.check_params(False)
+    agent.model.switch_params(True, lka_aids)
+
+    errors = AttrDict()
+    errors.trans = []
+    errors.reward = []
+    errors.discount = []
+
+    env = create_env(env_config)
+    env_output = env.output()
+    env_output = concat_env_output(env_output)
+    for _ in range(n_steps):
+        action, _ = agent(env_output)
+        new_env_output = env.step(action)
+        new_env_output = concat_env_output(new_env_output)
+        env_output.obs['action'] = action
+        new_model_output, _ = model(env_output)
+        errors.trans.append(
+            np.abs(new_env_output.obs['obs'] - new_model_output.obs['obs']).reshape(-1))
+        errors.reward.append(
+            np.abs(new_env_output.reward - new_model_output.reward).reshape(-1))
+        errors.discount.append(
+            np.abs(new_env_output.discount - new_model_output.discount).reshape(-1))
+        env_output = new_env_output
+
+    for k, v in errors.items():
+        errors[k] = np.stack(v, -1)
+    agent.model.switch_params(False, lka_aids)
+
+    return errors

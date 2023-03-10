@@ -1,5 +1,4 @@
-from algo.masac.train import *
-from algo.mambpo.train import main
+from algo.mambpo.train import *
 
 
 @timeit
@@ -51,10 +50,13 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
+    runner.run(MODEL_EVAL_STEPS, agent, None, None, [])
+    rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
+        rng, lka_rng = jax.random.split(rng, 2)
         errors = AttrDict()
-        if model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
+        if model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps:
             pass
         else:
             lka_train_fn(
@@ -65,7 +67,8 @@ def train(
                 routine_config, 
                 n_runs=routine_config.n_lookahead_steps, 
                 run_fn=lka_run_fn, 
-                opt_fn=lka_opt_fn
+                opt_fn=lka_opt_fn, 
+                rng=lka_rng
             )
         
         env_step = ego_run_fn(
@@ -82,7 +85,7 @@ def train(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, None)
 
         if (not routine_config.use_latest_model) or \
-            model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
+            (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
             pass
         else:
             lka_train_fn(
@@ -93,7 +96,8 @@ def train(
                 routine_config, 
                 n_runs=routine_config.n_lookahead_steps, 
                 run_fn=lka_run_fn, 
-                opt_fn=dummy_lookahead_optimize
+                opt_fn=dummy_lookahead_optimize, 
+                lka_rng=lka_rng
             )
 
         train_step = ego_opt_fn(agent)
