@@ -55,7 +55,7 @@ class Model(ModelBase):
         self.params.emodels, self.modules.emodels = self.build_net(
             data.obs, data.action, True, name='emodels')
         self.params.reward, self.modules.reward = self.build_net(
-            data.obs, data.action, name='reward')
+            data.obs, data.action, data.obs, name='reward')
         self.params.discount, self.modules.discount = self.build_net(
             data.obs, name='discount')
 
@@ -114,16 +114,21 @@ class Model(ModelBase):
     ):
         rngs = random.split(rng, 3)
         action = self.process_action(data.action)
+        if self.config.model_norm_obs:
+            data.obs = normalize(data.obs, data.obs_loc, data.obs_scale)
 
         stats = AttrDict()
         next_obs, stats = self.next_obs(
-            params.model, rngs[0], data.obs, action, stats, evaluation, 
-            data.obs_loc, data.obs_scale)
+            params.model, rngs[0], data.obs, action, stats, evaluation)
         reward, stats = self.reward(
-            params.reward, rngs[1], data.obs, action, stats)
+            params.reward, rngs[1], data.obs, action, next_obs, stats)
         discount, stats = self.discount(
             params.discount, rngs[2], next_obs, stats)
         reset = 1 - discount
+
+        if self.config.model_norm_obs:
+            next_obs = denormalize(next_obs, data.obs_loc, data.obs_scale)
+
         if self.config.global_state_type == 'concat':
             global_state = jnp.expand_dims(next_obs, -3)
             global_state = jnp.reshape(global_state, (*global_state.shape[:-2], -1))
@@ -132,16 +137,14 @@ class Model(ModelBase):
             global_state = next_obs
         else:
             raise NotImplementedError
+
         obs = dict2AttrDict({'obs': next_obs, 'global_state': global_state})
         env_out = EnvOutput(obs, reward, discount, reset)
 
         return env_out, stats, data.state
 
-    def next_obs(self, params, rng, obs, action, stats, evaluation, 
-            obs_loc, obs_scale):
+    def next_obs(self, params, rng, obs, action, stats, evaluation):
         rngs = random.split(rng, 2)
-        if self.config.model_norm_obs:
-            obs = normalize(obs, obs_loc, obs_scale)
 
         dist = self.modules.model(params, rngs[0], obs, action)
         if evaluation or self.config.deterministic_trans:
@@ -153,13 +156,10 @@ class Model(ModelBase):
             next_obs = obs + next_obs
         stats.update(dist.get_stats('model'))
 
-        if self.config.model_norm_obs:
-            next_obs = denormalize(next_obs, obs_loc, obs_scale)
-
         return next_obs, stats
 
-    def reward(self, params, rng, obs, action, stats):
-        dist = self.modules.reward(params, rng, obs, action)
+    def reward(self, params, rng, obs, action, next_obs, stats):
+        dist = self.modules.reward(params, rng, obs, action, next_obs)
         rewards = dist.mode()
         if isinstance(dist, jax_dist.Categorical):
             rewards = self.env_stats.reward_map[rewards]

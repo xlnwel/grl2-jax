@@ -93,6 +93,7 @@ class UniformReplay(Buffer):
         if isinstance(trajs, dict):
             trajs = [trajs]
         self._memory.extend(trajs)
+        assert len(self) <= self.max_size, len(self)
         self._update_obs_rms(trajs)
 
     def merge_and_pop(self, trajs):
@@ -157,7 +158,8 @@ class UniformReplay(Buffer):
                 b.reset()
             else:
                 traj = b.retrieve_all_data()
-                self.merge(traj)
+                if traj:
+                    self.merge(traj)
 
     def _sample(self, batch_size=None):
         batch_size = batch_size or self.batch_size

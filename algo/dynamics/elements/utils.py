@@ -1,9 +1,7 @@
 from jax import nn
 import jax.numpy as jnp
 
-import collections
 from core.typing import AttrDict
-from typing import List
 
 
 def prefix_name(terms, name):
