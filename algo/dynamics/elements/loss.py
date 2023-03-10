@@ -48,7 +48,7 @@ class Loss(LossBase):
         model_loss, stats = compute_model_loss(
             self.config, dist, model_target, stats)
         reward_dist = self.modules.reward(
-            theta.reward, rngs[1], data.obs, data.action)
+            theta.reward, rngs[1], data.obs, data.action, data.next_obs)
         reward_loss, stats = compute_reward_loss(
             self.config, reward_dist, data.reward, stats)
         discount_dist = self.modules.discount(

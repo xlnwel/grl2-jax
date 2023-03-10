@@ -75,9 +75,10 @@ model:
         activation: relu
         norm: layer
         out_scale: .01
+        use_next_obs: False
         balance_dimension: False
-        obs_units_list: [128]
-        action_units_list: [64]
+        obs_embed: 128
+        action_embed: 64
     discount:
         nn_id: discount
         out_size: 1

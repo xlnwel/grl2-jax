@@ -113,24 +113,41 @@ class EnsembleModels(Model):
 class Reward(hk.Module):
     def __init__(
         self, 
+        use_next_obs=False, 
+        balance_dimension=False, 
+        obs_embed=None, 
+        action_embed=None, 
         out_size=1, 
         name='reward', 
         **config
     ):
         super().__init__(name=name)
 
+        self.use_next_obs = use_next_obs
+        self.balance_dimension = balance_dimension
+        self.obs_embed = obs_embed
+        self.action_embed = action_embed
         self.out_size = out_size
         self.config = dict2AttrDict(config, to_copy=True)
 
-    def __call__(self, x, action):
-        if self.config.balance_dimension:
+    def __call__(self, x, action, next_x):
+        if self.balance_dimension:
             obs_transform, action_transform, net = self.build_net()
             obs_embed = obs_transform(x)
             actions = joint_actions(action)
             action_embed = action_transform(actions)
-            x = jnp.concatenate([obs_embed, action_embed], -1)
+            if self.use_next_obs:
+                next_obs_embed = obs_transform(next_x)
+                x = jnp.concatenate([obs_embed, action_embed, next_obs_embed], -1)
+            else:
+                x = jnp.concatenate([obs_embed, action_embed], -1)
         else:
             net = self.build_net()
+            action = joint_actions(action)
+            if self.use_next_obs:
+                x = jnp.concatenate([x, action, next_x], -1)
+            else:
+                x = jnp.concatenate([x, action], -1)
             x = combine_sa(x, action)
         x = net(x)
         if self.out_size == 1:
@@ -143,22 +160,12 @@ class Reward(hk.Module):
 
     @hk.transparent
     def build_net(self):
-        if self.config.balance_dimension:
-            tmp_config = self.config.copy()
-            tmp_config.pop('balance_dimension')
-            obs_units_list, action_units_list = tmp_config.pop('obs_units_list'), tmp_config.pop('action_units_list')
-            tmp_config.units_list = obs_units_list
-            obs_transform = mlp(**tmp_config)
-            
-            tmp_config.units_list = action_units_list
-            action_transform = mlp(**tmp_config)
-            
-            [self.config.pop(_key) for _key in ['balance_dimension', 'obs_units_list', 'action_units_list']]
+        if self.balance_dimension:
+            obs_transform = mlp(out_size=self.obs_embed)
+            action_transform = mlp(out_size=self.action_embed)
             net = mlp(**self.config, out_size=self.out_size)
             return obs_transform, action_transform, net
         else:
-            if 'balance_dimension' in self.config:
-                [self.config.pop(_key) for _key in ['balance_dimension', 'obs_units_list', 'action_units_list']]
             net = mlp(**self.config, out_size=self.out_size)
             return net
 
