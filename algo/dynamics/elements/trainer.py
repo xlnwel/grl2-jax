@@ -53,7 +53,7 @@ class Trainer(TrainerBase):
     def train(self, data):
         data = self.process_data(data)
         theta = self.model.theta.copy()
-        with Timer(f'{self.name}_train'):
+        with Timer(f'dynamics_train'):
             theta, self.params.theta, stats = \
                 self.jit_train(
                     theta, 
@@ -68,7 +68,7 @@ class Trainer(TrainerBase):
 
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
-        stats = prefix_name(stats, f'{self.name}_train')
+        stats = prefix_name(stats, f'dynamics_train')
         stats.update(data)
         for v in theta.values():
             stats.update(flatten_dict(

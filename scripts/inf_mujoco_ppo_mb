@@ -16,10 +16,7 @@ configs=(
     "${suite}"
 )
 args1=(
-    True
-    True
-    False
-    Falss
+    2 4
 )
 args2=(
     $2
@@ -31,7 +28,7 @@ args3=(
 )
 dynamics=(
     "dynamics_tx"
-    "dynamics"
+    # "dynamics"
 )
 date=$(date +"%m%d")
 info=""
@@ -73,7 +70,7 @@ a3=${args3[$idx]}
 
 commands=()
 # for d in "${dynamics[@]}"; do
-kws="0#dynamics_name=$d"
+kws="0#dynamics_name=$d 1#n_blocks=$a1"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

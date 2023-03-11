@@ -43,7 +43,7 @@ class Trainer(TrainerBase):
             np.random.shuffle(self.lka_indices)
             indices = np.split(self.lka_indices, self.config.n_lookahead_mbs)
             for idx in indices:
-                with Timer(f'{self.name}_lka_train'):
+                with Timer(f'lka_train'):
                     d = data.slice(idx)
                     t_log_ratio = teammate_log_ratio[idx]
                     if self.config.popart:
