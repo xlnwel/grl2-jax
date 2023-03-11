@@ -25,7 +25,7 @@ def model_train(model, model_buffer):
 
 
 @timeit
-def lookahead_run(agents, model, buffers, model_buffer, routine_config):
+def lookahead_run(agents, model, buffers, model_buffer, routine_config, rng):
     def get_agent_states():
         state = [a.get_states() for a in agents]
         return state
@@ -37,17 +37,17 @@ def lookahead_run(agents, model, buffers, model_buffer, routine_config):
     # train lookahead agents
     with TempStore(get_agent_states, set_agent_states):
         return run_on_model(
-            model, model_buffer, agents, buffers, routine_config)
+            model, model_buffer, agents, buffers, routine_config, rng)
 
 
 @timeit
 def lookahead_train(agents, model, buffers, model_buffer, routine_config, 
-        aids, n_runs, run_fn, opt_fn):
+        aids, n_runs, run_fn, opt_fn, rng):
     if not model_buffer.ready_to_sample():
         return
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
-        out = run_fn(agents, model, buffers, model_buffer, routine_config)
+        out = run_fn(agents, model, buffers, model_buffer, routine_config, rng)
         if out is not None:
             opt_fn(agents, routine_config, aids)
 
@@ -258,8 +258,10 @@ def train(
     )
     all_aids = list(range(len(agents)))
     runner.run(MODEL_EVAL_STEPS, agents, buffers, None, [], [])
+    rng = model.model.rng
 
     while env_step < routine_config.MAX_STEPS:
+        rng, lka_rng = jax.random.split(rng, 2)
         errors = AttrDict()
         aids = aids_fn(all_aids, routine_config)
         time2record = to_record(env_step)
@@ -284,7 +286,8 @@ def train(
                 aids=aids, 
                 n_runs=routine_config.n_lookahead_steps, 
                 run_fn=lka_run_fn, 
-                opt_fn=lka_opt_fn
+                opt_fn=lka_opt_fn, 
+                rng=lka_rng
             )
         if routine_config.quantify_model_errors and time2record:
             errors.lka = quantify_model_errors(

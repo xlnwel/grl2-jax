@@ -8,6 +8,7 @@ from algo.masac.run import *
 
 def rollout(env, env_params, agent, agent_params, rng, env_output, n_steps):
     data_list = []
+
     for _ in jnp.arange(n_steps):
         rng, agent_rng, env_rng = jax.random.split(rng, 3)
         obs = dict2AttrDict(env_output.obs)
@@ -32,6 +33,7 @@ def rollout(env, env_params, agent, agent_params, rng, env_output, n_steps):
         data.update({f'next_{k}': v for k, v in new_env_output.obs.items()})
         data_list.append(data)
         env_output = new_env_output
+
     return data_list
 
 

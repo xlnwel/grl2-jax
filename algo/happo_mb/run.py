@@ -140,7 +140,7 @@ def rollout(env, env_params, agents, agents_params, rng, env_output, n_steps):
     return data_list, env_output
 
 
-jit_rollout = jax.jit(rollout, static_argnums=[0, 2, 6, 7])
+jit_rollout = jax.jit(rollout, static_argnums=[0, 2, 6])
 
 
 def add_data_to_buffer(
@@ -184,7 +184,7 @@ def simultaneous_rollout(env, agents, buffers, env_output, routine_config, rng):
         env.model.choose_elite()
     env_params = env.model.params
     env_params.obs_loc, env_params.obs_scale = env.model.obs_rms.get_rms_stats(False)
-    agents_model = [agent.model for agent in agents]
+    agents_model = tuple([agent.model for agent in agents])
     agents_params = [agent.model.params for agent in agents]
 
     data_list, env_output = jit_rollout(
@@ -236,7 +236,7 @@ def unilateral_rollout(env, agents, buffers, env_output, routine_config, rng):
 
 
 @timeit
-def run_on_model(env, buffer, agents, buffers, routine_config):
+def run_on_model(env, buffer, agents, buffers, routine_config, rng):
     sample_keys = buffer.obs_keys + ['state'] \
         if routine_config.restore_state else buffer.obs_keys
     obs = buffer.sample_from_recency(
@@ -263,9 +263,11 @@ def run_on_model(env, buffer, agents, buffers, routine_config):
             a.set_states()
 
     if routine_config.lookahead_rollout == 'sim':
-        return simultaneous_rollout(env, agents, buffers, env_output, routine_config)
+        return simultaneous_rollout(
+            env, agents, buffers, env_output, routine_config, rng)
     elif routine_config.lookahead_rollout == 'uni':
-        return unilateral_rollout(env, agents, buffers, env_output, routine_config)
+        return unilateral_rollout(
+            env, agents, buffers, env_output, routine_config, rng)
     else:
         raise NotImplementedError
 
