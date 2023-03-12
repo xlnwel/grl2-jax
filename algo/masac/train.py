@@ -43,18 +43,13 @@ def set_states(states, agent, runner):
 
 
 @timeit
-def ego_run(agent, runner, buffer, model_buffer, routine_config):
+def ego_run(agent, runner, routine_config):
     constructor = partial(state_constructor, agent=agent, runner=runner)
     get_fn = partial(get_states, agent=agent, runner=runner)
     set_fn = partial(set_states, agent=agent, runner=runner)
 
     with StateStore('real', constructor, get_fn, set_fn):
-        runner.run(
-            routine_config.n_steps, 
-            agent, buffer, 
-            model_buffer, 
-            [], 
-        )
+        runner.run(routine_config.n_steps, agent, [], )
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
     agent.add_env_step(env_steps_per_run)
@@ -71,11 +66,9 @@ def ego_optimize(agent):
 
 
 @timeit
-def ego_train(agent, runner, buffer, model_buffer, routine_config, 
-        run_fn, opt_fn):
-    env_step = run_fn(
-        agent, runner, buffer, model_buffer, routine_config)
-    if buffer.ready_to_sample():
+def ego_train(agent, runner, routine_config, run_fn, opt_fn):
+    env_step = run_fn(agent, runner, routine_config)
+    if agent.buffer.ready_to_sample():
         train_step = opt_fn(agent)
     else:
         train_step = agent.get_train_step()
@@ -132,7 +125,6 @@ def log(agent, model, env_step, train_step, errors):
 def train(
     agent, 
     runner, 
-    buffer, 
     routine_config,
     ego_run_fn=ego_run, 
     ego_opt_fn=ego_optimize, 
@@ -153,8 +145,7 @@ def train(
     while env_step < routine_config.MAX_STEPS:
         errors = AttrDict()
         env_step, train_step = ego_train_fn(
-            agent, runner, buffer, None, routine_config, 
-            ego_run_fn, ego_opt_fn)
+            agent, runner, routine_config, ego_run_fn, ego_opt_fn)
         time2record = to_record(env_step)
         
         if time2record:
@@ -179,12 +170,12 @@ def build_agent(config, env_stats):
     )
     elements = builder.build_agent_from_scratch()
     agent = elements.agent
-    buffer = elements.buffer
-    return agent, buffer
+
+    return agent
 
 
 def main(configs, train=train):
-    config, model_config = configs[0], configs[-1]
+    config = configs[0]
     seed = config.get('seed')
     set_seed(seed)
 
@@ -203,14 +194,13 @@ def main(configs, train=train):
     print_dict(env_stats)
 
     # build agents
-    agent, buffer = build_agent(config, env_stats)
+    agent = build_agent(config, env_stats)
     save_code_for_seed(config)
 
     routine_config = config.routine.copy()
     train(
         agent, 
         runner, 
-        buffer, 
         routine_config,
     )
 

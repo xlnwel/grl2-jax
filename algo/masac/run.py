@@ -1,18 +1,9 @@
 import collections
 import numpy as np
-import jax
-import jax.numpy as jnp
 
-from core.typing import dict2AttrDict
 from tools.run import RunnerWithState
 from tools.utils import batch_dicts
-from tools.display import print_dict_info
-from tools.timer import timeit
-from tools.utils import yield_from_dict
-from env.typing import EnvOutput
 from algo.masac.elements.utils import concat_along_unit_dim
-from env.func import create_env
-
 
 
 class Runner(RunnerWithState):
@@ -20,10 +11,9 @@ class Runner(RunnerWithState):
         self, 
         n_steps, 
         agent, 
-        buffer, 
-        model_buffer, 
         lka_aids, 
         store_info=True,
+        collect_data=True
     ):
         agent.model.switch_params(True, lka_aids)
 
@@ -40,14 +30,8 @@ class Runner(RunnerWithState):
                 next_obs=batch_dicts(self.env.prev_obs(), func=concat_along_unit_dim), 
                 reset=concat_along_unit_dim(new_env_output.reset),
             )
-            if buffer is not None:
-                buffer.collect(**data, **stats)
-
-            if model_buffer is not None:
-                model_buffer.collect(
-                    **data,
-                    # state=stats['state'],
-                )
+            if collect_data:
+                agent.buffer.collect(**data, **stats)
 
             if store_info:
                 done_env_ids = [i for i, r in enumerate(data['reset']) if np.all(r)]

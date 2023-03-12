@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 
 from core.typing import AttrDict, dict2AttrDict
+from tools.display import print_dict_info
 from tools.utils import batch_dicts
 from tools.timer import timeit
 from env.typing import EnvOutput
@@ -16,7 +17,6 @@ class Runner(RunnerBase):
         self, 
         n_steps, 
         agents, 
-        buffers, 
         model_buffer, 
         lka_aids, 
         collect_ids, 
@@ -49,23 +49,23 @@ class Runner(RunnerBase):
                     reset=new_env_outputs[i].reset, 
                     **stats[i]
                 )
-                buffers[i].collect(**data)
+                agents[i].buffer.collect(**data)
 
             state = [s['state'] for s in stats] if 'state' in stats[0] else None
             if state is not None:
                 state = batch_dicts(state, func=lambda x: np.stack(x, 1))
 
+            data = dict(
+                reset=concat_along_unit_dim(new_env_output.reset),
+                obs=batch_dicts(env_output.obs, func=concat_along_unit_dim),
+                action=action, 
+                reward=concat_along_unit_dim(new_env_output.reward),
+                discount=concat_along_unit_dim(new_env_output.discount),
+                next_obs=batch_dicts(next_obs, func=concat_along_unit_dim), 
+            )
+            if state is not None:
+                data['state'] = state
             if model_buffer is not None:
-                data = dict(
-                    reset=concat_along_unit_dim(new_env_output.reset),
-                    obs=batch_dicts(env_output.obs, func=concat_along_unit_dim),
-                    action=action, 
-                    reward=concat_along_unit_dim(new_env_output.reward),
-                    discount=concat_along_unit_dim(new_env_output.discount),
-                    next_obs=batch_dicts(next_obs, func=concat_along_unit_dim), 
-                )
-                if state is not None:
-                    data['state'] = state
                 model_buffer.collect(**data)
 
             if store_info:
@@ -80,7 +80,7 @@ class Runner(RunnerBase):
             env_output = new_env_output
             env_outputs = new_env_outputs
 
-        prepare_buffer(collect_ids, agents, buffers, env_outputs, compute_return)
+        prepare_buffer(collect_ids, agents, env_outputs, compute_return)
 
         for i in lka_aids:
             agents[i].model.switch_params(False)
@@ -91,10 +91,10 @@ class Runner(RunnerBase):
         return env_outputs
 
 
-def split_env_output(env_output, n):
+def split_env_output(env_output, aid2uids):
     env_outputs = [
-        jax.tree_util.tree_map(lambda x: x[:, i:i+1], env_output) 
-        for i in range(n)
+        jax.tree_util.tree_map(lambda x: x[:, uids], env_output) 
+        for uids in aid2uids
     ]
     return env_outputs
 
@@ -125,11 +125,12 @@ def rollout(env, env_params, agents, agents_params, rng, env_output, n_steps):
             for uids in env.env_stats.aid2uids]
         for i, inp in enumerate(agent_inps):
             data = inp
+            uids = env.env_stats.aid2uids[i]
             data.update(dict(
                 action=actions[i], 
-                reward=new_env_output.reward[:, i], 
-                discount=new_env_output.discount[:, i], 
-                reset=new_env_output.reset[:, i], 
+                reward=new_env_output.reward[:, uids], 
+                discount=new_env_output.discount[:, uids], 
+                reset=new_env_output.reset[:, uids], 
                 **stats[i]
             ))
             data.update({f'next_{k}': v for k, v in next_obs[i].items()})
@@ -145,14 +146,14 @@ jit_rollout = jax.jit(rollout, static_argnums=[0, 2, 6])
 
 def add_data_to_buffer(
     agent, 
-    buffer, 
     data, 
     env_output, 
     compute_return=True, 
 ):
     value = agent.compute_value(env_output)
-    data = batch_dicts(data)
-    data.value = np.concatenate([data.value, np.expand_dims(value, 0)])
+    buffer = agent.buffer
+    data = batch_dicts(data, lambda x: np.stack(x, 1))
+    data.value = np.concatenate([data.value, np.expand_dims(value, 1)], 1)
 
     if compute_return:
         value = data.value[:, :-1]
@@ -175,7 +176,7 @@ def add_data_to_buffer(
 
 
 @timeit
-def simultaneous_rollout(env, agents, buffers, env_output, routine_config, rng):
+def simultaneous_rollout(env, agents, env_output, routine_config, rng):
     for agent in agents:
         agent.model.switch_params(True)
         agent.set_states()
@@ -194,10 +195,9 @@ def simultaneous_rollout(env, agents, buffers, env_output, routine_config, rng):
         routine_config.n_simulated_steps, 
     )
 
-    env_outputs = split_env_output(env_output)
-    for agent, buffer, data, eo in zip(
-            agents, buffers, data_list, env_outputs):
-        add_data_to_buffer(agent, buffer, data, eo, 
+    env_outputs = split_env_output(env_output, env.env_stats.aid2uids)
+    for agent, data, eo in zip(agents, data_list, env_outputs):
+        add_data_to_buffer(agent, data, eo, 
             routine_config.compute_return_at_once)
 
     for agent in agents:
@@ -207,7 +207,7 @@ def simultaneous_rollout(env, agents, buffers, env_output, routine_config, rng):
 
 
 @timeit
-def unilateral_rollout(env, agents, buffers, env_output, routine_config, rng):
+def unilateral_rollout(env, agents, env_output, routine_config, rng):
     for i, agent in enumerate(agents):
         for a in agents:
             a.set_states()
@@ -226,8 +226,8 @@ def unilateral_rollout(env, agents, buffers, env_output, routine_config, rng):
             routine_config.n_simulated_steps, 
         )
 
-        env_outputs = split_env_output(env_output)
-        add_data_to_buffer(agent, buffers[i], data_list[i], env_outputs[i], 
+        env_outputs = split_env_output(env_output, env.env_stats.aid2uids)
+        add_data_to_buffer(agent, data_list[i], env_outputs[i], 
             routine_config.compute_return_at_once)
 
         agent.model.switch_params(False)
@@ -236,10 +236,10 @@ def unilateral_rollout(env, agents, buffers, env_output, routine_config, rng):
 
 
 @timeit
-def run_on_model(env, buffer, agents, buffers, routine_config, rng):
-    sample_keys = buffer.obs_keys + ['state'] \
-        if routine_config.restore_state else buffer.obs_keys
-    obs = buffer.sample_from_recency(
+def run_on_model(env, agents, routine_config, rng):
+    sample_keys = agents[0].buffer.obs_keys + ['state'] \
+        if routine_config.restore_state else agents[0].buffer.obs_keys
+    obs = env.buffer.sample_from_recency(
         batch_size=routine_config.n_simulated_envs,
         sample_keys=sample_keys, 
         # sample_size=1, 
@@ -264,10 +264,10 @@ def run_on_model(env, buffer, agents, buffers, routine_config, rng):
 
     if routine_config.lookahead_rollout == 'sim':
         return simultaneous_rollout(
-            env, agents, buffers, env_output, routine_config, rng)
+            env, agents, env_output, routine_config, rng)
     elif routine_config.lookahead_rollout == 'uni':
         return unilateral_rollout(
-            env, agents, buffers, env_output, routine_config, rng)
+            env, agents, env_output, routine_config, rng)
     else:
         raise NotImplementedError
 

@@ -37,7 +37,7 @@ def construct_fake_data(env_stats, aid):
 class Trainer(TrainerBase):
     def add_attributes(self):
         super().add_attributes()
-        self._is_trust_worthy = False
+        self._is_trust_worthy = not bool(self.config.trust_threshold)
     
     def is_trust_worthy(self):
         return self._is_trust_worthy
@@ -124,11 +124,15 @@ class Trainer(TrainerBase):
             self.model.obs_rms.update_from_moments(*rms)
 
     def _evaluate_model(self, stats):
+        if self.config.trust_threshold is None:
+            return
         if not self._is_trust_worthy:
             if 'model_mae' in stats:
+                print('model mae', stats.model_mae)
                 self._is_trust_worthy = np.mean(stats.model_mae) <= self.config.trust_threshold
             else:
                 assert 'mean_loss' in stats, list(stats)
+                print('mean loss', np.mean(stats.mean_loss))
                 self._is_trust_worthy = np.mean(stats.mean_loss) <= self.config.trust_threshold
         
     # def haiku_tabulate(self, data=None):

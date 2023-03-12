@@ -2,18 +2,13 @@ from algo.mambpo.train import *
 
 
 @timeit
-def ego_run(agent, runner, buffer, model_buffer, routine_config):
+def ego_run(agent, runner, routine_config):
     constructor = partial(state_constructor, agent=agent, runner=runner)
     get_fn = partial(get_states, agent=agent, runner=runner)
     set_fn = partial(set_states, agent=agent, runner=runner)
 
     with StateStore('real', constructor, get_fn, set_fn):
-        runner.run(
-            routine_config.n_steps, 
-            agent, buffer, 
-            model_buffer, 
-            None, 
-        )
+        runner.run(routine_config.n_steps, agent, None, )
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
     agent.add_env_step(env_steps_per_run)
@@ -28,8 +23,6 @@ def train(
     agent, 
     model, 
     runner, 
-    buffer, 
-    model_buffer, 
     routine_config,
     model_routine_config,
     lka_run_fn=lookahead_run, 
@@ -50,7 +43,7 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(MODEL_EVAL_STEPS, agent, None, None, [])
+    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
     rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
@@ -62,8 +55,6 @@ def train(
             lka_train_fn(
                 agent, 
                 model, 
-                buffer, 
-                model_buffer, 
                 routine_config, 
                 n_runs=routine_config.n_lookahead_steps, 
                 run_fn=lka_run_fn, 
@@ -71,8 +62,7 @@ def train(
                 rng=lka_rng
             )
         
-        env_step = ego_run_fn(
-            agent, runner, buffer, model_buffer, routine_config)
+        env_step = ego_run_fn(agent, runner, routine_config)
         time2record = to_record(env_step)
         
         model_train_fn(model)
@@ -91,8 +81,6 @@ def train(
             lka_train_fn(
                 agent, 
                 model, 
-                buffer, 
-                model_buffer, 
                 routine_config, 
                 n_runs=routine_config.n_lookahead_steps, 
                 run_fn=lka_run_fn, 

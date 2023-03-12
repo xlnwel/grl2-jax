@@ -117,10 +117,10 @@ trainer:
 actor: {}
 
 buffer:
-    type: uniform
+    type: dual
 
-    recent_primal_replay: True
-    detached: False
+    recent_primal_replay: False
+    detached: True
 
     n_runners: *nrunners
     n_envs: *nenvs

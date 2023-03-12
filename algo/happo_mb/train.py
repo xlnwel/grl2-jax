@@ -19,13 +19,13 @@ from algo.ppo.train import state_constructor, get_states, set_states, \
 
 
 @timeit
-def model_train(model, model_buffer):
-    if model_buffer.ready_to_sample():
+def model_train(model):
+    if model.buffer.ready_to_sample():
         model.train_record()
 
 
 @timeit
-def lookahead_run(agents, model, buffers, model_buffer, routine_config, rng):
+def lookahead_run(agents, model, routine_config, rng):
     def get_agent_states():
         state = [a.get_states() for a in agents]
         return state
@@ -36,43 +36,42 @@ def lookahead_run(agents, model, buffers, model_buffer, routine_config, rng):
 
     # train lookahead agents
     with TempStore(get_agent_states, set_agent_states):
-        return run_on_model(
-            model, model_buffer, agents, buffers, routine_config, rng)
+        return run_on_model(model, agents, routine_config, rng)
 
 
 @timeit
-def lookahead_train(agents, model, buffers, model_buffer, routine_config, 
+def lookahead_train(agents, model, routine_config, 
         aids, n_runs, run_fn, opt_fn, rng):
-    if not model_buffer.ready_to_sample():
+    if not model.buffer.ready_to_sample():
         return
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
-        out = run_fn(agents, model, buffers, model_buffer, routine_config, rng)
+        out = run_fn(agents, model, routine_config, rng)
         if out is not None:
             opt_fn(agents, routine_config, aids)
 
 
 @timeit
-def ego_run(agents, runner, buffers, model_buffer, routine_config):
+def ego_run(agents, runner, model_buffer, routine_config):
     all_aids = list(range(len(agents)))
     constructor = partial(state_constructor, agents=agents, runner=runner)
     get_fn = partial(get_states, agents=agents, runner=runner)
     set_fn = partial(set_states, agents=agents, runner=runner)
 
-    for i, buffer in enumerate(buffers):
-        assert buffer.size() == 0, f"buffer {i}: {buffer.size()}"
+    for i, agent in enumerate(agents):
+        assert agent.buffer.size() == 0, f"buffer {i}: {agent.buffer.size()}"
 
     with StateStore('real', constructor, get_fn, set_fn):
         runner.run(
             routine_config.n_steps, 
-            agents, buffers, 
+            agents, 
             model_buffer if routine_config.n_lookahead_steps > 0 else None, 
             all_aids, all_aids, 
             compute_return=routine_config.compute_return_at_once
         )
 
-    for i, buffer in enumerate(buffers):
-        assert buffer.ready(), f"buffer {i}: ({buffer.size()}, {len(buffer._queue)})"
+    for i, agent in enumerate(agents):
+        assert agent.buffer.ready(), f"buffer {i}: ({agent.buffer.size()}, {len(agent.buffer._queue)})"
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
     for agent in agents:
@@ -82,10 +81,10 @@ def ego_run(agents, runner, buffers, model_buffer, routine_config):
 
 
 @timeit
-def ego_train(agents, runner, buffers, model_buffer, routine_config, 
+def ego_train(agents, runner, model_buffer, routine_config, 
         aids, run_fn, opt_fn):
     env_step = run_fn(
-        agents, runner, buffers, model_buffer, routine_config)
+        agents, runner, model_buffer, routine_config)
     train_step = opt_fn(agents, routine_config, aids)
 
     return env_step, train_step
@@ -233,8 +232,6 @@ def train(
     agents, 
     model, 
     runner, 
-    buffers, 
-    model_buffer, 
     routine_config, 
     model_routine_config, 
     aids_fn=training_aids,
@@ -257,7 +254,7 @@ def train(
         final=routine_config.MAX_STEPS
     )
     all_aids = list(range(len(agents)))
-    runner.run(MODEL_EVAL_STEPS, agents, buffers, None, [], [])
+    runner.run(MODEL_EVAL_STEPS, agents, None, [], [])
     rng = model.model.rng
 
     while env_step < routine_config.MAX_STEPS:
@@ -266,10 +263,7 @@ def train(
         aids = aids_fn(all_aids, routine_config)
         time2record = to_record(env_step)
         
-        model_train_fn(
-            model, 
-            model_buffer
-        )
+        model_train_fn(model)
         if routine_config.quantify_model_errors and time2record:
             errors.train = quantify_model_errors(
                 agents, model, runner.env_config(), MODEL_EVAL_STEPS, [])
@@ -280,8 +274,6 @@ def train(
             lka_train_fn(
                 agents, 
                 model, 
-                buffers, 
-                model_buffer, 
                 routine_config, 
                 aids=aids, 
                 n_runs=routine_config.n_lookahead_steps, 
@@ -296,8 +288,7 @@ def train(
         env_step, train_step = ego_train_fn(
             agents, 
             runner, 
-            buffers, 
-            model_buffer, 
+            model.buffer, 
             routine_config, 
             aids=aids, 
             run_fn=ego_run_fn, 
@@ -346,9 +337,8 @@ def build_model(config, model_config, env_stats):
     )
     elements = builder.build_agent_from_scratch(config=model_config)
     model = elements.agent
-    model_buffer = elements.buffer
 
-    return model, model_buffer
+    return model
 
 
 def main(configs, train=train):
@@ -374,9 +364,9 @@ def main(configs, train=train):
     print_dict(env_stats)
 
     # build agents
-    agents, buffers = build_agents(config, env_stats)
+    agents = build_agents(config, env_stats)
     # build model
-    model, model_buffer = build_model(config, model_config, env_stats)
+    model = build_model(config, model_config, env_stats)
     save_code_for_seed(config)
 
     routine_config = config.routine.copy()
@@ -385,8 +375,6 @@ def main(configs, train=train):
         agents, 
         model, 
         runner, 
-        buffers, 
-        model_buffer, 
         routine_config, 
         model_routine_config
     )

@@ -91,12 +91,12 @@ class NStepBuffer(LocalBuffer):
 
     def add(self, **data):
         """ Add experience to local memory """
+        if self.max_steps == 1:
+            return data
         if self.is_full():
             result = self._buffer.popleft()
         else:
             result = None
-        if self.max_steps == 1:
-            return result
         reward = data['reward']
         for i, d in enumerate(reversed(self._buffer)):
             d['reward'] += self.gamma**(i+1) * reward

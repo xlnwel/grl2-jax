@@ -2,7 +2,11 @@ import jax
 import jax.numpy as jnp
 
 from core.typing import AttrDict, dict2AttrDict
+from tools.display import print_dict_info
+from tools.timer import timeit
 from tools.utils import yield_from_dict
+from env.typing import EnvOutput
+from env.func import create_env
 from algo.masac.run import *
 
 
@@ -41,7 +45,7 @@ jit_rollout = jax.jit(rollout, static_argnums=[0, 2, 6])
 
 
 @timeit
-def simultaneous_rollout(env, agent, buffer, env_output, routine_config, rng):
+def simultaneous_rollout(env, agent, env_output, routine_config, rng):
     agent.model.switch_params(True)
     agent.set_states()
     
@@ -59,13 +63,13 @@ def simultaneous_rollout(env, agent, buffer, env_output, routine_config, rng):
     )
     for data in data_list:
         for d in yield_from_dict(data):
-            buffer.merge(d)
+            agent.buffer.merge(d)
 
     agent.model.switch_params(False)
 
 
 @timeit
-def unilateral_rollout(env, agent, buffer, env_output, routine_config, rng):
+def unilateral_rollout(env, agent, env_output, routine_config, rng):
     agent.set_states()
 
     if not routine_config.switch_model_at_every_step:
@@ -86,17 +90,17 @@ def unilateral_rollout(env, agent, buffer, env_output, routine_config, rng):
             routine_config.n_simulated_envs)
         for data in data_list:
             for d in yield_from_dict(data):
-                buffer.merge(d)
+                agent.buffer.merge(d)
 
         agent.model.switch_params(False, lka_aids)
         agent.model.check_params(False)
 
 
 @timeit
-def run_on_model(env, model_buffer, agent, buffer, routine_config, rng):
-    sample_keys = buffer.obs_keys + ['state'] \
-        if routine_config.restore_state else buffer.obs_keys
-    obs = model_buffer.sample_from_recency(
+def run_on_model(env, agent, routine_config, rng):
+    sample_keys = agent.buffer.obs_keys + ['state'] \
+        if routine_config.restore_state else agent.buffer.obs_keys
+    obs = env.buffer.sample_from_recency(
         batch_size=routine_config.n_simulated_envs,
         sample_keys=sample_keys, 
         # sample_size=1, 
@@ -118,9 +122,9 @@ def run_on_model(env, model_buffer, agent, buffer, routine_config, rng):
         agent.set_states()
 
     if routine_config.lookahead_rollout == 'sim':
-        return simultaneous_rollout(env, agent, buffer, env_output, routine_config, rng)
+        return simultaneous_rollout(env, agent, env_output, routine_config, rng)
     elif routine_config.lookahead_rollout == 'uni':
-        return unilateral_rollout(env, agent, buffer, env_output, routine_config)
+        return unilateral_rollout(env, agent, env_output, routine_config)
     else:
         raise NotImplementedError
 

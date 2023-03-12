@@ -2,36 +2,34 @@ from algo.mambpo.train import *
 
 
 @timeit
-def mix_run(agent, model, buffer, model_buffer, routine_config, rng):
+def mix_run(agent, model, routine_config, rng):
     if not model.trainer.is_trust_worthy() \
-        or not model_buffer.ready_to_sample():
+        or not model.buffer.ready_to_sample():
         return
     def get_agent_states():
         state = agent.get_states()
         # we collect lookahead data into the slow replay
-        if isinstance(buffer, DualReplay):
-            buffer.set_default_replay(routine_config.lookahead_replay)
+        if isinstance(agent.buffer, DualReplay):
+            agent.buffer.set_default_replay(routine_config.lookahead_replay)
         return state
     
     def set_agent_states(states):
         agent.set_states(states)
-        if isinstance(buffer, DualReplay):
-            buffer.set_default_replay('primal')
+        if isinstance(agent.buffer, DualReplay):
+            agent.buffer.set_default_replay('primal')
 
     # train lookahead agent
     routine_config = routine_config.copy()
     routine_config.lookahead_rollout = 'uni'
     with TempStore(get_agent_states, set_agent_states):
         run_on_model(
-            model, model_buffer, agent, buffer, routine_config, rng)
+            model, agent, routine_config, rng)
 
 
 def train(
     agent, 
     model, 
     runner, 
-    buffer, 
-    model_buffer, 
     routine_config,
     model_routine_config,
     lka_run_fn=lookahead_run, 
@@ -52,14 +50,13 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(MODEL_EVAL_STEPS, agent, None, None, [])
+    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
     rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)
         errors = AttrDict()
-        env_step = ego_run_fn(
-            agent, runner, buffer, model_buffer, routine_config)
+        env_step = ego_run_fn(agent, runner, routine_config)
         time2record = to_record(env_step)
         
         model_train_fn(model)
@@ -73,15 +70,13 @@ def train(
             # lka_train_fn(
             #     agent, 
             #     model, 
-            #     buffer, 
-            #     model_buffer, 
             #     routine_config, 
             #     n_runs=routine_config.n_lookahead_steps, 
             #     run_fn=lka_run_fn, 
             #     opt_fn=lka_opt_fn
             # )
-            # mix_run(agent, model, buffer, model_buffer, routine_config)
-            lka_run_fn(agent, model, buffer, model_buffer, routine_config, lka_rng)
+            # mix_run(agent, model, routine_config)
+            lka_run_fn(agent, model, routine_config, lka_rng)
         
         if routine_config.quantify_model_errors and time2record:
             errors.lka = quantify_model_errors(

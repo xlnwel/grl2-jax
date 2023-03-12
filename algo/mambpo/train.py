@@ -1,6 +1,6 @@
 from core.typing import modelpath2outdir
 from tools.store import TempStore
-from replay.dual import DualReplay
+from replay.dual import DualReplay, PRIMAL_REPLAY
 from algo.masac.train import *
 from algo.mambpo.run import *
 
@@ -11,23 +11,23 @@ def model_train(model):
 
 
 @timeit
-def lookahead_run(agent, model, buffer, model_buffer, routine_config, rng):
+def lookahead_run(agent, model, routine_config, rng):
     def get_agent_states():
         state = agent.get_states()
-        # we collect lookahead data into the slow replay
-        if isinstance(buffer, DualReplay):
-            buffer.set_default_replay(routine_config.lookahead_replay)
+        # we collect lookahead data into the secondary replay
+        if isinstance(agent.buffer, DualReplay):
+            agent.buffer.set_default_replay(routine_config.lookahead_replay)
         return state
     
     def set_agent_states(states):
         agent.set_states(states)
-        if isinstance(buffer, DualReplay):
-            buffer.set_default_replay('primal')
+        if isinstance(agent.buffer, DualReplay):
+            agent.buffer.set_default_replay(PRIMAL_REPLAY)
 
     # train lookahead agent
     with TempStore(get_agent_states, set_agent_states):
         run_on_model(
-            model, model_buffer, agent, buffer, routine_config, rng)
+            model, agent, routine_config, rng)
 
 
 @timeit
@@ -36,14 +36,14 @@ def lookahead_optimize(agent):
 
 
 @timeit
-def lookahead_train(agent, model, buffer, model_buffer, routine_config, 
+def lookahead_train(agent, model, routine_config, 
         n_runs, run_fn, opt_fn, rng):
     if not model.trainer.is_trust_worthy() \
-        or not model_buffer.ready_to_sample():
+        or not model.buffer.ready_to_sample():
         return
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
-        run_fn(agent, model, buffer, model_buffer, routine_config, rng)
+        run_fn(agent, model, routine_config, rng)
         opt_fn(agent)
 
 
@@ -55,8 +55,6 @@ def train(
     agent, 
     model, 
     runner, 
-    buffer, 
-    model_buffer, 
     routine_config,
     model_routine_config,
     lka_run_fn=lookahead_run, 
@@ -83,8 +81,7 @@ def train(
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)
         errors = AttrDict()
-        env_step = ego_run_fn(
-            agent, runner, buffer, model_buffer, routine_config)
+        env_step = ego_run_fn(agent, runner, routine_config)
         time2record = to_record(env_step)
         
         model_train_fn(model)
@@ -98,8 +95,6 @@ def train(
             lka_train_fn(
                 agent, 
                 model, 
-                buffer, 
-                model_buffer, 
                 routine_config, 
                 n_runs=routine_config.n_lookahead_steps, 
                 run_fn=lka_run_fn, 
@@ -142,10 +137,10 @@ def main(configs, train=train):
     print_dict(env_stats)
 
     # build agents
-    agent, buffer = build_agent(config, env_stats)
+    agent = build_agent(config, env_stats)
     # load model
-    model, model_buffer = build_model(config, model_config, env_stats)
-    model.change_buffer(buffer)
+    model = build_model(config, model_config, env_stats)
+    model.change_buffer(agent.buffer)
     save_code_for_seed(config)
 
     routine_config = config.routine.copy()
@@ -154,8 +149,6 @@ def main(configs, train=train):
         agent, 
         model, 
         runner, 
-        buffer, 
-        model_buffer, 
         routine_config,
         model_routine_config
     )

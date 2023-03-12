@@ -8,8 +8,6 @@ algos=(
     # $1
     masac_lka
     masac_lka
-    masac_lka2
-    masac_lka2
 )
 shift
 envs=(
@@ -22,7 +20,8 @@ configs=(
 )
 args1=(
     # $1
-    400
+    100
+    200
 )
 args2=(
     # $2
@@ -30,7 +29,6 @@ args2=(
 )
 args3=(
     # $3
-    400
     100
 )
 dynamics=(
