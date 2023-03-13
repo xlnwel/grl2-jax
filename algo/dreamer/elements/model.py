@@ -20,7 +20,7 @@ from tools.utils import batch_dicts
 from jax_tools import jax_dist
 from env.typing import EnvOutput
 from nn.rssm import RSSMState
-from algo.dreamer.run import concate_along_unit_dim
+from algo.dreamer.run import concat_along_unit_dim
 
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -253,12 +253,12 @@ class Model(ModelBase):
                 all_stats.append(stats)
                 all_states.append(astate)
 
-            action = concate_along_unit_dim(all_actions)
-            stats = batch_dicts(all_stats, func=concate_along_unit_dim)
+            action = concat_along_unit_dim(all_actions)
+            stats = batch_dicts(all_stats, func=concat_along_unit_dim)
             if astate is None:
                 state = None
             else:
-                state = batch_dicts(all_states, func=concate_along_unit_dim)
+                state = batch_dicts(all_states, func=concat_along_unit_dim)
             
             state_reset = jax.tree_util.tree_map(lambda x: jnp.squeeze(x, 1), state_reset)
             onehot_action = self.process_action(action)
@@ -349,12 +349,12 @@ class Model(ModelBase):
             all_stats.append(stats)
             all_states.append(state)
 
-        action = concate_along_unit_dim(all_actions)
-        stats = batch_dicts(all_stats, func=concate_along_unit_dim)
+        action = concat_along_unit_dim(all_actions)
+        stats = batch_dicts(all_stats, func=concat_along_unit_dim)
         if state is None:
             states = None
         else:
-            states = batch_dicts(all_states, func=concate_along_unit_dim)
+            states = batch_dicts(all_states, func=concat_along_unit_dim)
 
         return action, stats, states
 

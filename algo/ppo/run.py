@@ -1,5 +1,6 @@
 import collections
 import numpy as np
+import jax.numpy as jnp
 import ray
 
 from tools.run import RunnerWithState
@@ -9,8 +10,8 @@ from tools import pkg
 from env.typing import EnvOutput
 
 
-def concate_along_unit_dim(x):
-    x = np.concatenate(x, axis=1)
+def concat_along_unit_dim(x):
+    x = jnp.concatenate(x, axis=1)
     return x
 
 
@@ -32,7 +33,6 @@ class Runner(RunnerWithState):
         self, 
         n_steps, 
         agents, 
-        buffers, 
         lka_aids, 
         collect_ids, 
         store_info=True, 
@@ -49,7 +49,7 @@ class Runner(RunnerWithState):
         for _ in range(n_steps):
             acts, stats = zip(*[a(eo) for a, eo in zip(agents, env_outputs)])
 
-            action = concate_along_unit_dim(acts)
+            action = concat_along_unit_dim(acts)
             new_env_output = self.env.step(action)
             new_env_outputs = [EnvOutput(*o) for o in zip(*new_env_output)]
 
@@ -64,7 +64,7 @@ class Runner(RunnerWithState):
                     reset=new_env_outputs[i].reset, 
                     **stats[i]
                 )
-                buffers[i].collect(**data)
+                agents[i].buffer.collect(**data)
 
             if store_info:
                 done_env_ids = [i for i, r in enumerate(new_env_outputs[0].reset) if np.all(r)]
@@ -78,7 +78,7 @@ class Runner(RunnerWithState):
             env_output = new_env_output
             env_outputs = new_env_outputs
 
-        prepare_buffer(collect_ids, agents, buffers, env_outputs, compute_return)
+        prepare_buffer(collect_ids, agents, env_outputs, compute_return)
 
         for i in lka_aids:
             agents[i].model.switch_params(False)
@@ -187,7 +187,7 @@ class Runner(RunnerWithState):
         for _ in range(self.env.max_episode_steps):
             acts, stats = zip(*[a(eo, evaluation=True) for a, eo in zip(agents, env_outputs)])
 
-            action = concate_along_unit_dim(acts)
+            action = concat_along_unit_dim(acts)
             env_output = self.env.step(action)
             new_env_outputs = [EnvOutput(*o) for o in zip(*env_output)]
 
@@ -216,13 +216,14 @@ class Runner(RunnerWithState):
 def prepare_buffer(
     collect_ids, 
     agents, 
-    buffers, 
     env_outputs, 
     compute_return=True, 
 ):
     for i in collect_ids:
-        value = agents[i].compute_value(env_outputs[i])
-        data = buffers[i].get_data({
+        agent = agents[i]
+        buffer = agent.buffer
+        value = agent.compute_value(env_outputs[i])
+        data = buffer.get_data({
             'value': value, 
             'state_reset': env_outputs[i].reset
         })
@@ -235,15 +236,15 @@ def prepare_buffer(
                 reward=data.reward, 
                 discount=data.discount,
                 value=data.value,
-                gamma=buffers[i].config.gamma,
-                gae_discount=buffers[i].config.gamma * buffers[i].config.lam,
+                gamma=buffer.config.gamma,
+                gae_discount=buffer.config.gamma * buffer.config.lam,
                 next_value=data.next_value, 
                 reset=data.reset,
             )
-            if agents[i].trainer.config.popart:
+            if agent.trainer.config.popart:
                 # reassign value to ensure value clipping at the right anchor
                 data.value = value
-        buffers[i].move_to_queue(data)
+        buffer.move_to_queue(data)
 
 
 def compute_gae(

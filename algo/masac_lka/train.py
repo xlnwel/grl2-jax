@@ -1,20 +1,14 @@
-from algo.masac.train import *
-from algo.mambpo.train import main
+from algo.mambpo.train import *
 
 
 @timeit
-def ego_run(agent, runner, buffer, model_buffer, routine_config):
+def ego_run(agent, runner, routine_config):
     constructor = partial(state_constructor, agent=agent, runner=runner)
     get_fn = partial(get_states, agent=agent, runner=runner)
     set_fn = partial(set_states, agent=agent, runner=runner)
 
     with StateStore('real', constructor, get_fn, set_fn):
-        runner.run(
-            routine_config.n_steps, 
-            agent, buffer, 
-            model_buffer, 
-            None, 
-        )
+        runner.run(routine_config.n_steps, agent, None, )
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
     agent.add_env_step(env_steps_per_run)
@@ -29,8 +23,6 @@ def train(
     agent, 
     model, 
     runner, 
-    buffer, 
-    model_buffer, 
     routine_config,
     model_routine_config,
     lka_run_fn=lookahead_run, 
@@ -51,25 +43,26 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
+    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
+    rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
+        rng, lka_rng = jax.random.split(rng, 2)
         errors = AttrDict()
-        if model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
+        if model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps:
             pass
         else:
             lka_train_fn(
                 agent, 
                 model, 
-                buffer, 
-                model_buffer, 
                 routine_config, 
                 n_runs=routine_config.n_lookahead_steps, 
                 run_fn=lka_run_fn, 
-                opt_fn=lka_opt_fn
+                opt_fn=lka_opt_fn, 
+                rng=lka_rng
             )
         
-        env_step = ego_run_fn(
-            agent, runner, buffer, model_buffer, routine_config)
+        env_step = ego_run_fn(agent, runner, routine_config)
         time2record = to_record(env_step)
         
         model_train_fn(model)
@@ -82,18 +75,17 @@ def train(
                 agent, model, runner.env_config(), MODEL_EVAL_STEPS, None)
 
         if (not routine_config.use_latest_model) or \
-            model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
+            (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
             pass
         else:
             lka_train_fn(
                 agent, 
                 model, 
-                buffer, 
-                model_buffer, 
                 routine_config, 
                 n_runs=routine_config.n_lookahead_steps, 
                 run_fn=lka_run_fn, 
-                opt_fn=dummy_lookahead_optimize
+                opt_fn=dummy_lookahead_optimize, 
+                lka_rng=lka_rng
             )
 
         train_step = ego_opt_fn(agent)

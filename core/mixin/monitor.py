@@ -46,7 +46,6 @@ def merge_data(filename, suffix):
     i = 1
     while is_nonempty_file(path):
         data.append(pd.read_csv(path, sep='\t', on_bad_lines='skip'))
-        os.remove(path)
         path = filename + f"{i}" + suffix
         i += 1
     if data:

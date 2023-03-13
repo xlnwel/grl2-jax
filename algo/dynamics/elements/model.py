@@ -44,7 +44,7 @@ class Model(ModelBase):
 
         if self.config.model_norm_obs:
             self.obs_rms = RunningMeanStd([0, 1])
-            
+
     def build_nets(self):
         aid = self.config.get('aid', 0)
         self.is_action_discrete = self.env_stats.is_action_discrete[aid]

@@ -94,7 +94,7 @@ loss:
 trainer:
     algorithm: *algo
     aid: 0
-    trust_threshold: 1000
+    trust_threshold: null
     timeout_done: *td
     model_norm_obs: *obs_norm
 

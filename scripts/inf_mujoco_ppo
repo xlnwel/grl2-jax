@@ -3,7 +3,7 @@
 export PYTHONPATH=.
 
 algos=(
-    happo_mb
+    happo
 )
 suite=$1
 shift
@@ -16,19 +16,16 @@ configs=(
     "${suite}"
 )
 args1=(
-    mse 
-    mbpo
+    True
+    False
 )
 args2=(
-    5
+    $2
+    1
 )
 args3=(
     $3
     1
-)
-dynamics=(
-    "dynamics"
-    # "dynamics"
 )
 date=$(date +"%m%d")
 info=""
@@ -55,9 +52,6 @@ config=${configs[$idx]}
 la=${#algos[@]}
 idx=$(($INF_MAC_NODE_RANK % $la))
 a=${algos[$idx]}
-ldy=${#dynamics[@]}
-idx=$(($INF_MAC_NODE_RANK % $ldy))
-d=${dynamics[$idx]}
 la1=${#args1[@]}
 idx=$(($INF_MAC_NODE_RANK % $la1))
 a1=${args1[$idx]}
@@ -69,12 +63,11 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-# for d in "${dynamics[@]}"; do
-kws="0#dynamics_name=$d model_loss_type=$a1"
+# kws="use_feature_norm=$a1"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do
-        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

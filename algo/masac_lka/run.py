@@ -1,1 +1,1 @@
-from algo.masac.run import *
+from algo.mambpo.run import *

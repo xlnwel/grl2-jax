@@ -20,9 +20,9 @@ class Model(ModelBase):
         self.params.model, self.modules.model = self.build_net(
             data.obs[:, 0, :], data.action[:, 0], name='model')
         self.params.emodels, self.modules.emodels = self.build_net(
-            data.obs, data.action, data.obs, True, name='emodels')
+            data.obs, data.action, True, name='emodels')
         self.params.reward, self.modules.reward = self.build_net(
-            data.obs, data.action, name='reward')
+            data.obs, data.action, data.obs, name='reward')
         self.params.discount, self.modules.discount = self.build_net(
             data.obs, name='discount')
 

@@ -41,10 +41,10 @@ class DualReplay(Buffer):
         self._primal_type = self._primal_config.type
         self._secondary_type = self._secondary_config.type
 
+        self.default_replay = PRIMAL_REPLAY
+
         self.primal_replay = self.build_replay(self._primal_config, model)
         self.secondary_replay = self.build_replay(self._secondary_config, model)
-
-        self.default_replay = PRIMAL_REPLAY
 
     @property
     def primal_config(self):
@@ -71,7 +71,7 @@ class DualReplay(Buffer):
         assert target_replay in [PRIMAL_REPLAY, SECONDARY_REPLAY], target_replay
         self.default_replay = target_replay
         
-    def ready_to_sample(self, target_replay=None):
+    def ready_to_sample(self, target_replay=PRIMAL_REPLAY):
         if target_replay == PRIMAL_REPLAY:
             return self.primal_replay.ready_to_sample()
         elif target_replay == SECONDARY_REPLAY:
@@ -80,7 +80,7 @@ class DualReplay(Buffer):
             return self.secondary_replay.ready_to_sample() and self.primal_replay.ready_to_sample()
 
     def __len__(self):
-        return len(self.secondary_replay) + len(self.primal_replay)
+        return len(self.primal_replay) + len(self.secondary_replay)
 
     def collect(self, target_replay=None, **data):
         if target_replay is None:

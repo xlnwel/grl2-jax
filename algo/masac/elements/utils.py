@@ -22,7 +22,7 @@ def clip_but_pass_gradient(x, l=-1., u=1.):
     return x + lax.stop_gradient((u - x)*clip_up + (l - x)*clip_low)
 
 
-def concate_along_unit_dim(x):
+def concat_along_unit_dim(x):
     x = jnp.concatenate(x, axis=1)
     return x
 

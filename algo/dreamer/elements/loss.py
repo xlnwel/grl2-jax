@@ -2,7 +2,7 @@ from jax import lax, nn, random
 import jax.numpy as jnp
 
 import sys, os
-from algo.dreamer.run import concate_along_unit_dim
+from algo.dreamer.run import concat_along_unit_dim
 sys.path.append(os.path.dirname(os.path.realpath('__file__')))
 
 from core.elements.loss import LossBase

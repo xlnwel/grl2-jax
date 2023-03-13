@@ -2,10 +2,13 @@
 
 export PYTHONPATH=.
 
-algos=(
-    happo_mb
-)
 suite=$1
+shift
+algos=(
+    # $1
+    masac_lka2
+    masac_lka2
+)
 shift
 envs=(
     Ant_2x4
@@ -16,19 +19,21 @@ configs=(
     "${suite}"
 )
 args1=(
-    mse 
-    mbpo
+    # $1
+    400
 )
 args2=(
-    5
+    # $2
+    10000
 )
 args3=(
-    $3
-    1
+    # $3
+    400
+    100
 )
 dynamics=(
+    # $4
     "dynamics"
-    # "dynamics"
 )
 date=$(date +"%m%d")
 info=""
@@ -69,18 +74,17 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-# for d in "${dynamics[@]}"; do
-kws="0#dynamics_name=$d model_loss_type=$a1"
+kws="0#dynamics_name=$d 0#n_epochs=$a1 0#n_simulated_envs=$a2 0#n_lka_epochs=$a3"
 for e in "${envs[@]}"; do
+    config="${suite}"
     env="${suite}-${e}"
-    for s in {0..4}; do
+    for s in {0..3}; do
         py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script
     done
 done
-# done
 # echo ${commands[@]}s
 lc=${#commands[@]}
 p=$((lc / le))

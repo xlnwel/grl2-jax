@@ -10,10 +10,10 @@ import numpy as np
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
-from core.typing import AttrDict, tree_slice
+from core.typing import AttrDict
 from replay.local import EpisodicBuffer
 from replay.utils import load_data, save_data
-from tools.utils import batch_dicts
+from tools.utils import batch_dicts, yield_from_dict
 from tools.display import print_dict_info
 from replay import replay_registry
 
@@ -61,15 +61,11 @@ class EpisodicReplay(Buffer):
 
     def add(self, idxes=None, **data):
         if self.n_envs > 1:
-            if idxes is None:
-                idxes = range(self.n_envs)
-            for i in idxes:
-                d = tree_slice(data, i)
+            for i, d in enumerate(yield_from_dict(data)):
                 eps = self._tmp_bufs[i].add(**d)
                 if eps is not None:
                     self.merge(eps)
         else:
-            data = tree_slice(data, 0)
             eps = self._tmp_bufs[0].add(**data)
             if eps is not None:
                 self.merge(eps)

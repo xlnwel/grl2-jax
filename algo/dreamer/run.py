@@ -11,7 +11,7 @@ from tools import pkg
 from env.typing import RSSMEnvOutput
 
 
-def concate_along_unit_dim(x):
+def concat_along_unit_dim(x):
     x = jnp.concatenate(x, axis=1)
     return x
 

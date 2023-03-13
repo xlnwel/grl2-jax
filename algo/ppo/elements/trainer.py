@@ -97,7 +97,7 @@ class Trainer(TrainerBase):
             indices = np.split(self.indices, self.config.n_mbs)
             v_target = []
             for idx in indices:
-                with Timer(f'{self.name}_train'):
+                with Timer(f'theta_train'):
                     d = data.slice(idx)
                     if self.config.popart:
                         d.popart_mean = self.popart.mean
@@ -117,7 +117,7 @@ class Trainer(TrainerBase):
 
         data = flatten_dict({f'data/{k}': v 
             for k, v in data.items() if v is not None})
-        stats = prefix_name(stats, 'train')
+        stats = prefix_name(stats, 'theta_train')
         stats.update(data)
         stats['popart/mean'] = self.popart.mean
         stats['popart/std'] = self.popart.std

@@ -19,14 +19,13 @@ routine:
     LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
-    n_eval_envs: 100
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
     n_lookahead_steps: 0
     lookahead_rollout: sim
-    compute_return_at_once: True
+    compute_return_at_once: False
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
@@ -39,6 +38,7 @@ env:
     timeout_done: &td False
     env_args:
         agent_obsk: 0
+    norm_obs: False
 
 agent: {}
 
@@ -67,7 +67,7 @@ model:
         sigmoid_scale: True
         std_x_coef: 1.
         std_y_coef: .5
-        use_feature_norm: True
+        use_feature_norm: False
     value:
         nn_id: value
         units_list: [64, 64]
@@ -76,7 +76,7 @@ model:
         norm: layer
         rnn_type: &vrnn null
         rnn_units: 64
-        use_feature_norm: True
+        use_feature_norm: False
 
 loss:
     # hyperparams for value target and advantage
