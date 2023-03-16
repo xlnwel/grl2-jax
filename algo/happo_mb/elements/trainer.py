@@ -1,14 +1,13 @@
 from functools import partial
 import numpy as np
 import jax
-import jax.numpy as jnp
 
 from core.log import do_logging
 from core.elements.trainer import create_trainer
 from core.typing import AttrDict
 from core import optimizer
-from tools.timer import Timer
-from algo.happo.elements.trainer import Trainer as TrainerBase
+from algo.lka_common.elements.model import LOOKAHEAD
+from algo.happo.elements.trainer import Trainer as TrainerBase, pop_lookahead
 
 
 class Trainer(TrainerBase):
@@ -17,13 +16,15 @@ class Trainer(TrainerBase):
         self.lka_indices = np.arange(self.config.n_simulated_envs)
 
     def compile_train(self):
-        _jit_train = jax.jit(self.theta_train)
+        _jit_train = jax.jit(self.theta_train, 
+            static_argnames=['aid', 'compute_teammate_log_ratio'])
         def jit_train(*args, **kwargs):
             self.rng, rng = jax.random.split(self.rng)
             return _jit_train(*args, rng=rng, **kwargs)
         self.jit_train = jit_train
         
-        _jit_lka_train = jax.jit(self.lka_train)
+        _jit_lka_train = jax.jit(self.lka_train, 
+            static_argnames=['aid', 'compute_teammate_log_ratio'])
         def jit_lka_train(*args, **kwargs):
             self.rng, rng = jax.random.split(self.rng)
             return _jit_lka_train(*args, rng=rng, **kwargs)
@@ -31,41 +32,29 @@ class Trainer(TrainerBase):
         
         self.haiku_tabulate()
 
-    def lookahead_train(self, data: AttrDict, teammate_log_ratio=None):
-        if teammate_log_ratio is None:
-            teammate_log_ratio = jnp.zeros_like(data.mu_logprob)
-
+    def lookahead_train(self, data: AttrDict):
         theta = self.model.lookahead_params.copy()
-        is_lookahead = theta.pop('lookahead')
-        assert is_lookahead == True, is_lookahead
+        theta.policies, is_lookahead = pop_lookahead(theta.policies)
+        assert all([lka == True for lka in is_lookahead]), is_lookahead
         opt_state = self.lookahead_opt_state
-        for _ in range(self.config.n_lookahead_epochs):
-            np.random.shuffle(self.lka_indices)
-            indices = np.split(self.lka_indices, self.config.n_lookahead_mbs)
-            for idx in indices:
-                with Timer(f'lka_train'):
-                    d = data.slice(idx)
-                    t_log_ratio = teammate_log_ratio[idx]
-                    if self.config.popart:
-                        d.popart_mean = self.popart.mean
-                        d.popart_std = self.popart.std
-                    theta, opt_state, _ = \
-                        self.jit_lka_train(
-                            theta, 
-                            opt_state=opt_state, 
-                            data=d,
-                            teammate_log_ratio=t_log_ratio,
-                        )
-        
-        for k, v in theta.items():
-            self.model.lookahead_params[k] = v
-        self.lookahead_opt_state = opt_state
 
-        self.rng, rng = jax.random.split(self.rng) 
-        pi_logprob = self.model.jit_action_logprob(
-            self.model.lookahead_params, rng, data)
-        agent_log_ratio = pi_logprob - data.mu_logprob
-        return teammate_log_ratio + agent_log_ratio
+        if self.config.update_scheme == 'step':
+            theta, opt_state = self.stepwise_sequential_opt(
+                theta, opt_state, data, self.config.n_lka_epochs, 
+                self.config.n_lka_mbs, self.lka_indices, 
+                self.jit_lka_train, return_stats=False
+            )
+        else:
+            theta, opt_state = self.sequential_opt(
+                theta, opt_state, data, self.config.n_lka_epochs, 
+                self.config.n_lka_mbs, self.lka_indices, 
+                self.jit_lka_train, return_stats=False
+            )
+
+        for p in theta.policies:
+            p[LOOKAHEAD] = True
+        self.model.lookahead_params = theta
+        self.lookahead_opt_state = opt_state
 
     def lka_train(
         self, 
@@ -74,15 +63,18 @@ class Trainer(TrainerBase):
         opt_state, 
         data, 
         teammate_log_ratio,
+        aid, 
+        compute_teammate_log_ratio=True
     ):
         do_logging('lka train is traced', backtrack=4)
+        rngs = jax.random.split(rng, 3)
         if self.config.get('theta_opt'):
             theta, opt_state, stats = optimizer.optimize(
                 self.loss.lka_loss, 
                 theta, 
                 opt_state, 
                 kwargs={
-                    'rng': rng, 
+                    'rng': rngs[0], 
                     'data': data,
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
@@ -95,11 +87,11 @@ class Trainer(TrainerBase):
                 theta.value, 
                 opt_state.value, 
                 kwargs={
-                    'rng': rng, 
+                    'rng': rngs[0], 
                     'policy_theta': theta.policy, 
                     'data': data,
                 }, 
-                opt=self.opts.value, 
+                opt=self.opts.vs[aid], 
                 name='train/value'
             )
             theta.policy, opt_state.policy, stats = optimizer.optimize(
@@ -107,14 +99,18 @@ class Trainer(TrainerBase):
                 theta.policy, 
                 opt_state.policy, 
                 kwargs={
-                    'rng': rng, 
+                    'rng': rngs[1], 
                     'data': data, 
                     'stats': stats,
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
-                opt=self.opts.policy, 
+                opt=self.opts.policies[aid], 
                 name='train/policy'
             )
+
+        if compute_teammate_log_ratio:
+            stats.teammate_log_ratio = self.compute_teammate_log_ratio(
+                theta.policy, rngs[2], teammate_log_ratio, data)
 
         return theta, opt_state, stats
 

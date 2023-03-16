@@ -17,6 +17,11 @@ def _reshape_for_bptt(*args, bptt):
     )
 
 
+def concat_along_unit_dim(x):
+    x = jnp.concatenate(x, axis=1)
+    return x
+
+
 def compute_values(
     func, 
     params, 

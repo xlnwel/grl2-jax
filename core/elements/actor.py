@@ -7,6 +7,14 @@ from core.typing import ModelPath, AttrDict, dict2AttrDict
 from tools.utils import set_path
 
 
+def apply_rms_to_inp(inp, rms, update_rms):
+    inp = rms.process_obs_with_rms(
+        inp, mask=inp.sample_mask, 
+        update_rms=update_rms
+    )
+    return inp
+
+
 class Actor:
     def __init__(
         self, 
@@ -22,11 +30,10 @@ class Actor:
         else:
             self._model_path = None
         self.config = config
+        self.model = model
 
         self.rms: RMS = self.config.get('rms', None)
         self.setup_checkpoint()
-
-        self.model = model
         
         self.post_init()
 
@@ -41,8 +48,11 @@ class Actor:
         self._model_path = model_path
         self.config = set_path(self.config, model_path, max_layer=0)
         self.setup_checkpoint()
-        if self.rms is not None:
-            self.rms.reset_path(model_path)
+
+    def setup_checkpoint(self):
+        if self.rms:
+            self.config.rms.model_path = self._model_path
+            self.rms = RMS(self.config.rms)
 
     def __getattr__(self, name):
         # Do not expose the interface of independent elements here. 
@@ -90,9 +100,9 @@ class Actor:
             processed input to <model.action>
         """
         if self.rms is not None:
-            inp = self.rms.process_obs_with_rms(
-                inp, mask=inp.sample_mask, 
-                update_rms=self.config.get('update_obs_rms_at_execution', False)
+            inp = apply_rms_to_inp(
+                inp, self.rms, 
+                self.config.get('update_obs_rms_at_execution', False)
             )
         return inp
 
@@ -112,10 +122,9 @@ class Actor:
         """
         action, stats, state = out
         if state is not None and not evaluation:
-            prev_state = inp.state
             stats.update({
-                'state_reset': inp['state_reset'], 
-                'state': prev_state,
+                'state_reset': inp.state_reset, 
+                'state': inp.state, 
             })
         if self.config.get('update_obs_at_execution', True) \
             and not evaluation and self.rms is not None \
@@ -164,11 +173,6 @@ class Actor:
         """ Restore the RMS and the model """
         if self.rms:
             self.rms.restore_rms()
-
-    def setup_checkpoint(self):
-        if self.rms:
-            self.config.rms.model_path = self._model_path
-            self.rms = RMS(self.config.rms)
 
     def save(self):
         self.model.save()

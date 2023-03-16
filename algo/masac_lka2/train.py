@@ -1,11 +1,12 @@
-from algo.mambpo.train import *
+from algo.masac_lka.train import *
 
 
 @timeit
-def mix_run(agent, model, routine_config, rng):
-    if not model.trainer.is_trust_worthy() \
-        or not model.buffer.ready_to_sample():
+def mix_run(agent, dynamics, routine_config, dynamics_routine_config, rng):
+    if dynamics_routine_config.model_warm_up and \
+        agent.get_env_step() < dynamics_routine_config.model_warm_up_steps:
         return
+
     def get_agent_states():
         state = agent.get_states()
         # we collect lookahead data into the slow replay
@@ -18,27 +19,25 @@ def mix_run(agent, model, routine_config, rng):
         if isinstance(agent.buffer, DualReplay):
             agent.buffer.set_default_replay('primal')
 
-    # train lookahead agent
+    # run (pi^i, x^{-i}) for all i
     routine_config = routine_config.copy()
-    routine_config.lookahead_rollout = 'uni'
+    routine_config.n_simulated_envs //= dynamics.env_stats.n_agents
     with TempStore(get_agent_states, set_agent_states):
-        run_on_model(
-            model, agent, routine_config, rng)
+        for i in range(dynamics.env_stats.n_agents):
+            lka_aids = [j for j in range(dynamics.env_stats.n_agents) if j != i]
+            agent_params, dynamics_params = prepare_params(agent, dynamics)
+            branched_rollout(
+                agent, agent_params, dynamics, dynamics_params, 
+                routine_config, rng, lka_aids
+            )
 
 
 def train(
     agent, 
-    model, 
+    dynamics, 
     runner, 
-    routine_config,
-    model_routine_config,
-    lka_run_fn=lookahead_run, 
-    lka_opt_fn=lookahead_optimize, 
-    lka_train_fn=lookahead_train, 
-    ego_run_fn=ego_run, 
-    ego_opt_fn=ego_optimize, 
-    ego_train_fn=ego_train, 
-    model_train_fn=model_train
+    routine_config, 
+    dynamics_routine_config, 
 ):
     MODEL_EVAL_STEPS = runner.env.max_episode_steps
     print('Model evaluation steps:', MODEL_EVAL_STEPS)
@@ -54,45 +53,60 @@ def train(
     rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
-        rng, lka_rng = jax.random.split(rng, 2)
+        rng, run_rng = jax.random.split(rng, 2)
         errors = AttrDict()
-        env_step = ego_run_fn(agent, runner, routine_config)
+        env_step = env_run(agent, runner, routine_config, lka_aids=[])
         time2record = to_record(env_step)
         
-        model_train_fn(model)
-        if routine_config.quantify_model_errors and time2record:
-            errors.train = quantify_model_errors(
-                agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
-        if model is None or (model_routine_config.model_warm_up and env_step < model_routine_config.model_warm_up_steps):
-            pass
-        else:
-            lka_opt_fn(agent)
-            # lka_train_fn(
-            #     agent, 
-            #     model, 
-            #     routine_config, 
-            #     n_runs=routine_config.n_lookahead_steps, 
-            #     run_fn=lka_run_fn, 
-            #     opt_fn=lka_opt_fn
-            # )
-            # mix_run(agent, model, routine_config)
-            lka_run_fn(agent, model, routine_config, lka_rng)
-        
-        if routine_config.quantify_model_errors and time2record:
-            errors.lka = quantify_model_errors(
-                agent, model, runner.env_config(), MODEL_EVAL_STEPS, None)
+        dynamics_optimize(dynamics)
+        if routine_config.quantify_dynamics_errors and time2record:
+            errors.train = quantify_dynamics_errors(
+                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
-        train_step = ego_opt_fn(agent)
-        if routine_config.quantify_model_errors and time2record:
-            errors.ego = quantify_model_errors(
-                agent, model, runner.env_config(), MODEL_EVAL_STEPS, [])
+        if routine_config.lka_test:
+            lka_optimize(agent)
+            mix_run(
+                agent, 
+                dynamics, 
+                routine_config, 
+                dynamics_routine_config, 
+                run_rng
+            )
+        else:
+            rngs = jax.random.split(run_rng, 2)
+            lka_train(
+                agent, 
+                dynamics, 
+                routine_config, 
+                dynamics_routine_config, 
+                n_runs=routine_config.n_lookahead_steps, 
+                run_fn=dynamics_run, 
+                opt_fn=lka_optimize, 
+                rng=rngs[0]
+            )
+            mix_run(
+                agent, 
+                dynamics, 
+                routine_config, 
+                dynamics_routine_config, 
+                rngs[1]
+            )
+        
+        if routine_config.quantify_dynamics_errors and time2record:
+            errors.lka = quantify_dynamics_errors(
+                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
+
+        train_step = ego_optimize(agent)
+        if routine_config.quantify_dynamics_errors and time2record:
+            errors.ego = quantify_dynamics_errors(
+                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            evaluate(agent, model, runner, env_step, routine_config)
-            save(agent, model)
-            if routine_config.quantify_model_errors:
+            evaluate(agent, dynamics, runner, env_step, routine_config)
+            save(agent, dynamics)
+            if routine_config.quantify_dynamics_errors:
                 outdir = modelpath2outdir(agent.get_model_path())
-                log_model_errors(errors, outdir, env_step)
-            log(agent, model, env_step, train_step, errors)
+                log_dynamics_errors(errors, outdir, env_step)
+            log(agent, dynamics, env_step, train_step, errors)
 
 main = partial(main, train=train)

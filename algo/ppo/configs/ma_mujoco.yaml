@@ -25,7 +25,7 @@ routine:
     size: [256, 256]
 
     n_lookahead_steps: 1
-    lookahead_rollout: sim
+    model_rollout_type: sim
     compute_return_at_once: True
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
@@ -118,7 +118,7 @@ trainer:
     n_runners: *nrunners
     n_envs: *nenvs
     n_epochs: &nepochs 5
-    n_lookahead_epochs: 5
+    n_lka_epochs: 5
     n_mbs: &nmbs 40
     n_steps: *nsteps         # BPTT length
 

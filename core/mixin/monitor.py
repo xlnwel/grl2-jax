@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from tools.display import print_dict_info
 
 from core.log import do_logging
-from core.typing import ModelPath
+from core.typing import ModelPath, get_env_algo
 from tools.utils import isscalar
 from tools.timer import get_current_datetime, compute_time_left
 
@@ -275,6 +275,11 @@ class Recorder:
         n_slashes = 7 + max_key_len + max_val_len
         if print_terminal_info:
             print("-"*n_slashes)
+            env, algo = get_env_algo(self._model_path.root_dir)
+            suite, env = env.split('-')[-2:]
+            print(f'| {"suite":>{max_key_len}s} | {suite:>{max_val_len}s} |')
+            print(f'| {"environment":>{max_key_len}s} | {env:>{max_val_len}s} |')
+            print(f'| {"algorithm":>{max_key_len}s} | {algo:>{max_val_len}s} |')
             print(f'| {"model_name":>{max_key_len}s} | {self._model_path.model_name:>{max_val_len}s} |')
         
             steps = self._current_row['steps']

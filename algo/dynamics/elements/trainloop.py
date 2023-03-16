@@ -10,7 +10,7 @@ class TrainingLoop(TrainingLoopBase):
         stats = {}
         for _ in range(self.config.n_epochs):
             if self.config.ergodic:
-                for data in self.buffer.ergodic_sample():
+                for data in self.buffer.ergodic_sample(n=self.config.samples_per_epochs):
                     stats = self._train_with_data(data)
                     n += 1
             else:

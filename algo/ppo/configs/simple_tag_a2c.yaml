@@ -24,7 +24,7 @@ routine:
     size: [256, 256]
 
     n_lookahead_steps: 0
-    lookahead_rollout: sim
+    model_rollout_type: sim
 
 env:
     env_name: &env_name mpe-simple_tag
@@ -109,7 +109,7 @@ trainer:
     n_runners: *nrunners
     n_envs: *nenvs
     n_epochs: &nepochs 1
-    n_lookahead_epochs: 1
+    n_lka_epochs: 1
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 

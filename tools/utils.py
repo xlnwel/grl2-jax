@@ -52,6 +52,7 @@ def add_suffix(s, suffix):
 def flatten_dict(d: dict, prefix=None, suffix=None):
     result = AttrDict()
     for k, v in d.items():
+        k = add_prefix(k, prefix)
         if isinstance(v, dict):
             v = flatten_dict(v, suffix=suffix)
             for kk, vv in v.items():
@@ -59,11 +60,6 @@ def flatten_dict(d: dict, prefix=None, suffix=None):
         else:
             k = add_suffix(k, suffix)
             result[k] = v
-    if prefix is not None:
-        old_result = result
-        result = {}
-        for k, v in old_result.items():
-            result[add_prefix(k, prefix)] = v
 
     return result
 
@@ -500,6 +496,8 @@ def product_flatten_dict(**kwargs):
     return result
 
 def batch_dicts(x, func=np.stack):
+    if x is None:
+        return x
     res = AttrDict()
     
     for k, v in x[0].items():

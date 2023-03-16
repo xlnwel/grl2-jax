@@ -59,6 +59,7 @@ class StepCounter:
     def get_train_step_intervals(self):
         return self._train_step_interval
 
+
 class Memory:
     def __init__(self, model):
         """ Setups attributes for RNNs """
@@ -74,6 +75,8 @@ class Memory:
 
         if state is None:
             state = self._state
+        if state is None:
+            return inp  # no memory is maintained
 
         state = self.apply_reset_to_state(state, reset)
         inp.update({
@@ -87,8 +90,8 @@ class Memory:
         return np.float32(1. - reset)
 
     def apply_reset_to_state(self, state: NamedTuple, reset: np.ndarray):
-        assert state is not None, state
-        reset = reset.reshape(-1, 1)
+        if state is None:
+            return
         state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
         return state
 

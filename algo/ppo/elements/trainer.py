@@ -14,7 +14,6 @@ from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
 from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
-from jax_tools import jax_utils
 
 
 def construct_fake_data(env_stats, aid):
@@ -137,7 +136,7 @@ class Trainer(TrainerBase):
         is_lookahead = theta.pop('lookahead')
         assert is_lookahead == True, is_lookahead
         opt_state = self.lookahead_opt_state
-        for _ in range(self.config.n_lookahead_epochs):
+        for _ in range(self.config.n_lka_epochs):
             np.random.shuffle(self.indices)
             indices = np.split(self.indices, self.config.n_mbs)
             for idx in indices:

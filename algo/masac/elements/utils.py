@@ -1,4 +1,3 @@
-import numpy as np
 import jax
 from jax import lax, nn, random
 import jax.numpy as jnp
@@ -114,7 +113,7 @@ def compute_joint_action_logprob(
     for p, uids in zip(params, model.aid2uids):
         d = data.slice((slice(None), slice(None), uids))
         policy_state = None if d.state is None else d.state.policy
-        a, lp, d = compute_action_logprob(
+        a, lp, dist = compute_action_logprob(
             model, 
             p, 
             rng, 
@@ -126,11 +125,10 @@ def compute_joint_action_logprob(
         )
         action.append(a)
         logprob.append(lp)
+        act_dists.append(dist)
     action = jnp.concatenate(action, 2)
     action = action.reshape(*action.shape[:2], 1, -1)
-    logprob = jnp.sum(jnp.concatenate(logprob, 2), 
-        2, keepdims=True)
-    act_dists.append(d)
+    logprob = jnp.sum(jnp.concatenate(logprob, 2), 2, keepdims=True)
 
     return action, logprob, act_dists
 

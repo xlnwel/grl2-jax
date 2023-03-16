@@ -68,8 +68,8 @@ def split_data(x, next_x=None, axis=1):
         return None, None
     if next_x is None:
         n = x.shape[axis]
-        _, next_x = jnp.split(x, [1], axis=axis)
-        x, _ = jnp.split(x, [n-1], axis=axis)
+        next_x = x.take(jnp.arange(1, n), axis=axis)
+        x = x.take(jnp.arange(n-1), axis=axis)
 
     return x, next_x
 

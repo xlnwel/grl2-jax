@@ -20,6 +20,7 @@ class Strategy(StrategyBase):
     def _record_output(self, out):
         state = out[-1]
         self._memory.set_states(state)
+        return out
 
     def compute_value(self, env_output):
         inp = AttrDict(global_state=env_output.obs['global_state'])

@@ -66,13 +66,12 @@ class Trainer(TrainerBase):
         self.model.rank_elites(elite_indices)
         self._evaluate_model(stats)
 
-        data = flatten_dict({f'data/{k}': v 
-            for k, v in data.items() if v is not None})
-        stats = prefix_name(stats, f'dynamics_train')
+        data = flatten_dict(data, prefix='data')
+        stats = prefix_name(stats, f'dynamics')
         stats.update(data)
         for v in theta.values():
             stats.update(flatten_dict(
-                jax.tree_util.tree_map(np.linalg.norm, v)))
+                jax.tree_util.tree_map(np.linalg.norm, v), prefix='dynamics'))
 
         return stats
 

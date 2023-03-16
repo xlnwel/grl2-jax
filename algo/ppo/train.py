@@ -47,7 +47,7 @@ def lookahead_run(agents, runner, routine_config):
     get_fn = partial(get_states, agents=agents, runner=runner)
     set_fn = partial(set_states, agents=agents, runner=runner)
 
-    if routine_config.lookahead_rollout == 'sim':
+    if routine_config.model_rollout_type == 'sim':
         with StateStore('sim', constructor, get_fn, set_fn):
             runner.run(
                 routine_config.n_steps, 
@@ -55,7 +55,7 @@ def lookahead_run(agents, runner, routine_config):
                 all_aids, all_aids, False, 
                 compute_return=routine_config.compute_return_at_once
             )
-    elif routine_config.lookahead_rollout == 'uni':
+    elif routine_config.model_rollout_type == 'uni':
         for i in all_aids:
             with StateStore(f'uni{i}', constructor, get_fn, set_fn):
                 runner.run(
