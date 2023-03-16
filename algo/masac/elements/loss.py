@@ -17,7 +17,7 @@ class Loss(LossBase):
         data, 
         name='train/q', 
     ):
-        rngs = random.split(rng, 3)
+        rngs = random.split(rng, 4)
         stats = dict2AttrDict(self.config.stats, to_copy=True)
         assert len(policy_params) == len(self.model.aid2uids), (len(policy_params), len(self.model.aid2uids))
 

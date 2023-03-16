@@ -5,7 +5,8 @@ export PYTHONPATH=.
 python run/train.py -a masac -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
 python run/train.py -a mambpo dynamics_tx -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 -kw 0#dynamics_name=dynamics_tx &
 python run/train.py -a masac_lka dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
-python run/train.py -a masac_lka2 dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
+python run/train.py -a masac_lka2 dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 -kw lka_test=True &
+python run/train.py -a masac_lka2 dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 -kw lka_test=False &
 python run/train.py -a happo -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
 python run/train.py -a happo_mb dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
 wait

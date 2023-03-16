@@ -1,12 +1,10 @@
 import os
-import math
 import logging
 import jax
 from jax import lax, nn, random
 import jax.numpy as jnp
 import haiku as hk
 
-from core.log import do_logging
 from core.elements.model import Model as ModelBase
 from core.typing import AttrDict, dict2AttrDict
 from tools.file import source_file
@@ -142,6 +140,8 @@ class Model(ModelBase):
 
     """ RNN Operators """
     def get_initial_state(self, batch_size):
+        if self._initial_state is not None:
+            return self._initial_state
         aid = self.config.get('aid', 0)
         data = construct_fake_data(self.env_stats, aid, batch_size)
         _, policy_state = self.modules.policy(

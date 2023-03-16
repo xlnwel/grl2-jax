@@ -27,8 +27,15 @@ class TrainingLoop:
 
     def train(self, step, **kwargs):
         self._before_train(step)
-        train_step, stats = self._train(**kwargs)
-        self._after_train()
+        if self.config.n_epochs:
+            train_step = 0
+            for _ in range(self.config.n_epochs):
+                n, stats = self._train(**kwargs)
+                train_step += n
+        else:
+            train_step, stats = self._train(**kwargs)
+        if train_step != 0:
+            stats = self._after_train(stats)
 
         return train_step, stats
 
@@ -39,7 +46,7 @@ class TrainingLoop:
         data = self.sample_data()
         if data is None:
             return 0, AttrDict()
-        stats = self._train_with_data(data)
+        stats = self._train_with_data(data, **kwargs)
 
         if isinstance(stats, tuple):
             assert len(stats) == 2, stats
@@ -49,8 +56,8 @@ class TrainingLoop:
 
         return n, stats
 
-    def _after_train(self):
-        pass
+    def _after_train(self, stats):
+        return stats
 
     def sample_data(self):
         with Timer('sample'):
@@ -60,13 +67,15 @@ class TrainingLoop:
         data.setdefault('global_state', data.obs)
         if 'next_obs' in data:
             data.setdefault('next_global_state', data.next_obs)
+        self.training_data = data
+
         return data
 
-    def _train_with_data(self, data):
+    def _train_with_data(self, data, **kwargs):
         if data is None:
-            return {}
+            return AttrDict()
         with Timer('train'):
-            stats = self.trainer.train(data)
+            stats = self.trainer.train(data, **kwargs)
         return stats
 
     def change_buffer(self, buffer):

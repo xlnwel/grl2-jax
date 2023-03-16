@@ -62,7 +62,8 @@ class Loss(LossBase):
             if self.config.popart:
                 value = lax.stop_gradient(denormalize(
                     stats.value, data.popart_mean, data.popart_std))
-                next_value = denormalize(next_value, data.popart_mean, data.popart_std)
+                next_value = denormalize(
+                    next_value, data.popart_mean, data.popart_std)
             else:
                 value = lax.stop_gradient(stats.value)
 
@@ -177,7 +178,8 @@ class Loss(LossBase):
             if self.config.popart:
                 value = lax.stop_gradient(denormalize(
                     stats.value, data.popart_mean, data.popart_std))
-                next_value = denormalize(next_value, data.popart_mean, data.popart_std)
+                next_value = denormalize(
+                    next_value, data.popart_mean, data.popart_std)
             else:
                 value = lax.stop_gradient(stats.value)
 

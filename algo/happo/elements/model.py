@@ -1,45 +1,112 @@
 import os
-import math
-import logging
 import jax
-from jax import lax, nn, random
+from jax import random
 import jax.numpy as jnp
-import haiku as hk
 
-from core.typing import dict2AttrDict
-from tools.file import source_file
+from core.typing import AttrDict
 from jax_tools import jax_utils
 from tools.display import print_dict_info
-from algo.ppo.elements.model import Model as ModelBase, setup_config_from_envstats
-from algo.ppo.elements.utils import get_initial_state
+from tools.file import source_file
+from tools.utils import batch_dicts
+from algo.lka_common.elements.model import *
+from algo.ppo.elements.model import setup_config_from_envstats
+from algo.ppo.elements.utils import concat_along_unit_dim
+
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
-logger = logging.getLogger(__name__)
 
 
-def construct_fake_data(env_stats, aid, batch_size=1):
-    basic_shape = (batch_size, 1, len(env_stats.aid2uids[aid]))
-    shapes = env_stats.obs_shape[aid]
-    dtypes = env_stats.obs_dtype[aid]
-    action_dim = env_stats.action_dim[aid]
-    data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
-        for k, v in shapes.items()}
-    data = dict2AttrDict(data)
-    data.setdefault('global_state', data.obs)
-    data.setdefault('hidden_state', data.obs)
-    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
-    data.state_reset = jnp.zeros(basic_shape, jnp.float32)
+class Model(LKAModelBase):
+    def build_nets(self):
+        aid = self.config.get('aid', 0)
+        data = construct_fake_data(self.env_stats, aid=aid)
 
-    # print_dict_info(data)
+        # policies for each agent
+        self.params.policies = []
+        policy_init, self.modules.policy = self.build_net(
+            name='policy', return_init=True)
+        self.rng, policy_rng, value_rng = random.split(self.rng, 3)
+        self.act_rng = self.rng
+        for rng in random.split(policy_rng, self.n_agents):
+            self.params.policies.append(policy_init(
+                rng, data.obs, data.state_reset, data.state, data.action_mask
+            ))
+            self.params.policies[-1][LOOKAHEAD] = False
+        
+        self.params.vs = []
+        value_init, self.modules.value = self.build_net(
+            name='value', return_init=True)
+        for rng in random.split(value_rng, self.n_agents):
+            self.params.vs.append(value_init(
+                rng, data.global_state, data.state_reset, data.state
+            ))
 
-    return data
+        self.sync_lookahead_params()
 
-
-class Model(ModelBase):
     def compile_model(self):
-        super().compile_model()
+        self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
+        self.jit_forward_policy = jax.jit(
+            self.forward_policy, static_argnames=('return_state', 'evaluation'))
         self.jit_action_logprob = jax.jit(self.action_logprob)
+
+    @property
+    def target_theta(self):
+        return self.target_params
+
+    def raw_action(
+        self, 
+        params, 
+        rng, 
+        data, 
+        evaluation=False, 
+    ):
+        rngs = random.split(rng, self.n_agents)
+        all_actions = []
+        all_stats = []
+        all_states = []
+        for aid, (p, v, rng) in enumerate(zip(params.policies, params.vs, rngs)):
+            agent_rngs = random.split(rng, 3)
+            d = data[aid]
+            if self.has_rnn:
+                state = d.pop('state', AttrDict())
+                d = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , d)
+                d.state = state
+            else:
+                state = AttrDict()
+            act_out, state = self.forward_policy(p, agent_rngs[0], d)
+            act_dist = self.policy_dist(act_out, evaluation)
+
+            if evaluation:
+                action = act_dist.sample(seed=agent_rngs[1])
+                stats = AttrDict()
+            else:
+                action, logprob = act_dist.sample_and_log_prob(seed=agent_rngs[1])
+                stats = act_dist.get_stats('mu')
+                value, state.value = self.modules.value(
+                    v, 
+                    agent_rngs[2], 
+                    d.global_state, 
+                    d.state_reset, 
+                    state.value
+                )
+                stats.update({'mu_logprob': logprob, 'value': value})
+            if self.has_rnn:
+                action, stats = jax.tree_util.tree_map(
+                    lambda x: jnp.squeeze(x, 1), (action, stats))
+                all_states.append(state)
+            else:
+                all_states = None
+
+            all_actions.append(action)
+            all_stats.append(stats)
+
+        action = concat_along_unit_dim(all_actions)
+        stats = batch_dicts(all_stats, func=concat_along_unit_dim)
+        if self.has_rnn:
+            all_states = batch_dicts(all_states, func=concat_along_unit_dim)
+
+        return action, stats, all_states
 
     def action_logprob(
         self,
@@ -47,34 +114,56 @@ class Model(ModelBase):
         rng,
         data,
     ):
-        state_reset, _ = jax_utils.split_data(
+        data.state_reset, _ = jax_utils.split_data(
             data.state_reset, axis=1)
-        policy_state = None if data.state is None else \
-            get_initial_state(data.state.policy, 0)
-        act_out, policy_state = self.modules.policy(
-            params.policy, 
-            rng, 
-            data.obs, 
-            state_reset, 
-            policy_state, 
-            action_mask=data.action_mask, 
-        )
-        act_dist = self.policy_dist(act_out, False)
+        act_out, _ = self.forward_policy(params, rng, data)
+        act_dist = self.policy_dist(act_out)
         logprob = act_dist.log_prob(data.action)
 
         return logprob
 
     def compute_value(self, data):
         @jax.jit
-        def comp_value(params, rng, global_state, state_reset=None, state=None):
-            v, _ = self.modules.value(
-                params.value, rng, 
-                global_state, state_reset, state
-            )
-            return v
+        def comp_value(params, rng, data):
+            vs = []
+            for p, d in zip(params, data):
+                v, _ = self.modules.value(
+                    p, rng, 
+                    d.global_state, 
+                    d.state_reset, 
+                    d.state
+                )
+                vs.append(v)
+            vs = jnp.concatenate(vs, -1)
+            return vs
         self.act_rng, rng = random.split(self.act_rng)
-        value = comp_value(self.params, rng, **data)
+        value = comp_value(self.params.vs, rng, data)
         return value
+
+    """ RNN Operators """
+    def get_initial_state(self, batch_size):
+        if self._initial_state is not None:
+            return self._initial_state
+        if not self.has_rnn:
+            return None
+        data = construct_fake_data(self.env_stats, batch_size)
+        states = []
+        for p, v, d in zip(self.params.policies, self.params.vs, data):
+            state = AttrDict()
+            _, state.policy = self.modules.policy(
+                p, 
+                self.act_rng, 
+                d.obs, 
+            )
+            _, state.value = self.modules.value(
+                v, 
+                self.act_rng, 
+                d.global_state, 
+            )
+            states.append(state)
+        self._initial_state = jax.tree_util.tree_map(jnp.zeros_like, states)
+
+        return self._initial_state
 
 
 def create_model(
@@ -88,19 +177,19 @@ def create_model(
     return Model(
         config=config, 
         env_stats=env_stats, 
-        name=name,
+        name=name, 
         **kwargs
     )
 
 
-if __name__ == '__main__':
-    from tools.yaml_op import load_config
-    from env.func import create_env
-    from tools.display import pwc
-    config = load_config('algo/zero_mr/configs/magw_a2c')
+# if __name__ == '__main__':
+#     from tools.yaml_op import load_config
+#     from env.func import create_env
+#     from tools.display import pwc
+#     config = load_config('algo/zero_mr/configs/magw_a2c')
     
-    env = create_env(config.env)
-    model = create_model(config.model, env.stats())
-    data = construct_fake_data(env.stats(), 0)
-    print(model.action(model.params, data))
-    pwc(hk.experimental.tabulate(model.raw_action)(model.params, data), color='yellow')
+#     env = create_env(config.env)
+#     model = create_model(config.model, env.stats())
+#     data = construct_fake_data(env.stats())
+#     print(model.action(model.params, data))
+#     pwc(hk.experimental.tabulate(model.raw_action)(model.params, data), color='yellow')

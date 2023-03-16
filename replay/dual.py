@@ -132,11 +132,11 @@ class DualReplay(Buffer):
         else:
             raise NotImplementedError(target_replay)
 
-    def ergodic_sample(self, target_replay=PRIMAL_REPLAY, batch_size=None):
+    def ergodic_sample(self, target_replay=PRIMAL_REPLAY, batch_size=None, n=None):
         if target_replay == PRIMAL_REPLAY:
-            return self.primal_replay.ergodic_sample(batch_size)
+            return self.primal_replay.ergodic_sample(batch_size, n=n)
         elif target_replay == SECONDARY_REPLAY:
-            return self.secondary_replay.ergodic_sample(batch_size)
+            return self.secondary_replay.ergodic_sample(batch_size, n=n)
         else:
             raise NotImplementedError(target_replay)
 
@@ -175,7 +175,7 @@ class DualReplay(Buffer):
             primal_data = self.primal_replay.sample(fast_bs)
             secondary_data = self.secondary_replay.sample(slow_bs)
             data = batch_dicts([primal_data, secondary_data], np.concatenate)
-        
+
         return data
         
     def _move_data_from_fast_to_slow(self):

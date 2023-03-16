@@ -17,7 +17,7 @@ routine:
 
     MAX_STEPS: 1e6
     n_steps: &nsteps 10
-    LOG_PERIOD: 2e4
+    LOG_PERIOD: 1e4
     EVAL_PERIOD: null
 
     n_eval_envs: 100
@@ -28,10 +28,11 @@ routine:
     n_lookahead_steps: 1
     n_simulated_envs: &nse 10000
     n_simulated_steps: &nss 1
-    lookahead_rollout: sim
     lookahead_replay: secondary
-    quantify_model_errors: True
+    quantify_dynamics_errors: True
     use_latest_model: False
+    switch_model_at_every_step: False
+    lka_test: True
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -52,7 +53,7 @@ monitor:
 strategy:
     algorithm: *algo
     train_loop: 
-        n_epochs: 400
+        n_epochs: 200
         n_lka_epochs: 100
 
 model:
@@ -99,6 +100,7 @@ loss:
 
 trainer:
     algorithm: *algo
+    lookahead_q: False
     aid: 0
 
     policy_opt:

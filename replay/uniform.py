@@ -121,12 +121,13 @@ class UniformReplay(Buffer):
 
         return samples
 
-    def ergodic_sample(self, batch_size=None):
+    def ergodic_sample(self, batch_size=None, n=None):
         if not self.ready_to_sample():
             return None
         batch_size = batch_size or self.batch_size
-        idxes = np.arange(0, len(self))
-        maxlen = (len(self) // batch_size) * batch_size
+        n = len(self) if n is None else min(n, len(self))
+        idxes = np.arange(0, n)
+        maxlen = (n // batch_size) * batch_size
         idxes = idxes[-maxlen:]
         np.random.shuffle(idxes)
         i = 0

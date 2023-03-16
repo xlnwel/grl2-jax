@@ -1,21 +1,34 @@
-from core.elements.trainloop import TrainingLoop as TrainingLoopBase
+import jax
+
+from tools.timer import timeit
+from algo.ma_common.elements.trainloop import TrainingLoop as TrainingLoopBase
 
 
 class TrainingLoop(TrainingLoopBase):
-    def train(self, step, **kwargs):
-        self._before_train(step)
-        train_step = 0
-        for _ in range(self.config.n_epochs):
-            n, stats = self._train(**kwargs)
-            train_step += n
-        self._after_train()
+    @timeit
+    def ma_policy_stats(self, stats):
+        self.rng, rng = jax.random.split(self.rng, 2)
+        BATCH_SIZE = 400
+        mu_keys = self.model.policy_dist_stats('mu')
+        data = self.buffer.sample_from_recency(
+            batch_size=BATCH_SIZE, 
+            sample_keys=['obs', *mu_keys], 
+            n=BATCH_SIZE
+        )
+        if data is None:
+            return stats
+        
+        pi_params = self.model.joint_policy(
+            self.model.theta.policies, rng, data)
+        pi_dist = self.model.policy_dist(pi_params)
 
-        return train_step, stats
+        mu_params = [
+            data[mk].reshape(data[mk].shape[0], -1) 
+            for mk in mu_keys
+        ]
+        mu_dist = self.model.policy_dist(mu_params)
+        kl = mu_dist.kl_divergence(pi_dist)
 
-    def lookahead_train(self, **kwargs):
-        for _ in range(self.config.n_lka_epochs):
-            data = self.sample_data()
-            if data is None:
-                return
+        stats.kl_mu_pi = kl
 
-            self.trainer.lookahead_train(data, **kwargs)
+        return stats

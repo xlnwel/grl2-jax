@@ -58,6 +58,10 @@ class Model(ParamsCheckpointBase):
     def build_nets(self):
         raise NotImplementedError
 
+    @property
+    def theta(self):
+        return self.params
+
     def compile_model(self):
         self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
         # self.jit_action = jax.jit(self.raw_action, static_argnums=(3))

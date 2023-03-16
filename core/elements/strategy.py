@@ -1,7 +1,5 @@
-import copy
 from typing import Tuple, Union
 
-from core.log import do_logging
 from core.elements.actor import Actor
 from core.elements.model import Model
 from core.elements.trainer import TrainerBase, TrainerEnsemble
@@ -36,6 +34,9 @@ class Strategy:
         self.actor: Actor = actor
         self.train_loop: TrainingLoop = train_loop
 
+        self._setup_memory_cls()
+        self._memory = self.memory_cls(self.model)
+
         if self.config.get('root_dir'):
             self._model_path = ModelPath(
                 self.config.root_dir, 
@@ -50,6 +51,9 @@ class Strategy:
 
         self._post_init()
 
+    def _setup_memory_cls(self):
+        self.memory_cls = Memory
+        
     def _post_init(self):
         pass
 
@@ -125,7 +129,7 @@ class Strategy:
 
     """ Memory Management """
     def build_memory(self, for_self=False):
-        memory = Memory(self.model)
+        memory = self.memory_cls(self.model)
         if for_self:
             self._memory = memory
         return memory
@@ -146,7 +150,7 @@ class Strategy:
     
     def reset_memory(self):
         memory = self._memory
-        self._memory = Memory(self.model)
+        self._memory = self.memory_cls(self.model)
         return memory
     
     def set_memory(self, memory: Memory):
@@ -160,7 +164,7 @@ class Strategy:
     ):
         inp = self._prepare_input_to_actor(env_output)
         out = self.actor(inp, evaluation=evaluation)
-        self._record_output(out)
+        out = self._record_output(out)
         return out[:2]
 
     def _prepare_input_to_actor(self, env_output: EnvOutput):
@@ -176,7 +180,7 @@ class Strategy:
 
     def _record_output(self, out: Tuple):
         """ Record some data in out """
-        pass
+        return out
 
     """ Checkpoint Ops """
     def restore(self, skip_model=False, skip_actor=False, skip_trainer=False):

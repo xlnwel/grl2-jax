@@ -66,8 +66,8 @@ class AttrDict(dict):
     def exclude_subdict(self, *args):
         return exclude_subdict(self, *args)
 
-    def slice(self, loc):
-        return tree_slice(self, loc)
+    def slice(self, loc=None, indices=None, axis=None):
+        return tree_slice(self, loc, indices, axis)
 
 
 def subdict(d, *args):
@@ -85,8 +85,11 @@ def exclude_subdict(d, *args):
         res[k] = d[k]
     return res
 
-def tree_slice(d, loc):
-    return tree_util.tree_map(lambda x: x[loc], d)
+def tree_slice(d, loc=None, indices=None, axis=None):
+    if loc is None:
+        return tree_util.tree_map(lambda x: x.take(indices=indices, axis=axis), d)
+    else:
+        return tree_util.tree_map(lambda x: x[loc], d)
 
 def dict2AttrDict(d: dict, shallow=False, to_copy=False):
     if isinstance(d, AttrDict) and not to_copy:
@@ -359,17 +362,14 @@ def modelpath2outdir(model_path):
     outdir = '/'.join([root_dir, model_name])
     return outdir
 
-def get_algo(model: ModelPath):
-    s = model.root_dir.split('/')
-    algo = s[-1]
-    # if len(s) == 1:
-    #     algo = model.root_dir
-    # elif len(s) == 3:
-    #     algo = s[-1]
-    # elif len(s) == 4:
-    #     algo = ''.join(s[-2:])
-    # else:
-    #     # raise ValueError(f'Unknown model: {model}')
-    #     assert False, f'Unknown model: {model}'
+def get_env_algo(root_dir: str):
+    env, algo = root_dir.split('/')[-2:]
+    return env, algo
 
+def get_algo(root_dir: str):
+    algo = root_dir.split('/')[-1]
     return algo
+
+def get_env(root_dir: str):
+    env = root_dir.split('/')[-2]
+    return env

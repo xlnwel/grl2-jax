@@ -5,44 +5,15 @@ from jax import random
 import jax.numpy as jnp
 import haiku as hk
 
-from core.ckpt.pickle import save, restore
 from core.log import do_logging
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
-from core.typing import AttrDict, dict2AttrDict
+from core.typing import AttrDict
 from tools.display import print_dict_info
-from tools.rms import RunningMeanStd
 from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
-from algo.masac.elements.model import LOOKAHEAD
-from jax_tools import jax_utils
-
-
-def construct_fake_data(env_stats, aid):
-    b = 8
-    s = 400
-    u = len(env_stats.aid2uids[aid])
-    shapes = env_stats.obs_shape[aid]
-    dtypes = env_stats.obs_dtype[aid]
-    action_dim = env_stats.action_dim[aid]
-    basic_shape = (b, s, u)
-    data = {k: jnp.zeros((b, s+1, u, *v), dtypes[k]) 
-        for k, v in shapes.items()}
-    data = dict2AttrDict(data)
-    data.setdefault('global_state', data.obs)
-    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
-    data.value = jnp.zeros(basic_shape, jnp.float32)
-    data.reward = jnp.zeros(basic_shape, jnp.float32)
-    data.discount = jnp.zeros(basic_shape, jnp.float32)
-    data.reset = jnp.zeros(basic_shape, jnp.float32)
-    data.mu_logprob = jnp.zeros(basic_shape, jnp.float32)
-    data.mu_logits = jnp.zeros((*basic_shape, action_dim), jnp.float32)
-    data.advantage = jnp.zeros(basic_shape, jnp.float32)
-    data.v_target = jnp.zeros(basic_shape, jnp.float32)
-
-    print_dict_info(data)
-    
-    return data
+from algo.lka_common.elements.trainer import *
+from algo.lka_common.elements.model import LOOKAHEAD
 
 
 class Trainer(TrainerBase):
@@ -52,8 +23,8 @@ class Trainer(TrainerBase):
     def build_optimizers(self):
         theta = self.model.theta.copy()
         self.params.theta = AttrDict()
-        theta_policies = [p.copy() for p in theta.policies]
-        [p.pop(LOOKAHEAD) for p in theta_policies]
+        theta_policies, is_lookahead = pop_lookahead(theta.policies)
+        assert all([lka == False for lka in is_lookahead]), is_lookahead
         self.opts.policy, self.params.theta.policy = optimizer.build_optimizer(
             params=theta_policies, 
             **self.config.policy_opt, 
@@ -69,7 +40,7 @@ class Trainer(TrainerBase):
             **self.config.temp_opt, 
             name='temp'
         )
-        self.lookahead_opt_state = self.params.theta.policy
+        self.lookahead_opt_state = self.params.theta
 
     def compile_train(self):
         _jit_train = jax.jit(self.theta_train)
@@ -88,8 +59,7 @@ class Trainer(TrainerBase):
 
     def train(self, data: AttrDict):
         theta = self.model.theta.copy()
-        theta.policies = [p.copy() for p in theta.policies]
-        is_lookahead = [p.pop(LOOKAHEAD) for p in theta.policies]
+        theta.policies, is_lookahead = pop_lookahead(theta.policies)
         assert all([lka == False for lka in is_lookahead]), is_lookahead
         with Timer('theta_train'):
             theta, self.params.theta, stats = \
@@ -101,49 +71,34 @@ class Trainer(TrainerBase):
                 )
         for p in theta.policies:
             p[LOOKAHEAD] = False
-        self.model.set_weights(theta)
-        data = flatten_dict({f'data/{k}': v 
-            for k, v in data.items() if v is not None})
-        stats = prefix_name(stats, 'train')
+        self.model.params = theta
+        data = flatten_dict(data, prefix='data')
+        stats = prefix_name(stats, 'theta')
         stats.update(data)
         self.model.update_target_params()
-        self.sync_lookahead_params()
 
         return 1, stats
 
     def lookahead_train(self, data: AttrDict):
-        theta = [p.copy() for p in self.model.lookahead_params]
-        is_lookahead = [p.pop(LOOKAHEAD) for p in theta]
-        qs_params = self.model.theta.Qs
-        temp_params = self.model.theta.temp
+        theta = self.model.lookahead_params.copy()
+        theta.policies, is_lookahead = pop_lookahead(theta.policies)
         assert all([lka == True for lka in is_lookahead]), is_lookahead
         opt_state = self.lookahead_opt_state
         theta, opt_state = self.jit_lka_train(
             theta, 
+            target_params=self.model.theta, # we intend to use theta as the target network here.
             opt_state=opt_state, 
-            qs_params=qs_params, 
-            temp_params=temp_params, 
             data=data, 
         )
-        for p in theta:
+        
+        for p in theta.policies:
             p[LOOKAHEAD] = True
         self.model.lookahead_params = theta
         self.lookahead_opt_state = opt_state
 
     def sync_lookahead_params(self):
         self.model.sync_lookahead_params()
-        self.lookahead_opt_state = self.params.theta.policy
-
-    def get_theta_params(self):
-        weights = {
-            'model': self.model.theta, 
-            'opt': self.params.theta
-        }
-        return weights
-    
-    def set_theta_params(self, weights):
-        self.model.set_weights(weights['model'])
-        self.params.theta = weights['opt']
+        self.lookahead_opt_state = self.params.theta
 
     def theta_train(
         self, 
@@ -202,21 +157,39 @@ class Trainer(TrainerBase):
         self, 
         theta, 
         rng, 
+        target_params, 
         opt_state, 
-        qs_params, 
-        temp_params, 
         data, 
     ):
-        theta, opt_state, _ = optimizer.optimize(
+        if self.config.lookahead_q:
+            rng, q_rng = random.split(rng, 2)
+            theta.Qs, opt_state.Q, stats = optimizer.optimize(
+                self.loss.q_loss, 
+                theta.Qs, 
+                opt_state.Q, 
+                kwargs={
+                    'rng': q_rng, 
+                    'policy_params': theta.policies, 
+                    'target_qs_params': target_params.Qs, 
+                    'temp_params': theta.temp, 
+                    'data': data,
+                }, 
+                opt=self.opts.Q, 
+                name='train/q'
+            )
+        else:
+            stats = AttrDict()
+
+        theta.policies, opt_state.policy, stats = optimizer.optimize(
             self.loss.policy_loss, 
-            theta, 
-            opt_state, 
+            theta.policies, 
+            opt_state.policy, 
             kwargs={
                 'rng': rng, 
-                'qs_params': qs_params, 
-                'temp_params': temp_params, 
+                'qs_params': theta.Qs, 
+                'temp_params': theta.temp, 
                 'data': data, 
-                'stats': AttrDict(), 
+                'stats': stats, 
             }, 
             opt=self.opts.policy, 
             name='train/policy'
@@ -239,16 +212,6 @@ class Trainer(TrainerBase):
 create_trainer = partial(create_trainer,
     name='masac', trainer_cls=Trainer
 )
-
-
-def sample_stats(stats, max_record_size=10):
-    # we only sample a small amount of data to reduce the cost
-    stats = {k if '/' in k else f'train/{k}': 
-        np.random.choice(stats[k].reshape(-1), max_record_size) 
-        if isinstance(stats[k], (np.ndarray, jnp.DeviceArray)) \
-            else stats[k] 
-        for k in sorted(stats.keys())}
-    return stats
 
 
 if __name__ == '__main__':

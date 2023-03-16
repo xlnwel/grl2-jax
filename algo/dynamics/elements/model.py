@@ -6,6 +6,7 @@ import jax
 from jax import nn, random
 import jax.numpy as jnp
 
+from core.ckpt.pickle import save, restore
 from core.elements.model import Model as ModelBase
 from core.typing import dict2AttrDict, AttrDict
 from tools.file import source_file
@@ -40,6 +41,7 @@ class Model(ModelBase):
     def add_attributes(self):
         self.elite_indices = np.arange(self.config.emodels.n_models)
         self.elite_idx = None
+        self.n_elites = min(self.config.n_elites, self.config.emodels.n_models)
         self.n_selected_elites = collections.defaultdict(lambda: 0)
 
         if self.config.model_norm_obs:
@@ -68,7 +70,7 @@ class Model(ModelBase):
 
     def choose_elite(self, idx=None):
         if idx is None:
-            idx = np.random.randint(self.config.n_elites)
+            idx = np.random.randint(self.n_elites)
         self.elite_idx = self.elite_indices[idx]
         self.n_selected_elites[f'elite{self.elite_idx}'] += 1
         model = self.get_ith_model(self.elite_idx)
@@ -89,10 +91,11 @@ class Model(ModelBase):
         self.params.emodels.update(model)
         assert keys == set(self.params.emodels), (keys, set(self.params.emodels))
 
-    def get_ith_model(self, i, new_prefix='model/model'):
+    def get_ith_model(self, i, new_prefix='model/model', eparams=None):
+        if eparams is None:
+            eparams = self.params.emodels
         model = {k.replace(get_ith_model_prefix(i), new_prefix): v 
-            for k, v in self.params.emodels.items() 
-            if k.startswith(get_ith_model_prefix(i))
+            for k, v in eparams.items() if k.startswith(get_ith_model_prefix(i))
         }
         return model
 
@@ -111,15 +114,21 @@ class Model(ModelBase):
         rng, 
         data, 
         evaluation=False, 
+        elite_indices=None, 
     ):
         rngs = random.split(rng, 3)
         action = self.process_action(data.action)
         if self.config.model_norm_obs:
             data.obs = normalize(data.obs, data.obs_loc, data.obs_scale)
 
+        if elite_indices is None:
+            model = params.model
+        else:
+            idx = random.randint(rngs[0], (), 0, self.n_elites)
+            model = self.get_ith_model(idx, eparams=params.emodels)
         stats = AttrDict()
         next_obs, stats = self.next_obs(
-            params.model, rngs[0], data.obs, action, stats, evaluation)
+            model, rngs[0], data.obs, action, stats, evaluation)
         reward, stats = self.reward(
             params.reward, rngs[1], data.obs, action, next_obs, stats)
         discount, stats = self.discount(
@@ -178,6 +187,28 @@ class Model(ModelBase):
         if self.env_stats.is_action_discrete[0]:
             action = nn.one_hot(action, self.env_stats.action_dim[0])
         return action
+
+    def get_obs_rms_dir(self):
+        path = '/'.join([self.config.root_dir, self.config.model_name])
+        return path
+
+    def save(self):
+        super().save()
+        self.save_obs_rms()
+    
+    def restore(self):
+        super().restore()
+        self.restore_obs_rms()
+
+    def save_obs_rms(self):
+        filedir = self.get_obs_rms_dir()
+        save(self.popart, filedir=filedir, filename='popart')
+
+    def restore_obs_rms(self):
+        filedir = self.get_obs_rms_dir()
+        self.popart = restore(
+            filedir=filedir, filename='popart', 
+            default=RunningMeanStd((0, 1)))
 
 
 def setup_config_from_envstats(config, env_stats):

@@ -1,4 +1,3 @@
-from core.log import do_logging
 from core.elements.trainloop import TrainingLoop as TrainingLoopBase
 
 
@@ -14,10 +13,3 @@ class TrainingLoop(TrainingLoopBase):
             n = self.trainer.config.n_epochs * self.trainer.config.n_mbs
 
         return n, stats
-
-    def lookahead_train(self, **kwargs):
-        data = self.sample_data()
-        if data is None:
-            do_logging('Bypassing lookahead train')
-
-        return self.trainer.lookahead_train(data, **kwargs)

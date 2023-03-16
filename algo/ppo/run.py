@@ -11,7 +11,7 @@ from env.typing import EnvOutput
 
 
 def concat_along_unit_dim(x):
-    x = jnp.concatenate(x, axis=1)
+    x = np.concatenate(x, axis=1)
     return x
 
 

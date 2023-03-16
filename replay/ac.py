@@ -7,7 +7,7 @@ from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
-from tools.utils import standardize, stack_data_with_state
+from tools.utils import stack_data_with_state
 from replay import replay_registry
 
 logger = logging.getLogger(__name__)
@@ -187,11 +187,12 @@ class ACBuffer(Buffer):
             time.sleep(self._sleep_time)
             self._sample_wait_time += self._sleep_time
         # print(f'PPOBuffer starts sampling: waiting time: {self._sample_wait_time}', self._ready)
-        if self._sample_wait_time >= self.max_wait_time:
+        if len(self._queue) == 0:
             do_logging(f'No data is received in time {self.max_wait_time}s.')
+            self._sample_wait_time = 0
             return False
         self._sample_wait_time = 0
-        return len(self._queue) != 0
+        return True
 
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
