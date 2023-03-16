@@ -128,6 +128,7 @@ trainer:
     n_mbs: &nmbs 40
     n_steps: *nsteps         # BPTT length
 
+    update_scheme: step
     n_simulated_envs: *nse
     n_simulated_steps: *nss
     n_lka_epochs: 5
