@@ -75,7 +75,7 @@ class TrainingLoop(TrainingLoopBase):
         q_data = data.slice((slice(None), slice(1)))
         q_mix = compute_qs(
             self.model.modules.Q, 
-            self.prev_params.Qs, 
+            self.model.params.Qs, 
             rng, 
             q_data.global_state, 
             mix_actions, 
@@ -87,7 +87,7 @@ class TrainingLoop(TrainingLoopBase):
         mu_actions = mu_dist.sample(seed=rng)
         q_mu = compute_qs(
             self.model.modules.Q, 
-            self.prev_params.Qs, 
+            self.model.params.Qs, 
             rng, 
             q_data.global_state, 
             mu_actions, 
@@ -99,7 +99,7 @@ class TrainingLoop(TrainingLoopBase):
         lka_actions = lka_dist.sample(seed=rng)
         q_lka = compute_qs(
             self.model.modules.Q, 
-            self.prev_params.Qs, 
+            self.model.params.Qs, 
             rng, 
             q_data.global_state, 
             lka_actions, 
@@ -111,7 +111,7 @@ class TrainingLoop(TrainingLoopBase):
         pi_actions = pi_dist.sample(seed=rng)
         q_pi = compute_qs(
             self.model.modules.Q, 
-            self.prev_params.Qs, 
+            self.model.params.Qs, 
             rng, 
             q_data.global_state, 
             pi_actions, 

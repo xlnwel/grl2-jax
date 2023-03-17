@@ -69,6 +69,7 @@ class Trainer(TrainerBase):
                     opt_state=self.params.theta, 
                     data=data,
                 )
+
         for p in theta.policies:
             p[LOOKAHEAD] = False
         self.model.params = theta
