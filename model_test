@@ -12,7 +12,7 @@ gpus=$(nvidia-smi -L | wc -l)
 i=0
 j=0
 for j in {0..2}; do
-    for s in {0..3}; do
+    for s in {0..4}; do
         gpu=$((($i + 2) % $gpus))
         mcoef=${mcoefs[$j]}
         rcoef=${rcoefs[$j]}
@@ -20,9 +20,9 @@ for j in {0..2}; do
         env=${envs[$j]}
         na=${nas[$j]}
         # kws="n_epochs=200 batch_size=256 sample_size=10 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-        kws="0#dynamics_name=dynamics norm_obs=True 2#n_epochs=5 2#deterministic_trans=True 2#model_loss_type=mse"
+        kws="0#dynamics_name=dynamics 1#n_epochs=10 1#deterministic_trans=True 1#model_loss_type=mse"
         # kws="n_epochs=100 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-        py_script="python run/train.py -a happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n brand_new -s $s -na $na --gpu $gpu -kw $kws &"
+        py_script="python run/train.py -a happo_mb dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n recons -s $s -na $na --gpu $gpu -kw $kws &"
         echo $py_script
         eval $py_script
         ((i=(i+1) ))
@@ -32,15 +32,15 @@ done
 # i=0
 # j=0
 # for j in {0..2}; do
-# for s in {0..3}; do
-#     gpu=$(($i % $gpus))
-#     env=${envs[$j]}
-#     na=${nas[$j]}
-#     py_script="python run/train.py -a happo -e $env -c ma_mujoco -ld ma_mujoco-logs -n brand_new -s $s -na $na --gpu $gpu &"
-#     echo $py_script
-#     eval $py_script
-#     ((i=(i+1) ))
-# done
+#     for s in {0..3}; do
+#         gpu=$(($i % $gpus))
+#         env=${envs[$j]}
+#         na=${nas[$j]}
+#         py_script="python run/train.py -a happo -e $env -c ma_mujoco -ld ma_mujoco-logs -n correct_tmpbuf -s $s -na $na --gpu $gpu &"
+#         echo $py_script
+#         eval $py_script
+#         ((i=(i+1) ))
+#     done
 # done
 
 # n_epochs=(

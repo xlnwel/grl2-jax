@@ -151,9 +151,10 @@ def make_card(config):
 
 
 def make_smac(config):
-    from env.smac import SMAC
+    from env.smac_env import StarCraft2Env
     config = _change_env_name(config)
-    env = SMAC(**config)
+    env = StarCraft2Env(**config)
+    env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
 
     return env
