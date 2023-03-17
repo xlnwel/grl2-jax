@@ -46,15 +46,13 @@ class TrainingLoop(TrainingLoopBase):
         if data is None:
             return stats
         
-        pi_params = self.model.joint_policy(
+        pi_dist = self.model.joint_policy(
             self.model.theta.policies, rng, data
         )
-        pi_dist = self.model.policy_dist(pi_params)
 
-        mu_params = self.model.joint_policy(
+        mu_dist = self.model.joint_policy(
             self.prev_params.policies, rng, data
         )
-        mu_dist = self.model.policy_dist(mu_params)
         kl_mu_pi = mu_dist.kl_divergence(pi_dist)
 
         behavior_stats = [
@@ -68,12 +66,11 @@ class TrainingLoop(TrainingLoopBase):
         stats.kl_lka_pi = kl_lka_pi
         stats.kl_mu_lka_diff = kl_mu_pi - kl_lka_pi
 
-        mix_policies = [self.model.theta.policies[0]]
+        mix_policies = [self.prev_params.policies[0]]
         mix_policies += self.model.lookahead_params.policies[1:]
-        mix_params = self.model.joint_policy(
+        mix_dist = self.model.joint_policy(
             mix_policies, rng, data
         )
-        mix_dist = self.model.policy_dist(mix_params)
         mix_actions = mix_dist.sample(seed=rng)
         q_data = data.slice((slice(None), slice(1)))
         q_mix = compute_qs(

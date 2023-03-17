@@ -18,9 +18,8 @@ class TrainingLoop(TrainingLoopBase):
         if data is None:
             return stats
         
-        pi_params = self.model.joint_policy(
+        pi_dist = self.model.joint_policy(
             self.model.theta.policies, rng, data)
-        pi_dist = self.model.policy_dist(pi_params)
 
         mu_params = [
             data[mk].reshape(data[mk].shape[0], -1) 

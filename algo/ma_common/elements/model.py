@@ -84,7 +84,7 @@ class MAModelBase(ModelCore):
         return dist
 
     @partial(jax.jit, static_argnums=0)
-    def joint_policy(self, params, rng, data):
+    def joint_policy_params(self, params, rng, data):
         dist_params = []
         for p, uids in zip(params, self.aid2uids):
             d = tree_slice(data, indices=uids, axis=-2)
@@ -96,6 +96,11 @@ class MAModelBase(ModelCore):
         ]
 
         return dist_params
+
+    def joint_policy(self, params, rng, data):
+        dist_params = self.joint_policy_params(params, rng, data)
+        dist = self.policy_dist(dist_params)
+        return dist
 
     def policy_dist_stats(self, prefix=None):
         if self.is_action_discrete:

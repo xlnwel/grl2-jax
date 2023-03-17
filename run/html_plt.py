@@ -231,11 +231,11 @@ if __name__ == '__main__':
     # all_data = collections.defaultdict(list)
     for d in yield_dirs(search_dir, args.prefix, is_suffix=False, root_matches=args.name):
         if date is not None and date not in d:
-            do_logging(f'Pass directory "{d}" due to mismatch date')
+            do_logging(f'Bypass directory "{d}" due to mismatch date')
             continue
             
         if args.ignore and args.ignore in d:
-            do_logging(f'Pass directory "{d}" as it contains ignore pattern "{args.ignore}"')
+            do_logging(f'Bypass directory "{d}" as it contains ignore pattern "{args.ignore}"')
             continue
 
         # load config
@@ -268,7 +268,7 @@ if __name__ == '__main__':
         csv_path = '/'.join([target_dir, process_name])
         # do_logging(f'yaml path: {yaml_path}')
         if not is_nonempty_file(record_path):
-            do_logging(f'By passing {record_path} due to its non-existence', color='magenta')
+            do_logging(f'Bypass {record_path} due to its non-existence', color='magenta')
             continue
         # save config
         to_remove_keys = ['root_dir', 'seed']
