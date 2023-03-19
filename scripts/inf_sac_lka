@@ -3,12 +3,14 @@
 export PYTHONPATH=.
 
 algos=(
-    happo
-    happo_lka1
-    happo_lka2
-    masac
-    # masac_lka1
-    # masac_lka2
+    # happo
+    # happo_lka1
+    # happo_lka2
+    # masac
+    masac_lka1
+    masac_lka1
+    masac_lka2
+    masac_lka2
 )
 suite=$1
 shift
@@ -21,8 +23,8 @@ configs=(
     "${suite}"
 )
 args1=(
-    step
-    batch
+    100
+    200
 )
 args2=(
     $2
@@ -69,7 +71,8 @@ a3=${args3[$idx]}
 
 commands=()
 # kws="update_scheme=$a1"
-# for a in "${algos[@]}"; do
+# for a1 in "${args1[@]}"; do
+kws="n_lka_epochs=$a1"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..9}; do

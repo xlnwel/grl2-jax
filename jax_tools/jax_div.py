@@ -68,16 +68,33 @@ def js_from_samples(
 
 def js_from_distributions(
     *,
-    pi1,
-    pi2, 
+    p_logits=None, 
+    q_logits=None, 
+    p_loc=None, 
+    q_loc=None, 
+    p_scale=None,  
+    q_scale=None,  
     pi_mask=None
 ):
-    avg = (pi1 + pi2) / 2
-    approx_js = .5 * (
-        kl_from_distributions(pi1=pi1, pi2=avg, pi_mask=pi_mask)
-        + kl_from_distributions(pi1=pi2, pi2=avg, pi_mask=pi_mask)
-    )
-    return approx_js
+    if p_logits is None:
+        mid_loc = (p_loc + q_loc) / 2.
+        mid_scale = lax.pow(lax.pow(p_scale, 2.)/4. + lax.pow(q_scale, 2.)/4., 1/2)
+        js = .5 * (
+            kl_from_distributions(
+                p_loc=p_loc, q_loc=mid_loc, 
+                p_scale=p_scale, q_scale=mid_scale)
+            + kl_from_distributions(
+                p_loc=q_loc, q_loc=mid_loc, 
+                p_scale=q_scale, q_scale=mid_scale
+            )
+        )
+    else:
+        avg = (p_logits + q_logits) / 2
+        js = .5 * (
+            kl_from_distributions(p_logits=p_logits, q_logits=avg, pi_mask=pi_mask)
+            + kl_from_distributions(p_logits=q_logits, q_logits=avg, pi_mask=pi_mask)
+        )
+    return js
 
 def tv_from_samples(
     *, 
@@ -150,3 +167,9 @@ def tsallis_from_distributions(
         tsallis = jnp.sum(pi1**tsallis_q * log_ratio, axis=-1)
 
     return tsallis
+
+
+def compute_mid_multivariate_normal(dist1, dist2):
+    mid_loc = (dist1.loc + dist2.loc) / 2.
+    mid_scale = lax.pow(lax.pow(dist1.scale_diag, 2.)/4. + lax.pow(dist2.scale_diag, 2.)/4., 1/2)
+    return MultivariateNormalDiag(mid_loc, mid_scale, dist1._joint_log_prob)

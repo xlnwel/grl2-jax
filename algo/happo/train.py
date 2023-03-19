@@ -4,6 +4,17 @@ from algo.happo.run import prepare_buffer
 
 
 @timeit
+def lka_env_run(agent, runner: Runner, routine_config, lka_aids):
+    constructor = partial(state_constructor, agent=agent, runner=runner)
+    get_fn = partial(get_states, agent=agent, runner=runner)
+    set_fn = partial(set_states, agent=agent, runner=runner)
+
+    with StateStore('lka', constructor, get_fn, set_fn):
+        env_output = runner.run(routine_config.n_steps, agent, lka_aids)
+    prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
+
+
+@timeit
 def env_run(agent, runner: Runner, routine_config, lka_aids):
     constructor = partial(state_constructor, agent=agent, runner=runner)
     get_fn = partial(get_states, agent=agent, runner=runner)
@@ -54,6 +65,7 @@ def train(
 
     while env_step < routine_config.MAX_STEPS:
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
+        lka_optimize(agent)
         train_step = ego_optimize(agent)
         time2record = to_record(env_step)
 

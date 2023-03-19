@@ -1,4 +1,4 @@
-from algo.masac_lka.train import *
+from algo.mambpo_lka.train import *
 
 
 @timeit

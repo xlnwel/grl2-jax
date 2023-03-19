@@ -6,6 +6,7 @@ from core.typing import get_basic_model_name
 from tools.plot import prepare_data_for_plotting, lineplot_dataframe
 from tools.store import TempStore
 from tools.utils import modify_config
+from replay.dual import DualReplay, PRIMAL_REPLAY
 from algo.ma_common.train import *
 
 
@@ -128,3 +129,36 @@ def eval_ego_and_lka(agent, runner, routine_config):
         lka_score=lka_score, 
         lka_ego_score_diff=[lka - ego for lka, ego in zip(lka_score, ego_score)]
     )
+
+
+@timeit
+def lka_env_run(agent, runner: Runner, routine_config, lka_aids):
+    constructor = partial(state_constructor, agent=agent, runner=runner)
+    def get_fn():
+        # we put the data collected from the dynamics into the secondary replay
+        if isinstance(agent.buffer, DualReplay):
+            agent.buffer.set_default_replay(routine_config.lookahead_replay)
+        return get_states(agent, runner)
+    
+    def set_fn(states):
+        set_states(states, agent, runner)
+        if isinstance(agent.buffer, DualReplay):
+            agent.buffer.set_default_replay(PRIMAL_REPLAY)
+
+    with StateStore('lka', constructor, get_fn, set_fn):
+        runner.run(routine_config.n_steps, agent, lka_aids)
+
+
+@timeit
+def env_run(agent, runner: Runner, routine_config, lka_aids):
+    constructor = partial(state_constructor, agent=agent, runner=runner)
+    get_fn = partial(get_states, agent=agent, runner=runner)
+    set_fn = partial(set_states, agent=agent, runner=runner)
+
+    with StateStore('real', constructor, get_fn, set_fn):
+        runner.run(routine_config.n_steps, agent, lka_aids)
+
+    env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
+    agent.add_env_step(env_steps_per_run)
+
+    return agent.get_env_step()
