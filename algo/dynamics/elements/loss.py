@@ -123,14 +123,13 @@ def compute_model_loss(
 def compute_reward_loss(
     config, reward_dist, reward, stats
 ):
+    raw_reward_loss = - reward_dist.log_prob(reward)
     pred_reward = reward_dist.mode()
-    raw_reward_loss = .5 * (pred_reward - reward)**2
     stats.pred_reward = pred_reward
     stats.reward_mae = lax.abs(pred_reward - reward)
     stats.reward_consistency = jnp.mean(stats.reward_mae < .1)
     stats.scaled_reward_loss, reward_loss = jax_loss.to_loss(
-        raw_reward_loss, 
-        config.reward_coef, 
+        raw_reward_loss, config.reward_coef, 
     )
     stats.reward_loss = reward_loss
 
@@ -141,13 +140,12 @@ def compute_discount_loss(
     config, discount_dist, discount, stats
 ):
     raw_discount_loss = - discount_dist.log_prob(discount)
-    discount = discount_dist.mode()
-    stats.pred_discount = discount
-    stats.discount_mae = lax.abs(discount_dist.mode() - discount)
-    stats.discount_consistency = jnp.mean(stats.discount == discount)
+    pred_discount = discount_dist.mode()
+    stats.pred_discount = pred_discount
+    stats.discount_mae = lax.abs(pred_discount - discount)
+    stats.discount_consistency = jnp.mean(discount == pred_discount)
     stats.scaled_discount_loss, discount_loss = jax_loss.to_loss(
-        raw_discount_loss, 
-        config.discount_coef, 
+        raw_discount_loss, config.discount_coef, 
     )
     stats.discount_loss = discount_loss
 

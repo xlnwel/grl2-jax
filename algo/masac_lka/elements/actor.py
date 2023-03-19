@@ -1,1 +1,1 @@
-from algo.masac.elements.actor import *
+from algo.ma_common.elements.actor import *

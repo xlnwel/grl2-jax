@@ -118,7 +118,7 @@ def quantify_dynamics_errors(agent, dynamics, env_config, n_steps, lka_aids):
         errors.reward.append(np.mean(
             np.abs(new_env_output.reward - new_model_output.reward)))
         errors.discount.append(np.mean(
-            np.abs(new_env_output.discount - new_model_output.discount)))
+            new_env_output.discount == new_model_output.discount))
         env_output = new_env_output
 
     for k, v in errors.items():

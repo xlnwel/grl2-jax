@@ -1,8 +1,8 @@
 ---
-algorithm: &algo masac_lka2
-name: masac_lka2
+algorithm: &algo masac_lka
+name: masac_lka
 dynamics_name: dynamics
-info: masac_lka2
+info: masac_lka
 
 precision: 32
 
@@ -20,7 +20,7 @@ routine:
     LOG_PERIOD: 1e4
     EVAL_PERIOD: null
 
-    n_eval_envs: 100
+    n_eval_envs: 1000
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
@@ -28,11 +28,11 @@ routine:
     n_lookahead_steps: 1
     n_simulated_envs: &nse 10000
     n_simulated_steps: &nss 1
+    model_rollout_type: sim
     lookahead_replay: secondary
     quantify_dynamics_errors: True
     use_latest_model: False
     switch_model_at_every_step: False
-    lka_test: True
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -53,6 +53,7 @@ monitor:
 strategy:
     algorithm: *algo
     train_loop: 
+        lka_test: True
         n_epochs: 200
         n_lka_epochs: 100
 
@@ -100,7 +101,7 @@ loss:
 
 trainer:
     algorithm: *algo
-    lookahead_q: False
+    lookahead_q: True
     aid: 0
 
     policy_opt:

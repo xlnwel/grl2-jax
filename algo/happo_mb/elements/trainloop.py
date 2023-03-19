@@ -16,6 +16,7 @@ class TrainingLoop(TrainingLoopBase):
         })
         if data is None:
             return stats
+
         pi_dist = self.model.joint_policy(
             self.model.theta.policies, rng, data
         )

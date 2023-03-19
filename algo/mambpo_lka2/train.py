@@ -17,7 +17,7 @@ def mix_run(agent, dynamics, routine_config, dynamics_routine_config, rng):
     def set_agent_states(states):
         agent.set_states(states)
         if isinstance(agent.buffer, DualReplay):
-            agent.buffer.set_default_replay('primal')
+            agent.buffer.set_default_replay(PRIMAL_REPLAY)
 
     # run (pi^i, x^{-i}) for all i
     routine_config = routine_config.copy()
@@ -102,7 +102,7 @@ def train(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            evaluate(agent, dynamics, runner, env_step, routine_config)
+            eval_ego_and_lka(agent, runner, routine_config)
             save(agent, dynamics)
             if routine_config.quantify_dynamics_errors:
                 outdir = modelpath2outdir(agent.get_model_path())

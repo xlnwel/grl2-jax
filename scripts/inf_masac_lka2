@@ -35,7 +35,7 @@ args3=(
     None
 )
 args4=(
-    # $3
+    # $4
     True
     False
 )
@@ -83,7 +83,7 @@ a3=${args3[$idx]}
 
 commands=()
 for a4 in "${args4[@]}"; do
-    kws="0#dynamics_name=$d 0#n_epochs=$a1 0#lookahead_q=$a4 0#lka_test=$a2"
+    kws="0#n_epochs=$a1 0#n_lka_epochs=100 0#lookahead_q=$a4 0#lka_test=$a2"
     for e in "${envs[@]}"; do
         config="${suite}"
         env="${suite}-${e}"

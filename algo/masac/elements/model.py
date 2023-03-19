@@ -20,6 +20,10 @@ LOOKAHEAD = 'lookahead'
 
 
 class Model(LKAModelBase):
+    def add_attributes(self):
+        super().add_attributes()
+        self.target_params = AttrDict()
+
     def build_nets(self):
         aid = self.config.get('aid', 0)
         data = construct_fake_data(self.env_stats, aid=aid)

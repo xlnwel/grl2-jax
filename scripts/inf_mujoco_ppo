@@ -4,6 +4,9 @@ export PYTHONPATH=.
 
 algos=(
     happo
+    happo_lka
+    masac
+    masac_lka
 )
 suite=$1
 shift
@@ -63,7 +66,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="update_scheme=$a1"
+# kws="update_scheme=$a1"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

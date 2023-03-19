@@ -89,7 +89,7 @@ def lka_optimize(agent):
 
 @timeit
 def lka_train(agent, dynamics, routine_config, dynamics_routine_config, 
-        n_runs, rng, lka_aids, run_fn, opt_fn):
+        n_runs, rng, lka_aids, run_fn=dynamics_run, opt_fn=lka_optimize):
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
         run_fn(agent, dynamics, routine_config, dynamics_routine_config, 
@@ -115,3 +115,16 @@ def log_dynamics_errors(errors, outdir, env_step):
                 data[k] = prepare_data_for_plotting(
                     v, y=y, smooth_radius=0, filepath=filepath)
             # lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
+
+
+@timeit
+def eval_ego_and_lka(agent, runner, routine_config):
+    ego_score, _, _ = evaluate(agent, runner, routine_config)
+    lka_optimize(agent)
+    lka_score, _, _ = evaluate(agent, runner, routine_config, None)
+    agent.trainer.sync_lookahead_params()
+    agent.store(
+        ego_score=ego_score, 
+        lka_score=lka_score, 
+        lka_ego_score_diff=[lka - ego for lka, ego in zip(lka_score, ego_score)]
+    )

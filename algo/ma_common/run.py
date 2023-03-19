@@ -63,8 +63,6 @@ class Runner(RunnerWithState):
         video_len=1000, 
         n_windows=4
     ):
-        agent.model.check_params(False)
-
         if n is None:
             n = self.env.n_envs
         n_done_eps = 0

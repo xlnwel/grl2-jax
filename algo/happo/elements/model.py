@@ -18,6 +18,10 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
 class Model(LKAModelBase):
+    def add_attributes(self):
+        super().add_attributes()
+        self.prev_lka_params = AttrDict()
+
     def build_nets(self):
         aid = self.config.get('aid', 0)
         data = construct_fake_data(self.env_stats, aid=aid)
@@ -43,16 +47,16 @@ class Model(LKAModelBase):
             ))
 
         self.sync_lookahead_params()
+    
+    def sync_lookahead_params(self):
+        self.prev_lka_params = self.lookahead_params
+        return super().sync_lookahead_params()
 
     def compile_model(self):
         self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
         self.jit_forward_policy = jax.jit(
             self.forward_policy, static_argnames=('return_state', 'evaluation'))
         self.jit_action_logprob = jax.jit(self.action_logprob)
-
-    @property
-    def target_theta(self):
-        return self.target_params
 
     def raw_action(
         self, 

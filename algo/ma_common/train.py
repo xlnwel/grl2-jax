@@ -54,8 +54,7 @@ def ego_optimize(agent):
 
 
 @timeit
-def ego_train(agent, runner, routine_config, 
-        lka_aids, run_fn, opt_fn):
+def ego_train(agent, runner, routine_config, lka_aids, run_fn, opt_fn):
     env_step = run_fn(agent, runner, routine_config, lka_aids)
     train_step = opt_fn(agent)
 
@@ -63,23 +62,36 @@ def ego_train(agent, runner, routine_config,
 
 
 @timeit
-def evaluate(agent, dynamics, runner, env_step, routine_config):
-    if routine_config.EVAL_PERIOD:
-        get_fn = partial(get_states, agent=agent, runner=runner)
-        set_fn = partial(set_states, agent=agent, runner=runner)
-        def constructor():
-            env_config = runner.env_config()
-            if routine_config.n_eval_envs:
-                env_config.n_envs = routine_config.n_eval_envs
-            agent_states = agent.build_memory()
-            runner_states = runner.build_env()
-            return agent_states, runner_states
+def evaluate(agent, runner: Runner, routine_config, lka_aids=[]):
+    agent.model.switch_params(True, lka_aids)
 
-        with Timer('eval'):
-            with StateStore('eval', constructor, get_fn, set_fn):
-                eval_scores, eval_epslens, _, video = runner.eval_with_video(
-                    agent, record_video=routine_config.RECORD_VIDEO
-                )
+    get_fn = partial(get_states, agent=agent, runner=runner)
+    set_fn = partial(set_states, agent=agent, runner=runner)
+    def constructor():
+        env_config = runner.env_config()
+        if routine_config.n_eval_envs:
+            env_config.n_envs = routine_config.n_eval_envs
+        agent_states = agent.build_memory()
+        runner_states = runner.build_env()
+        return agent_states, runner_states
+
+    with StateStore('eval', constructor, get_fn, set_fn):
+        scores, epslens, _, video = runner.eval_with_video(
+            agent, record_video=routine_config.RECORD_VIDEO
+        )
+
+    agent.model.switch_params(False, lka_aids)
+    agent.model.check_params(False)
+
+    return scores, epslens, video
+
+
+@timeit
+def evaluate_and_record(agent, dynamics, runner: Runner, 
+                        env_step, routine_config, lka_aids=[]):
+    if routine_config.EVAL_PERIOD:
+        eval_scores, eval_epslens, video = evaluate(
+            agent, runner, routine_config, lka_aids)
         
         agent.store(**{
             'eval_score': eval_scores, 
@@ -128,10 +140,8 @@ def prepare_dynamics_errors(errors):
 def log_agent(agent, env_step, train_step, error_stats):
     run_time = Timer('ego_run').last()
     train_time = Timer('ego_optimize').last()
-    fps = 0 if run_time == 0 else \
-        agent.get_env_step_intervals() / run_time
-    tps = 0 if train_time == 0 else \
-        agent.get_train_step_intervals() / train_time
+    fps = 0 if run_time == 0 else agent.get_env_step_intervals() / run_time
+    tps = 0 if train_time == 0 else agent.get_train_step_intervals() / train_time
     
     agent.store(**{
             'stats/train_step': train_step, 
@@ -153,8 +163,7 @@ def log_dynamics(model, env_step, score, error_stats):
         return
     train_step = model.get_train_step()
     train_time = Timer('model_train').last()
-    tps = 0 if train_time == 0 else \
-        model.get_train_step_intervals() / train_time
+    tps = 0 if train_time == 0 else model.get_train_step_intervals() / train_time
     model.store(**{
             'stats/train_step': train_step, 
             'time/tps': tps, 
@@ -198,7 +207,7 @@ def train(
     runner: Runner, 
     routine_config, 
     env_run=env_run, 
-    ego_opt=ego_optimize
+    ego_optimize=ego_optimize
 ):
     MODEL_EVAL_STEPS = runner.env.max_episode_steps
     do_logging(f'Model evaluation steps: {MODEL_EVAL_STEPS}')
@@ -214,11 +223,11 @@ def train(
 
     while env_step < routine_config.MAX_STEPS:
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
-        train_step = ego_opt(agent)
+        train_step = ego_optimize(agent)
         time2record = to_record(env_step)
         
         if time2record:
-            evaluate(agent, None, runner, env_step, routine_config)
+            evaluate_and_record(agent, None, runner, env_step, routine_config)
             save(agent, None)
             log(agent, None, env_step, train_step, {})
 
