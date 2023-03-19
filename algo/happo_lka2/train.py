@@ -1,5 +1,20 @@
 from algo.ma_common.train import *
-from algo.lka_common.train import eval_ego_and_lka, lka_optimize
+from algo.lka_common.train import lka_optimize
+from algo.happo.train import lka_env_run, env_run
+
+
+@timeit
+def eval_ego_and_lka(agent, runner, routine_config):
+    ego_score, _, _ = evaluate(agent, runner, routine_config)
+    env_run(agent, runner, routine_config, lka_aids=[])
+    lka_optimize(agent)
+    lka_score, _, _ = evaluate(agent, runner, routine_config, None)
+    agent.trainer.sync_lookahead_params()
+    agent.store(
+        ego_score=ego_score, 
+        lka_score=lka_score, 
+        lka_ego_score_diff=[lka - ego for lka, ego in zip(lka_score, ego_score)]
+    )
 
 
 def train(
@@ -22,8 +37,9 @@ def train(
     runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
 
     while env_step < routine_config.MAX_STEPS:
-        env_step = env_run(agent, runner, routine_config, lka_aids=[])
+        lka_env_run(agent, runner, routine_config, lka_aids=[])
         lka_optimize(agent)
+        env_step = env_run(agent, runner, routine_config, lka_aids=None)
         train_step = ego_optimize(agent)
         time2record = to_record(env_step)
 

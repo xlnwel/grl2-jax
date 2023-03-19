@@ -1,7 +1,14 @@
 from functools import partial 
 
+from replay.dual import SECONDARY_REPLAY
 from algo.mambpo.train import *
-from algo.lka_common.train import lka_optimize, lka_train
+from algo.lka_common.train import lka_train
+
+
+@timeit
+def lka_optimize(agent):
+    if agent.buffer.ready_to_sample(target_replay=SECONDARY_REPLAY):
+        agent.lookahead_train()
 
 
 def train(

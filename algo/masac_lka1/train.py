@@ -1,5 +1,6 @@
+from tools.display import print_dict_info
 from algo.ma_common.train import *
-from algo.lka_common.train import eval_ego_and_lka, lka_optimize
+from algo.lka_common.train import eval_ego_and_lka, lka_optimize, lka_env_run, env_run
 
 
 def train(
@@ -7,7 +8,7 @@ def train(
     runner: Runner, 
     routine_config, 
     # env_run=env_run, 
-    # ego_optimize=ego_optimize
+    # ego_opt=ego_optimize
 ):
     MODEL_EVAL_STEPS = runner.env.max_episode_steps
     do_logging(f'Model evaluation steps: {MODEL_EVAL_STEPS}')
@@ -22,11 +23,12 @@ def train(
     runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
 
     while env_step < routine_config.MAX_STEPS:
-        env_step = env_run(agent, runner, routine_config, lka_aids=[])
+        lka_env_run(agent, runner, routine_config, lka_aids=[])
         lka_optimize(agent)
+        env_step = env_run(agent, runner, routine_config, lka_aids=[])
         train_step = ego_optimize(agent)
         time2record = to_record(env_step)
-
+        
         if time2record:
             eval_ego_and_lka(agent, runner, routine_config)
             save(agent, None)

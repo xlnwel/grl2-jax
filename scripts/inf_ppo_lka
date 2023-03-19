@@ -3,44 +3,39 @@
 export PYTHONPATH=.
 
 algos=(
-    happo
-    # happo_mb
+    # happo
+    happo_lka1
+    happo_lka2
+    # masac
+    # masac_lka1
+    # masac_lka2
 )
 suite=$1
+shift
 envs=(
-    # Ant_8x1
-    # HalfCheetah_6x1
-    # Walker2d_6x1
-    # Ant_4x2
-    # HalfCheetah_3x2
-    # Walker2d_3x2
     Ant_2x4
     HalfCheetah_2x3
     Walker2d_2x3
 )
-# e=${suite}
 configs=(
     "${suite}"
 )
-# configs=$envs
 args1=(
-    dynamics
+    step
+    batch
 )
 args2=(
-    True
-    True
-    False
-    False
+    $2
+    1
 )
 args3=(
-    True
-    False
+    $3
+    1
 )
 date=$(date +"%m%d")
-# date="0204"
 info=""
 ld="${suite}-logs"
-# gpus=$(nvidia-smi -L | wc -l)
+gpus=$(nvidia-smi -L | wc -l)
 # for x in $(seq 1 1); do
 #     shift
 # done
@@ -51,6 +46,7 @@ else
     n="$date-$info"
 fi
 
+# INF_MAC_NODE_RANK=$1
 le=${#envs[@]}
 idx=$(($INF_MAC_NODE_RANK % $le))
 e=${envs[$idx]}
@@ -70,23 +66,23 @@ a2=${args2[$idx]}
 la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
-# kws=$@
 
 commands=()
-# kws="trainer:n_epochs=$a1 stoch_trans=$a2 model_loss_type=$a3"
-kws="0#dynamics_name=$a1 1#model_norm_obs=$a2 1#balance_dimension=$a3"
+# kws="update_scheme=$a1"
+# for a in "${algos[@]}"; do
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
-    for s in {0..4}; do
-        # py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -s $s -kw $kws -ki 2"
-        py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+    for s in {0..9}; do
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script
     done
 done
+# done
 # echo ${commands[@]}s
 lc=${#commands[@]}
 p=$((lc / le))
-printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 
+# echo $p
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"
