@@ -128,7 +128,7 @@ class ACBuffer(Buffer):
 
     def reset(self):
         self._buffers = [collections.defaultdict(list) for _ in range(self.n_runners)]
-        self._queue = []
+        self._queue = collections.deque(maxlen=1)
         self._memory = []
         self._current_size = 0
 
@@ -155,6 +155,7 @@ class ACBuffer(Buffer):
                 [np.concatenate(b[k]) for b in self._buffers if b]
                 )[-self.batch_size:] for k in self.sample_keys
             }
+            assert len(self._queue) == 0 or self._queue[0]['used'], list(self._queue[0])
             self._queue.append(data)
             self._buffers = [collections.defaultdict(list) for _ in range(self.n_runners)]
             self._current_size = 0
@@ -197,14 +198,14 @@ class ACBuffer(Buffer):
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
         assert len(self._queue) == 1, len(self._queue)
-        sample = self._queue[0]
-        self._queue = []
+        sample = {k: self._queue[0][k] for k in sample_keys}
+        self._queue[0]['used'] = True
 
         return sample
 
     def clear(self):
         self.reset()
-        self._queue = []
+        self._queue.clear()
 
 
 def create_buffer(config, model, env_stats, **kwargs):

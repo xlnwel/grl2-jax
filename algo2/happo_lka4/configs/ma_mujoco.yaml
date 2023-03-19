@@ -19,7 +19,7 @@ routine:
     LOG_PERIOD: 2e5
     EVAL_PERIOD: 2e5
 
-    n_eval_envs: 100
+    n_eval_envs: 1000
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]

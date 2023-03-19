@@ -9,11 +9,10 @@ from tools.store import TempStore
 from tools.timer import Every, timeit
 from replay.dual import DualReplay, PRIMAL_REPLAY
 from algo.ma_common.run import Runner
-from algo.ma_common.train import env_run
+from algo.ma_common.train import env_run, ego_optimize, build_agent, save, log
 from algo.lka_common.run import quantify_dynamics_errors
 from algo.lka_common.train import prepare_params, dynamics_optimize, \
-    ego_optimize, evaluate, log_dynamics_errors, \
-        save, log, build_agent, build_dynamics
+    eval_ego_and_lka, log_dynamics_errors, build_dynamics
 from algo.mambpo.run import branched_rollout
 
 
@@ -95,7 +94,7 @@ def train(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            evaluate(agent, dynamics, runner, env_step, routine_config)
+            eval_ego_and_lka(agent, runner, routine_config)
             if routine_config.quantify_dynamics_errors:
                 outdir = modelpath2outdir(agent.get_model_path())
                 log_dynamics_errors(errors, outdir, env_step)

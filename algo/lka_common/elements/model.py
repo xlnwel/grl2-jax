@@ -6,6 +6,10 @@ LOOKAHEAD = 'lookahead'
 
 
 class LKAModelBase(MAModelBase):
+    def add_attributes(self):
+        super().add_attributes()
+        self.lookahead_params = AttrDict()
+
     def switch_params(self, lookahead, aids=None):
         if aids is None:
             aids = np.arange(self.n_agents)

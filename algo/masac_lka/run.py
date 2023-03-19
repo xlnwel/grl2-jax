@@ -1,1 +1,1 @@
-from algo.mambpo.run import *
+from algo.ma_common.run import Runner

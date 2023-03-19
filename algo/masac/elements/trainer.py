@@ -1,8 +1,6 @@
 from functools import partial
-import numpy as np
 import jax
 from jax import random
-import jax.numpy as jnp
 import haiku as hk
 
 from core.log import do_logging
@@ -10,7 +8,6 @@ from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import AttrDict
 from tools.display import print_dict_info
-from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
 from algo.lka_common.elements.trainer import *
 from algo.lka_common.elements.model import LOOKAHEAD
@@ -61,14 +58,13 @@ class Trainer(TrainerBase):
         theta = self.model.theta.copy()
         theta.policies, is_lookahead = pop_lookahead(theta.policies)
         assert all([lka == False for lka in is_lookahead]), is_lookahead
-        with Timer('theta_train'):
-            theta, self.params.theta, stats = \
-                self.jit_train(
-                    theta, 
-                    target_params=self.model.target_params, 
-                    opt_state=self.params.theta, 
-                    data=data,
-                )
+        theta, self.params.theta, stats = self.jit_train(
+            theta, 
+            target_params=self.model.target_params, 
+            opt_state=self.params.theta, 
+            data=data, 
+        )
+
         for p in theta.policies:
             p[LOOKAHEAD] = False
         self.model.params = theta

@@ -1,16 +1,16 @@
-# ./scripts/inf ma_mujoco 2 inf_mujoco_ppo
-./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb
-# ./scripts/inf ma_mujoco 1 inf_masac
+./scripts/inf ma_mujoco 1 inf_mujoco_ppo
+# ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb
+./scripts/inf ma_mujoco 1 inf_masac
 # ./scripts/inf ma_mujoco 1 inf_mambpo
 # ./scripts/inf ma_mujoco 4 inf_masac_lka2
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 200 True 3
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 200 True 5
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 True 3
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 True 5
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 400 True 3
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 400 True 5
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 400 True 3
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 400 True 5
+# ./scripts/inf ma_mujoco 1 inf_masac_lka 200 True
+# ./scripts/inf ma_mujoco 1 inf_masac_lka 200 False
+# ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 True
+# ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 False
+# ./scripts/inf ma_mujoco 1 inf_masac_lka 400 True
+# ./scripts/inf ma_mujoco 1 inf_masac_lka 400 False
+# ./scripts/inf ma_mujoco 1 inf_masac_lka2 400 True
+# ./scripts/inf ma_mujoco 1 inf_masac_lka2 400 False
 # ./scripts/inf ma_mujoco 1 inf_masac_lka 200 False 1
 # ./scripts/inf ma_mujoco 1 inf_masac_lka 200 False 7
 # ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 False 1

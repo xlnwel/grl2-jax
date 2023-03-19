@@ -49,9 +49,6 @@ class MAModelBase(ModelCore):
         aid = self.config.get('aid', 0)
         self.is_action_discrete = self.env_stats.is_action_discrete[aid]
 
-        self.lookahead_params = AttrDict()
-        self.target_params = AttrDict()
-
         self._initial_state = None
 
     def forward_policy(self, params, rng, data, return_state=True):

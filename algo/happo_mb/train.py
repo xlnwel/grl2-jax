@@ -8,11 +8,11 @@ from core.typing import AttrDict, modelpath2outdir
 from tools.display import print_dict
 from tools.store import StateStore
 from tools.timer import Every, timeit
-from algo.ma_common.train import state_constructor, get_states, set_states
+from algo.ma_common.train import state_constructor, get_states, set_states, \
+    ego_optimize, build_agent, save, log, evaluate
 from algo.lka_common.run import quantify_dynamics_errors
 from algo.lka_common.train import dynamics_run, dynamics_optimize, \
-    lka_optimize, lka_train, ego_optimize, evaluate, log_dynamics_errors, \
-        save, log, build_agent, build_dynamics
+    build_dynamics, lka_optimize, lka_train, log_dynamics_errors
 from algo.happo.run import prepare_buffer
 from algo.happo_mb.run import branched_rollout, Runner
 
@@ -47,6 +47,29 @@ def ego_train(agent, runner, dynamics, routine_config,
 
 
 dynamics_run = partial(dynamics_run, rollout_fn=branched_rollout)
+
+
+@timeit
+def eval_ego_and_lka(agent, dynamics, runner, routine_config, dynamics_routine_config, rng):
+    ego_score, _, _ = evaluate(agent, runner, routine_config)
+    lka_train(
+        agent, 
+        dynamics, 
+        routine_config, 
+        dynamics_routine_config, 
+        n_runs=routine_config.n_lookahead_steps, 
+        rng=rng, 
+        lka_aids=[], 
+        run_fn=dynamics_run, 
+        opt_fn=lka_optimize, 
+    )
+    lka_score, _, _ = evaluate(agent, runner, routine_config, None)
+    agent.trainer.sync_lookahead_params()
+    agent.store(
+        ego_score=ego_score, 
+        lka_score=lka_score, 
+        lka_ego_score_diff=[lka - ego for lka, ego in zip(lka_score, ego_score)]
+    )
 
 
 def train(
@@ -115,7 +138,8 @@ def train(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            evaluate(agent, dynamics, runner, env_step, routine_config)
+            eval_ego_and_lka(agent, dynamics, runner, 
+                routine_config, dynamics_routine_config, lka_rng)
             if routine_config.quantify_dynamics_errors:
                 outdir = modelpath2outdir(agent.get_model_path())
                 log_dynamics_errors(errors, outdir, env_step)
