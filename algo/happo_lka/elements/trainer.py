@@ -13,7 +13,6 @@ from algo.happo.elements.trainer import Trainer as TrainerBase, pop_lookahead
 class Trainer(TrainerBase):
     def add_attributes(self):
         super().add_attributes()
-        self.lka_indices = self.indices
 
     def compile_train(self):
         _jit_train = jax.jit(self.theta_train, 
@@ -25,88 +24,6 @@ class Trainer(TrainerBase):
         self.jit_lka_train = jit_train
         
         self.haiku_tabulate()
-
-    def lookahead_train(self, data: AttrDict):
-        theta = self.model.lookahead_params.copy()
-        theta.policies, is_lookahead = pop_lookahead(theta.policies)
-        assert all([lka == True for lka in is_lookahead]), is_lookahead
-        opt_state = self.lookahead_opt_state
-
-        if self.config.update_scheme == 'step':
-            theta, opt_state = self.stepwise_sequential_opt(
-                theta, opt_state, data, self.config.n_lka_epochs, 
-                self.config.n_lka_mbs, self.lka_indices, 
-                self.jit_lka_train, return_stats=False
-            )
-        else:
-            theta, opt_state = self.sequential_opt(
-                theta, opt_state, data, self.config.n_lka_epochs, 
-                self.config.n_lka_mbs, self.lka_indices, 
-                self.jit_lka_train, return_stats=False
-            )
-
-        for p in theta.policies:
-            p[LOOKAHEAD] = True
-        self.model.lookahead_params = theta
-        self.lookahead_opt_state = opt_state
-
-    def lka_train(
-        self, 
-        theta, 
-        rng, 
-        opt_state, 
-        data, 
-        teammate_log_ratio,
-        aid, 
-        compute_teammate_log_ratio=True
-    ):
-        do_logging('lka train is traced', backtrack=4)
-        rngs = jax.random.split(rng, 3)
-        if self.config.get('theta_opt'):
-            theta, opt_state, stats = optimizer.optimize(
-                self.loss.lka_loss, 
-                theta, 
-                opt_state, 
-                kwargs={
-                    'rng': rngs[0], 
-                    'data': data,
-                    'teammate_log_ratio': teammate_log_ratio,
-                }, 
-                opt=self.opts.theta, 
-                name='train/theta'
-            )
-        else:
-            theta.value, opt_state.value, stats = optimizer.optimize(
-                self.loss.lka_value_loss, 
-                theta.value, 
-                opt_state.value, 
-                kwargs={
-                    'rng': rngs[0], 
-                    'policy_theta': theta.policy, 
-                    'data': data,
-                }, 
-                opt=self.opts.vs[aid], 
-                name='train/value'
-            )
-            theta.policy, opt_state.policy, stats = optimizer.optimize(
-                self.loss.lka_policy_loss, 
-                theta.policy, 
-                opt_state.policy, 
-                kwargs={
-                    'rng': rngs[1], 
-                    'data': data, 
-                    'stats': stats,
-                    'teammate_log_ratio': teammate_log_ratio,
-                }, 
-                opt=self.opts.policies[aid], 
-                name='train/policy'
-            )
-
-        if compute_teammate_log_ratio:
-            stats.teammate_log_ratio = self.compute_teammate_log_ratio(
-                theta.policy, rngs[2], teammate_log_ratio, data)
-
-        return theta, opt_state, stats
 
 create_trainer = partial(create_trainer,
     name='happo_lka', trainer_cls=Trainer

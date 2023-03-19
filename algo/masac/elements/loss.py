@@ -1,5 +1,4 @@
 from jax import lax, random
-import jax.numpy as jnp
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict

@@ -21,9 +21,6 @@ def lka_env_run(agent, runner: Runner, routine_config, lka_aids):
     with StateStore('real', constructor, get_fn, set_fn):
         runner.run(routine_config.n_steps, agent, lka_aids)
 
-    env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
-    agent.add_env_step(env_steps_per_run)
-
 
 @timeit
 def env_run(agent, runner: Runner, routine_config, lka_aids):

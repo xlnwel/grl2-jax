@@ -1,8 +1,8 @@
 ---
-algorithm: &algo masac
-name: masac
+algorithm: &algo masac_lka
+name: masac_lka
 dynamics_name: dynamics
-info: masac
+info: masac_lka
 
 precision: 32
 
