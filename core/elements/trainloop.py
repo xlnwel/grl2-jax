@@ -27,9 +27,13 @@ class TrainingLoop:
 
     def train(self, step, **kwargs):
         self._before_train(step)
-        if self.config.n_epochs:
+        if kwargs.get('warm_up_stage', False):
+            n_epochs = self.config.wp_n_epochs
+        else:
+            n_epochs = self.config.n_epochs
+        if n_epochs:
             train_step = 0
-            for _ in range(self.config.n_epochs):
+            for _ in range(n_epochs):
                 n, stats = self._train(**kwargs)
                 train_step += n
         else:

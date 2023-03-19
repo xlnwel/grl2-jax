@@ -30,8 +30,9 @@ class DualReplay(Buffer):
         primal_config = config.primal_replay
         secondary_config = config.secondary_replay
         primal_config.batch_size = int(self._batch_size * self._primal_percentage)
-        secondary_config.batch_size = int(self._batch_size * (1 - self._primal_percentage))
-        assert primal_config.batch_size + secondary_config.batch_size == self._batch_size, f'batch size({self._batch_size}) can not be partitioned by fast_percentation({self._primal_percentage})'
+        # secondary_config.batch_size = int(self._batch_size * (1 - self._primal_percentage))
+        secondary_config.batch_size = self._batch_size - primal_config.batch_size
+        # assert primal_config.batch_size + secondary_config.batch_size == self._batch_size, f'batch size({self._batch_size}) can not be partitioned by fast_percentation({self._primal_percentage})'
 
         if config.recent_primal_replay:
             primal_config.max_size = self.n_envs * config.n_steps

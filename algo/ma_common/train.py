@@ -46,8 +46,8 @@ def env_run(agent, runner: Runner, routine_config, lka_aids):
 
 
 @timeit
-def ego_optimize(agent):
-    agent.train_record()
+def ego_optimize(agent, **kwargs):
+    agent.train_record(**kwargs)
     train_step = agent.get_train_step()
 
     return train_step
