@@ -9,14 +9,14 @@ suite=$1
 shift
 envs=(
     Ant_2x4
-    # HalfCheetah_2x3
+    HalfCheetah_2x3
     Walker2d_2x3
 )
 configs=(
     "${suite}"
 )
 args1=(
-    # $1
+    $1
     200 400
 )
 args2=(
@@ -77,7 +77,7 @@ a3=${args3[$idx]}
 
 commands=()
 for a4 in "${args4[@]}"; do
-    kws="0#dynamics_name=$d 0#n_epochs=$a4"
+    kws="0#n_epochs=$a1"
     # kws="0#dynamics_name=$d"
     for e in "${envs[@]}"; do
         config=${suite}

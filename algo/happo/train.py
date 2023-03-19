@@ -22,7 +22,7 @@ def env_run(agent, runner: Runner, routine_config, lka_aids):
 @timeit
 def eval_ego_and_lka(agent, runner, routine_config):
     ego_score, _, _ = evaluate(agent, runner, routine_config)
-    env_run(agent, runner, routine_config, [])
+    env_run(agent, runner, routine_config, lka_aids=[])
     lka_optimize(agent)
     lka_score, _, _ = evaluate(agent, runner, routine_config, None)
     agent.trainer.sync_lookahead_params()
@@ -56,7 +56,7 @@ def train(
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
         train_step = ego_optimize(agent)
         time2record = to_record(env_step)
-        
+
         if time2record:
             eval_ego_and_lka(agent, runner, routine_config)
             save(agent, None)
