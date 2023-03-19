@@ -13,7 +13,8 @@
             "justMyCode": true,
             "args": [
                 // "-a", "dreamer", "-e=magw-escalation", "-c=escalation", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-na=2",
-                "-a", "masac_lka2", "dynamics", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "ma_mujoco-logs", "-n", "new_buffer", "-s", "3",
+                // "-a", "masac_lka2", "dynamics", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "ma_mujoco-logs", "-n", "new_buffer", "-s", "3",
+                "-a", "masac_lka", "dynamics", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "ma_mujoco-logs", "-n", "debug", "-s", "3", "-kw", "0#quantify_dynamics_errors=False", "0#model_warm_up=False",
                 // "-a", "happo_mb", "happo_mb", "dynamics", "-e=ma_mujoco-Ant_2x4", "-c=ma_mujoco", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-ki=2",
                 // "-a", "happo_mb", "happo_mb", "dynamics", "-e=magw-escalation", "-c=escalation", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-ki=2",
             ]

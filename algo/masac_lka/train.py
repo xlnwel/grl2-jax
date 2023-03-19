@@ -35,7 +35,7 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
+    # runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
     rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
