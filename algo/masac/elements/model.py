@@ -81,6 +81,7 @@ class Model(LKAModelBase):
         all_actions = []
         all_stats = []
         all_states = []
+        params.policies, _ = pop_lookahead(params.policies)
         for aid, (p, rng) in enumerate(zip(params.policies, rngs)):
             agent_rngs = random.split(rng, 2)
             d = data[aid]
@@ -113,16 +114,15 @@ class Model(LKAModelBase):
 
         action = concat_along_unit_dim(all_actions)
         stats = batch_dicts(all_stats, func=concat_along_unit_dim)
-        if self.has_rnn:
-            all_states = batch_dicts(all_states, func=concat_along_unit_dim)
 
         return action, stats, all_states
 
 
     """ RNN Operators """
-    def get_initial_state(self, batch_size):
-        if self._initial_state is not None:
-            return self._initial_state
+    def get_initial_state(self, batch_size, name='default'):
+        name = f'{name}_{batch_size}'
+        if name in self._initial_states:
+            return self._initial_states[name]
         if not self.has_rnn:
             return None
         data = construct_fake_data(self.env_stats, batch_size)
@@ -140,9 +140,9 @@ class Model(LKAModelBase):
                 d.global_state, 
             )
             states.append(state)
-        self._initial_state = jax.tree_util.tree_map(jnp.zeros_like, states)
+        self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, states)
 
-        return self._initial_state
+        return self._initial_states[name]
 
 
 def setup_config_from_envstats(config, env_stats):

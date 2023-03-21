@@ -1,9 +1,9 @@
-./scripts/inf ma_mujoco 4 inf_mujoco_ppo
+# ./scripts/inf ma_mujoco 2 inf_mujoco_ppo
 # ./scripts/inf ma_mujoco 2 inf_ppo_lka
-./scripts/inf ma_mujoco 4 inf_sac_lka
+# ./scripts/inf ma_mujoco 4 inf_sac_lka
 # ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb
 # ./scripts/inf ma_mujoco 1 inf_masac
-# ./scripts/inf ma_mujoco 1 inf_mambpo 200
+# ./scripts/inf ma_mujoco 3 inf_mambpo
 # ./scripts/inf ma_mujoco 1 inf_mambpo 400
 # ./scripts/inf ma_mujoco 4 inf_masac_lka2
 # ./scripts/inf ma_mujoco 1 inf_masac_lka 200 True
@@ -27,3 +27,5 @@
 # ./scripts/inf ma_mujoco 1 inf_mambpo 400 10000 .5 dynamics_tx
 # ./scripts/inf ma_mujoco 1 inf_mambpo 1000 20000 .5 dynamics_tx
 # ./scripts/inf ma_mujoco 1 inf_mambpo 1000 50000 .5 dynamics_tx
+
+./scripts/inf magw 3 inf_escalation

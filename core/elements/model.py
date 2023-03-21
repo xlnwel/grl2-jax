@@ -28,6 +28,8 @@ class Model(ParamsCheckpointBase):
         self.rng = self._prngkey()
         self.act_rng = self.rng
 
+        self._initial_states = AttrDict()
+
         self.add_attributes()
         self.build_nets()
         self.compile_model()

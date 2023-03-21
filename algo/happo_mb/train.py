@@ -50,7 +50,8 @@ dynamics_run = partial(dynamics_run, rollout_fn=branched_rollout)
 
 
 @timeit
-def eval_ego_and_lka(agent, dynamics, runner, routine_config, dynamics_routine_config, rng):
+def eval_ego_and_lka(agent, dynamics, runner: Runner, 
+        routine_config, dynamics_routine_config, rng):
     ego_score, _, _ = evaluate(agent, runner, routine_config)
     lka_train(
         agent, 
@@ -103,7 +104,7 @@ def train(
         rng, lka_rng = jax.random.split(rng, 2)
         errors = AttrDict()
         time2record = to_record(env_step)
-        
+
         dynamics_optimize(dynamics)
         if routine_config.quantify_dynamics_errors and time2record:
             errors.train = quantify_dynamics_errors(

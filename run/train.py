@@ -133,8 +133,7 @@ def setup_configs(cmd_args, algo_env_config):
         date = datetime.now().strftime("%m%d")
         raw_model_name = cmd_args.model_name
 
-    model_name = get_model_name_from_kw_string(
-        cmd_args.kwargs, raw_model_name)
+    model_name = model_name_from_kw_string(cmd_args.kwargs, raw_model_name)
 
     configs = []
     kwidx = cmd_args.kwidx

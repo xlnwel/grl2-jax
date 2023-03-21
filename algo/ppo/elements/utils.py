@@ -35,11 +35,11 @@ def compute_values(
     **kwargs
 ):
     if state is None:
-        if kwargs.get("vrnn", None) is not None:
-            state_reset, next_state_reset = jax_utils.split_data(
-                state_reset, axis=seq_axis)
-            value, _ = func(params, rng, x, state_reset)
-            next_value, _ = func(params, rng, next_x, next_state_reset)
+        if state is not None:
+            (state_reset, state), (next_state_reset, next_state) = \
+                jax_utils.split_data((state_reset, state), axis=seq_axis)
+            value, _ = func(params, rng, x, state_reset, state)
+            next_value, _ = func(params, rng, next_x, next_state_reset, next_state)
         else:
             value, _ = func(params, rng, x)
             next_value, _ = func(params, rng, next_x) 

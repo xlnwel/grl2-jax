@@ -3,12 +3,12 @@
 export PYTHONPATH=.
 
 algos=(
-    happo
-    happo_lka1
-    happo_lka2
+    # happo
+    # happo_lka1
+    # happo_lka2
     masac
     # masac_lka1
-    # masac_lka2
+    mambpo
 )
 suite=$1
 shift

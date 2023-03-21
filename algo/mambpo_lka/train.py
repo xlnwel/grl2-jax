@@ -1,6 +1,7 @@
 from functools import partial 
 
 from replay.dual import SECONDARY_REPLAY
+from tools.timer import timeit
 from algo.mambpo.train import *
 from algo.lka_common.train import lka_train
 
@@ -42,7 +43,7 @@ def train(
             dynamics_routine_config, 
             n_runs=routine_config.n_lookahead_steps, 
             rng=run_rng, 
-            lka_aids=None, 
+            lka_aids=[], 
             run_fn=dynamics_run, 
             opt_fn=lka_optimize, 
         )

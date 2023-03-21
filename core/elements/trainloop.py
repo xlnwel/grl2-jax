@@ -29,6 +29,7 @@ class TrainingLoop:
         self._before_train(step)
         if kwargs.get('warm_up_stage', False):
             n_epochs = self.config.wp_n_epochs
+            kwargs.pop('warm_up_stage')
         else:
             n_epochs = self.config.n_epochs
         if n_epochs:

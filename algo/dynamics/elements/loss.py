@@ -108,8 +108,9 @@ def compute_model_loss(
         loss = jnp.sum(stats.mean_loss)
     elif config.model_loss_type == 'discrete':
         loss = - dist.log_prob(model_target)
-        pred_next_obs = jnp.argmax(stats.model_logits, -1)
-        stats.obs_consistency = jnp.mean(pred_next_obs == model_target)
+        pred_next_obs = dist.mode()
+        obs_cons = jnp.mean(pred_next_obs == model_target, -1)
+        stats.obs_consistency = jnp.mean(obs_cons == 1)
         stats.mean_loss = jnp.mean(loss, utils.except_axis(loss, ENSEMBLE_AXIS))
         assert len(stats.mean_loss.shape) == 1, stats.mean_loss.shape
         loss = jnp.sum(stats.mean_loss)
@@ -127,7 +128,8 @@ def compute_reward_loss(
     pred_reward = reward_dist.mode()
     stats.pred_reward = pred_reward
     stats.reward_mae = lax.abs(pred_reward - reward)
-    stats.reward_consistency = jnp.mean(stats.reward_mae < .1)
+    stats.reward_consistency = jnp.mean(
+        stats.reward_mae < .1 * (jnp.max(reward) - jnp.min(reward)))
     stats.scaled_reward_loss, reward_loss = jax_loss.to_loss(
         raw_reward_loss, config.reward_coef, 
     )

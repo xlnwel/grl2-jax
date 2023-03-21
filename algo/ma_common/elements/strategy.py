@@ -1,12 +1,11 @@
 from functools import partial
 from typing import List
 import jax
+import jax.numpy as jnp
 
 from core.elements.strategy import Strategy as StrategyBase, create_strategy
 from core.mixin.strategy import Memory as MemoryBase
 from core.typing import AttrDict, dict2AttrDict
-from tools.utils import batch_dicts
-from algo.ma_common.run import concat_along_unit_dim
 
 
 class Memory(MemoryBase):
@@ -21,9 +20,9 @@ class Memory(MemoryBase):
         if states is None:
             return inps  # no memory is maintained
 
-        states = self.apply_reset_to_state(states, resets)
         for inp, state, reset in zip(inps, states, resets):
-            inp.state = state
+            reset_exp = jnp.expand_dims(reset, -1)
+            inp.state = jax.tree_util.tree_map(lambda x: x*(1-reset_exp), state)
             inp.state_reset = reset
         
         return inps
@@ -31,9 +30,10 @@ class Memory(MemoryBase):
     def apply_reset_to_state(self, states: List[AttrDict], resets: List):
         if states is None:
             return
-        for state, reset in zip(states, resets):
-            state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
-        return state
+        for i, reset in enumerate(resets):
+            reset = jnp.expand_dims(reset, -1)
+            states[i] = jax.tree_util.tree_map(lambda x: x*(1-reset), states[i])
+        return states
 
 
 class Strategy(StrategyBase):
@@ -48,7 +48,7 @@ class Strategy(StrategyBase):
             inps = [dict2AttrDict(o, to_copy=True) for o in env_output.obs]
             resets = env_output.reset
         else:
-            inps = [env_output.obs.slice((slice(None), uids)) for uids in self.aid2uids]
+            inps = [env_output.obs.slice(indices=uids, axis=1) for uids in self.aid2uids]
             resets = [env_output.reset[:, uids] for uids in self.aid2uids]
         inps = self._memory.add_memory_state_to_input(inps, resets)
 
@@ -57,8 +57,7 @@ class Strategy(StrategyBase):
     def _record_output(self, out):
         act, stats, states = out
         self._memory.set_states(states)
-        if states is not None:
-            states = batch_dicts(states, concat_along_unit_dim)
+
         return act, stats, states
 
 

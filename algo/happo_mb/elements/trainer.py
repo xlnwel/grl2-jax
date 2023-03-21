@@ -6,8 +6,8 @@ from core.log import do_logging
 from core.elements.trainer import create_trainer
 from core.typing import AttrDict
 from core import optimizer
-from algo.lka_common.elements.model import LOOKAHEAD
-from algo.happo.elements.trainer import Trainer as TrainerBase, pop_lookahead
+from algo.lka_common.elements.model import LOOKAHEAD, pop_lookahead
+from algo.happo.elements.trainer import Trainer as TrainerBase
 
 
 class Trainer(TrainerBase):
@@ -78,7 +78,7 @@ class Trainer(TrainerBase):
                     'data': data,
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
-                opt=self.opts.theta, 
+                opt=self.opts.theta[aid], 
                 name='train/theta'
             )
         else:
@@ -113,6 +113,7 @@ class Trainer(TrainerBase):
                 theta.policy, rngs[2], teammate_log_ratio, data)
 
         return theta, opt_state, stats
+
 
 create_trainer = partial(create_trainer,
     name='happo_mb', trainer_cls=Trainer

@@ -1,8 +1,8 @@
 ---
-algorithm: &algo happo_mb
-name: happo_mb
+algorithm: &algo happo_lka2
+name: happo_lka2
 dynamics_name: dynamics
-info: happo_mb
+info: happo_lka2
 
 precision: 32
 
@@ -15,7 +15,7 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 5e7
+    MAX_STEPS: 2e7
     n_steps: &nsteps 50
     LOG_PERIOD: 1e5
     EVAL_PERIOD: null
@@ -24,12 +24,14 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 3
-    n_simulated_envs: &nie 400
-    n_simulated_steps: &nis 10
+    n_lookahead_steps: 1
+    n_simulated_envs: &nse 400
+    n_simulated_steps: &nss 10
     model_rollout_type: sim
-    restore_state: False
-    switch_model_at_every_step: False
+    compute_return_at_once: False
+    ignore_ratio_for_ego: False
+    ignore_ratio_for_lookahead: False
+    perm: null
 
 env:
     env_name: &env_name magw-staghunt
@@ -114,6 +116,7 @@ trainer:
     n_epochs: &nepochs 4
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
+    update_scheme: step
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss

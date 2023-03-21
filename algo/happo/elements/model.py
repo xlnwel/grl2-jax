@@ -53,7 +53,8 @@ class Model(LKAModelBase):
         return super().sync_lookahead_params()
 
     def compile_model(self):
-        self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
+        self.jit_action = jax.jit(
+            self.raw_action, static_argnames=('evaluation'))
         self.jit_forward_policy = jax.jit(
             self.forward_policy, static_argnames=('return_state', 'evaluation'))
         self.jit_action_logprob = jax.jit(self.action_logprob)
@@ -69,6 +70,7 @@ class Model(LKAModelBase):
         all_actions = []
         all_stats = []
         all_states = []
+        params.policies, _ = pop_lookahead(params.policies)
         for aid, (p, v, rng) in enumerate(zip(params.policies, params.vs, rngs)):
             agent_rngs = random.split(rng, 3)
             d = data[aid]
@@ -107,8 +109,6 @@ class Model(LKAModelBase):
 
         action = concat_along_unit_dim(all_actions)
         stats = batch_dicts(all_stats, func=concat_along_unit_dim)
-        if self.has_rnn:
-            all_states = batch_dicts(all_states, func=concat_along_unit_dim)
 
         return action, stats, all_states
 
@@ -120,7 +120,8 @@ class Model(LKAModelBase):
     ):
         data.state_reset, _ = jax_utils.split_data(
             data.state_reset, axis=1)
-        act_out, _ = self.forward_policy(params, rng, data)
+        data.state = data.slice(slice(None), 0)
+        act_out, _ = self.jit_forward_policy(params, rng, data)
         act_dist = self.policy_dist(act_out)
         logprob = act_dist.log_prob(data.action)
 
@@ -131,43 +132,54 @@ class Model(LKAModelBase):
         def comp_value(params, rng, data):
             vs = []
             for p, d in zip(params, data):
+                state = d.pop('state', AttrDict())
+                if self.has_rnn:
+                    d = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , d)
                 v, _ = self.modules.value(
                     p, rng, 
                     d.global_state, 
                     d.state_reset, 
-                    d.state
+                    state.value
                 )
                 vs.append(v)
             vs = jnp.concatenate(vs, -1)
+            if self.has_rnn:
+                vs = jnp.squeeze(vs, 1)
             return vs
         self.act_rng, rng = random.split(self.act_rng)
         value = comp_value(self.params.vs, rng, data)
         return value
 
     """ RNN Operators """
-    def get_initial_state(self, batch_size):
-        if self._initial_state is not None:
-            return self._initial_state
+    def get_initial_state(self, batch_size, name='default'):
+        name = f'{name}_{batch_size}'
+        if name in self._initial_states:
+            return self._initial_states[name]
         if not self.has_rnn:
             return None
         data = construct_fake_data(self.env_stats, batch_size)
         states = []
         for p, v, d in zip(self.params.policies, self.params.vs, data):
             state = AttrDict()
+            p = p.copy()
+            p.pop(LOOKAHEAD)
             _, state.policy = self.modules.policy(
                 p, 
                 self.act_rng, 
                 d.obs, 
+                d.state_reset
             )
             _, state.value = self.modules.value(
                 v, 
                 self.act_rng, 
                 d.global_state, 
+                d.state_reset
             )
             states.append(state)
-        self._initial_state = jax.tree_util.tree_map(jnp.zeros_like, states)
+        states = tuple(states)
+        self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, states)
 
-        return self._initial_state
+        return self._initial_states[name]
 
 
 def create_model(

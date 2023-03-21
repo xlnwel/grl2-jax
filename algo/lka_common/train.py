@@ -50,16 +50,6 @@ def dynamics_optimize(dynamics):
 
 
 @timeit
-def prepare_params(agent, dynamisc):
-    agent_params = agent.model.params
-    dynamics_params = dynamisc.model.params
-    dynamics_params.obs_loc, dynamics_params.obs_scale = \
-        dynamisc.model.obs_rms.get_rms_stats(False)
-
-    return agent_params, dynamics_params
-
-
-@timeit
 def dynamics_run(agent, dynamics, routine_config, dynamics_routine_config, 
         rng, lka_aids, rollout_fn):
     if dynamics_routine_config.model_warm_up and \
@@ -68,19 +58,20 @@ def dynamics_run(agent, dynamics, routine_config, dynamics_routine_config,
 
     def get_agent_states():
         state = agent.get_states()
+        # we put the data collected from the dynamics into the secondary replay
+        if isinstance(agent.buffer, DualReplay):
+            agent.buffer.set_default_replay(routine_config.lookahead_replay)
         return state
     
-    def set_agent_states(state):
-        agent.set_states(state)
+    def set_agent_states(states):
+        agent.set_states(states)
+        if isinstance(agent.buffer, DualReplay):
+            agent.buffer.set_default_replay(PRIMAL_REPLAY)
 
     # train lookahead agent
     with TempStore(get_agent_states, set_agent_states):
-        agent_params, dynamics_params = prepare_params(agent, dynamics)
-        rollout_fn(
-            agent, agent_params, 
-            dynamics, dynamics_params, 
-            routine_config, rng, lka_aids
-        )
+        rollout_fn(agent, dynamics, routine_config, rng, lka_aids)
+    return True
 
 
 @timeit
@@ -93,9 +84,10 @@ def lka_train(agent, dynamics, routine_config, dynamics_routine_config,
         n_runs, rng, lka_aids, run_fn=dynamics_run, opt_fn=lka_optimize):
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
-        run_fn(agent, dynamics, routine_config, dynamics_routine_config, 
+        succ = run_fn(agent, dynamics, routine_config, dynamics_routine_config, 
             rng, lka_aids)
-        opt_fn(agent)
+        if succ:
+            opt_fn(agent)
 
 
 @timeit

@@ -30,3 +30,13 @@ class LKAModelBase(MAModelBase):
         self.lookahead_params.policies = [p.copy() for p in self.lookahead_params.policies]
         for p in self.lookahead_params.policies:
             p[LOOKAHEAD] = True
+
+    def joint_policy(self, params, rng, data):
+        params, _ = pop_lookahead(params)
+        return super().joint_policy(params, rng, data)
+
+
+def pop_lookahead(policies):
+    policies = [p.copy() for p in policies]
+    lka = [p.pop(LOOKAHEAD, False) for p in policies]
+    return policies, lka

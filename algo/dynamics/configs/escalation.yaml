@@ -15,10 +15,14 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 1e8
-    n_steps: &nsteps 100
+    n_steps: &nsteps 50
     LOG_PERIOD: 2e5
+    EVAL_PERIOD: null
 
     n_envs: &nenvs 64
+
+    model_warm_up: True
+    model_warm_up_steps: 5e4
 
 env:
     env_name: &env_name magw-escalation
@@ -39,20 +43,26 @@ monitor:
 strategy:
     algorithm: *algo
     train_loop:
-        n_epochs: 25
+        ergodic: True
+        samples_per_epochs: 5e4
+        n_valid_samples: 1e4
+        n_epochs: &nepochs 5
 
 model:
     aid: 0
-    n_elites: 1
+    n_elites: 5
     global_state_type: concat
     rn_std: .1
+    model_norm_obs: &obs_norm False
+    deterministic_trans: True
+    model_loss_type: &mlt discrete
 
     emodels:
         nn_id: emodels
         n_models: &n 1
         units_list: [256, 256]
         activation: relu
-        norm: layer
+        norm: null
         out_config:
             type: discrete
             n_classes: 5
@@ -61,18 +71,20 @@ model:
         out_size: 1
         units_list: [256, 256]
         activation: relu
-        norm: layer
+        norm: null
         out_scale: .01
     discount:
         nn_id: discount
         out_size: 1
         units_list: [256, 256]
         activation: relu
-        norm: layer
+        norm: null
+        out_scale: .01
 
 loss:
     model_loss_type: discrete
     n_models: *n
+    model_norm_obs: *obs_norm
 
     model_coef: 1
     reward_coef: 1
@@ -81,7 +93,9 @@ loss:
 trainer:
     algorithm: *algo
     aid: 0
+    trust_threshold: null
     timeout_done: *td
+    model_norm_obs: *obs_norm
 
     model_opt:
         opt_name: adam
@@ -93,12 +107,17 @@ actor: {}
 
 
 buffer:
-    type: eps
+    type: uniform
 
+    model_norm_obs: *obs_norm
     n_runners: *nrunners
     n_envs: *nenvs
-    sample_size: 10
-    batch_size: 128
+    max_size: 6e4
+    min_size: 1e3
+    batch_size: 256
+    sample_size: 1
+
+    max_steps: 1
 
     sample_keys: 
         - obs

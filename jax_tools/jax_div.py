@@ -13,15 +13,15 @@ def kl_from_distributions(
     q_loc=None, 
     p_scale=None,  
     q_scale=None,  
-    action_mask=None, 
+    logits_mask=None, 
 ):
     if p_logits is None:
         pd = distrax.MultivariateNormalDiag(p_loc, p_scale)
         qd = distrax.MultivariateNormalDiag(q_loc, q_scale)
     else:
-        if action_mask is not None:
-            p_logits = jnp.where(action_mask, p_logits, 1e-8)
-            q_logits = jnp.where(action_mask, q_logits, 1e-8)
+        if logits_mask is not None:
+            p_logits = jnp.where(logits_mask, p_logits, 1e-8)
+            q_logits = jnp.where(logits_mask, q_logits, 1e-8)
         pd = distrax.Categorical(p_logits)
         qd = distrax.Categorical(q_logits)
     kl = pd.kl_divergence(qd)
@@ -74,7 +74,7 @@ def js_from_distributions(
     q_loc=None, 
     p_scale=None,  
     q_scale=None,  
-    pi_mask=None
+    logits_mask=None
 ):
     if p_logits is None:
         mid_loc = (p_loc + q_loc) / 2.
@@ -91,8 +91,8 @@ def js_from_distributions(
     else:
         avg = (p_logits + q_logits) / 2
         js = .5 * (
-            kl_from_distributions(p_logits=p_logits, q_logits=avg, pi_mask=pi_mask)
-            + kl_from_distributions(p_logits=q_logits, q_logits=avg, pi_mask=pi_mask)
+            kl_from_distributions(p_logits=p_logits, q_logits=avg, logits_mask=logits_mask)
+            + kl_from_distributions(p_logits=q_logits, q_logits=avg, logits_mask=logits_mask)
         )
     return js
 
@@ -152,7 +152,7 @@ def tsallis_from_distributions(
     p_std=None,  
     q_mean=None,  
     q_std=None,  
-    pi_mask=None,
+    logits_mask=None,
     tsallis_q, 
 ):
     if pi1 is None:
@@ -161,8 +161,8 @@ def tsallis_from_distributions(
         log_pi1 = tsallis_log(jnp.clip(pi1, 1e-10, 1), tsallis_q)
         log_pi2 = tsallis_log(jnp.clip(pi2, 1e-10, 1), tsallis_q)
         log_ratio = log_pi1 - log_pi2
-        if pi_mask is not None:
-            log_ratio = jnp.where(pi_mask, log_ratio, 0)
+        if logits_mask is not None:
+            log_ratio = jnp.where(logits_mask, log_ratio, 0)
         chex.assert_tree_all_finite(log_ratio)
         tsallis = jnp.sum(pi1**tsallis_q * log_ratio, axis=-1)
 

@@ -49,8 +49,6 @@ class MAModelBase(ModelCore):
         aid = self.config.get('aid', 0)
         self.is_action_discrete = self.env_stats.is_action_discrete[aid]
 
-        self._initial_state = None
-
     def forward_policy(self, params, rng, data, return_state=True):
         state = data.pop('state', AttrDict())
         act_out, state.policy = self.modules.policy(
@@ -83,8 +81,13 @@ class MAModelBase(ModelCore):
     @partial(jax.jit, static_argnums=0)
     def joint_policy_params(self, params, rng, data):
         dist_params = []
+        state = data.pop('state', AttrDict())
         for p, uids in zip(params, self.aid2uids):
-            d = tree_slice(data, indices=uids, axis=-2)
+            if self.has_rnn:
+                d = tree_slice(data, indices=uids, axis=2)
+                d.state = state.slice(indices=uids, axis=1)
+            else:
+                d = tree_slice(data, indices=uids, axis=1)
             act_out = self.forward_policy(p, rng, d, return_state=False)
             dist_params.append(act_out)
         dist_params = [
