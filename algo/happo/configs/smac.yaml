@@ -33,7 +33,7 @@ routine:
 env:
     env_name: &env_name smac-5m_vs_6m
     n_runners: &nrunners 1
-    n_envs: &nenvs 8
+    n_envs: &nenvs 32
     timeout_done: &td False
     env_args:
         agent_obsk: 0
@@ -116,9 +116,9 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: 5
-    n_lookahead_epochs: 5
-    n_mbs: &nmbs 8
+    n_epochs: 10
+    n_lookahead_epochs: 10
+    n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 
     popart: *popart
