@@ -1,7 +1,6 @@
 ---
 algorithm: &algo happo_lka1
 name: happo_lka1
-dynamics_name: dynamics
 info: happo_lka1
 
 precision: 32
@@ -20,6 +19,7 @@ routine:
     LOG_PERIOD: 1e5
     EVAL_PERIOD: null
 
+    n_eval_envs: 1000
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]

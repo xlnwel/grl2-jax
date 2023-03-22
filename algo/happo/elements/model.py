@@ -18,10 +18,6 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
 class Model(LKAModelBase):
-    def add_attributes(self):
-        super().add_attributes()
-        self.prev_lka_params = AttrDict()
-
     def build_nets(self):
         aid = self.config.get('aid', 0)
         data = construct_fake_data(self.env_stats, aid=aid)
@@ -49,7 +45,8 @@ class Model(LKAModelBase):
         self.sync_lookahead_params()
     
     def sync_lookahead_params(self):
-        self.prev_lka_params = self.lookahead_params
+        self.prev_lka_params = self.lookahead_params.copy()
+        self.prev_lka_params[PREV_LKA_PARAMS] = True
         return super().sync_lookahead_params()
 
     def compile_model(self):

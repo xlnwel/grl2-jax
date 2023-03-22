@@ -1,7 +1,9 @@
+from functools import partial
 import collections
 import numpy as np
 
 from tools.run import RunnerWithState
+from tools.store import StateStore
 from tools.utils import batch_dicts
 
 
@@ -10,8 +12,40 @@ def concat_along_unit_dim(x):
     return x
 
 
+def state_constructor(agent, runner):
+    agent_states = agent.build_memory()
+    runner_states = runner.build_env()
+    return agent_states, runner_states
+
+
+def set_states(states, agent, runner):
+    agent_states, runner_states = states
+    agent_states = agent.set_memory(agent_states)
+    runner_states = runner.set_states(runner_states)
+    return agent_states, runner_states
+
+
 class Runner(RunnerWithState):
     def run(
+        self, 
+        n_steps, 
+        agent, 
+        lka_aids, 
+        store_info=True,
+        collect_data=True, 
+        name=None, 
+    ):
+        if name is None:
+            return self._run(n_steps, agent, lka_aids, 
+                store_info=store_info, collect_data=collect_data)
+        else:
+            constructor = partial(state_constructor, agent=agent, runner=self)
+            set_fn = partial(set_states, agent=agent, runner=self)
+            with StateStore(name, constructor, set_fn):
+                return self._run(n_steps, agent, lka_aids, 
+                    store_info=store_info, collect_data=collect_data)
+
+    def _run(
         self, 
         n_steps, 
         agent, 
@@ -55,6 +89,34 @@ class Runner(RunnerWithState):
         return env_output
 
     def eval_with_video(
+        self, 
+        agent, 
+        n=None, 
+        n_envs=None, 
+        record_video=True, 
+        size=(128, 128), 
+        video_len=1000, 
+        n_windows=4, 
+        name=None
+    ):
+        if name is None:
+            return self._eval_with_video(agent, n, record_video, 
+                size, video_len, n_windows)
+        else:
+            def constructor():
+                env_config = self.env_config()
+                if n_envs:
+                    env_config.n_envs = n_envs
+                agent_states = agent.build_memory()
+                runner_states = self.build_env()
+                return agent_states, runner_states
+
+            set_fn = partial(set_states, agent=agent, runner=self)
+            with StateStore(name, constructor, set_fn):
+                return self._eval_with_video(agent, n, record_video, 
+                    size, video_len, n_windows)
+
+    def _eval_with_video(
         self, 
         agent, 
         n=None, 
@@ -112,6 +174,7 @@ class Runner(RunnerWithState):
                         else:
                             for i, ri in enumerate(reset_env_ids):
                                 t[ri] = s[i]
+            prev_done = done
 
         stats = batch_dicts(stats_list)
         if record_video:

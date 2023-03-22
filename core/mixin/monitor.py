@@ -154,6 +154,10 @@ class Recorder:
         stats = {}
         for k in sorted(self._store_dict):
             v = self._store_dict[k]
+            if not v:
+                continue
+            if isinstance(v[0], np.ndarray):
+                v = np.concatenate([vv.reshape(-1) for vv in v])
             if add_missing_prefix and check_key(k):
                 k = add_prefix(k, 'metrics')
             if (
@@ -177,7 +181,7 @@ class Recorder:
                         do_logging(k)
                     stats[k] = np.mean(v).astype(np.float32)
                 except:
-                    print(k, v)
+                    print(k)
                     assert False
             if k_std:
                 stats[add_suffix(k, 'std')] = np.std(v).astype(np.float32)

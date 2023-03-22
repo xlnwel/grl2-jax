@@ -56,8 +56,8 @@ model:
         units_list: [200, 200, 200, 200]
         activation: relu
         norm: layer
+        out_type: continuous
         out_config:
-            type: continuous
             max_logvar: .5
             min_logvar: -10
     reward:

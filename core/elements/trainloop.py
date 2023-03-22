@@ -79,8 +79,7 @@ class TrainingLoop:
     def _train_with_data(self, data, **kwargs):
         if data is None:
             return AttrDict()
-        with Timer('train'):
-            stats = self.trainer.train(data, **kwargs)
+        stats = self.trainer.train(data, **kwargs)
         return stats
 
     def change_buffer(self, buffer):

@@ -4,24 +4,14 @@ from algo.happo.run import prepare_buffer
 
 
 @timeit
-def lka_env_run(agent, runner: Runner, routine_config, lka_aids):
-    constructor = partial(state_constructor, agent=agent, runner=runner)
-    get_fn = partial(get_states, agent=agent, runner=runner)
-    set_fn = partial(set_states, agent=agent, runner=runner)
-
-    with StateStore('lka', constructor, get_fn, set_fn):
-        env_output = runner.run(routine_config.n_steps, agent, lka_aids)
+def lka_env_run(agent, runner: Runner, routine_config, lka_aids, name='lka'):
+    env_output = runner.run(routine_config.n_steps, agent, lka_aids, name=name)
     prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
 
 
 @timeit
-def env_run(agent, runner: Runner, routine_config, lka_aids):
-    constructor = partial(state_constructor, agent=agent, runner=runner)
-    get_fn = partial(get_states, agent=agent, runner=runner)
-    set_fn = partial(set_states, agent=agent, runner=runner)
-
-    with StateStore('real', constructor, get_fn, set_fn):
-        env_output = runner.run(routine_config.n_steps, agent, lka_aids)
+def env_run(agent, runner: Runner, routine_config, lka_aids, name='real'):
+    env_output = runner.run(routine_config.n_steps, agent, lka_aids, name=name)
     prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
@@ -32,16 +22,30 @@ def env_run(agent, runner: Runner, routine_config, lka_aids):
 
 @timeit
 def eval_ego_and_lka(agent, runner, routine_config):
-    ego_score, _, _ = evaluate(agent, runner, routine_config)
-    env_run(agent, runner, routine_config, lka_aids=[])
-    lka_optimize(agent)
+    agent.model.swap_params()
+    agent.model.swap_lka_params()
+    prev_ego_score, _, _ = evaluate(agent, runner, routine_config)
     lka_score, _, _ = evaluate(agent, runner, routine_config, None)
-    agent.trainer.sync_lookahead_params()
+    agent.model.swap_params()
+    agent.model.swap_lka_params()
+    ego_score, _, _ = evaluate(agent, runner, routine_config)
+
+    prev_ego_score = np.array(prev_ego_score)
+    lka_score = np.array(lka_score)
+    ego_score = np.array(ego_score)
+    lka_pego_score_diff = lka_score - prev_ego_score
+    ego_pego_score_diff = ego_score - prev_ego_score
+    ego_lka_score_diff = ego_score - lka_score
     agent.store(
+        prev_ego_score=prev_ego_score, 
         ego_score=ego_score, 
         lka_score=lka_score, 
-        lka_ego_score_diff=[lka - ego for lka, ego in zip(lka_score, ego_score)]
+        lka_ego_score_diff=lka_pego_score_diff, 
+        ego_pego_score_diff=ego_pego_score_diff, 
+        ego_lka_score_diff=ego_lka_score_diff, 
     )
+    agent.model.check_current_params()
+    agent.model.check_current_lka_params()
 
 
 def train(

@@ -85,7 +85,7 @@ class Trainer(TrainerBase):
 
         for p in theta.policies:
             p[LOOKAHEAD] = False
-        self.model.params = theta
+        self.model.set_params(theta)
         self.params.theta = opt_state
 
         if self.config.popart:
@@ -124,7 +124,7 @@ class Trainer(TrainerBase):
 
         for p in theta.policies:
             p[LOOKAHEAD] = True
-        self.model.lookahead_params = theta
+        self.model.set_lka_params(theta)
         self.lookahead_opt_state = opt_state
 
     def sequential_opt(self, theta, opt_state, data, 

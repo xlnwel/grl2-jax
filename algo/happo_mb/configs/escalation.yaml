@@ -20,6 +20,7 @@ routine:
     LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
+    n_eval_envs: 1000
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]
@@ -115,13 +116,13 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 4
+    n_epochs: &nepochs 10
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss
-    n_lka_epochs: 4
+    n_lka_epochs: 10
     n_lka_mbs: 1
 
     theta_opt:

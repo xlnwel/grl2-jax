@@ -2,12 +2,31 @@
 
 export PYTHONPATH=.
 
-python run/train.py -a masac -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
-python run/train.py -a mambpo dynamics_tx -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 -kw 0#dynamics_name=dynamics_tx &
-python run/train.py -a masac_lka dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
-python run/train.py -a masac_lka2 dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 -kw lka_test=True &
-python run/train.py -a masac_lka2 dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 -kw lka_test=False &
-python run/train.py -a happo -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
-python run/train.py -a happo_mb dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
+# python run/train.py -a masac -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
+# python run/train.py -a mambpo dynamics_tx -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 -kw 0#dynamics_name=dynamics_tx &
+# python run/train.py -a masac_lka dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
+# python run/train.py -a masac_lka2 dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 -kw lka_test=True &
+# python run/train.py -a masac_lka2 dynamics -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 -kw lka_test=False &
+# python run/train.py -a happo -e ma_mujoco-Walker2d_2x3 -c ma_mujoco -ld ma_mujoco-logs -s 1 &
+# python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#n_epochs=1 1#lr=1e-3 &
+# python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 2 -kw 1#n_epochs=1 1#lr=1e-3 &
+# python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#n_epochs=1 1#lr=5e-4 &
+# python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 2 -kw 1#n_epochs=1 1#lr=5e-4 &
+python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#weight_decay=None &
+python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#weight_decay=1e-6 &
+# python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#weight_decay=1e-6 &
+# python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#weight_decay=1e-6 &
+# python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#n_epochs=5 1#lr=5e-4 &
+# python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 2 -kw 1#n_epochs=5 1#lr=5e-4 &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#n_epochs=1 1#lr=1e-3 &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#n_epochs=1 1#lr=1e-3 &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#n_epochs=1 1#lr=5e-4 &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#n_epochs=1 1#lr=5e-4 &
+python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#weight_decay=None &
+python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#weight_decay=1e-6 &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#weight_decay=1e-6 &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#weight_decay=1e-6 &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#n_epochs=5 1#lr=5e-4 &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#n_epochs=5 1#lr=5e-4 &
 wait
 echo "Script completed"

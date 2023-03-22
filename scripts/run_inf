@@ -28,4 +28,10 @@
 # ./scripts/inf ma_mujoco 1 inf_mambpo 1000 20000 .5 dynamics_tx
 # ./scripts/inf ma_mujoco 1 inf_mambpo 1000 50000 .5 dynamics_tx
 
-./scripts/inf magw 3 inf_escalation
+# ./scripts/inf magw 2 inf_magw_mb
+./scripts/inf magw 1 inf_ppo_lka 10 64
+./scripts/inf magw 1 inf_ppo_lka 10 128
+./scripts/inf magw 1 inf_ppo_lka 10 256
+./scripts/inf magw 1 inf_ppo_lka 20 64
+./scripts/inf magw 1 inf_ppo_lka 20 128
+./scripts/inf magw 1 inf_ppo_lka 20 256

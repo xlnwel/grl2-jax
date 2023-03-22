@@ -114,12 +114,13 @@ def compute_meta_gradients(
 def compute_updates(
     grads: Dict, 
     state, 
+    params, 
     opt, 
     stats, 
     name=None, 
     debug=False, 
 ):
-    updates, state = opt.update(grads, state)
+    updates, state = opt.update(grads, state, params)
     for k, v in updates._asdict().items():
         k = add_prefix(k, name)
         if debug:
@@ -154,7 +155,7 @@ def optimize(
         kwargs=kwargs, name=name, 
         debug=debug)
     updates, state, stats = compute_updates(
-        grads, state, opt, stats, name=name, debug=debug)
+        grads, state, params, opt, stats, name=name, debug=debug)
     params = apply_updates(params, updates)
     return params, state, stats
 

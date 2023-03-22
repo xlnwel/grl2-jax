@@ -20,15 +20,16 @@ class TrainingLoop(TrainingLoopBase):
                 n += 1
         
         if n > 0:
-            stats = self.valid_stats()
+            valid_stats = self.valid_stats()
+            stats.update(valid_stats)
 
         return n, stats
 
     def valid_stats(self):
         data = self.buffer.range_sample(0, self.config.n_valid_samples)
         data = self.trainer.process_data(data)
-        
-        loss, stats = self.trainer.loss.loss(
+
+        _, stats = self.trainer.loss.loss(
             self.model.theta, 
             self.rng, 
             data

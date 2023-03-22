@@ -3,40 +3,58 @@
 export PYTHONPATH=.
 
 algos=(
-    masac
+    happo_mb
 )
 suite=$1
 shift
-# envs=(escalation staghunt harvest)
 envs=(
-    Ant_2x4
-    HalfCheetah_2x3
-    Walker2d_2x3
+    staghunt
+    staghunt
+    # escalation
+    # escalation
+    # escalation
+    # escalation
 )
 configs=(
     "${suite}"
 )
 args1=(
-    100
-    200
-    400
+    discrete
+    mse
+    discrete
+    mse
+    discrete
+    mse
 )
 args2=(
-    128
-    256
-    128
-    256
+    False
+    True
+    False
+    True
+    False
+    True
+    # 5e-4
 )
 args3=(
-    layer
-    None
-    layer
-    None
-    layer
-    None
-    layer
+    discrete
+    continuous
+    discrete
+    continuous
+    discrete
+    continuous
 )
-args4=(5 10)
+args4=(
+    None
+    None
+    None
+    None
+    1e-6
+    1e-6
+)
+dynamics=(
+    "dynamics"
+    # "dynamics"
+)
 date=$(date +"%m%d")
 info=""
 ld="${suite}-logs"
@@ -51,7 +69,7 @@ else
     n="$date-$info"
 fi
 
-# INF_MAC_NODE_RANK=0
+# INF_MAC_NODE_RANK=$1
 le=${#envs[@]}
 idx=$(($INF_MAC_NODE_RANK % $le))
 e=${envs[$idx]}
@@ -62,6 +80,9 @@ config=${configs[$idx]}
 la=${#algos[@]}
 idx=$(($INF_MAC_NODE_RANK % $la))
 a=${algos[$idx]}
+ldy=${#dynamics[@]}
+idx=$(($INF_MAC_NODE_RANK % $ldy))
+d=${dynamics[$idx]}
 la1=${#args1[@]}
 idx=$(($INF_MAC_NODE_RANK % $la1))
 a1=${args1[$idx]}
@@ -74,21 +95,23 @@ a3=${args3[$idx]}
 
 commands=()
 # for a1 in "${args1[@]}"; do
-    # kws="n_epochs=$a1"
-for e in "${envs[@]}"; do
-    config="${suite}"
-    env="${suite}-${e}"
-    for s in {0..4}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-        # eval $py_script
-    done
+# for a2 in "${args2[@]}"; do
+kws="1#model_loss_type=$a1 1#model_norm_obs=$a2 1#out_type=$a3 1#weight_decay=$a4"
+    # for e in "${envs[@]}"; do
+env="${suite}-${e}"
+config="${e}"
+for s in {0..4}; do
+    py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+    commands+=("$py_script")
+    echo $py_script
+    # eval $py_script
 done
+#     done
+# done
 # done
 # echo ${commands[@]}s
-# lc=${#commands[@]}
-# p=$((lc / le))
-# echo $commands
+lc=${#commands[@]}
+p=$((lc / le))
+# echo $p
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

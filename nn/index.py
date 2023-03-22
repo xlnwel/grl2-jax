@@ -1,30 +1,14 @@
 import string
 import jax.numpy as jnp
 import haiku as hk
-import chex
 
 from nn.func import nn_registry
 from nn.layers import Layer
 from nn.mlp import MLP
-from nn.utils import get_initializer
+from nn.utils import get_initializer, FixedInitializer
 from core.typing import dict2AttrDict
 
 
-class FixedInitializer(hk.initializers.Initializer):
-  """Initializes by sampling from a normal distribution."""
-
-  def __init__(self, init):
-    """Constructs a :class:`RandomNormal` initializer.
-    Args:
-      stddev: The standard deviation of the normal distribution to sample from.
-      mean: The mean of the normal distribution to sample from.
-    """
-    self.init = init
-
-  def __call__(self, shape, dtype):
-    chex.assert_shape(self.init, shape)
-    chex.assert_type(self.init, dtype)
-    return self.init
 
 
 class IndexParams(hk.Module):
@@ -34,7 +18,7 @@ class IndexParams(hk.Module):
         w_in, 
         w_out, 
         w_init='orthogonal', 
-        use_bias, 
+        with_bias, 
         scale=1.,
         name='index_params', 
     ):
@@ -43,7 +27,7 @@ class IndexParams(hk.Module):
         self.w_in = w_in
         self.w_out = w_out
         self.w_init = get_initializer(w_init, scale=scale)
-        self.use_bias = use_bias
+        self.with_bias = with_bias
 
     def __call__(self, x):
         w, b = self.build_net(x)
@@ -53,7 +37,7 @@ class IndexParams(hk.Module):
         x = jnp.einsum(eqt, x, w)
         if self.w_in is None:
             x = jnp.reshape(x, (*x.shape[:-2], self.w_out))
-        if self.use_bias:
+        if self.with_bias:
             x = x + b
 
         return x
@@ -67,9 +51,9 @@ class IndexParams(hk.Module):
         init_shape = init.shape
         init = FixedInitializer(init)
         w = hk.get_parameter('w', shape=init_shape, init=init)
-        if self.use_bias:
+        if self.with_bias:
             init_shape = (self.w_out,) if self.w_in is None else (w_in, self.w_out)
-            init = get_initializer('zero')
+            init = get_initializer('zeros')
             b = hk.get_parameter('b', shape=init_shape, init=init)
         else:
             b = None
@@ -82,7 +66,7 @@ class IndexLayer(hk.Module):
     def __init__(
         self, 
         out_size, 
-        use_bias=True, 
+        with_bias=True, 
         use_shared_bias=False, 
         name='index_layer', 
         **config
@@ -91,7 +75,7 @@ class IndexLayer(hk.Module):
         
         self.config = dict2AttrDict(config, to_copy=True)
         self.out_size = out_size
-        self.use_bias = use_bias
+        self.with_bias = with_bias
         self.use_shared_bias = use_shared_bias
  
     def __call__(self, x, hx):
@@ -103,7 +87,7 @@ class IndexLayer(hk.Module):
         pre = string.ascii_lowercase[:len(x.shape)-1]
         eqt = f'{pre}h,{pre}ho->{pre}o'
         out = jnp.einsum(eqt, x, w)
-        if self.use_bias:
+        if self.with_bias:
             out = out + blayer(hx)
 
         return out
@@ -111,13 +95,13 @@ class IndexLayer(hk.Module):
     @hk.transparent
     def build_net(self, x):
         config = self.config.copy()
-        config['use_bias'] = self.use_shared_bias  # no bias to avoid any potential parameter sharing
+        config['with_bias'] = self.use_shared_bias  # no bias to avoid any potential parameter sharing
         w_config = config.copy()
         w_config['w_in'] = x.shape[-1]
         w_config['w_out'] = self.out_size
         wlayer = IndexParams(**w_config, name='w')
 
-        if self.use_bias:
+        if self.with_bias:
             b_config = config.copy()
             b_config['w_in'] = None
             b_config['w_out'] = self.out_size
@@ -197,7 +181,7 @@ if __name__ == '__main__':
         'index': 'head', 
         'index_config': {
             'use_shared_bias': False, 
-            'use_bias': True, 
+            'with_bias': True, 
             'w_init': 'orthogonal', 
         },
     }

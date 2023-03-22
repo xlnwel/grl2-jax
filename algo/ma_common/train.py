@@ -12,32 +12,9 @@ from tools.timer import Every, Timer, timeit
 from algo.ma_common.run import Runner
 
 
-def state_constructor(agent, runner):
-    agent_states = agent.build_memory()
-    runner_states = runner.build_env()
-    return agent_states, runner_states
-
-
-def get_states(agent, runner):
-    agent_states = agent.get_memory()
-    runner_states = runner.get_states()
-    return agent_states, runner_states
-
-
-def set_states(states, agent, runner):
-    agent_states, runner_states = states
-    agent.set_memory(agent_states)
-    runner.set_states(runner_states)
-
-
 @timeit
-def env_run(agent, runner: Runner, routine_config, lka_aids):
-    constructor = partial(state_constructor, agent=agent, runner=runner)
-    get_fn = partial(get_states, agent=agent, runner=runner)
-    set_fn = partial(set_states, agent=agent, runner=runner)
-
-    with StateStore('real', constructor, get_fn, set_fn):
-        runner.run(routine_config.n_steps, agent, lka_aids)
+def env_run(agent, runner: Runner, routine_config, lka_aids, name='real'):
+    runner.run(routine_config.n_steps, agent, lka_aids, name=name)
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
     agent.add_env_step(env_steps_per_run)
@@ -62,23 +39,14 @@ def ego_train(agent, runner, routine_config, lka_aids, run_fn, opt_fn):
 
 
 @timeit
-def evaluate(agent, runner: Runner, routine_config, lka_aids=[]):
+def evaluate(agent, runner: Runner, routine_config, lka_aids=[], record_video=False, name='eval'):
     agent.model.switch_params(True, lka_aids)
 
-    get_fn = partial(get_states, agent=agent, runner=runner)
-    set_fn = partial(set_states, agent=agent, runner=runner)
-    def constructor():
-        env_config = runner.env_config()
-        if routine_config.n_eval_envs:
-            env_config.n_envs = routine_config.n_eval_envs
-        agent_states = agent.build_memory()
-        runner_states = runner.build_env()
-        return agent_states, runner_states
-
-    with StateStore('eval', constructor, get_fn, set_fn):
-        scores, epslens, _, video = runner.eval_with_video(
-            agent, record_video=routine_config.RECORD_VIDEO
-        )
+    scores, epslens, _, video = runner.eval_with_video(
+        agent, n_envs=routine_config.n_eval_envs, 
+        record_video=record_video, 
+        name=name
+    )
 
     agent.model.switch_params(False, lka_aids)
     agent.model.check_params(False)

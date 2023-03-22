@@ -18,9 +18,8 @@ def get_normal_dist(x, max_logvar, min_logvar):
     return dist
 
 
-def get_discrete_dist(x, out_size, n_classes):
-    logits = jnp.reshape(x, (*x.shape[:-1], out_size, n_classes))
-    dist = jax_dist.Categorical(logits)
+def get_discrete_dist(x):
+    dist = jax_dist.Categorical(x)
     return dist
 
 
@@ -33,6 +32,7 @@ class Model(hk.Module):
     def __init__(
         self, 
         out_size, 
+        out_type, 
         out_config, 
         name='model', 
         **config, 
@@ -42,7 +42,7 @@ class Model(hk.Module):
         self.out_size = out_size
 
         self.out_config = dict2AttrDict(out_config, to_copy=True)
-        self.out_type = self.out_config.pop('type')
+        self.out_type = out_type
         assert self.out_type in (DISCRETE_MODEL, CONTINUOUS_MODEL)
 
     def __call__(self, x, action, training=False):
@@ -55,25 +55,33 @@ class Model(hk.Module):
     @hk.transparent
     def build_net(self):
         if self.out_type == DISCRETE_MODEL:
-            out_size = self.out_size * self.out_config.n_classes
+            out_layer_type = 'elayer'
+            out_size = self.out_config.n_classes
+            out_kwargs = {'ensemble_size': self.out_size, 'expand_edim': True}
         else:
+            out_layer_type = None
             out_size = self.out_size * 2
+            out_kwargs = {}
         net = mlp(
             **self.config, 
+            out_layer_type=out_layer_type, 
             out_size=out_size, 
-            name='model_mlp'
+            name='model_mlp', 
+            out_kwargs=out_kwargs
         )
         return net
 
     def call_net(self, net, x):
         x = net(x)
+        if self.out_type == DISCRETE_MODEL:
+            x = jnp.swapaxes(x, -3, -2)
         return x
     
     def get_dist(self, x):
         if self.out_type == DISCRETE_MODEL:
-            dist = get_discrete_dist(x, self.out_size, self.out_config.n_classes)
+            dist = get_discrete_dist(x)
         else:
-            dist = get_normal_dist(x, **self.out_config)
+            dist = get_normal_dist(x, self.out_config.max_logvar, self.out_config.min_logvar)
         
         return dist
 
@@ -84,28 +92,37 @@ class EnsembleModels(Model):
         self, 
         n_models, 
         out_size, 
+        out_type, 
         out_config, 
         name='emodels', 
         **config, 
     ):
         self.n_models = n_models
-        super().__init__(out_size, out_config, name=name, **config)
+        super().__init__(out_size, out_type, out_config, name=name, **config)
 
     @hk.transparent
     def build_net(self):
-        if self.out_type == 'discrete':
-            out_size = self.out_size * self.out_config.n_classes
+        if self.out_type == DISCRETE_MODEL:
+            out_layer_type = 'elayer'
+            out_size = self.out_config.n_classes
+            out_kwargs = {'ensemble_size': self.out_size, 'expand_edim': True}
         else:
+            out_layer_type = None
             out_size = self.out_size * 2
+            out_kwargs = {}
         nets = [mlp(
             **self.config,
+            out_layer_type=out_layer_type, 
             out_size=out_size, 
-            name=f'model{i}_mlp'
+            name=f'model{i}_mlp', 
+            out_kwargs=out_kwargs
         ) for i in range(self.n_models)]
         return nets
 
     def call_net(self, nets, x):
         x = jnp.stack([net(x) for net in nets], ENSEMBLE_AXIS)
+        if self.out_type == DISCRETE_MODEL:
+            x = jnp.swapaxes(x, -3, -2)
         return x
 
 

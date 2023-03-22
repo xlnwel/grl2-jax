@@ -1,0 +1,38 @@
+fda#!/bin/bash
+
+source activate grl
+
+
+dir=$1
+
+# IFS='/'
+
+# read -r -a arr <<< "$dir"
+# logs=${arr[6]
+# ologs=""
+# for i in {1..6}; do
+#     if [ -z != $ologs ]; then
+#         ologs="${ologs}/${arr[i]}"
+#     else
+#         ologs="${arr[i]}"
+#     fi
+#     echo $ologs
+# done
+
+# echo $ologs
+
+while true
+do
+    today=$(date +"%m%d")
+    yesterday=$(date -v-1d "+%m%d")
+    # dby=$(date -v-2d "+%m%d")
+    # tda=$(date -v-3d "+%m%d")
+    # fda=$(date -v-4d "+%m%d")
+
+    # rm -rf html-logs
+    py_script="python run/print_var.py $@ -p a0 -n $today $yesterday $dby $tda $fda"
+    echo $py_script
+    eval $py_script
+    echo "sleeping for 300 seconds"
+    sleep 300
+done
