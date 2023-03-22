@@ -60,16 +60,16 @@ class TrainingLoop(TrainingLoopBase):
         stats.kl_mix_pi = kl_mix_pi
         stats.kl_mu_mix_diff = kl_mu_pi - kl_mix_pi
 
-        js_mu_pi = js_from_distributions(
-            **mu_dist.get_stats('p'), **pi_dist.get_stats('q'))
-        js_lka_pi = js_from_distributions(
-            **lka_dist.get_stats('p'), **pi_dist.get_stats('q'))
-        js_mix_pi = js_from_distributions(
-            **mix_dist.get_stats('p'), **pi_dist.get_stats('q'))
-        stats.js_mu_pi = js_mu_pi
-        stats.js_lka_pi = js_lka_pi
-        stats.js_mix_pi = js_mix_pi
-        stats.js_mu_lka_diff = js_mu_pi - js_lka_pi
-        stats.js_mu_mix_diff = js_mu_pi - js_mix_pi
+        # js_mu_pi = js_from_distributions(
+        #     **mu_dist.get_stats('p'), **pi_dist.get_stats('q'))
+        # js_lka_pi = js_from_distributions(
+        #     **lka_dist.get_stats('p'), **pi_dist.get_stats('q'))
+        # js_mix_pi = js_from_distributions(
+        #     **mix_dist.get_stats('p'), **pi_dist.get_stats('q'))
+        # stats.js_mu_pi = js_mu_pi
+        # stats.js_lka_pi = js_lka_pi
+        # stats.js_mix_pi = js_mix_pi
+        # stats.js_mu_lka_diff = js_mu_pi - js_lka_pi
+        # stats.js_mu_mix_diff = js_mu_pi - js_mix_pi
 
         return stats

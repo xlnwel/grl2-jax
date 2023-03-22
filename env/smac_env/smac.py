@@ -652,12 +652,12 @@ class StarCraft2Env(gym.Env):
             sample_mask=sample_mask
         )
 
-        info = {
+        info.update({
             'dense_score': self._score * np.ones(self.n_units, np.float32),
             'score': self.win_counted * np.ones(self.n_units, np.float32),
             'epslen': self._episode_steps,
             'game_over': terminated
-        }
+        })
 
         if self.debug:
             logging.debug("Reward = {}".format(reward).center(60, '-'))
