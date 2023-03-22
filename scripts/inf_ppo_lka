@@ -3,39 +3,40 @@
 export PYTHONPATH=.
 
 algos=(
+    happo
     # happo
-    happo_lka1
-    happo_lka2
-    # masac
-    # masac_lka1
-    # masac_lka2
+    # happo_lka1
+    # happo_lka1
+    # happo_lka2
+    # happo_lka2
 )
 suite=$1
 shift
 envs=(
-    Ant_2x4
-    HalfCheetah_2x3
-    Walker2d_2x3
-)
-configs=(
-    "${suite}"
+    escalation
+    # staghunt
 )
 args1=(
-    step
-    batch
+    $1
+    10
+    10
+    10
+    20
+    20
+    20
 )
 args2=(
     $2
-    1
+    64
+    128
+    256
 )
-args3=(
-    $3
-    1
-)
+args3=(10)
 date=$(date +"%m%d")
+# date="0204"
 info=""
 ld="${suite}-logs"
-gpus=$(nvidia-smi -L | wc -l)
+# gpus=$(nvidia-smi -L | wc -l)
 # for x in $(seq 1 1); do
 #     shift
 # done
@@ -46,14 +47,13 @@ else
     n="$date-$info"
 fi
 
-# INF_MAC_NODE_RANK=$1
 le=${#envs[@]}
 idx=$(($INF_MAC_NODE_RANK % $le))
 e=${envs[$idx]}
 env="${suite}-${e}"
-lc=${#configs[@]}
-idx=$(($INF_MAC_NODE_RANK % $lc))
-config=${configs[$idx]}
+# lc=${#configs[@]}
+# idx=$(($INF_MAC_NODE_RANK % $lc))
+# config=${configs[$idx]}
 la=${#algos[@]}
 idx=$(($INF_MAC_NODE_RANK % $la))
 a=${algos[$idx]}
@@ -66,11 +66,12 @@ a2=${args2[$idx]}
 la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
+# kws=$@
 
 commands=()
-# kws="update_scheme=$a1"
-# for a in "${algos[@]}"; do
+kws="0#n_epochs=$a1 0#n_envs=$a2"
 for e in "${envs[@]}"; do
+    config=$e
     env="${suite}-${e}"
     for s in {0..9}; do
         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
@@ -79,10 +80,6 @@ for e in "${envs[@]}"; do
         # eval $py_script
     done
 done
-# done
 # echo ${commands[@]}s
-lc=${#commands[@]}
-p=$((lc / le))
-# echo $p
-printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 
 echo "Script completed"

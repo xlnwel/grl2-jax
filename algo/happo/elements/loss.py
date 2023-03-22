@@ -108,7 +108,7 @@ class Loss(LossBase):
             p_scale=stats.pi_scale, 
             q_loc=data.mu_loc,  
             q_scale=data.mu_scale, 
-            action_mask=data.action_mask, 
+            logits_mask=data.action_mask, 
             sample_mask=data.sample_mask, 
             n=data.n
         )
@@ -261,7 +261,7 @@ class Loss(LossBase):
             p_scale=stats.pi_scale, 
             q_loc=data.mu_loc,  
             q_scale=data.mu_scale, 
-            action_mask=data.action_mask, 
+            logits_mask=data.action_mask, 
             sample_mask=data.sample_mask, 
             n=data.n
         )

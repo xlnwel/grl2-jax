@@ -121,19 +121,27 @@ class UniformReplay(Buffer):
 
         return samples
 
-    def ergodic_sample(self, batch_size=None, n=None):
+    def ergodic_sample(self, batch_size=None, n=None, start=None):
         if not self.ready_to_sample():
             return None
         batch_size = batch_size or self.batch_size
         n = len(self) if n is None else min(n, len(self))
-        idxes = np.arange(0, n)
-        maxlen = (n // batch_size) * batch_size
-        idxes = idxes[-maxlen:]
+        n = n // batch_size * batch_size
+        if start is None:
+            idxes = np.arange(len(self))[-n:]
+        else:
+            idxes = np.arange(len(self))[-(start + n):-start]
         np.random.shuffle(idxes)
-        i = 0
-        for i in range(0, maxlen, batch_size):
+        # print('ergodic sample idx max', np.max(idxes), 'min', np.min(idxes))
+        for i in range(0, n, batch_size):
             yield self._get_samples(idxes[i:i+batch_size], self._memory)
     
+    def range_sample(self, start, n):
+        end = min(len(self), start+n)
+        idxes = np.arange(start, end)
+        # print('range sample idx max', np.max(idxes), 'min', np.min(idxes))
+        return self._get_samples(idxes, self._memory)
+
     def get_obs_rms(self):
         if self.config.model_norm_obs:
             rms = self.obs_rms.get_rms_stats() \

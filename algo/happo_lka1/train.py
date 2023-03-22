@@ -1,20 +1,6 @@
 from algo.ma_common.train import *
 from algo.lka_common.train import lka_optimize
-from algo.happo.train import lka_env_run, env_run
-
-
-@timeit
-def eval_ego_and_lka(agent, runner, routine_config):
-    ego_score, _, _ = evaluate(agent, runner, routine_config)
-    env_run(agent, runner, routine_config, lka_aids=[])
-    lka_optimize(agent)
-    lka_score, _, _ = evaluate(agent, runner, routine_config, None)
-    agent.trainer.sync_lookahead_params()
-    agent.store(
-        ego_score=ego_score, 
-        lka_score=lka_score, 
-        lka_ego_score_diff=[lka - ego for lka, ego in zip(lka_score, ego_score)]
-    )
+from algo.happo.train import lka_env_run, env_run, eval_ego_and_lka
 
 
 def train(

@@ -31,11 +31,12 @@ class RunnerWithState:
         return dict2AttrDict(self._env_config, to_copy=True)
 
     def env_stats(self):
-        return self.env.stats()
+        return self._env_stats
 
     def build_env(self, env_config=None, for_self=True):
         env_config = env_config or self._env_config
         env = create_env(env_config)
+        self._env_stats = env.stats()
         env_output = env.output()
         if self._env_config.seed is not None:
             self._env_config.seed += self._seed_interval
@@ -56,13 +57,15 @@ class RunnerWithState:
         return env, env_output
 
     def set_states(self, state):
+        curr_state = self.env, self.env_output
         self.env, self.env_output = state
+        return curr_state
 
     def run(self):
         raise NotImplementedError
     
     def get_steps_per_run(self, n_steps):
-        return self.env_stats().n_envs * n_steps
+        return self._env_stats.n_envs * n_steps
     
 
 class Runner:

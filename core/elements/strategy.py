@@ -154,7 +154,9 @@ class Strategy:
         return memory
     
     def set_memory(self, memory: Memory):
+        old_memory = self._memory
         self._memory = memory
+        return old_memory
 
     """ Call """
     def __call__(

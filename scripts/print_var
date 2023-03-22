@@ -30,7 +30,7 @@ do
     # fda=$(date -v-4d "+%m%d")
 
     # rm -rf html-logs
-    py_script="python run/html_plt.py $@ -p a0 dynamics -n $today $yesterday $dby $tda $fda"
+    py_script="python run/print_var.py $@ -p a0 -n $today $yesterday $dby $tda $fda"
     echo $py_script
     eval $py_script
     echo "sleeping for 300 seconds"

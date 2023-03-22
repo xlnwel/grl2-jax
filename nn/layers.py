@@ -1,7 +1,9 @@
+import jax.numpy as jnp
 import haiku as hk
 
 from nn.registry import layer_registry
-from nn.utils import get_initializer, get_activation, call_norm, calculate_scale
+from nn.utils import get_initializer, get_activation, \
+    call_norm, calculate_scale, FixedInitializer
 
 
 @layer_registry.register('layer')
@@ -54,6 +56,57 @@ class Layer:
             x = call_norm(self.norm, self.norm_kwargs, x, is_training=is_training)
 
         return x
+
+
+@layer_registry.register('elayer')
+class ELayer(hk.Module):
+    def __init__(
+        self, 
+        out_size, 
+        ensemble_size, 
+        with_bias=True, 
+        w_init='glorot_uniform', 
+        b_init='zeros', 
+        scale=1, 
+        expand_edim=False, 
+        name=None
+    ):
+        super().__init__(name)
+
+        self.ensemble_size = ensemble_size
+        self.out_size = out_size
+    
+        self.with_bias = with_bias
+        self.w_init = get_initializer(w_init, scale=scale)
+        self.b_init = get_initializer(b_init)
+        self.expand_edim = expand_edim
+
+    def __call__(self, x):
+        w, b = self.build_net(x)
+        if self.expand_edim:
+            x = jnp.expand_dims(x, -3)
+        assert (x.shape[-3] == 1) or (x.shape[-3] == self.ensemble_size), (x.shape, self.ensemble_size)
+        x = x @ w + b
+        return x
+    
+    @hk.transparent
+    def build_net(self, x):
+        in_size = x.shape[-1]
+        inits = [self.w_init((in_size, self.out_size), x.dtype) 
+            for _ in range(self.ensemble_size)]
+        init = jnp.stack(inits)
+        init_shape = init.shape
+        init = FixedInitializer(init)
+        w = hk.get_parameter('w', shape=init_shape, init=init)
+        if self.with_bias:
+            init_shape = (self.ensemble_size, 1, self.out_size)
+            init = get_initializer('zeros')
+            b = hk.get_parameter('b', shape=init_shape, init=init)
+        else:
+            b = 0
+
+        return w, b
+
 
 layer_registry.register('linear')(hk.Linear)
 

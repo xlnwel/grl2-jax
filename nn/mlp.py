@@ -2,7 +2,6 @@ import logging
 import jax
 import jax.numpy as jnp
 import haiku as hk
-from jax_tools import jax_utils
 
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
@@ -29,7 +28,8 @@ def _recover_shape(x, shape):
 def _rnn_reshape(rnn_out, shape):
     rnn_out = jax.tree_util.tree_map(lambda x: x.reshape(shape), rnn_out)
     return rnn_out
-    
+
+
 @nn_registry.register('mlp')
 class MLP(hk.Module):
     def __init__(
@@ -49,10 +49,12 @@ class MLP(hk.Module):
             'create_scale': True, 
             'create_offset': True, 
         }, 
+        out_layer_type=None, 
         out_w_init=None, 
         out_b_init=None, 
         rnn_type=None, 
         rnn_units=None, 
+        out_kwargs={}, 
         **kwargs
     ):
         super().__init__(name=name)
@@ -72,18 +74,20 @@ class MLP(hk.Module):
         )
 
         self.out_size = out_size
-        kwargs['scale'] = out_scale
         do_logging(f'{self.name} out scale: {out_scale}', logger=logger, level='info')
+        if out_layer_type is None:
+            out_layer_type = layer_type
         if out_w_init is None:
             out_w_init = w_init
         if out_b_init is None:
             out_b_init = b_init
         self.out_kwargs = dict(
-            layer_type=layer_type, 
+            layer_type=out_layer_type, 
             w_init=out_w_init, 
             b_init=out_b_init, 
             name='out', 
-            **kwargs
+            scale=out_scale, 
+            **out_kwargs
         )
 
         self.rnn_type = rnn_type

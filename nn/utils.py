@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 import haiku as hk
 from haiku import initializers
+import chex
 
 from core.log import do_logging
 from nn.dummy import Dummy
@@ -99,3 +100,13 @@ def dropout(dropout, training, x):
     if training and dropout > 0:
         x = hk.dropout(hk.next_rng_key(), dropout, x)
     return x
+
+
+class FixedInitializer(hk.initializers.Initializer):
+  def __init__(self, init):
+    self.init = init
+
+  def __call__(self, shape, dtype):
+    chex.assert_shape(self.init, shape)
+    chex.assert_type(self.init, dtype)
+    return self.init

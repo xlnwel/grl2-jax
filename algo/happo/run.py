@@ -1,36 +1,37 @@
 import numpy as np
 
-from algo.ma_common.run import Runner
+from algo.ma_common.run import Runner, concat_along_unit_dim
+from algo.lka_common.elements.model import LOOKAHEAD
 
 
 def prepare_buffer(
     agent, 
     env_output, 
     compute_return=True, 
+    lookahead=False, 
 ):
     buffer = agent.buffer
     value = agent.compute_value(env_output)
     data = buffer.get_data({
         'value': value, 
-        'state_reset': env_output.reset
+        'state_reset': concat_along_unit_dim(env_output.reset)
     })
     if compute_return:
-        value = data.value[:, :-1]
         if agent.trainer.config.popart:
-            data.value = agent.trainer.popart.denormalize(data.value)
-        data.value, data.next_value = data.value[:, :-1], data.value[:, 1:]
+            value = agent.trainer.popart.denormalize(data.value)
+        else:
+            value = data.value
+        value, next_value = value[:, :-1], value[:, 1:]
         data.advantage, data.v_target = compute_gae(
             reward=data.reward, 
             discount=data.discount,
-            value=data.value,
+            value=value,
             gamma=buffer.config.gamma,
             gae_discount=buffer.config.gamma * buffer.config.lam,
-            next_value=data.next_value, 
+            next_value=next_value, 
             reset=data.reset,
         )
-        if agent.trainer.config.popart:
-            # reassign value to ensure value clipping at the right anchor
-            data.value = value
+    data[LOOKAHEAD] = lookahead
     buffer.move_to_queue(data)
 
 

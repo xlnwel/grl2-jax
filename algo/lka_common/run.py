@@ -9,17 +9,64 @@ from tools.timer import timeit
 from algo.ma_common.run import *
 
 
-@partial(jax.jit, static_argnums=[0, 2, 6])
+@timeit
+def initialize_for_dynamics_run(agent, dynamics, routine_config):
+    sample_keys = agent.buffer.obs_keys + ['state'] \
+        if routine_config.restore_state else agent.buffer.obs_keys
+    obs = dynamics.buffer.sample_from_recency(
+        batch_size=routine_config.n_simulated_envs, 
+        sample_keys=sample_keys, 
+    )
+    if obs is None:
+        return None, None
+    basic_shape = obs.obs.shape[:-1]
+    reward = np.zeros(basic_shape, np.float32)
+    discount = np.ones(basic_shape, np.float32)
+    reset = np.zeros(basic_shape, np.float32)
+
+    env_output = EnvOutput(obs, reward, discount, reset)
+
+    if routine_config.restore_state:
+        states = obs.pop('state')
+        states = [states.slice(indices=uids, axis=1) 
+            for uids in agent.env_stats.aid2uids]
+    else:
+        if agent.model.has_rnn:
+            states = agent.model.get_initial_state(basic_shape[0])
+        else:
+            states = None
+
+    return env_output, states
+
+
+@timeit
+def prepare_params(agent, dynamics):
+    agent_params = agent.model.params
+    dynamics_params = dynamics.model.params
+    if dynamics.model.config.model_norm_obs:
+        dynamics_params.obs_loc, dynamics_params.obs_scale = \
+            dynamics.model.obs_rms.get_rms_stats(False)
+
+    return agent_params, dynamics_params
+
+
+@partial(jax.jit, static_argnums=[0, 2, 7])
 def rollout(agent, agent_params, dynamics, dynamics_params, rng, 
-            env_output, n_steps, elite_indices=None):
+            env_output, states, n_steps, elite_indices=None):
     data_list = []
 
     for _ in jnp.arange(n_steps):
         rng, agent_rng, env_rng = jax.random.split(rng, 3)
-        obs = dict2AttrDict(env_output.obs)
-        agent_inp = [obs.slice((slice(None), uids)) 
-            for uids in agent.env_stats.aid2uids]
-        action, stats, _ = agent.raw_action(
+        obs = env_output.obs
+        agent_inp = []
+        for aid, uids in enumerate(agent.env_stats.aid2uids):
+            agent_inp.append(obs.slice(indices=uids, axis=1))
+            if agent.has_rnn:
+                agent_inp[-1].state_reset = reset = env_output.reset[:, uids]
+                reset = jnp.expand_dims(reset, -1)
+                state = states[aid]
+                agent_inp[-1].state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
+        action, stats, states = agent.raw_action(
             agent_params, agent_rng, agent_inp)
 
         model_inp = obs.copy()
@@ -37,50 +84,15 @@ def rollout(agent, agent_params, dynamics, dynamics_params, rng,
             reward=new_env_output.reward, 
             discount=new_env_output.discount, 
             reset=new_env_output.reset, 
-            **stats
+            **stats, 
+            state=batch_dicts(states, lambda x: jnp.concatenate(x, axis=1)),
+            state_reset=env_output.reset
         ))
         data.update({f'next_{k}': v for k, v in new_env_output.obs.items()})
         data_list.append(data)
         env_output = new_env_output
 
-    return data_list, env_output
-
-
-@timeit
-def initialize_for_dynamics_run(agent, dynamics, routine_config):
-    sample_keys = agent.buffer.obs_keys + ['state'] \
-        if routine_config.restore_state else agent.buffer.obs_keys
-    obs = dynamics.buffer.sample_from_recency(
-        batch_size=routine_config.n_simulated_envs, 
-        sample_keys=sample_keys, 
-    )
-    if obs is None:
-        return
-    basic_shape = obs.obs.shape[:-1]
-    reward = np.zeros(basic_shape, np.float32)
-    discount = np.ones(basic_shape, np.float32)
-    reset = np.zeros(basic_shape, np.float32)
-
-    env_output = EnvOutput(obs, reward, discount, reset)
-
-    if routine_config.restore_state:
-        states = obs.pop('state')
-        states = [states.slice((slice(None), 0)), states.slice((slice(None), 1))]
-        agent.set_states(states)
-    else:
-        agent.set_states()
-
-    return env_output
-
-
-@timeit
-def prepare_params(agent, dynamisc):
-    agent_params = agent.model.params
-    dynamics_params = dynamisc.model.params
-    dynamics_params.obs_loc, dynamics_params.obs_scale = \
-        dynamisc.model.obs_rms.get_rms_stats(False)
-
-    return agent_params, dynamics_params
+    return data_list, env_output, states
 
 
 def concat_env_output(env_output):

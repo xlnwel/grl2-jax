@@ -513,7 +513,7 @@ def compute_kl(
     p_scale=None,
     q_loc=None,
     q_scale=None,
-    action_mask=None, 
+    logits_mask=None, 
     sample_mask=None,
     n=None, 
 ):
@@ -542,7 +542,7 @@ def compute_kl(
                 p_scale=q_scale, 
                 q_loc=p_loc, 
                 q_scale=p_scale, 
-                action_mask=action_mask, 
+                logits_mask=logits_mask, 
             )
         elif kl_type == 'reverse':
             kl = jax_div.kl_from_distributions(
@@ -552,7 +552,7 @@ def compute_kl(
                 p_scale=p_scale, 
                 q_loc=q_loc, 
                 q_scale=q_scale, 
-                action_mask=action_mask, 
+                logits_mask=logits_mask, 
             )
         else:
             raise NotImplementedError(f'Unknown kl {kl_type}')
@@ -579,7 +579,7 @@ def compute_js(
     sample_prob=None, 
     pi1=None,
     pi2=None,
-    pi_mask=None, 
+    logits_mask=None, 
     sample_mask=None, 
     n=None
 ):
@@ -592,7 +592,7 @@ def compute_js(
             )
         elif js_type == 'exact':
             js = jax_div.js_from_distributions(
-                pi1=pi1, pi2=pi2, pi_mask=pi_mask
+                pi1=pi1, pi2=pi2, logits_mask=logits_mask
             )
         else:
             raise NotImplementedError(f'Unknown JS type {js_type}')
@@ -624,7 +624,7 @@ def compute_tsallis(
     q_loc=None,
     p_scale=None,
     q_scale=None,
-    pi_mask=None, 
+    logits_mask=None, 
     sample_mask=None,
     n=None, 
 ):
@@ -651,7 +651,7 @@ def compute_tsallis(
                 p_scale=p_scale, 
                 q_loc=q_loc, 
                 q_scale=q_scale, 
-                pi_mask=pi_mask, 
+                logits_mask=logits_mask, 
                 tsallis_q=tsallis_q, 
             )
         elif tsallis_type == 'reverse':
@@ -662,7 +662,7 @@ def compute_tsallis(
                 p_scale=q_scale, 
                 q_loc=p_loc,
                 q_scale=p_scale, 
-                pi_mask=pi_mask, 
+                logits_mask=logits_mask, 
                 tsallis_q=tsallis_q
             )
         else:

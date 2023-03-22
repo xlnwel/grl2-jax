@@ -133,11 +133,19 @@ class DualReplay(Buffer):
         else:
             raise NotImplementedError(target_replay)
 
-    def ergodic_sample(self, target_replay=PRIMAL_REPLAY, batch_size=None, n=None):
+    def ergodic_sample(self, target_replay=PRIMAL_REPLAY, **kwargs):
         if target_replay == PRIMAL_REPLAY:
-            return self.primal_replay.ergodic_sample(batch_size, n=n)
+            return self.primal_replay.ergodic_sample(**kwargs)
         elif target_replay == SECONDARY_REPLAY:
-            return self.secondary_replay.ergodic_sample(batch_size, n=n)
+            return self.secondary_replay.ergodic_sample(**kwargs)
+        else:
+            raise NotImplementedError(target_replay)
+
+    def range_sample(self, target_replay=PRIMAL_REPLAY, **kwargs):
+        if target_replay == PRIMAL_REPLAY:
+            return self.primal_replay.range_sample(**kwargs)
+        elif target_replay == SECONDARY_REPLAY:
+            return self.secondary_replay.range_sample(**kwargs)
         else:
             raise NotImplementedError(target_replay)
 

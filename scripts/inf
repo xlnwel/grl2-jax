@@ -6,6 +6,7 @@ conda activate inf
 suite=$1
 shift
 ld="${suite}-logs"
+echo $ld
 
 n_nodes=$1 # 申请的mac机子个数
 shift

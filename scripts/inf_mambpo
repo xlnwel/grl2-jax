@@ -16,12 +16,12 @@ configs=(
     "${suite}"
 )
 args1=(
-    $1
-    200 400
+    # $1
+    200 400 2000
 )
 args2=(
-    $2
-    1
+    # $2
+    .5 .5 .1
 )
 args3=(
     $3
@@ -76,20 +76,20 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-for a4 in "${args4[@]}"; do
-    kws="0#n_epochs=$a1"
-    # kws="0#dynamics_name=$d"
-    for e in "${envs[@]}"; do
-        config=${suite}
-        env="${suite}-${e}"
-        for s in {0..3}; do
-            py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
-            commands+=("$py_script")
-            echo $py_script
-            # eval $py_script
-        done
+# for a4 in "${args4[@]}"; do
+kws="0#n_epochs=$a1 0#primal_percentage=$a2"
+# kws="0#dynamics_name=$d"
+for e in "${envs[@]}"; do
+    config=${suite}
+    env="${suite}-${e}"
+    for s in {0..3}; do
+        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+        commands+=("$py_script")
+        echo $py_script
+        # eval $py_script
     done
 done
+# done
 # echo ${commands[@]}s
 # lc=${#commands[@]}
 # p=$((lc / le))

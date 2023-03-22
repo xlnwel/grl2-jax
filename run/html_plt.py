@@ -174,6 +174,14 @@ def process_data(data):
         data[f'model_error/ego&train-trans'] = k1_train_err
         data[f'model_error/norm_ego&train-trans'] = np.where(train_err != 0,
             k1_train_err / train_err, k1_train_err)
+    if 'cos_lka_pi' in data:
+        data['cos_lka_mu_diff'] = data['cos_lka_pi'] - data['cos_mu_pi']
+        data['cos_mix_mu_diff'] = data['cos_mix_pi'] - data['cos_mu_pi']
+    if 'js_mu_lka_diff' in list(data):
+        data = data.loc[data['js_mu_lka_diff']<np.log(2)]
+        data = data.loc[-np.log(2)<data['js_mu_lka_diff']]
+    # if 'lka_ego_score_diff' in list(data):
+    #     data.loc[:, 'lka_ego_score_sign'] = np.sign(data['lka_ego_score_diff'])
     return data
 
 def to_csv(env_name, v):

@@ -1,3 +1,4 @@
+from functools import partial
 import jax
 import ray
 
@@ -5,41 +6,16 @@ from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from core.typing import AttrDict, modelpath2outdir
 from tools.display import print_dict
-from tools.store import TempStore
-from tools.timer import Every, timeit
-from replay.dual import DualReplay, PRIMAL_REPLAY
+from tools.timer import Every
 from algo.ma_common.run import Runner
 from algo.ma_common.train import env_run, ego_optimize, build_agent, save, log
 from algo.lka_common.run import quantify_dynamics_errors
-from algo.lka_common.train import prepare_params, dynamics_optimize, \
+from algo.lka_common.train import dynamics_run, dynamics_optimize, \
     eval_ego_and_lka, log_dynamics_errors, build_dynamics
 from algo.mambpo.run import branched_rollout
 
 
-@timeit
-def dynamics_run(agent, dynamics, routine_config, dynamics_routine_config, rng, lka_aids):
-    if dynamics_routine_config.model_warm_up and \
-        agent.get_env_step() < dynamics_routine_config.model_warm_up_steps:
-        return
-
-    def get_agent_states():
-        state = agent.get_states()
-        # we put the data collected from the dynamics into the secondary replay
-        if isinstance(agent.buffer, DualReplay):
-            agent.buffer.set_default_replay(routine_config.lookahead_replay)
-        return state
-    
-    def set_agent_states(states):
-        agent.set_states(states)
-        if isinstance(agent.buffer, DualReplay):
-            agent.buffer.set_default_replay(PRIMAL_REPLAY)
-
-    with TempStore(get_agent_states, set_agent_states):
-        agent_params, dynamics_params = prepare_params(agent, dynamics)
-        branched_rollout(
-            agent, agent_params, dynamics, dynamics_params, 
-            routine_config, rng, lka_aids
-        )
+dynamics_run = partial(dynamics_run, rollout_fn=branched_rollout)
 
 
 def update_config(config, dynamics_config):

@@ -10,7 +10,7 @@ from core.typing import AttrDict
 from tools.display import print_dict_info
 from tools.utils import flatten_dict, prefix_name
 from algo.lka_common.elements.trainer import *
-from algo.lka_common.elements.model import LOOKAHEAD
+from algo.lka_common.elements.model import LOOKAHEAD, pop_lookahead
 
 
 class Trainer(TrainerBase):

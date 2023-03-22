@@ -97,7 +97,7 @@ def change_config_with_kw_string(kw, config, config_idx=None):
             )
             # assert modified_configs != [], modified_configs
 
-def get_model_name_from_kw_string(kw, model_name=''):
+def model_name_from_kw_string(kw, model_name=''):
     if kw:
         for s in kw:
             _, value = s.split('=', 1)
@@ -131,12 +131,14 @@ def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True):
         raise RuntimeError('No configure is loaded')
 
     suite, name = env.split('-', 1)
-    config['env']['suite'] = suite
-    config['env']['name'] = name
+    config.env.suite = suite
+    config.env.name = name
     config = modify_config(
         config, 
         overwrite_existed_only=True, 
         algorithm=algo, 
+        name=algo, 
+        info=algo, 
         env_name=env, 
     )
 

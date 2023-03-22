@@ -13,8 +13,8 @@ from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
 from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name, batch_dicts
+from algo.lka_common.elements.model import LOOKAHEAD, pop_lookahead
 from algo.lka_common.elements.trainer import *
-from algo.lka_common.elements.model import LOOKAHEAD
 
 
 class Trainer(TrainerBase):
@@ -86,7 +86,7 @@ class Trainer(TrainerBase):
 
         for p in theta.policies:
             p[LOOKAHEAD] = False
-        self.model.params = theta
+        self.model.set_params(theta)
         self.params.theta = opt_state
 
         if self.config.popart:
@@ -125,7 +125,7 @@ class Trainer(TrainerBase):
 
         for p in theta.policies:
             p[LOOKAHEAD] = True
-        self.model.lookahead_params = theta
+        self.model.set_lka_params(theta)
         self.lookahead_opt_state = opt_state
 
     def sequential_opt(self, theta, opt_state, data, 
@@ -138,8 +138,11 @@ class Trainer(TrainerBase):
             uids = self.aid2uids[aid]
             agent_theta = AttrDict(
                 policy=theta.policies[aid], value=theta.vs[aid])
-            agent_opt_state = AttrDict(
-                policy=opt_state.policies[aid], value=opt_state.vs[aid])
+            if self.config.get('theta_opt'):
+                agent_opt_state = opt_state[aid]
+            else:
+                agent_opt_state = AttrDict(
+                    policy=opt_state.policies[aid], value=opt_state.vs[aid])
             agent_data = data.slice(indices=uids, axis=2)
             for _ in range(n_epochs):
                 vts = []
@@ -167,11 +170,13 @@ class Trainer(TrainerBase):
             v_target[aid] = np.concatenate(vts)
             stats.teammate_log_ratio = teammate_log_ratio
             stats_list.append(stats)
-
             theta.policies[aid] = agent_theta.policy
             theta.vs[aid] = agent_theta.value
-            opt_state.policies[aid] = agent_opt_state.policy
-            opt_state.vs[aid] = agent_opt_state.value
+            if self.config.get('theta_opt'):
+                opt_state[aid] = agent_opt_state
+            else:
+                opt_state.policies[aid] = agent_opt_state.policy
+                opt_state.vs[aid] = agent_opt_state.value
         
         if return_stats:
             stats = batch_dicts(stats_list, np.stack)
@@ -195,8 +200,11 @@ class Trainer(TrainerBase):
                     uids = self.aid2uids[aid]
                     agent_theta = AttrDict(
                         policy=theta.policies[aid], value=theta.vs[aid])
-                    agent_opt_state = AttrDict(
-                        policy=opt_state.policies[aid], value=opt_state.vs[aid])
+                    if self.config.get('theta_opt'):
+                        agent_opt_state = opt_state[aid]
+                    else:
+                        agent_opt_state = AttrDict(
+                            policy=opt_state.policies[aid], value=opt_state.vs[aid])
                     agent_data = data_slice.slice(indices=uids, axis=2)
                     if self.config.popart:
                         agent_data.popart_mean = self.popart[aid].mean
@@ -214,8 +222,11 @@ class Trainer(TrainerBase):
 
                     theta.policies[aid] = agent_theta.policy
                     theta.vs[aid] = agent_theta.value
-                    opt_state.policies[aid] = agent_opt_state.policy
-                    opt_state.vs[aid] = agent_opt_state.value
+                    if self.config.get('theta_opt'):
+                        opt_state[aid] = agent_opt_state
+                    else:
+                        opt_state.policies[aid] = agent_opt_state.policy
+                        opt_state.vs[aid] = agent_opt_state.value
                     
                     vts[aid] = stats.pop('v_target')
                 v_target.append(vts)
@@ -255,7 +266,7 @@ class Trainer(TrainerBase):
                     'data': data, 
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
-                opt=self.opts.theta, 
+                opt=self.opts.theta[aid], 
                 name='train/theta'
             )
         else:
