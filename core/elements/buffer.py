@@ -76,11 +76,11 @@ def extract_sampling_keys(
         for k in obs_keys:
             sample_keys.add(f'next_{k}')
     if env_stats.use_action_mask:
-        sample_keys.append('action_mask')
+        sample_keys.add('action_mask')
     elif 'action_mask' in sample_keys:
         sample_keys.remove('action_mask')
     if env_stats.use_sample_mask:
-        sample_keys.append('sample_mask')
+        sample_keys.add('sample_mask')
     elif 'sample_mask' in sample_keys:
         sample_keys.remove('sample_mask')
     return state_keys, state_type, sample_keys, sample_size

@@ -33,12 +33,13 @@ routine:
 env:
     env_name: &env_name smac-5m_vs_6m
     n_runners: &nrunners 1
-    n_envs: &nenvs 40
-    max_episode_steps: 1000
+    n_envs: &nenvs 4
+    max_episode_steps: 50
     timeout_done: &td False
     env_args:
         agent_obsk: 0
     norm_obs: False
+    uid2aid: [0, 1, 2, 3, 4]
 
 agent: {}
 

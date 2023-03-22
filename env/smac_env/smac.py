@@ -22,6 +22,7 @@ from s2clientprotocol import debug_pb2 as d_pb
 
 from gym.spaces import Discrete
 import gym
+from core.typing import AttrDict
 
 from smac.env.starcraft2.maps import get_map_params
 
@@ -60,6 +61,15 @@ class Direction(enum.IntEnum):
     EAST = 2
     WEST = 3
 
+
+class SMACEnv(gym.Wrapper):
+    def __init__(self, config):
+        map_name = config.env_name
+        if 'env_args' not in config:
+            config.env_args = AttrDict()
+        config.env_args.map_name = map_name
+        self.env = StarCraft2Env(**config.env_args)
+    
 
 class StarCraft2Env(gym.Env):
     """The StarCraft II environment for decentralised multi-agent
@@ -315,7 +325,7 @@ class StarCraft2Env(gym.Env):
         self.uid2aid = list(range(self.n_agents))
         self.n_units = self.n_agents
 
-        self.action_space = [Discrete(self.n_actions)]
+        self.action_space = [Discrete(self.n_actions)] * self.n_agents
         self.action_shape = [a.shape for a in self.action_space]
         self.action_dim = [a.n for a in self.action_space]
         self.action_dtype = [np.int32 for a in self.action_space]
@@ -356,7 +366,7 @@ class StarCraft2Env(gym.Env):
         if self.use_sample_mask:
             for aid in range(self.n_agents):
                 self.obs_shape[aid]['sample_mask'] = ()
-                self.obs_shape[aid]['sample_mask'] = np.float32
+                self.obs_dtype[aid]['sample_mask'] = np.float32
         if self.use_action_mask:
             for aid in range(self.n_agents):
                 self.obs_shape[aid]['action_mask'] = (self.action_dim[0],)
@@ -549,9 +559,6 @@ class StarCraft2Env(gym.Env):
             local_obs = np.stack(self.get_obs(), axis=0)
             global_state = np.stack([self.get_state() for _ in range(self.n_agents)], axis=0)
             
-            action_oh = np.zeros((self.n_agents, self.action_dim[0]), np.float32)
-            action_oh[np.arange(action[0].size), action[0]] = 1
-            
             sample_mask = np.ones(self.n_agents, np.float32)
             obs_dict = dict(
                 obs=local_obs,
@@ -637,14 +644,11 @@ class StarCraft2Env(gym.Env):
         local_obs = np.stack(self.get_obs(), axis=0)
         global_state = np.stack([self.get_state() for _ in range(self.n_agents)], axis=0)
         
-        action_oh = np.zeros((self.n_agents, self.action_dim[0]), np.float32)
-        action_oh[np.arange(action[0].size), action[0]] = 1
-        
         obs_dict = dict(
             obs=local_obs,
             global_state=global_state,
             action_mask=np.array(available_actions, bool),
-            prev_action=action_oh,
+            prev_action=self.last_action,
             sample_mask=sample_mask
         )
 

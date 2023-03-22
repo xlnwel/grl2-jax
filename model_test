@@ -31,21 +31,23 @@ gpus=$(nvidia-smi -L | wc -l)
 
 i=0
 j=0
-for j in {0..2}; do
-    for s in {0..4}; do
-        gpu=$((($i + 2) % $gpus))
-        env=${envs[$j]}
-        na=${nas[$j]}
-        # kws="n_epochs=200 batch_size=256 sample_size=10 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-        # kws="0#dynamics_name=dynamics 0#n_epochs=400 1#n_epochs=5"
-        kws="0#dynamics_name=dynamics 0#n_epochs=2000 0#n_simulated_envs=4000 0#primal_percentage=0.1 1#n_epochs=5"
-        # kws="n_epochs=100 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
-        py_script="python run/train.py -a mambpo dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n tune -s $s -na $na --gpu $gpu -kw $kws &"
-        echo $py_script
-        eval $py_script
-        ((i=(i+1) ))
-    done
+# for j in {0..2}; do
+#     for s in {0..4}; do
+gpu=$((($i + 2) % $gpus))
+env=${envs[$j]}
+na=${nas[$j]}
+for s in {0..2}; do
+    # kws="n_epochs=200 batch_size=256 sample_size=10 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
+    # kws="0#dynamics_name=dynamics 0#n_epochs=400 1#n_epochs=5"
+    kws="0#dynamics_name=dynamics 0#n_epochs=200 0#n_simulated_envs=10000 0#primal_percentage=0.5 1#n_epochs=3"
+    # kws="n_epochs=100 batch_size=256 sample_size=1 model_coef=$mcoef reward_coef=$rcoef discount_coef=$dcoef"
+    py_script="python run/train.py -a mambpo dynamics -e $env -c ma_mujoco -ld ma_mujoco-logs -n tune -s $s -na $na --gpu $gpu -kw $kws &"
+    echo $py_script
+    eval $py_script
+    ((i=(i+1) ))
 done
+#     done
+# done
 
 # i=0
 # j=0
