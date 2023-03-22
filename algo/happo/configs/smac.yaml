@@ -15,7 +15,7 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 1e7
-    n_steps: &nsteps 400
+    n_steps: &nsteps 100
     LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
@@ -33,8 +33,7 @@ routine:
 env:
     env_name: &env_name smac-5m_vs_6m
     n_runners: &nrunners 1
-    n_envs: &nenvs 1
-    # max_episode_steps: 50
+    n_envs: &nenvs 8
     timeout_done: &td False
     env_args:
         agent_obsk: 0
@@ -117,9 +116,9 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 5
+    n_epochs: 5
     n_lookahead_epochs: 5
-    n_mbs: &nmbs 1
+    n_mbs: &nmbs 8
     n_steps: *nsteps         # BPTT length
 
     popart: *popart

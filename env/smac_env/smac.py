@@ -345,8 +345,6 @@ class StarCraft2Env(gym.Env):
 
         self.max_episode_steps = self.episode_limit
         self._score = 0
-        # self._dense_score = 0
-        # self._epslen = 0
 
         # NOTE: here
         # if self.use_idx:
@@ -569,8 +567,8 @@ class StarCraft2Env(gym.Env):
             )
             rewards = np.zeros(self.n_agents, np.float32)
             info = {
-                'dense_score': self._score * np.ones(self.n_agents, np.float32),
-                'score': self.win_counted * np.ones(self.n_agents, np.float32),
+                'dense_score': self._score,
+                'score': self.win_counted,
                 'epslen': self._episode_steps,
                 'game_over': False  # we do not take auto reset as game over to avoid repeatly resetting in wrappers.EnvStats
             }
@@ -653,8 +651,8 @@ class StarCraft2Env(gym.Env):
         )
 
         info.update({
-            'dense_score': self._score * np.ones(self.n_units, np.float32),
-            'score': self.win_counted * np.ones(self.n_units, np.float32),
+            'dense_score': self._score,
+            'score': self.win_counted,
             'epslen': self._episode_steps,
             'game_over': terminated
         })

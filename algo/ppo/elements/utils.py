@@ -160,7 +160,7 @@ def compute_actor_loss(
     stats, 
     act_dist, 
 ):
-    if not config.get('policy_sample_mask', True):
+    if config.get('policy_sample_mask', True):
         sample_mask = data.sample_mask
     else:
         sample_mask = None

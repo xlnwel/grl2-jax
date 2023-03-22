@@ -51,8 +51,9 @@ class Trainer(TrainerBase):
         self.lookahead_opt_state = self.params.theta
 
     def compile_train(self):
-        _jit_train = jax.jit(self.theta_train, 
-            static_argnames=['aid', 'compute_teammate_log_ratio'])
+        # _jit_train = jax.jit(self.theta_train, 
+        #     static_argnames=['aid', 'compute_teammate_log_ratio'])
+        _jit_train = self.theta_train
         def jit_train(*args, **kwargs):
             self.rng, rng = jax.random.split(self.rng)
             return _jit_train(*args, rng=rng, **kwargs)
@@ -159,7 +160,6 @@ class Trainer(TrainerBase):
                             compute_teammate_log_ratio=False
                         )
                     vts.append(stats.pop('v_target'))
-
             teammate_log_ratio = self.compute_teammate_log_ratio(
                 agent_theta.policy, self.rng, teammate_log_ratio, agent_data
             )
