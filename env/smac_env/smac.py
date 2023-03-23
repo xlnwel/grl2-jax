@@ -568,7 +568,7 @@ class StarCraft2Env(gym.Env):
             rewards = np.zeros(self.n_agents, np.float32)
             info = {
                 'dense_score': self._score,
-                'score': self.win_counted,
+                'score': float(self.win_counted),
                 'epslen': self._episode_steps,
                 'game_over': False  # we do not take auto reset as game over to avoid repeatly resetting in wrappers.EnvStats
             }
@@ -652,7 +652,7 @@ class StarCraft2Env(gym.Env):
 
         info.update({
             'dense_score': self._score,
-            'score': self.win_counted,
+            'score': float(self.win_counted),
             'epslen': self._episode_steps,
             'game_over': terminated
         })
