@@ -7,7 +7,7 @@ from core.utils import configure_gpu, set_seed, save_code_for_seed
 from core.typing import AttrDict, modelpath2outdir
 from tools.display import print_dict
 from tools.timer import Every, timeit
-from algo.ma_common.train import ego_optimize, build_agent, save, log, evaluate
+from algo.ma_common.train import ego_optimize, build_agent, save, log
 from algo.lka_common.run import quantify_dynamics_errors
 from algo.lka_common.train import dynamics_run, dynamics_optimize, \
     build_dynamics, lka_optimize, lka_train, log_dynamics_errors
@@ -21,8 +21,14 @@ def update_config(config, dynamics_config):
         config.buffer.sample_keys += ['advantage', 'v_target']
 
 @timeit
-def env_run(agent, runner: Runner, dynamics, routine_config, lka_aids):
-    env_output = runner.run(routine_config.n_steps, agent, dynamics, lka_aids)
+def env_run(agent, runner: Runner, dynamics, routine_config, lka_aids, name='real'):
+    env_output = runner.run(
+        agent, 
+        n_steps=routine_config.n_steps, 
+        dynamics=dynamics, 
+        lka_aids=lka_aids, 
+        name=name
+    )
     prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
@@ -67,7 +73,12 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(MODEL_EVAL_STEPS, agent, None, [], collect_data=False)
+    runner.run(
+        agent, 
+        n_steps=MODEL_EVAL_STEPS, 
+        lka_aids=[], 
+        collect_data=False
+    )
     rng = dynamics.model.rng
 
     while env_step < routine_config.MAX_STEPS:
@@ -109,8 +120,7 @@ def train(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_ego_and_lka(agent, dynamics, runner, 
-                routine_config, dynamics_routine_config, lka_rng)
+            eval_ego_and_lka(agent, runner, routine_config)
             if routine_config.quantify_dynamics_errors:
                 outdir = modelpath2outdir(agent.get_model_path())
                 log_dynamics_errors(errors, outdir, env_step)
@@ -142,6 +152,7 @@ def main(configs, train=train):
     agent = build_agent(config, env_stats)
     # build dynamics
     dynamics = build_dynamics(config, dynamics_config, env_stats)
+    print('dynamics', dynamics.model)
     save_code_for_seed(config)
 
     routine_config = config.routine.copy()

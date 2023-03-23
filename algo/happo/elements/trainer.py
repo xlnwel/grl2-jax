@@ -1,8 +1,11 @@
 from functools import partial
+from copy import deepcopy
 import numpy as np
 import jax
 import jax.numpy as jnp
+from jax import random
 import haiku as hk
+import chex
 
 from core.ckpt.pickle import save, restore
 from core.log import do_logging
@@ -23,6 +26,11 @@ class Trainer(TrainerBase):
         self.indices = np.arange(self.config.n_runners * self.config.n_envs)
         self.n_agents = self.env_stats.n_agents
         self.aid2uids = self.env_stats.aid2uids
+
+        self.rng, perm_rng = random.split(self.rng, 2)
+        self.lka_rng = self.rng
+        self.perm_lka_rng = perm_rng
+        self.perm_rng = perm_rng
 
     def build_optimizers(self):
         theta = self.model.theta.copy()
@@ -48,17 +56,20 @@ class Trainer(TrainerBase):
                 **self.config.value_opt, 
                 name=f'value{i}'
             ) for i, v in enumerate(theta.vs)])]
-        self.lookahead_opt_state = self.params.theta
+        self.lookahead_opt_state = deepcopy(self.params.theta)
 
     def compile_train(self):
-        # _jit_train = jax.jit(self.theta_train, 
-        #     static_argnames=['aid', 'compute_teammate_log_ratio'])
-        _jit_train = self.theta_train
+        _jit_train = jax.jit(self.theta_train, 
+            static_argnames=['aid', 'compute_teammate_log_ratio'])
         def jit_train(*args, **kwargs):
-            self.rng, rng = jax.random.split(self.rng)
+            self.rng, rng = random.split(self.rng)
             return _jit_train(*args, rng=rng, **kwargs)
         self.jit_train = jit_train
-        self.jit_lka_train = jit_train
+
+        def jit_lka_train(*args, **kwargs):
+            self.lka_rng, rng = random.split(self.lka_rng)
+            return _jit_train(*args, rng=rng, **kwargs)
+        self.jit_lka_train = jit_lka_train
 
         self.haiku_tabulate()
 
@@ -74,15 +85,19 @@ class Trainer(TrainerBase):
         opt_state = self.params.theta
 
         if self.config.update_scheme == 'step':
-            theta, opt_state, stats = self.stepwise_sequential_opt(
-                theta, opt_state, data, self.config.n_epochs, 
-                self.config.n_mbs, self.indices, self.jit_train
-            )
+            theta, opt_state, stats, self.perm_rng = \
+                self.stepwise_sequential_opt(
+                    theta, opt_state, data, self.config.n_epochs, 
+                    self.config.n_mbs, self.indices, 
+                    self.jit_train, self.perm_rng
+                )
         else:
-            theta, opt_state, stats = self.sequential_opt(
-                theta, opt_state, data, self.config.n_epochs, 
-                self.config.n_mbs, self.indices, self.jit_train
-            )
+            theta, opt_state, stats, self.perm_rng = \
+                self.sequential_opt(
+                    theta, opt_state, data, self.config.n_epochs, 
+                    self.config.n_mbs, self.indices, 
+                    self.jit_train, self.perm_rng
+                )
 
         for p in theta.policies:
             p[LOOKAHEAD] = False
@@ -109,18 +124,19 @@ class Trainer(TrainerBase):
         theta.policies, is_lookahead = pop_lookahead(theta.policies)
         assert all([lka == True for lka in is_lookahead]), is_lookahead
         opt_state = self.lookahead_opt_state
-
         if self.config.update_scheme == 'step':
-            theta, opt_state = self.stepwise_sequential_opt(
+            theta, opt_state, self.perm_lka_rng = self.stepwise_sequential_opt(
                 theta, opt_state, data, self.config.n_epochs, 
                 self.config.n_mbs, self.indices, 
-                self.jit_lka_train, return_stats=False
+                self.jit_lka_train, self.perm_lka_rng, 
+                return_stats=False
             )
         else:
-            theta, opt_state = self.sequential_opt(
+            theta, opt_state, self.perm_lka_rng = self.sequential_opt(
                 theta, opt_state, data, self.config.n_epochs, 
                 self.config.n_mbs, self.indices, 
-                self.jit_lka_train, return_stats=False
+                self.jit_lka_train, self.perm_lka_rng, 
+                return_stats=False
             )
 
         for p in theta.policies:
@@ -129,20 +145,16 @@ class Trainer(TrainerBase):
         self.lookahead_opt_state = opt_state
 
     def sequential_opt(self, theta, opt_state, data, 
-            n_epochs, n_mbs, indices, train_fn, return_stats=True):
+            n_epochs, n_mbs, indices, train_fn, rng, return_stats=True):
         teammate_log_ratio = jnp.zeros_like(data.mu_logprob[:, :, :1])
 
         v_target = [None for _ in self.aid2uids]
         stats_list = []
-        for aid in np.random.permutation(self.n_agents):
+        ret_rng, rng = random.split(rng)
+        for aid in random.permutation(rng, self.n_agents):
+            aid = int(aid)
             uids = self.aid2uids[aid]
-            agent_theta = AttrDict(
-                policy=theta.policies[aid], value=theta.vs[aid])
-            if self.config.get('theta_opt'):
-                agent_opt_state = opt_state[aid]
-            else:
-                agent_opt_state = AttrDict(
-                    policy=opt_state.policies[aid], value=opt_state.vs[aid])
+            agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, aid)
             agent_data = data.slice(indices=uids, axis=2)
             for _ in range(n_epochs):
                 vts = []
@@ -170,41 +182,35 @@ class Trainer(TrainerBase):
             v_target[aid] = np.concatenate(vts)
             stats.teammate_log_ratio = teammate_log_ratio
             stats_list.append(stats)
-            theta.policies[aid] = agent_theta.policy
-            theta.vs[aid] = agent_theta.value
-            if self.config.get('theta_opt'):
-                opt_state[aid] = agent_opt_state
-            else:
-                opt_state.policies[aid] = agent_opt_state.policy
-                opt_state.vs[aid] = agent_opt_state.value
+            theta, opt_state = set_params_and_opt(
+                theta, opt_state, aid, agent_theta, agent_opt_state)
         
         if return_stats:
             stats = batch_dicts(stats_list, np.stack)
             stats.v_target = np.concatenate(v_target, 2)
             assert stats.v_target.shape == data.reward.shape, (stats.v_target.shape, data.reward.shape)
-            return theta, opt_state, stats
-        return theta, opt_state
+            return theta, opt_state, stats, ret_rng
+        return theta, opt_state, ret_rng
 
     def stepwise_sequential_opt(self, theta, opt_state, data, 
-            n_epochs, n_mbs, indices, train_fn, return_stats=True):
-        for _ in range(n_epochs):
-            np.random.shuffle(indices)
+            n_epochs, n_mbs, indices, train_fn, rng, return_stats=True):
+        rngs = random.split(rng, n_epochs+n_epochs*n_mbs+1)
+        shuffle_rng = rngs[:n_epochs]
+        ret_rng = rngs[-1]
+        rngs = rngs[n_epochs:-1]
+        for e in range(n_epochs):
+            indices = random.shuffle(shuffle_rng[e], indices)
             v_target = []
             stats_list = []
-            for idx in np.split(indices, n_mbs):
+            for i, idx in enumerate(np.split(indices, n_mbs)):
                 vts = [None for _ in self.aid2uids]
                 data_slice = data.slice(idx)
                 teammate_log_ratio = jnp.zeros_like(data_slice.mu_logprob[:, :, :1])
-
-                for aid in np.random.permutation(self.n_agents):
+                rng = rngs[e*n_mbs + i]
+                for aid in random.permutation(rng, self.n_agents):
+                    aid = int(aid)
                     uids = self.aid2uids[aid]
-                    agent_theta = AttrDict(
-                        policy=theta.policies[aid], value=theta.vs[aid])
-                    if self.config.get('theta_opt'):
-                        agent_opt_state = opt_state[aid]
-                    else:
-                        agent_opt_state = AttrDict(
-                            policy=opt_state.policies[aid], value=opt_state.vs[aid])
+                    agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, aid)
                     agent_data = data_slice.slice(indices=uids, axis=2)
                     if self.config.popart:
                         agent_data.popart_mean = self.popart[aid].mean
@@ -220,13 +226,8 @@ class Trainer(TrainerBase):
                         )
                     teammate_log_ratio = stats.teammate_log_ratio
 
-                    theta.policies[aid] = agent_theta.policy
-                    theta.vs[aid] = agent_theta.value
-                    if self.config.get('theta_opt'):
-                        opt_state[aid] = agent_opt_state
-                    else:
-                        opt_state.policies[aid] = agent_opt_state.policy
-                        opt_state.vs[aid] = agent_opt_state.value
+                    theta, opt_state = set_params_and_opt(
+                        theta, opt_state, aid, agent_theta, agent_opt_state)
                     
                     vts[aid] = stats.pop('v_target')
                 v_target.append(vts)
@@ -237,12 +238,12 @@ class Trainer(TrainerBase):
             v_target = [np.concatenate(v, 2) for v in v_target]
             stats.v_target = np.concatenate(v_target)
             assert stats.v_target.shape == data.reward.shape, (stats.v_target.shape, data.reward.shape)
-            return theta, opt_state, stats
-        return theta, opt_state
+            return theta, opt_state, stats, ret_rng
+        return theta, opt_state, ret_rng
 
     def sync_lookahead_params(self):
         self.model.sync_lookahead_params()
-        self.lookahead_opt_state = self.params.theta
+        self.lookahead_opt_state = deepcopy(self.params.theta)
 
     def theta_train(
         self, 
@@ -255,7 +256,7 @@ class Trainer(TrainerBase):
         compute_teammate_log_ratio=True
     ):
         do_logging('train is traced', backtrack=4)            
-        rngs = jax.random.split(rng, 3)
+        rngs = random.split(rng, 3)
         if self.config.get('theta_opt'):
             theta, opt_state, stats = optimizer.optimize(
                 self.loss.loss, 
@@ -343,7 +344,7 @@ class Trainer(TrainerBase):
             default=[RunningMeanStd((0, 1, 2)) for _ in self.model.aid2uids])
 
     # def haiku_tabulate(self, data=None):
-    #     rng = jax.random.PRNGKey(0)
+    #     rng = random.PRNGKey(0)
     #     if data is None:
     #         data = construct_fake_data(self.env_stats, 0)
     #     theta = self.model.theta.copy()
@@ -352,6 +353,28 @@ class Trainer(TrainerBase):
     #         theta, rng, self.params.theta, data
     #     ))
     #     breakpoint()
+
+def get_params_and_opt(params, opt_state, aid):
+    agent_params = AttrDict(
+        policy=params.policies[aid], value=params.vs[aid])
+    if isinstance(opt_state, list):
+        agent_opt_state = opt_state[aid]
+    else:
+        agent_opt_state = AttrDict(
+            policy=opt_state.policies[aid], value=opt_state.vs[aid])
+    
+    return agent_params, agent_opt_state
+
+def set_params_and_opt(params, opt_state, aid, agent_params, agent_opt_state):
+    params.policies[aid] = agent_params.policy
+    params.vs[aid] = agent_params.value
+    if isinstance(opt_state, list):
+        opt_state[aid] = agent_opt_state
+    else:
+        opt_state.policies[aid] = agent_opt_state.policy
+        opt_state.vs[aid] = agent_opt_state.value
+
+    return params, opt_state
 
 
 create_trainer = partial(create_trainer,
@@ -374,7 +397,7 @@ if __name__ == '__main__':
     loss = create_loss(config.loss, model)
     trainer = create_trainer(config.trainer, env.stats(), loss)
     data = construct_fake_data(env.stats(), 0)
-    rng = jax.random.PRNGKey(0)
+    rng = random.PRNGKey(0)
     pwc(hk.experimental.tabulate(trainer.jit_train)(
         model.theta, rng, trainer.params.theta, data), color='yellow')
     # data = construct_fake_data(env.stats(), 0, True)

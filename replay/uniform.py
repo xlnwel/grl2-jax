@@ -2,6 +2,7 @@ import collections
 from typing import List
 import numpy as np
 
+from core.ckpt.pickle import save, restore
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.typing import AttrDict, subdict
@@ -29,6 +30,11 @@ class UniformReplay(Buffer):
         self.batch_size = self.config.batch_size
         self.n_recency = self.config.get('n_recency', self.min_size)
         self.n_steps = self.config.n_steps
+
+        directory = self.config.directory if self.config.directory else \
+            '/'.join([self.config.root_dir, self.config.model_name])
+        self._dir = directory
+        self._filename = self.config.filename if self.config.filename else 'uniform'
 
         self._memory = collections.deque(maxlen=self.max_size)
 
@@ -184,3 +190,14 @@ class UniformReplay(Buffer):
     def _update_obs_rms(self, trajs):
         if self.config.model_norm_obs:
             self.obs_rms.update(np.stack([traj['obs'] for traj in trajs]))
+
+    def save(self, filedir=None, filename=None):
+        filedir = filedir or self._dir
+        filename = filename or self._filename
+        save(self._memory, filedir=filedir, filename=filename)
+    
+    def restore(self, filedir, filename):
+        filedir = filedir or self._dir
+        filename = filename or self._filename
+        restore(filedir=filedir, filename=filename, 
+                default=collections.deque(maxlen=self.max_size))

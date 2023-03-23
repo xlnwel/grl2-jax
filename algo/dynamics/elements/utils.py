@@ -16,12 +16,11 @@ def prefix_name(terms, name):
     return terms
 
 
-def compute_mean_logvar(x, max_logvar, min_logvar):
-    mean, logvar = jnp.split(x, 2, axis=-1)
+def bound_logvar(logvar, max_logvar, min_logvar):
     logvar = max_logvar - nn.softplus(max_logvar - logvar)
     logvar = min_logvar + nn.softplus(logvar - min_logvar)
 
-    return mean, logvar
+    return logvar
 
 
 def joint_actions(actions):

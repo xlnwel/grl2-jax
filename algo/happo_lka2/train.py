@@ -20,7 +20,12 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
+    runner.run(
+        agent, 
+        n_steps=MODEL_EVAL_STEPS, 
+        lka_aids=[], 
+        collect_data=False
+    )
 
     while env_step < routine_config.MAX_STEPS:
         lka_env_run(agent, runner, routine_config, lka_aids=[])

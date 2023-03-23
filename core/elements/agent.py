@@ -38,6 +38,11 @@ class Agent:
         if to_restore:
             self.restore()
 
+        self._post_init()
+    
+    def _post_init(self):
+        pass
+
     @property
     def name(self):
         return self._name
