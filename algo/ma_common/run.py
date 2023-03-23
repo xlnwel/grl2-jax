@@ -28,29 +28,26 @@ def set_states(states, agent, runner):
 class Runner(RunnerWithState):
     def run(
         self, 
-        n_steps, 
         agent, 
-        lka_aids, 
-        store_info=True,
-        collect_data=True, 
+        *, 
         name=None, 
+        **kwargs, 
     ):
         if name is None:
-            return self._run(n_steps, agent, lka_aids, 
-                store_info=store_info, collect_data=collect_data)
+            return self._run(agent, **kwargs)
         else:
             constructor = partial(state_constructor, agent=agent, runner=self)
             set_fn = partial(set_states, agent=agent, runner=self)
             with StateStore(name, constructor, set_fn):
-                return self._run(n_steps, agent, lka_aids, 
-                    store_info=store_info, collect_data=collect_data)
+                return self._run(agent, **kwargs)
 
     def _run(
         self, 
-        n_steps, 
         agent, 
+        n_steps, 
         lka_aids, 
-        store_info=True,
+        dynamics=None, 
+        store_info=True, 
         collect_data=True, 
     ):
         agent.model.switch_params(True, lka_aids)
@@ -70,6 +67,8 @@ class Runner(RunnerWithState):
                     reset=concat_along_unit_dim(new_env_output.reset),
                 )
                 agent.buffer.collect(**data, **stats)
+                if dynamics is not None:
+                    dynamics.buffer.collect(**data)
 
             if store_info:
                 done_env_ids = [i for i, r in enumerate(new_env_output.reset[0]) if np.all(r)]
@@ -91,30 +90,24 @@ class Runner(RunnerWithState):
     def eval_with_video(
         self, 
         agent, 
-        n=None, 
         n_envs=None, 
-        record_video=True, 
-        size=(128, 128), 
-        video_len=1000, 
-        n_windows=4, 
-        name=None
+        name=None, 
+        **kwargs
     ):
         if name is None:
-            return self._eval_with_video(agent, n, record_video, 
-                size, video_len, n_windows)
+            return self._eval_with_video(agent, **kwargs)
         else:
             def constructor():
                 env_config = self.env_config()
                 if n_envs:
                     env_config.n_envs = n_envs
                 agent_states = agent.build_memory()
-                runner_states = self.build_env()
+                runner_states = self.build_env(env_config)
                 return agent_states, runner_states
 
             set_fn = partial(set_states, agent=agent, runner=self)
             with StateStore(name, constructor, set_fn):
-                return self._eval_with_video(agent, n, record_video, 
-                    size, video_len, n_windows)
+                return self._eval_with_video(agent, **kwargs)
 
     def _eval_with_video(
         self, 

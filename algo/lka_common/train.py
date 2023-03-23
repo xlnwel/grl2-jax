@@ -20,7 +20,6 @@ def build_dynamics(config, model_config, env_stats):
         model_config, 
         max_layer=1, 
         aid=0,
-        algorithm=config.dynamics_name, 
         name=config.algorithm, 
         info=config.info,
         model_info=config.model_info,

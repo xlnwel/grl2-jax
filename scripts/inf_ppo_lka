@@ -2,22 +2,22 @@
 
 export PYTHONPATH=.
 
-algos=(
-    happo
-    # happo
-    # happo_lka1
-    # happo_lka1
-    # happo_lka2
-    # happo_lka2
-)
 suite=$1
 shift
 envs=(
     escalation
     # staghunt
 )
-args1=(
+algos=(
     $1
+    # happo
+    # happo_lka1
+    # happo_lka1
+    # happo_lka2
+    # happo_lka2
+)
+args1=(
+    $2
     10
     10
     10
@@ -26,7 +26,7 @@ args1=(
     20
 )
 args2=(
-    $2
+    $3
     64
     128
     256
@@ -69,7 +69,7 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-kws="0#n_epochs=$a1 0#n_envs=$a2"
+# kws="0#n_epochs=$a1 0#n_envs=$a2"
 for e in "${envs[@]}"; do
     config=$e
     env="${suite}-${e}"

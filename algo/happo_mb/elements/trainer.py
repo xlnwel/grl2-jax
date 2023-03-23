@@ -26,7 +26,7 @@ class Trainer(TrainerBase):
         _jit_lka_train = jax.jit(self.lka_train, 
             static_argnames=['aid', 'compute_teammate_log_ratio'])
         def jit_lka_train(*args, **kwargs):
-            self.rng, rng = jax.random.split(self.rng)
+            self.lka_rng, rng = jax.random.split(self.lka_rng)
             return _jit_lka_train(*args, rng=rng, **kwargs)
         self.jit_lka_train = jit_lka_train
         
@@ -39,16 +39,18 @@ class Trainer(TrainerBase):
         opt_state = self.lookahead_opt_state
 
         if self.config.update_scheme == 'step':
-            theta, opt_state = self.stepwise_sequential_opt(
+            theta, opt_state, self.perm_lka_rng = self.stepwise_sequential_opt(
                 theta, opt_state, data, self.config.n_lka_epochs, 
                 self.config.n_lka_mbs, self.lka_indices, 
-                self.jit_lka_train, return_stats=False
+                self.jit_lka_train, self.perm_lka_rng, 
+                return_stats=False
             )
         else:
-            theta, opt_state = self.sequential_opt(
+            theta, opt_state, self.perm_lka_rng = self.sequential_opt(
                 theta, opt_state, data, self.config.n_lka_epochs, 
                 self.config.n_lka_mbs, self.lka_indices, 
-                self.jit_lka_train, return_stats=False
+                self.jit_lka_train, self.perm_lka_rng, 
+                return_stats=False
             )
 
         for p in theta.policies:

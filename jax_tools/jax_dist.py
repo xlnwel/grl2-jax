@@ -191,9 +191,13 @@ class Categorical(distrax.Categorical):
 
 
 class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
-    def __init__(self, loc, scale, joint_log_prob=True):
+    def __init__(self, loc, scale=None, joint_log_prob=True):
         super().__init__(loc, scale)
         self._joint_log_prob = joint_log_prob
+
+    @property
+    def scale(self):
+        return self.scale_diag
 
     def stop_gradient(self):
         loc = lax.stop_gradient(self.loc)

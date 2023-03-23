@@ -42,7 +42,9 @@ strategy:
     algorithm: *algo
     train_loop:
         ergodic: True
-        n_epochs: &nepochs 3
+        samples_per_epochs: 5e4
+        n_valid_samples: 1e4
+        n_epochs: &nepochs 5
 
 model:
     aid: 0
@@ -71,9 +73,9 @@ model:
     reward:
         nn_id: reward
         out_size: 1
-        units_list: [200, 200, 200, 200]
+        units_list: [200, 200, 200]
         activation: relu
-        norm: layer
+        norm: null
         out_scale: .01
         use_next_obs: False
         balance_dimension: False
@@ -84,7 +86,7 @@ model:
         out_size: 1
         units_list: [200, 200]
         activation: relu
-        norm: layer
+        norm: null
         out_scale: .01
 
 loss:
@@ -99,7 +101,7 @@ loss:
 trainer:
     algorithm: *algo
     aid: 0
-    trust_threshold: 1000
+    trust_threshold: null
     timeout_done: *td
     model_norm_obs: *obs_norm
 
@@ -118,7 +120,7 @@ buffer:
     model_norm_obs: *obs_norm
     n_runners: *nrunners
     n_envs: *nenvs
-    max_size: 5e4
+    max_size: 6e4
     min_size: 1e3
     batch_size: 256
     sample_size: 1

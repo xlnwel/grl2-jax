@@ -5,13 +5,23 @@ from algo.happo.run import prepare_buffer
 
 @timeit
 def lka_env_run(agent, runner: Runner, routine_config, lka_aids, name='lka'):
-    env_output = runner.run(routine_config.n_steps, agent, lka_aids, name=name)
+    env_output = runner.run(
+        agent, 
+        n_steps=routine_config.n_steps, 
+        lka_aids=lka_aids, 
+        name=name
+    )
     prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
 
 
 @timeit
 def env_run(agent, runner: Runner, routine_config, lka_aids, name='real'):
-    env_output = runner.run(routine_config.n_steps, agent, lka_aids, name=name)
+    env_output = runner.run(
+        agent, 
+        n_steps=routine_config.n_steps, 
+        lka_aids=lka_aids, 
+        name=name
+    )
     prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
@@ -65,7 +75,12 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
+    runner.run(
+        agent, 
+        n_steps=MODEL_EVAL_STEPS, 
+        lka_aids=[], 
+        collect_data=False
+    )
 
     while env_step < routine_config.MAX_STEPS:
         env_step = env_run(agent, runner, routine_config, lka_aids=[])

@@ -12,8 +12,16 @@ export PYTHONPATH=.
 # python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 2 -kw 1#n_epochs=1 1#lr=1e-3 &
 # python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#n_epochs=1 1#lr=5e-4 &
 # python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 2 -kw 1#n_epochs=1 1#lr=5e-4 &
-python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#weight_decay=None &
-python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#weight_decay=1e-6 &
+commands=()
+py_script="python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#emodels:units_list=256,256 1#reward:units_list=64,64"
+commands+=("$py_script")
+py_script="python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#emodels:units_list=128,128 1#reward:units_list=64,64"
+commands+=("$py_script")
+py_script="python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#emodels:units_list=256,256 1#reward:units_list=128,128"
+commands+=("$py_script")
+py_script="python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#emodels:units_list=128,128 1#reward:units_list=128,128"
+commands+=("$py_script")
+# python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#weight_decay=1e-6 &
 # python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#weight_decay=1e-6 &
 # python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#weight_decay=1e-6 &
 # python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#n_epochs=5 1#lr=5e-4 &
@@ -22,11 +30,19 @@ python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld ma
 # python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#n_epochs=1 1#lr=1e-3 &
 # python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#n_epochs=1 1#lr=5e-4 &
 # python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#n_epochs=1 1#lr=5e-4 &
-python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#weight_decay=None &
-python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#weight_decay=1e-6 &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#weight_decay=None &
+# python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#weight_decay=1e-6 &
 # python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#weight_decay=1e-6 &
 # python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#weight_decay=1e-6 &
 # python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#n_epochs=5 1#lr=5e-4 &
 # python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 2 -kw 1#n_epochs=5 1#lr=5e-4 &
-wait
+py_script="python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#emodels:units_list=256,256 1#reward:units_list=64,64"
+commands+=("$py_script")
+py_script="python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#emodels:units_list=128,128 1#reward:units_list=64,64"
+commands+=("$py_script")
+py_script="python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#emodels:units_list=256,256 1#reward:units_list=128,128"
+commands+=("$py_script")
+py_script="python run/train.py -a happo_mb dynamics -e magw-staghunt -c staghunt -ld magw-logs -s 1 -kw 1#emodels:units_list=128,128 1#reward:units_list=128,128"
+commands+=("$py_script")
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

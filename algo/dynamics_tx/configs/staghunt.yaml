@@ -60,29 +60,34 @@ model:
     emodels:
         nn_id: emodels
         n_models: &n 1
-        units_list: [256, 256]
-        activation: relu
-        norm: null
+        out_type: discrete
+        in_config:
+            out_size: &embed 64
+        tx_config:
+            n_blocks: 2
+            attn_config:
+                n_heads: 2
+                # attn_dropout: 0
+                # res_dropout: 0
         out_config:
-            type: discrete
             n_classes: 5
     reward:
         nn_id: reward
         out_size: 1
-        units_list: [256, 256]
+        units_list: [64, 64]
         activation: relu
         norm: null
         out_scale: .01
     discount:
         nn_id: discount
         out_size: 1
-        units_list: [256, 256]
+        units_list: [64, 64]
         activation: relu
         norm: null
         out_scale: .01
 
 loss:
-    model_loss_type: discrete
+    model_loss_type: *mlt
     n_models: *n
     model_norm_obs: *obs_norm
 
@@ -102,6 +107,7 @@ trainer:
         lr: 5e-4
         clip_norm: null
         eps: 1e-5
+        weight_decay: null
 
 actor: {}
 

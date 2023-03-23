@@ -14,7 +14,12 @@ from algo.ma_common.run import Runner
 
 @timeit
 def env_run(agent, runner: Runner, routine_config, lka_aids, name='real'):
-    runner.run(routine_config.n_steps, agent, lka_aids, name=name)
+    runner.run(
+        agent, 
+        n_steps=routine_config.n_steps, 
+        lka_aids=lka_aids, 
+        name=name
+    )
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
     agent.add_env_step(env_steps_per_run)
@@ -43,7 +48,8 @@ def evaluate(agent, runner: Runner, routine_config, lka_aids=[], record_video=Fa
     agent.model.switch_params(True, lka_aids)
 
     scores, epslens, _, video = runner.eval_with_video(
-        agent, n_envs=routine_config.n_eval_envs, 
+        agent, 
+        n_envs=routine_config.n_eval_envs, 
         record_video=record_video, 
         name=name
     )

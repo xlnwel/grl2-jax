@@ -194,14 +194,6 @@ def except_axis(x, except_axis):
     axis = [i for i in range(x.ndim) if i not in except_axis]
     return axis
 
-def step_str(step):
-    if step < 1000:
-        return f'{step}'
-    elif step < 1000000:
-        return f'{step/1000:.3g}k'
-    else:
-        return f'{step/1000000:.3g}m'
-
 def expand_dims_match(x: np.ndarray, target: np.ndarray):
     """ Expands dimensions of x to match target,
     an efficient implementation of the following process 

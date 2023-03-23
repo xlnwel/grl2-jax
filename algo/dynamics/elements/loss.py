@@ -83,11 +83,11 @@ def compute_model_loss(
 ):
     if config.model_loss_type == 'mbpo':
         mean_loss, var_loss = jax_loss.mbpo_model_loss(
-            stats.model_loc, 
-            lax.log(stats.model_scale) * 2., 
+            dist.loc, 
+            lax.log(dist.scale) * 2., 
             model_target
         )
-        stats.model_mae = lax.abs(stats.model_loc - model_target)
+        stats.model_mae = lax.abs(dist.loc - model_target)
         mean_loss = jnp.mean(mean_loss, utils.except_axis(mean_loss, ENSEMBLE_AXIS))
         var_loss = jnp.mean(var_loss, utils.except_axis(var_loss, ENSEMBLE_AXIS))
         stats.mean_loss = mean_loss
@@ -96,13 +96,13 @@ def compute_model_loss(
         chex.assert_rank([mean_loss, var_loss], 1)
     elif config.model_loss_type == 'ce':
         loss = - dist.log_prob(model_target)
+        stats.model_mae = lax.abs(dist.loc - model_target)
         stats.mean_loss = jnp.mean(loss, utils.except_axis(loss, ENSEMBLE_AXIS))
-        stats.model_mae = lax.abs(stats.model_loc - model_target)
         chex.assert_rank([stats.mean_loss], 1)
         loss = jnp.sum(stats.mean_loss)
     elif config.model_loss_type == 'mse':
-        loss = .5 * (stats.model_loc - model_target)**2
-        stats.model_mae = lax.abs(stats.model_loc - model_target)
+        loss = .5 * (dist.loc - model_target)**2
+        stats.model_mae = lax.abs(dist.loc - model_target)
         stats.mean_loss = jnp.mean(loss, utils.except_axis(loss, ENSEMBLE_AXIS))
         chex.assert_rank([stats.mean_loss], 1)
         loss = jnp.sum(stats.mean_loss)

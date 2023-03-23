@@ -3,56 +3,9 @@ import numpy as np
 from tools.utils import batch_dicts
 from tools.timer import timeit
 from algo.lka_common.run import *
-from algo.ma_common.run import Runner as RunnerBase
+from algo.ma_common.run import Runner
 from algo.happo.elements.model import LOOKAHEAD
 from algo.happo.run import compute_gae
-
-
-class Runner(RunnerBase):
-    def run(
-        self, 
-        n_steps, 
-        agent, 
-        dynamics, 
-        lka_aids, 
-        store_info=True,
-        collect_data=True, 
-    ):
-        agent.model.switch_params(True, lka_aids)
-
-        env_output = self.env_output
-        for _ in range(n_steps):
-            action, stats = agent(env_output)
-            new_env_output = self.env.step(action)
-
-            if collect_data:
-                data = dict(
-                    obs=batch_dicts(env_output.obs, func=concat_along_unit_dim), 
-                    action=action, 
-                    reward=concat_along_unit_dim(new_env_output.reward), 
-                    discount=concat_along_unit_dim(new_env_output.discount), 
-                    next_obs=batch_dicts(self.env.prev_obs(), func=concat_along_unit_dim), 
-                    reset=concat_along_unit_dim(new_env_output.reset),
-                )
-                agent.buffer.collect(**data, **stats)
-                dynamics.buffer.collect(**data)
-
-            if store_info:
-                done_env_ids = [i for i, r in enumerate(new_env_output.reset[0]) if np.all(r)]
-
-                if done_env_ids:
-                    info = self.env.info(done_env_ids)
-                    if info:
-                        info = batch_dicts(info, list)
-                        agent.store(**info)
-            env_output = new_env_output
-
-        agent.model.switch_params(False, lka_aids)
-        agent.model.check_params(False)
-
-        self.env_output = env_output
-
-        return env_output
 
 
 def add_data_to_buffer(

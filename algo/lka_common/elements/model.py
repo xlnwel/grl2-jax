@@ -1,4 +1,6 @@
 import numpy as np
+from copy import deepcopy
+import chex
 
 from algo.ma_common.elements.model import *
 
@@ -30,8 +32,9 @@ class LKAModelBase(MAModelBase):
             assert self.lookahead_params.policies[i][LOOKAHEAD] == 1-lookahead, (self.lookahead_params.policies[i][LOOKAHEAD], lookahead)
 
     def sync_lookahead_params(self):
-        self.lookahead_params = self.params.copy()
-        self.lookahead_params.policies = [p.copy() for p in self.lookahead_params.policies]
+        self.lookahead_params = deepcopy(self.params)
+        # self.lookahead_params.policies = [p.copy() for p in self.lookahead_params.policies]
+        # self.lookahead_params.vs = [v.copy() for v in self.lookahead_params.vs]
         for p in self.lookahead_params.policies:
             p[LOOKAHEAD] = True
 

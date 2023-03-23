@@ -34,7 +34,8 @@ class EpisodicReplay(Buffer):
         self.n_runners = self.config.n_runners
         self.n_envs = self.n_runners * self.config.n_envs
 
-        directory = '/'.join([self.config.root_dir, self.config.model_name])
+        directory = self.config.directory if self.config.directory else \
+            '/'.join([self.config.root_dir, self.config.model_name])
         self._dir = Path(directory).expanduser()
         self._save = self.config.save
         if self._save:

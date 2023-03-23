@@ -8,31 +8,29 @@ algos=(
 suite=$1
 shift
 envs=(
+    escalation
+    # escalation
+    # escalation
+    # escalation
     staghunt
-    staghunt
-    # escalation
-    # escalation
-    # escalation
-    # escalation
+    # staghunt
 )
 configs=(
     "${suite}"
 )
 args1=(
-    discrete
-    mse
-    discrete
-    mse
-    discrete
-    mse
+    $1
+    256,256
+    256,256
+    128,128
+    128,128
 )
 args2=(
-    False
-    True
-    False
-    True
-    False
-    True
+    $2
+    64,64
+    128,128
+    64,64
+    128,128
     # 5e-4
 )
 args3=(
@@ -96,12 +94,12 @@ a3=${args3[$idx]}
 commands=()
 # for a1 in "${args1[@]}"; do
 # for a2 in "${args2[@]}"; do
-kws="1#model_loss_type=$a1 1#model_norm_obs=$a2 1#out_type=$a3 1#weight_decay=$a4"
+# kws="1#emodels:units_list=$a1 1#reward:units_list=$a2"
     # for e in "${envs[@]}"; do
 env="${suite}-${e}"
 config="${e}"
-for s in {0..4}; do
-    py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+for s in {0..9}; do
+    py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
     commands+=("$py_script")
     echo $py_script
     # eval $py_script

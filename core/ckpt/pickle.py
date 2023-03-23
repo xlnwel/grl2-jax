@@ -3,7 +3,6 @@ import cloudpickle
 
 from core.log import do_logging
 from core.typing import ModelPath
-from tools import yaml_op
 from tools.display import print_dict_info
 from tools.file import search_for_all_files
 

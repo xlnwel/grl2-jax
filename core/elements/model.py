@@ -7,6 +7,7 @@ from core.ckpt.base import ParamsCheckpointBase
 from core.ensemble import Ensemble, constructor
 from core.typing import AttrDict, dict2AttrDict
 from nn.func import create_network
+from tools.display import print_dict_info, summarize_arrays, int2str
 
 
 class Model(ParamsCheckpointBase):
@@ -32,6 +33,7 @@ class Model(ParamsCheckpointBase):
 
         self.add_attributes()
         self.build_nets()
+        self.print_params()
         self.compile_model()
 
     def _prngkey(self, seed=None):
@@ -59,6 +61,14 @@ class Model(ParamsCheckpointBase):
 
     def build_nets(self):
         raise NotImplementedError
+
+    def print_params(self):
+        for k, v in self.params.items():
+            do_logging(f'Module: {k}')
+            print_dict_info(v, prefix='\t')
+            n = summarize_arrays(v)
+            n = int2str(n)
+            do_logging(f'Total number of params of {k}: {n}')
 
     @property
     def theta(self):

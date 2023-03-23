@@ -3,10 +3,9 @@ import haiku as hk
 
 from core.typing import dict2AttrDict
 from nn.func import mlp, nn_registry
-from algo.dynamics_tx.elements.utils import combine_sa
 from algo.dynamics.elements.nn import Reward, Discount, \
-    get_discrete_dist, get_normal_dist, \
-    DISCRETE_MODEL, CONTINUOUS_MODEL, ENSEMBLE_AXIS
+    get_out_kwargs, get_dist, DISCRETE_MODEL, CONTINUOUS_MODEL, ENSEMBLE_AXIS
+from algo.dynamics_tx.elements.utils import combine_sa
 """ Source this file to register Networks """
 
 
@@ -15,6 +14,7 @@ class Model(hk.Module):
     def __init__(
         self, 
         out_size, 
+        out_type, 
         in_config, 
         tx_config, 
         out_config, 
@@ -26,42 +26,33 @@ class Model(hk.Module):
         self.in_config = dict2AttrDict(in_config, to_copy=True)
         self.tx_config = dict2AttrDict(tx_config, to_copy=True)
         self.out_config = dict2AttrDict(out_config, to_copy=True)
-        self.out_type = self.out_config.pop('type')
+        self.out_type = out_type
         assert self.out_type in (DISCRETE_MODEL, CONTINUOUS_MODEL)
 
     def __call__(self, x, action, training=False):
         in_net, tx_net, out_net = self.build_net()
         x = combine_sa(x, action)
         x = self.call_net(in_net, tx_net, out_net, x, training=training)
-        dist = self.get_dist(x)
+        dist = get_dist(x, self.out_type, self.out_config)
         return dist
 
     @hk.transparent
     def build_net(self, name='model'):
-        if self.out_type == DISCRETE_MODEL:
-            out_size = self.out_size * self.out_config.n_classes
-        else:
-            out_size = self.out_size * 2
         in_net = mlp(**self.in_config, name=f'{name}_in')
         tx_net = nn_registry.get('tx')(
             **self.tx_config, name=f'{name}_tx'
         )
-        out_net = mlp(out_size=out_size, name=f'{name}_out')
+        out_kwargs = get_out_kwargs(
+            self.out_type, self.out_config, self.out_size)
+        out_net = mlp(**out_kwargs, name=f'{name}_out')
         return in_net, tx_net, out_net
 
     def call_net(self, in_net, tx_net, out_net, x, training):
         x = in_net(x)
         x = tx_net(x, training=training)
         x = out_net(x)
+        x = jnp.swapaxes(x, -3, -2)
         return x
-    
-    def get_dist(self, x):
-        if self.out_type == DISCRETE_MODEL:
-            dist = get_discrete_dist(x, self.out_size, self.out_config.n_classes)
-        else:
-            dist = get_normal_dist(x, **self.out_config)
-        
-        return dist
 
 
 @nn_registry.register('emodels')
@@ -70,26 +61,26 @@ class EnsembleModels(Model):
         self, 
         n_models, 
         out_size, 
+        out_type, 
         in_config, 
         tx_config, 
         out_config, 
         name='emodels', 
     ):
         self.n_models = n_models
-        super().__init__(out_size, in_config, tx_config, out_config, name=name)
+        super().__init__(
+            out_size, out_type, in_config, tx_config, out_config, name=name)
 
     @hk.transparent
     def build_net(self, name='model'):
-        if self.out_type == 'discrete':
-            out_size = self.out_size * self.out_config.n_classes
-        else:
-            out_size = self.out_size * 2
         in_net = [mlp(**self.in_config, name=f'{name}{i}_in') 
             for i in range(self.n_models)]
         tx_net = [nn_registry.get('tx')(
             **self.tx_config, name=f'{name}{i}_tx'
         ) for i in range(self.n_models)]
-        out_net = [mlp(out_size=out_size, name=f'{name}{i}_out') 
+        out_kwargs = get_out_kwargs(
+            self.out_type, self.out_config, self.out_size)
+        out_net = [mlp(**out_kwargs, name=f'{name}{i}_out') 
             for i in range(self.n_models)]
         return in_net, tx_net, out_net
 
@@ -98,6 +89,7 @@ class EnsembleModels(Model):
         ys = [net(y, training=training) for net, y in zip(tx_net, ys)]
         ys = [net(y) for net, y in zip(out_net, ys)]
         x = jnp.stack(ys, ENSEMBLE_AXIS)
+        x = jnp.swapaxes(x, -3, -2)
         return x
 
 
