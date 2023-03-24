@@ -195,9 +195,9 @@ class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
         super().__init__(loc, scale)
         self._joint_log_prob = joint_log_prob
 
-    @property
-    def scale(self):
-        return self.scale_diag
+    # @property
+    # def scale(self):
+    #     return self.scale_diag
 
     def stop_gradient(self):
         loc = lax.stop_gradient(self.loc)

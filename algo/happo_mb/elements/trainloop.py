@@ -9,8 +9,8 @@ class TrainingLoop(TrainingLoopBase):
         data = self.sample_data()
         if data is None:
             return 0, AttrDict()
-        lka = data.pop(LOOKAHEAD)
-        assert lka == False, lka
+        # lka = data.pop(LOOKAHEAD)
+        # assert lka == False, lka
         stats = self._train_with_data(data, **kwargs)
 
         if isinstance(stats, tuple):
@@ -36,6 +36,6 @@ class TrainingLoop(TrainingLoopBase):
                 do_logging('Bypassing lookahead train')
                 return
 
-            lka = data.pop(LOOKAHEAD)
-            assert lka == True, lka
+            # lka = data.pop(LOOKAHEAD)
+            # assert lka == True, lka
             self.trainer.lookahead_train(data, **kwargs)

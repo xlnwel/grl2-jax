@@ -204,7 +204,7 @@ class Trainer(TrainerBase):
             stats_list = []
             for i, idx in enumerate(np.split(indices, n_mbs)):
                 vts = [None for _ in self.aid2uids]
-                data_slice = data.slice(idx)
+                data_slice = data.slice(idx.tolist())   # note that bugs may happen when n_mbs == n_envs and idx is jnp.array
                 teammate_log_ratio = jnp.zeros_like(data_slice.mu_logprob[:, :, :1])
                 rng = rngs[e*n_mbs + i]
                 for aid in random.permutation(rng, self.n_agents):
@@ -273,7 +273,7 @@ class Trainer(TrainerBase):
         else:
             theta.value, opt_state.value, stats = optimizer.optimize(
                 self.loss.value_loss, 
-                theta.value, 
+                theta.value,
                 opt_state.value, 
                 kwargs={
                     'rng': rngs[0], 
@@ -305,6 +305,9 @@ class Trainer(TrainerBase):
 
     def compute_teammate_log_ratio(
             self, policy_params, rng, teammate_log_ratio, data):
+        if 'popart_mean' in data:
+            data.pop('popart_mean')
+            data.pop('popart_std')
         pi_logprob = self.model.action_logprob(policy_params, rng, data)
         log_ratio = pi_logprob - data.mu_logprob
         if log_ratio.shape[2] > 1:
