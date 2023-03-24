@@ -94,6 +94,8 @@ def tree_slice(d, loc=None, indices=None, axis=None):
 def dict2AttrDict(d: dict, shallow=False, to_copy=False):
     if isinstance(d, AttrDict) and not to_copy:
         return d
+    if d is None:
+        return d
     if shallow:
         res = AttrDict()
         for k, v in d.items():

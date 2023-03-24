@@ -1,6 +1,9 @@
+from functools import partial
+
 from algo.ma_common.train import *
 from algo.lka_common.train import lka_optimize
-from algo.happo.train import lka_env_run, env_run, eval_ego_and_lka
+from algo.happo.train import load_eval_data, eval_policy_distances, \
+    lka_env_run, env_run, eval_ego_and_lka
 
 
 def train(
@@ -26,6 +29,8 @@ def train(
         lka_aids=[], 
         collect_data=False
     )
+    env_name = runner.env_config().env_name
+    eval_data = load_eval_data(filename=env_name)
 
     while env_step < routine_config.MAX_STEPS:
         lka_env_run(agent, runner, routine_config, lka_aids=[])
@@ -35,6 +40,7 @@ def train(
         time2record = to_record(env_step)
 
         if time2record:
+            eval_policy_distances(agent, eval_data)
             eval_ego_and_lka(agent, runner, routine_config)
             save(agent, None)
             log(agent, None, env_step, train_step, {})

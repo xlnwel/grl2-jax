@@ -110,6 +110,7 @@ def compute_model_loss(
         loss = - dist.log_prob(model_target)
         pred_next_obs = dist.mode()
         obs_cons = jnp.mean(pred_next_obs == model_target, -1)
+        stats.obs_dim_consistency = jnp.mean(obs_cons)
         stats.obs_consistency = jnp.mean(obs_cons == 1)
         stats.mean_loss = jnp.mean(loss, utils.except_axis(loss, ENSEMBLE_AXIS))
         assert len(stats.mean_loss.shape) == 1, stats.mean_loss.shape

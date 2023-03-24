@@ -262,6 +262,8 @@ if __name__ == '__main__':
         for s in strs[::-1]:
             if directory.endswith(s):
                 directory = directory.removesuffix(f'/{s}')
+            if s.endswith('logs'):
+                break
 
         target_dir = d.replace(directory, target)
         do_logging(f'Copy from {d} to {target_dir}')
@@ -288,6 +290,8 @@ if __name__ == '__main__':
         config = rename_env(config)
         config = remove_redundancies(config)
         config['model_name'] = config['model_name'].split('/')[1]
+        config['buffer/sample_keys'] = []
+        yaml_op.save_config(config, path=yaml_path)
 
         # save stats
         data = merge_data(record_filename, '.txt')

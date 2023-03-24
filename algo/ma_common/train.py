@@ -1,12 +1,11 @@
-from functools import partial
 import numpy as np
 import ray
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
+from core.typing import get_basic_model_name
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from tools.display import print_dict
-from tools.store import StateStore
 from tools.utils import modify_config, prefix_name
 from tools.timer import Every, Timer, timeit
 from algo.ma_common.run import Runner
@@ -158,7 +157,7 @@ def log(agent, dynamics, env_step, train_step, errors):
 
 @timeit
 def build_agent(config, env_stats):
-    model_name = config.model_name
+    model_name = get_basic_model_name(config.model_name)
     new_model_name = '/'.join([model_name, f'a0'])
     modify_config(
         config, 

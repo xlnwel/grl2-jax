@@ -12,7 +12,7 @@ from algo.lka_common.run import quantify_dynamics_errors
 from algo.lka_common.train import dynamics_run, dynamics_optimize, \
     build_dynamics, lka_optimize, lka_train, log_dynamics_errors
 from algo.happo.run import prepare_buffer
-from algo.happo.train import load_eval_data, eval_policy_distances, eval_ego_and_lka
+from algo.happo.train import load_eval_data, eval_ego_and_lka
 from algo.happo_mb.run import branched_rollout, Runner
 
 
@@ -123,7 +123,8 @@ def train(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_policy_distances(agent, eval_data)
+            stats = agent.model.compute_policy_distances(eval_data)
+            agent.store(**stats)
             eval_ego_and_lka(agent, runner, routine_config)
             if routine_config.quantify_dynamics_errors:
                 outdir = modelpath2outdir(agent.get_model_path())

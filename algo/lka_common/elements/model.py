@@ -1,7 +1,10 @@
 import numpy as np
 from copy import deepcopy
-import chex
+from jax import random
+import optax
 
+from tools.timer import timeit
+from jax_tools import jax_dist, jax_div
 from algo.ma_common.elements.model import *
 
 LOOKAHEAD = 'lookahead'
@@ -12,6 +15,7 @@ PREV_LKA_PARAMS = 'prev_lka_params'
 class LKAModelBase(MAModelBase):
     def add_attributes(self):
         super().add_attributes()
+        self.rng, self.pd_rng = random.split(self.rng)
         self.lookahead_params = AttrDict()
         self.prev_params = AttrDict()
         self.prev_lka_params = AttrDict()
@@ -65,6 +69,69 @@ class LKAModelBase(MAModelBase):
     def check_current_lka_params(self):
         assert PREV_LKA_PARAMS not in self.lookahead_params, list(self.lookahead_params)
         assert PREV_LKA_PARAMS in self.prev_lka_params, list(self.prev_lka_params)
+
+    @timeit
+    def compute_policy_distances(self, data, stats=AttrDict()):
+        if self.has_rnn:
+            data.state = tree_slice(data.state, indices=0, axis=1)
+
+        self.pd_rng, rng = random.split(self.pd_rng)
+        pi_dist = self.joint_policy(
+            self.theta.policies, rng, data
+        )
+        
+        mu_dist = self.joint_policy(
+            self.prev_params.policies, rng, data
+        )
+        kl_mu_pi = mu_dist.kl_divergence(pi_dist)
+        stats.kl_mu_pi = kl_mu_pi
+
+        lka_dist = self.joint_policy(
+            self.lookahead_params.policies, rng, data
+        )
+        kl_lka_pi = lka_dist.kl_divergence(pi_dist)
+        stats.kl_lka_pi = kl_lka_pi
+        stats.kl_mu_lka_diff = kl_mu_pi - kl_lka_pi
+
+        mix_policies = [self.prev_params.policies[0]]
+        mix_policies += self.lookahead_params.policies[1:]
+        mix_dist = self.joint_policy(
+            mix_policies, rng, data
+        )
+        kl_mix_pi = mix_dist.kl_divergence(pi_dist)
+        stats.kl_mix_pi = kl_mix_pi
+        stats.kl_mu_mix_diff = kl_mu_pi - kl_mix_pi
+
+        js_mu_pi = dist_js(mu_dist, pi_dist)
+        js_lka_pi = dist_js(lka_dist, pi_dist)
+        js_mix_pi = dist_js(mix_dist, pi_dist)
+        stats.js_mu_pi = js_mu_pi
+        stats.js_lka_pi = js_lka_pi
+        stats.js_mix_pi = js_mix_pi
+        stats.js_mu_lka_diff = js_mu_pi - js_lka_pi
+        stats.js_mu_mix_diff = js_mu_pi - js_mix_pi
+
+        if isinstance(pi_dist, jax_dist.Categorical):
+            stats.cos_mu_lka = dist_cos(mu_dist, lka_dist)
+            stats.cos_mu_pi = dist_cos(mu_dist, pi_dist)
+            stats.cos_lka_pi = dist_cos(lka_dist, pi_dist)
+            stats.cos_mix_pi = dist_cos(mix_dist, pi_dist)
+            stats.cos_lka_mu_diff = stats.cos_lka_pi - stats.cos_mu_pi
+            stats.cos_mix_mu_diff = stats.cos_mix_pi - stats.cos_mu_pi
+
+        return stats
+
+
+def dist_js(d1, d2):
+    return jax_div.js_from_distributions(
+        **d1.get_stats('p'), **d2.get_stats('q'))
+
+
+def dist_cos(d1, d2):
+    p1 = d1.probs
+    p2 = d2.probs
+    
+    return optax.cosine_similarity(p1, p2)
 
 
 def pop_lookahead(policies):

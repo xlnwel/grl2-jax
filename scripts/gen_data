@@ -1,0 +1,9 @@
+python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-escalation/happo_mb/0323/1\#emodels:units_list=128,128-1\#reward:units_list=64,64/seed=1/a0  -ne 1 -ns 1000
+python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-escalation/happo_mb/0323/1\#emodels:units_list=128,128-1\#reward:units_list=64,64/seed=2/a0  -ne 1 -ns 1000
+python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-escalation/happo_mb/0323/1\#emodels:units_list=128,128-1\#reward:units_list=64,64/seed=6/a0  -ne 1 -ns 1000
+
+python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/happo_lka1/0323/baseline/seed=0/a0  -ne 1 -ns 1000
+python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/happo_lka1/0323/baseline/seed=5/a0  -ne 1 -ns 1000
+python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/happo_lka1/0323/baseline/seed=15/a0  -ne 1 -ns 1000
+
+rsync -avz data /System/Volumes/Data/mnt/公共区/cxw/
