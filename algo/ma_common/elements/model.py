@@ -83,11 +83,9 @@ class MAModelBase(ModelCore):
         dist_params = []
         state = data.pop('state', AttrDict())
         for p, uids in zip(params, self.aid2uids):
+            d = tree_slice(data, indices=uids, axis=2)
             if self.has_rnn:
-                d = tree_slice(data, indices=uids, axis=2)
-                d.state = state.slice(indices=uids, axis=1)
-            else:
-                d = tree_slice(data, indices=uids, axis=1)
+                d.state = tree_slice(state, indices=uids, axis=1)
             act_out = self.forward_policy(p, rng, d, return_state=False)
             dist_params.append(act_out)
         dist_params = [

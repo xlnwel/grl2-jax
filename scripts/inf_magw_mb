@@ -8,7 +8,7 @@ algos=(
 suite=$1
 shift
 envs=(
-    escalation
+    # escalation
     # escalation
     # escalation
     # escalation
@@ -19,14 +19,12 @@ configs=(
     "${suite}"
 )
 args1=(
-    $1
     256,256
     256,256
     128,128
     128,128
 )
 args2=(
-    $2
     64,64
     128,128
     64,64
@@ -50,8 +48,8 @@ args4=(
     1e-6
 )
 dynamics=(
+    # "dynamics_tx"
     "dynamics"
-    # "dynamics"
 )
 date=$(date +"%m%d")
 info=""
@@ -94,7 +92,8 @@ a3=${args3[$idx]}
 commands=()
 # for a1 in "${args1[@]}"; do
 # for a2 in "${args2[@]}"; do
-# kws="1#emodels:units_list=$a1 1#reward:units_list=$a2"
+kws="0#n_epochs=$1 1#lr=$2 1#deterministic_trans=$3"
+# kws="0#dynamics_name=$d"
     # for e in "${envs[@]}"; do
 env="${suite}-${e}"
 config="${e}"

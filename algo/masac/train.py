@@ -1,5 +1,24 @@
+from functools import partial
+
+from replay.dual import PRIMAL_REPLAY, DualReplay
 from algo.ma_common.train import *
 from algo.lka_common.train import eval_ego_and_lka, lka_optimize
+
+
+@timeit
+def lka_env_run(agent, runner: Runner, routine_config, lka_aids, name='real'):
+    if isinstance(agent.buffer, DualReplay):
+        agent.buffer.set_default_replay(routine_config.lookahead_replay)
+
+    runner.run(
+        agent, 
+        n_steps=routine_config.n_steps, 
+        lka_aids=lka_aids, 
+        name=name
+    )
+
+    if isinstance(agent.buffer, DualReplay):
+        agent.buffer.set_default_replay(PRIMAL_REPLAY)
 
 
 def train(

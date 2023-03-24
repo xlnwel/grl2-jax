@@ -1,7 +1,8 @@
 ---
-algorithm: &algo happo_lka2
-name: happo_lka2
-info: happo_lka2
+algorithm: &algo haa2c_mb2
+name: haa2c_mb2
+dynamics_name: dynamics
+info: haa2c_mb2
 
 precision: 32
 
@@ -15,34 +16,33 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 1e7
-    n_steps: &nsteps 50
-    LOG_PERIOD: 1e5
+    n_steps: &nsteps 5
+    LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
-    n_eval_envs: 1000
-    RECORD_VIDEO: True
+    RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
     n_lookahead_steps: 1
-    n_simulated_envs: &nse 400
-    n_simulated_steps: &nss 10
+    n_simulated_envs: &nse 16
+    n_simulated_steps: &nss 5
     model_rollout_type: sim
     compute_return_at_once: False
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
+    restore_state: False
+    switch_model_at_every_step: False
 
 env:
-    env_name: &env_name magw-staghunt
+    env_name: &env_name ma_mujoco-HalfCheetah_2x3
     n_runners: &nrunners 1
-    n_envs: &nenvs 256
-    max_episode_steps: 50
-    reward_scale: .1
-    population_size: 1
+    n_envs: &nenvs 16
+    max_episode_steps: 1000
     timeout_done: &td False
-
-    uid2aid: [0, 1]
+    env_args:
+        agent_obsk: 0
 
 agent: {}
 
@@ -55,33 +55,41 @@ strategy:
 
 model:
     aid: 0
+    joint_log_prob: False
     gamma: &gamma .99
 
     policy:
         nn_id: policy
         units_list: [64, 64]
         w_init: orthogonal
-        activation: tanh
-        norm: null
+        activation: relu
+        norm: layer
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
+        init_std: .2
+        sigmoid_scale: True
+        std_x_coef: 1.
+        std_y_coef: .5
+        use_feature_norm: True
     value:
         nn_id: value
         units_list: [64, 64]
         w_init: orthogonal
-        activation: tanh
-        norm: null
+        activation: relu
+        norm: layer
         rnn_type: &vrnn null
         rnn_units: 64
+        use_feature_norm: True
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
     adv_type: gae
     norm_adv: True
+    popart: &popart True
 
     prnn_bptt: 10
     vrnn_bptt: 10
@@ -97,7 +105,8 @@ loss:
     policy_sample_mask: True
 
     # hyperparams for value learning
-    value_loss: clip
+    value_loss: clip_huber
+    huber_threshold: 10
     value_clip_range: .2
     value_sample_mask: False
 
@@ -113,20 +122,26 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 4
+    n_epochs: &nepochs 1
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
-    update_scheme: step
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss
-    n_lka_epochs: 4
+    n_lka_epochs: 1
     n_lka_mbs: 1
 
-    theta_opt:
+    popart: *popart
+
+    policy_opt:
         opt_name: adam
-        lr: 1e-3
-        clip_norm: .5
+        lr: 3e-4
+        clip_norm: 10
+        eps: 1e-5
+    value_opt:
+        opt_name: adam
+        lr: 3e-4
+        clip_norm: 10
         eps: 1e-5
 
 actor:
@@ -162,6 +177,7 @@ buffer:
         - discount
         - reset
         - mu_logprob
-        - mu_logits
+        - mu_loc
+        - mu_scale
         - state_reset
         - state

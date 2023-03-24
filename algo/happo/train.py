@@ -1,3 +1,8 @@
+from functools import partial
+
+from core.ckpt.pickle import restore
+from core.typing import dict2AttrDict, tree_slice
+from tools.display import print_dict_info
 from algo.ma_common.train import *
 from algo.lka_common.train import lka_optimize
 from algo.happo.run import prepare_buffer
@@ -50,12 +55,25 @@ def eval_ego_and_lka(agent, runner, routine_config):
         prev_ego_score=prev_ego_score, 
         ego_score=ego_score, 
         lka_score=lka_score, 
-        lka_ego_score_diff=lka_pego_score_diff, 
+        lka_pego_score_diff=lka_pego_score_diff, 
         ego_pego_score_diff=ego_pego_score_diff, 
         ego_lka_score_diff=ego_lka_score_diff, 
     )
     agent.model.check_current_params()
     agent.model.check_current_lka_params()
+
+
+def load_eval_data(filedir='/System/Volumes/Data/mnt/公共区/cxw/data', filename='uniform'):
+    data = restore(filedir=filedir, filename=filename)
+    print_dict_info(data)
+    return data
+
+
+def eval_policy_distances(agent, data):
+    data = data.copy()
+    data.state = dict2AttrDict(data.state, shallow=True)
+    stats = agent.model.compute_policy_distances(data)
+    agent.store(**stats)
 
 
 def train(
@@ -81,6 +99,8 @@ def train(
         lka_aids=[], 
         collect_data=False
     )
+    env_name = runner.env_config().env_name
+    eval_data = load_eval_data(filename=env_name)
 
     while env_step < routine_config.MAX_STEPS:
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
@@ -89,6 +109,7 @@ def train(
         time2record = to_record(env_step)
 
         if time2record:
+            eval_policy_distances(agent, eval_data)
             eval_ego_and_lka(agent, runner, routine_config)
             save(agent, None)
             log(agent, None, env_step, train_step, {})

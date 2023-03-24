@@ -5,6 +5,7 @@ import numpy as np
 from core.ckpt.pickle import save, restore
 from core.elements.buffer import Buffer
 from core.elements.model import Model
+from core.log import do_logging
 from core.typing import AttrDict, subdict
 from replay.local import NStepBuffer
 from tools.utils import batch_dicts, yield_from_dict
@@ -31,9 +32,13 @@ class UniformReplay(Buffer):
         self.n_recency = self.config.get('n_recency', self.min_size)
         self.n_steps = self.config.n_steps
 
-        directory = self.config.directory if self.config.directory else \
-            '/'.join([self.config.root_dir, self.config.model_name])
-        self._dir = directory
+        if self.config.directory:
+            filedir = self.config.directory
+        elif self.config.root_dir and self.config.model_name:
+            filedir = '/'.join([self.config.root_dir, self.config.model_name])
+        else:
+            filedir = None
+        self._filedir = filedir
         self._filename = self.config.filename if self.config.filename else 'uniform'
 
         self._memory = collections.deque(maxlen=self.max_size)
@@ -157,8 +162,9 @@ class UniformReplay(Buffer):
             return rms        
 
     def retrieve_all_data(self):
+        self.clear_local_buffer()
         data = self._memory
-        self._memory = collections.deque(max_len=self.config.max_size)
+        self._memory = collections.deque(maxlen=self.max_size)
         return data
 
     def clear_local_buffer(self, drop_data=False):
@@ -192,12 +198,14 @@ class UniformReplay(Buffer):
             self.obs_rms.update(np.stack([traj['obs'] for traj in trajs]))
 
     def save(self, filedir=None, filename=None):
-        filedir = filedir or self._dir
+        filedir = filedir or self._filedir
         filename = filename or self._filename
-        save(self._memory, filedir=filedir, filename=filename)
+        save(self._memory, filedir=filedir, filename=filename, name='data')
+        do_logging(f'Number of transitions saved: {len(self)}')
     
-    def restore(self, filedir, filename):
-        filedir = filedir or self._dir
+    def restore(self, filedir=None, filename=None):
+        filedir = filedir or self._filedir
         filename = filename or self._filename
-        restore(filedir=filedir, filename=filename, 
-                default=collections.deque(maxlen=self.max_size))
+        self._memory = restore(filedir=filedir, filename=filename, 
+            default=collections.deque(maxlen=self.max_size), name='data')
+        do_logging(f'Number of transitions restored: {len(self)}')

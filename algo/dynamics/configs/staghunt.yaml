@@ -60,7 +60,7 @@ model:
     emodels:
         nn_id: emodels
         n_models: &n 1
-        units_list: [256, 256]
+        units_list: [256, 256, 256]
         activation: relu
         norm: null
         out_type: discrete
@@ -71,7 +71,7 @@ model:
     reward:
         nn_id: reward
         out_size: 1
-        units_list: [64, 64]
+        units_list: [256, 256]
         activation: relu
         norm: null
         out_scale: .01

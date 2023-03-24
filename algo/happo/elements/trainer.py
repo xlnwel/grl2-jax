@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 from jax import random
 import haiku as hk
-import chex
 
 from core.ckpt.pickle import save, restore
 from core.log import do_logging
@@ -338,13 +337,15 @@ class Trainer(TrainerBase):
 
     def save_popart(self):
         filedir = self.get_popart_dir()
-        save(self.popart, filedir=filedir, filename='popart')
+        save(self.popart, filedir=filedir, filename='popart', name='popart')
 
     def restore_popart(self):
         filedir = self.get_popart_dir()
         self.popart = restore(
             filedir=filedir, filename='popart', 
-            default=[RunningMeanStd((0, 1, 2)) for _ in self.model.aid2uids])
+            default=[RunningMeanStd((0, 1, 2)) for _ in self.model.aid2uids], 
+            name='popart'
+        )
 
     # def haiku_tabulate(self, data=None):
     #     rng = random.PRNGKey(0)

@@ -29,11 +29,18 @@
 # ./scripts/inf ma_mujoco 1 inf_mambpo 1000 50000 .5 dynamics_tx
 
 # ./scripts/inf magw 2 inf_magw_mb
-./scripts/inf magw 1 inf_ppo_lka happo
-./scripts/inf magw 1 inf_ppo_lka happo_lka1
-./scripts/inf magw 1 inf_ppo_lka happo_lka2
+# ./scripts/inf magw 1 inf_ppo_lka happo
+# ./scripts/inf magw 1 inf_ppo_lka happo_lka1
+# ./scripts/inf magw 1 inf_ppo_lka happo_lka2
 # ./scripts/inf magw 1 inf_magw_mb 256,256 128,128
 # ./scripts/inf magw 1 inf_magw_mb 256,256 64,64
 # ./scripts/inf magw 1 inf_magw_mb 128,128 128,128
 # ./scripts/inf magw 1 inf_magw_mb 128,128 64,64
-./scripts/inf magw 2 inf_magw_mb
+./scripts/inf magw 1 inf_magw_mb 5 3e-3 True
+./scripts/inf magw 1 inf_magw_mb 5 3e-3 False
+./scripts/inf magw 1 inf_magw_mb 5 5e-3 True
+./scripts/inf magw 1 inf_magw_mb 5 5e-3 False
+./scripts/inf magw 1 inf_magw_mb 10 3e-3 True
+./scripts/inf magw 1 inf_magw_mb 10 3e-3 False
+./scripts/inf magw 1 inf_magw_mb 10 5e-3 True
+./scripts/inf magw 1 inf_magw_mb 10 5e-3 False

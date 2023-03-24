@@ -6,6 +6,7 @@ import itertools
 import math
 import multiprocessing
 import numpy as np
+import jax
 
 from core.typing import AttrDict, ModelPath, dict2AttrDict
 
@@ -435,9 +436,9 @@ def split_dict(d):
     return d
 
 def yield_from_dict(d):
-    keys = d.keys()
-    for v in zip(*d.values()):
-        yield {kk: vv for kk, vv in zip(keys, v)}
+    vals, keys = jax.tree_util.tree_flatten(d)
+    for v in zip(*vals):
+        yield jax.tree_util.tree_unflatten(keys, v)
 
 def product_flatten_dict(**kwargs):
     """ Flatten a dict of lists into a list of dicts

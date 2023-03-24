@@ -1,6 +1,8 @@
-from tools.display import print_dict_info
+from functools import partial
+
 from algo.ma_common.train import *
-from algo.lka_common.train import eval_ego_and_lka, lka_optimize, lka_env_run, env_run
+from algo.lka_common.train import eval_ego_and_lka, lka_optimize, env_run
+from algo.masac.train import lka_env_run
 
 
 def train(
