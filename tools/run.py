@@ -14,6 +14,9 @@ class RunMode:
     TRAJ='traj'
 
 
+EnvState = collections.namedtuple('state', 'env output')
+
+
 class RunnerWithState:
     def __init__(self, env_config, seed_interval=1000):
         self._env_config = dict2AttrDict(env_config, to_copy=True)
@@ -33,20 +36,20 @@ class RunnerWithState:
     def env_stats(self):
         return self._env_stats
 
-    def build_env(self, env_config=None, for_self=True):
+    def build_env(self, env_config=None, for_self=False):
         env_config = env_config or self._env_config
         env = create_env(env_config)
-        self._env_stats = env.stats()
         env_output = env.output()
         if self._env_config.seed is not None:
             self._env_config.seed += self._seed_interval
         if for_self:
+            self._env_stats = env.stats()
             self.env = env
             self.env_output = env_output
-        return env, env_output
+        return EnvState(env, env_output)
 
     def get_states(self):
-        return self.env, self.env_output
+        return EnvState(self.env, self.env_output)
     
     def reset_states(self):
         env = self.env
@@ -54,10 +57,10 @@ class RunnerWithState:
         self.env = create_env(self._env_config)
         self.env_output = self.env.output()
         self._env_config.seed += self._seed_interval
-        return env, env_output
+        return EnvState(env, env_output)
 
     def set_states(self, state):
-        curr_state = self.env, self.env_output
+        curr_state = EnvState(self.env, self.env_output)
         self.env, self.env_output = state
         return curr_state
 

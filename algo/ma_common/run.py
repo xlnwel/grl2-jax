@@ -7,6 +7,8 @@ from tools.store import StateStore
 from tools.utils import batch_dicts
 
 
+State = collections.namedtuple('state', 'agent runner')
+
 def concat_along_unit_dim(x):
     x = np.concatenate(x, axis=1)
     return x
@@ -15,14 +17,14 @@ def concat_along_unit_dim(x):
 def state_constructor(agent, runner):
     agent_states = agent.build_memory()
     runner_states = runner.build_env()
-    return agent_states, runner_states
+    return State(agent_states, runner_states)
 
 
-def set_states(states, agent, runner):
+def set_states(states: State, agent, runner):
     agent_states, runner_states = states
     agent_states = agent.set_memory(agent_states)
     runner_states = runner.set_states(runner_states)
-    return agent_states, runner_states
+    return State(agent_states, runner_states)
 
 
 class Runner(RunnerWithState):
@@ -103,11 +105,12 @@ class Runner(RunnerWithState):
                     env_config.n_envs = n_envs
                 agent_states = agent.build_memory()
                 runner_states = self.build_env(env_config)
-                return agent_states, runner_states
-
+                return State(agent_states, runner_states)
             set_fn = partial(set_states, agent=agent, runner=self)
+
             with StateStore(name, constructor, set_fn):
-                return self._eval_with_video(agent, **kwargs)
+                stats = self._eval_with_video(agent, **kwargs)
+            return stats
 
     def _eval_with_video(
         self, 

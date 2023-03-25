@@ -113,9 +113,9 @@ def train(
         time2record = to_record(env_step)
 
         if time2record:
-            # eval_policy_distances(agent, eval_data, name='eval')
-            # eval_policy_distances(agent, agent.training_data)
-            # eval_ego_and_lka(agent, runner, routine_config)
+            eval_policy_distances(agent, eval_data, name='eval')
+            eval_policy_distances(agent, agent.training_data)
+            eval_ego_and_lka(agent, runner, routine_config)
             save(agent, None)
             log(agent, None, env_step, train_step, {})
 

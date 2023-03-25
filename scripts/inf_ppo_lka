@@ -69,7 +69,7 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-kws="0#n_epochs=$a1"
+# kws="0#n_epochs=$a1"
 for e in "${envs[@]}"; do
     config=$e
     env="${suite}-${e}"
