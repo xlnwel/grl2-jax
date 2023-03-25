@@ -186,3 +186,4 @@ buffer:
         - mu_scale
         - state_reset
         - state
+        - lookahead
