@@ -36,11 +36,11 @@
 # ./scripts/inf magw 1 inf_magw_mb 256,256 64,64
 # ./scripts/inf magw 1 inf_magw_mb 128,128 128,128
 # ./scripts/inf magw 1 inf_magw_mb 128,128 64,64
-./scripts/inf magw 1 inf_magw_mb 5 3e-3 True
-./scripts/inf magw 1 inf_magw_mb 5 3e-3 False
-./scripts/inf magw 1 inf_magw_mb 5 5e-3 True
-./scripts/inf magw 1 inf_magw_mb 5 5e-3 False
-./scripts/inf magw 1 inf_magw_mb 10 3e-3 True
-./scripts/inf magw 1 inf_magw_mb 10 3e-3 False
-./scripts/inf magw 1 inf_magw_mb 10 5e-3 True
-./scripts/inf magw 1 inf_magw_mb 10 5e-3 False
+./scripts/inf magw 1 inf_ppo_lka happo 5
+./scripts/inf magw 1 inf_ppo_lka happo 10
+./scripts/inf magw 1 inf_ppo_lka happo_lka1 5
+./scripts/inf magw 1 inf_ppo_lka happo_lka1 10
+./scripts/inf magw 1 inf_ppo_lka happo_lka2 5
+./scripts/inf magw 1 inf_ppo_lka happo_lka2 10
+./scripts/inf magw 1 inf_magw_mb 5
+./scripts/inf magw 1 inf_magw_mb 10

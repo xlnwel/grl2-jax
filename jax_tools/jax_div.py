@@ -77,6 +77,13 @@ def js_from_distributions(
     logits_mask=None
 ):
     if p_logits is None:
+        # NOTE: mid computes a linear combination of two Gaussians
+        # not the mixture Gaussians. For more details, refer to 
+        # https://stats.stackexchange.com/a/8648
+        # a significant consequence is that the linear combination of 
+        # two identical Gaussians yields a new Gaussian with a different scale.
+        # Therefore, the JS computed in this way is not 0 even though
+        # p and q are identical.
         mid_loc = (p_loc + q_loc) / 2.
         mid_scale = lax.pow(lax.pow(p_scale, 2.)/4. + lax.pow(q_scale, 2.)/4., 1/2)
         js = .5 * (

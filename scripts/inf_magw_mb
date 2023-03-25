@@ -8,6 +8,7 @@ algos=(
 suite=$1
 shift
 envs=(
+    # $1
     # escalation
     # escalation
     # escalation
@@ -92,7 +93,7 @@ a3=${args3[$idx]}
 commands=()
 # for a1 in "${args1[@]}"; do
 # for a2 in "${args2[@]}"; do
-kws="0#n_epochs=$1 1#lr=$2 1#deterministic_trans=$3"
+kws="0#n_epochs=$1"
 # kws="0#dynamics_name=$d"
     # for e in "${envs[@]}"; do
 env="${suite}-${e}"

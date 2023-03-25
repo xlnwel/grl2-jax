@@ -84,7 +84,7 @@ def compute_model_loss(
     if config.model_loss_type == 'mbpo':
         mean_loss, var_loss = jax_loss.mbpo_model_loss(
             dist.loc, 
-            lax.log(dist.scale) * 2., 
+            lax.log(dist.scale_diag) * 2., 
             model_target
         )
         stats.model_mae = lax.abs(dist.loc - model_target)
@@ -125,7 +125,7 @@ def compute_model_loss(
 def compute_reward_loss(
     config, reward_dist, reward, stats
 ):
-    raw_reward_loss = - reward_dist.log_prob(reward)
+    raw_reward_loss = .5 * (reward_dist.loc - reward)**2
     pred_reward = reward_dist.mode()
     stats.pred_reward = pred_reward
     stats.reward_mae = lax.abs(pred_reward - reward)

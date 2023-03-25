@@ -1,8 +1,9 @@
 from functools import partial
 
 from core.ckpt.pickle import restore
-from core.typing import dict2AttrDict, tree_slice
+from core.typing import dict2AttrDict
 from tools.display import print_dict_info
+from tools.utils import prefix_name
 from algo.ma_common.train import *
 from algo.lka_common.train import lka_optimize
 from algo.happo.run import prepare_buffer
@@ -69,10 +70,13 @@ def load_eval_data(filedir='/System/Volumes/Data/mnt/公共区/cxw/data', filena
     return data
 
 
-def eval_policy_distances(agent, data):
+def eval_policy_distances(agent, data, name=None):
+    if not data:
+        return
     data = data.copy()
     data.state = dict2AttrDict(data.state, shallow=True)
     stats = agent.model.compute_policy_distances(data)
+    stats = prefix_name(stats, name)
     agent.store(**stats)
 
 
@@ -109,8 +113,9 @@ def train(
         time2record = to_record(env_step)
 
         if time2record:
-            eval_policy_distances(agent, eval_data)
-            eval_ego_and_lka(agent, runner, routine_config)
+            # eval_policy_distances(agent, eval_data, name='eval')
+            # eval_policy_distances(agent, agent.training_data)
+            # eval_ego_and_lka(agent, runner, routine_config)
             save(agent, None)
             log(agent, None, env_step, train_step, {})
 

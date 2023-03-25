@@ -5,7 +5,7 @@ export PYTHONPATH=.
 suite=$1
 shift
 envs=(
-    escalation
+    # escalation
     staghunt
 )
 algos=(
@@ -69,11 +69,11 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-# kws="0#n_epochs=$a1 0#n_envs=$a2"
+kws="0#n_epochs=$a1"
 for e in "${envs[@]}"; do
     config=$e
     env="${suite}-${e}"
-    for s in {1..19}; do
+    for s in {0..9}; do
         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
         commands+=("$py_script")
         echo $py_script

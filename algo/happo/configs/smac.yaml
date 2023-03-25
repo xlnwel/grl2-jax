@@ -35,9 +35,6 @@ env:
     n_runners: &nrunners 1
     n_envs: &nenvs 32
     timeout_done: &td False
-    env_args:
-        agent_obsk: 0
-        sample_mask_at_done: 0
     
     uid2aid: [0, 1, 2, 3, 4]
 

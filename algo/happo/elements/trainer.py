@@ -105,7 +105,7 @@ class Trainer(TrainerBase):
 
         if self.config.popart:
             for aid, uids in enumerate(self.env_stats.aid2uids):
-                self.popart[aid].update(stats.v_target[:, :, uids])
+                self.popart[aid].update(np.take(stats.v_target, indices=uids, axis=2))
 
         data = flatten_dict({k: v 
             for k, v in data.items() if v is not None}, prefix='data')

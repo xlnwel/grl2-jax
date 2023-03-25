@@ -82,7 +82,10 @@ def remove_redundancies(config: dict):
 
 
 def rename_env(config: dict):
-    env_name = config['env/env_name']
+    if 'env_name' in config:
+        env_name = config['env_name']
+    else:
+        env_name = config['env/env_name']
     suite = env_name.split('-', 1)[0]
     raw_env_name = env_name.split('-', 1)[1]
     config['env_name'] = env_name
@@ -260,10 +263,10 @@ if __name__ == '__main__':
         model_name = config.model_name
         strs = f'{root_dir}/{model_name}'.split('/')
         for s in strs[::-1]:
-            if directory.endswith(s):
-                directory = directory.removesuffix(f'/{s}')
             if s.endswith('logs'):
                 break
+            if directory.endswith(s):
+                directory = directory.removesuffix(f'/{s}')
 
         target_dir = d.replace(directory, target)
         do_logging(f'Copy from {d} to {target_dir}')

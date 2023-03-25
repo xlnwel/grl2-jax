@@ -128,10 +128,7 @@ def dist_js(d1, d2):
 
 
 def dist_cos(d1, d2):
-    p1 = d1.probs
-    p2 = d2.probs
-    
-    return optax.cosine_similarity(p1, p2)
+    return optax.cosine_similarity(d1.probs, d2.probs)
 
 
 def pop_lookahead(policies):

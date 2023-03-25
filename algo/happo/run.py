@@ -1,5 +1,6 @@
 import numpy as np
 
+from tools.rms import denormalize
 from algo.ma_common.run import Runner, concat_along_unit_dim
 from algo.lka_common.elements.model import LOOKAHEAD
 
@@ -18,7 +19,10 @@ def prepare_buffer(
     })
     if compute_return:
         if agent.trainer.config.popart:
-            value = agent.trainer.popart.denormalize(data.value)
+            poparts = [p.get_rms_stats(with_count=False) for p in agent.trainer.popart]
+            mean, var = [np.stack(s) for s in zip(*poparts)]
+            std = np.sqrt(var)
+            value = denormalize(data.value, mean, std)
         else:
             value = data.value
         value, next_value = value[:, :-1], value[:, 1:]

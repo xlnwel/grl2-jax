@@ -21,7 +21,7 @@ def print_dict(tree, prefix='', level='pwt', backtrack=3):
         else:
             do_logging(f'{prefix} {k}: {v}')
 
-def _print_array(v, prefix, level, backtrack):
+def print_array(v, prefix, level, backtrack):
     do_logging(f'{prefix}: {v.shape} {v.dtype} '
         f'norm({np.linalg.norm(v):0.4g}) mean({v.mean():0.4g}) std({v.std():0.4g}) max({v.max():0.4g}) min({v.min():0.4g}) ',
         level=level, backtrack=backtrack+1)
@@ -31,7 +31,7 @@ def print_dict_info(tree, prefix='', level='pwt', backtrack=3):
         for i, v in enumerate(tree):
             print_dict_info(v, f'{prefix} idx({i})', level=level, backtrack=backtrack+1)
     elif isinstance(tree, (np.ndarray, jnp.DeviceArray, jax.ShapedArray)):
-        _print_array(tree, prefix, level, backtrack=backtrack)
+        print_array(tree, prefix, level, backtrack=backtrack)
     elif isinstance(tree, Dict):
         for k, v in tree.items():
             if isinstance(v, Dict):
@@ -45,7 +45,7 @@ def print_dict_info(tree, prefix='', level='pwt', backtrack=3):
                 do_logging(f'{prefix} {k}: {len(v)}', level=level, backtrack=backtrack)
                 print_dict_info(v, f'{prefix} {k}', level, backtrack=backtrack+1)
             elif isinstance(v, (np.ndarray, jnp.DeviceArray, jax.ShapedArray)):
-                _print_array(v, f'{prefix} {k}', level, backtrack=backtrack)
+                print_array(v, f'{prefix} {k}', level, backtrack=backtrack)
             else:
                 do_logging(f'{prefix} {k}: {v} {type(v)}', level=level, backtrack=backtrack)
     else:

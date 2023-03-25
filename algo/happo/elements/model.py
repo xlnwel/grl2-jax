@@ -3,7 +3,7 @@ import jax
 from jax import random
 import jax.numpy as jnp
 
-from core.typing import AttrDict
+from core.typing import AttrDict, tree_slice
 from jax_tools import jax_utils
 from tools.display import print_dict_info
 from tools.file import source_file
@@ -117,8 +117,9 @@ class Model(LKAModelBase):
     ):
         data.state_reset, _ = jax_utils.split_data(
             data.state_reset, axis=1)
-        data.state = data.slice(slice(None), 0)
-        act_out, _ = self.jit_forward_policy(params, rng, data)
+        if 'state' in data:
+            data.state = tree_slice(data.state, indices=0, axis=1)
+        act_out, _ = self.forward_policy(params, rng, data)
         act_dist = self.policy_dist(act_out)
         logprob = act_dist.log_prob(data.action)
 
