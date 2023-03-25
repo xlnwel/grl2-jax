@@ -2,14 +2,14 @@
 
 export PYTHONPATH=.
 
+suite=$1
+shift
 algos=(
     happo_mb
 )
-suite=$1
-shift
 envs=(
     Ant_2x4
-    # HalfCheetah_2x3
+    HalfCheetah_2x3
     Walker2d_2x3
 )
 configs=(
@@ -20,7 +20,6 @@ args1=(
     mbpo
 )
 args2=(
-    5
     10
 )
 args3=(
@@ -71,11 +70,11 @@ a3=${args3[$idx]}
 
 commands=()
 for a2 in "${args2[@]}"; do
-    kws="0#dynamics_name=$d 1#model_loss_type=$a1 1#n_epochs=$a2"
+    # kws="0#dynamics_name=$d 1#model_loss_type=$a1 1#n_epochs=$a2"
     for e in "${envs[@]}"; do
         env="${suite}-${e}"
         for s in {0..3}; do
-            py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
+            py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
             commands+=("$py_script")
             echo $py_script
             # eval $py_script

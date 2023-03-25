@@ -19,6 +19,7 @@ from algo.happo_mb.run import branched_rollout, Runner
 def update_config(config, dynamics_config):
     if config.routine.compute_return_at_once:
         config.buffer.sample_keys += ['advantage', 'v_target']
+        config.dynamics_name = dynamics_config.dynamics_name
 
 
 @timeit
@@ -30,7 +31,12 @@ def env_run(agent, runner: Runner, dynamics, routine_config, lka_aids, name='rea
         lka_aids=lka_aids, 
         name=name
     )
-    prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
+    prepare_buffer(
+        agent, 
+        env_output, 
+        routine_config.compute_return_at_once, 
+        lookahead=False
+    )
 
     env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
     agent.add_env_step(env_steps_per_run)
@@ -123,7 +129,8 @@ def train(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_policy_distances(agent, eval_data)
+            eval_policy_distances(agent, eval_data, name='eval')
+            eval_policy_distances(agent, agent.training_data)
             eval_ego_and_lka(agent, runner, routine_config)
             if routine_config.quantify_dynamics_errors:
                 outdir = modelpath2outdir(agent.get_model_path())
