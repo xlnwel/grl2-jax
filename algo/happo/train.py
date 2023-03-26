@@ -1,11 +1,6 @@
 from functools import partial
 
-from core.ckpt.pickle import restore
-from core.typing import dict2AttrDict
-from tools.display import print_dict_info
-from tools.utils import prefix_name
-from algo.ma_common.train import *
-from algo.lka_common.train import lka_optimize
+from algo.lka_common.train import *
 from algo.happo.run import prepare_buffer
 
 
@@ -17,7 +12,7 @@ def lka_env_run(agent, runner: Runner, routine_config, lka_aids, name='lka'):
         lka_aids=lka_aids, 
         name=name
     )
-    prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
+    prepare_buffer(agent, env_output, routine_config.compute_return_at_once, True)
 
 
 @timeit
@@ -35,49 +30,6 @@ def env_run(agent, runner: Runner, routine_config, lka_aids, name='real'):
 
     return agent.get_env_step()
 
-
-@timeit
-def eval_ego_and_lka(agent, runner, routine_config):
-    agent.model.swap_params()
-    agent.model.swap_lka_params()
-    prev_ego_score, _, _ = evaluate(agent, runner, routine_config)
-    lka_score, _, _ = evaluate(agent, runner, routine_config, None)
-    agent.model.swap_params()
-    agent.model.swap_lka_params()
-    ego_score, _, _ = evaluate(agent, runner, routine_config)
-
-    prev_ego_score = np.array(prev_ego_score)
-    lka_score = np.array(lka_score)
-    ego_score = np.array(ego_score)
-    lka_pego_score_diff = lka_score - prev_ego_score
-    ego_pego_score_diff = ego_score - prev_ego_score
-    ego_lka_score_diff = ego_score - lka_score
-    agent.store(
-        prev_ego_score=prev_ego_score, 
-        ego_score=ego_score, 
-        lka_score=lka_score, 
-        lka_pego_score_diff=lka_pego_score_diff, 
-        ego_pego_score_diff=ego_pego_score_diff, 
-        ego_lka_score_diff=ego_lka_score_diff, 
-    )
-    agent.model.check_current_params()
-    agent.model.check_current_lka_params()
-
-
-def load_eval_data(filedir='/System/Volumes/Data/mnt/公共区/cxw/data', filename='uniform'):
-    data = restore(filedir=filedir, filename=filename)
-    print_dict_info(data)
-    return data
-
-
-def eval_policy_distances(agent, data, name=None):
-    if not data:
-        return
-    data = data.copy()
-    data.state = dict2AttrDict(data.state, shallow=True)
-    stats = agent.model.compute_policy_distances(data)
-    stats = prefix_name(stats, name)
-    agent.store(**stats)
 
 
 def train(
@@ -109,15 +61,11 @@ def train(
     while env_step < routine_config.MAX_STEPS:
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
         lka_optimize(agent)
-        train_step = ego_optimize(agent)
+        ego_optimize(agent)
         time2record = to_record(env_step)
 
         if time2record:
-            eval_policy_distances(agent, eval_data, name='eval')
-            eval_policy_distances(agent, agent.training_data)
-            eval_ego_and_lka(agent, runner, routine_config)
-            save(agent, None)
-            log(agent, None, env_step, train_step, {})
+            eval_and_log(agent, None, runner, routine_config, agent.training_data, eval_data)
 
 
 main = partial(main, train=train)

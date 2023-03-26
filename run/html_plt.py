@@ -285,16 +285,15 @@ if __name__ == '__main__':
             continue
         # save config
         to_remove_keys = ['root_dir', 'seed']
-        seed = config['seed']
+        seed = config.get('seed', 0)
         config = recursively_remove(config, to_remove_keys)
         config['seed'] = seed
         config = remove_lists(config)
         config = flatten_dict(config)
         config = rename_env(config)
         config = remove_redundancies(config)
-        config['model_name'] = config['model_name'].split('/')[1]
+        # config['model_name'] = config['model_name'].split('/')[1]
         config['buffer/sample_keys'] = []
-        yaml_op.save_config(config, path=yaml_path)
 
         # save stats
         data = merge_data(record_filename, '.txt')

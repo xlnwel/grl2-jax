@@ -149,14 +149,16 @@ def log_dynamics(model, env_step, score, error_stats):
 
 
 @timeit
-def log(agent, dynamics, env_step, train_step, errors):
+def log(agent, dynamics, errors):
+    env_step = agent.get_env_step()
+    train_step = agent.get_train_step()
     error_stats = prepare_dynamics_errors(errors)
     score = log_agent(agent, env_step, train_step, error_stats)
     log_dynamics(dynamics, env_step, score, error_stats)
 
 
 @timeit
-def build_agent(config, env_stats):
+def build_agent(config, env_stats, save_monitor_stats_to_disk=True, save_config=True):
     model_name = get_basic_model_name(config.model_name)
     new_model_name = '/'.join([model_name, f'a0'])
     modify_config(
@@ -175,37 +177,8 @@ def build_agent(config, env_stats):
     return agent
 
 
-def train(
-    agent, 
-    runner: Runner, 
-    routine_config, 
-    env_run=env_run, 
-    ego_optimize=ego_optimize
-):
-    MODEL_EVAL_STEPS = runner.env.max_episode_steps
-    do_logging(f'Model evaluation steps: {MODEL_EVAL_STEPS}')
-    do_logging('Training starts...')
-    env_step = agent.get_env_step()
-    to_record = Every(
-        routine_config.LOG_PERIOD, 
-        start=env_step, 
-        init_next=env_step != 0, 
-        final=routine_config.MAX_STEPS
-    )
-    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
 
-    while env_step < routine_config.MAX_STEPS:
-        env_step = env_run(agent, runner, routine_config, lka_aids=[])
-        train_step = ego_optimize(agent)
-        time2record = to_record(env_step)
-        
-        if time2record:
-            evaluate_and_record(agent, None, runner, env_step, routine_config)
-            save(agent, None)
-            log(agent, None, env_step, train_step, {})
-
-
-def main(configs, train=train):
+def main(configs, train):
     config = configs[0]
     seed = config.get('seed')
     set_seed(seed)

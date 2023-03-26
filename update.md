@@ -11,3 +11,7 @@ algo.ppo.elements.utils中的compute_actor_loss函数中的policy_sample_mask判
 2023.03.25
 1. 莫名修复一个由eval导致的ma-mujoco训练效果差的bug.
 2. 为smac添加train_entry
+
+2023.03.26
+1. gen_data_from_expert支持自动选取expert数据
+2. 把eval相关的函数整理到eval_and_log

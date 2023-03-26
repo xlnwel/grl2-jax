@@ -35,6 +35,8 @@ def load_config(path='config', to_attrdict=True):
 # save config to config.yaml
 def save_config(config: dict, config_to_update={}, path='config.yaml'):
     assert isinstance(config, dict)
+    if isinstance(config, AttrDict):
+        config = config.asdict()
     if not path.endswith('.yaml'):
         path = path + '.yaml'
     
@@ -66,10 +68,16 @@ def load(path: str):
 
     return data
 
-def dump(path: str, kwargs):
-    with open(path, 'w') as f:
+def dump(path: str, config):
+    if isinstance(config, AttrDict):
+        config = config.asdict()
+    path = default_path(path)
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    with path.open('w') as f:
         try:
-            yaml.dump(kwargs, f)
+            yaml.dump(config, f)
         except yaml.YAMLError as exc:
             print(exc)
 

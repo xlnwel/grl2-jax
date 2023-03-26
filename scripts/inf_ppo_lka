@@ -5,7 +5,7 @@ export PYTHONPATH=.
 suite=$1
 shift
 envs=(
-    # escalation
+    escalation
     staghunt
 )
 algos=(
@@ -70,16 +70,16 @@ a3=${args3[$idx]}
 
 commands=()
 # kws="0#n_epochs=$a1"
-for e in "${envs[@]}"; do
-    config=$e
-    env="${suite}-${e}"
-    for s in {0..9}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-        # eval $py_script
-    done
+# for e in "${envs[@]}"; do
+config=$e
+env="${suite}-${e}"
+for s in {0..7}; do
+    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+    commands+=("$py_script")
+    echo $py_script
+    # eval $py_script
 done
+# done
 # echo ${commands[@]}s
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 
 echo "Script completed"

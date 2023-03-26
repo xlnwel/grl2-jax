@@ -1,9 +1,7 @@
 from functools import partial
 
-from algo.ma_common.train import *
-from algo.lka_common.train import lka_optimize
-from algo.happo.train import load_eval_data, eval_policy_distances, \
-    lka_env_run, env_run, eval_ego_and_lka
+from algo.lka_common.train import *
+from algo.happo.train import lka_env_run, env_run
 
 
 def train(
@@ -36,15 +34,11 @@ def train(
         lka_env_run(agent, runner, routine_config, lka_aids=[])
         lka_optimize(agent)
         env_step = env_run(agent, runner, routine_config, lka_aids=None)
-        train_step = ego_optimize(agent)
+        ego_optimize(agent)
         time2record = to_record(env_step)
 
         if time2record:
-            eval_policy_distances(agent, eval_data, name='eval')
-            eval_policy_distances(agent, agent.training_data)
-            eval_ego_and_lka(agent, runner, routine_config)
-            save(agent, None)
-            log(agent, None, env_step, train_step, {})
+            eval_and_log(agent, None, runner, routine_config, agent.training_data, eval_data)
 
 
 main = partial(main, train=train)

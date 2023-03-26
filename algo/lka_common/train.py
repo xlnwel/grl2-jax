@@ -1,12 +1,14 @@
 import os
 import collections
-from functools import partial
+import jax
 
+from core.ckpt.pickle import restore
 from core.elements.builder import ElementsBuilder
-from core.typing import get_basic_model_name
+from core.typing import get_basic_model_name, dict2AttrDict
+from tools.display import print_dict_info
 from tools.plot import prepare_data_for_plotting, lineplot_dataframe
 from tools.store import StateStore
-from tools.utils import modify_config
+from tools.utils import modify_config, prefix_name
 from replay.dual import PRIMAL_REPLAY, DualReplay
 from algo.ma_common.train import *
 
@@ -108,20 +110,70 @@ def log_dynamics_errors(errors, outdir, env_step):
         for k, v in data.items():
             filename = f'{k}-{env_step}'
             filepath = '/'.join([outdir, filename])
-            with Timer('prepare_data'):
-                data[k] = prepare_data_for_plotting(
-                    v, y=y, smooth_radius=0, filepath=filepath)
+            data[k] = prepare_data_for_plotting(
+                v, y=y, smooth_radius=0, filepath=filepath)
             # lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
+
+
+def load_eval_data(filedir='/System/Volumes/Data/mnt/公共区/cxw/data', filename='uniform'):
+    data = restore(filedir=filedir, filename=filename)
+    print_dict_info(data)
+    return data
+
+
+@timeit
+def eval_policy_distances(agent, data, name=None, n=None):
+    if not data:
+        return
+    data = data.copy()
+    data.state = dict2AttrDict(data.state, shallow=True)
+    if n:
+        bs = data.obs.shape[0]
+        if n < bs:
+            indices = np.random.permutation(bs)[:n]
+            data = data.slice(indices)
+    stats = agent.model.compute_policy_distances(data)
+    stats = prefix_name(stats, name)
+    agent.store(**stats)
 
 
 @timeit
 def eval_ego_and_lka(agent, runner, routine_config):
-    ego_score, _, _ = evaluate(agent, runner, routine_config)
-    lka_optimize(agent)
+    agent.model.swap_params()
+    agent.model.swap_lka_params()
+    prev_ego_score, _, _ = evaluate(agent, runner, routine_config)
     lka_score, _, _ = evaluate(agent, runner, routine_config, None)
-    agent.trainer.sync_lookahead_params()
+    agent.model.swap_params()
+    agent.model.swap_lka_params()
+    ego_score, _, _ = evaluate(agent, runner, routine_config)
+
+    prev_ego_score = np.array(prev_ego_score)
+    lka_score = np.array(lka_score)
+    ego_score = np.array(ego_score)
+    lka_pego_score_diff = lka_score - prev_ego_score
+    ego_pego_score_diff = ego_score - prev_ego_score
+    ego_lka_score_diff = ego_score - lka_score
     agent.store(
+        prev_ego_score=prev_ego_score, 
         ego_score=ego_score, 
         lka_score=lka_score, 
-        lka_ego_score_diff=[lka - ego for lka, ego in zip(lka_score, ego_score)]
+        lka_pego_score_diff=lka_pego_score_diff, 
+        ego_pego_score_diff=ego_pego_score_diff, 
+        ego_lka_score_diff=ego_lka_score_diff, 
     )
+    agent.model.check_current_params()
+    agent.model.check_current_lka_params()
+
+
+@timeit
+def eval_and_log(agent, dynamics, runner, routine_config, 
+                 train_data, eval_data, errors={}, n=1000):
+    eval_policy_distances(agent, eval_data, name='eval', n=n)
+    seqlen = train_data.obs.shape[1]
+    train_data = dict2AttrDict({k: train_data[k] for k in eval_data})
+    train_data = jax.tree_util.tree_map(
+        lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)
+    eval_policy_distances(agent, train_data, n=n)
+    eval_ego_and_lka(agent, runner, routine_config)
+    save(agent, dynamics)
+    log(agent, dynamics, errors)

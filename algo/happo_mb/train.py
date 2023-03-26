@@ -7,12 +7,9 @@ from core.utils import configure_gpu, set_seed, save_code_for_seed
 from core.typing import AttrDict, modelpath2outdir
 from tools.display import print_dict
 from tools.timer import Every, timeit
-from algo.ma_common.train import ego_optimize, build_agent, save, log
 from algo.lka_common.run import quantify_dynamics_errors
-from algo.lka_common.train import dynamics_run, dynamics_optimize, \
-    build_dynamics, lka_optimize, lka_train, log_dynamics_errors
+from algo.lka_common.train import *
 from algo.happo.run import prepare_buffer
-from algo.happo.train import load_eval_data, eval_policy_distances, eval_ego_and_lka
 from algo.happo_mb.run import branched_rollout, Runner
 
 
@@ -115,7 +112,7 @@ def train(
             errors.lka = quantify_dynamics_errors(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
 
-        env_step, train_step = ego_train(
+        env_step, _ = ego_train(
             agent, 
             runner, 
             dynamics, 
@@ -129,14 +126,10 @@ def train(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_policy_distances(agent, eval_data, name='eval')
-            eval_policy_distances(agent, agent.training_data)
-            eval_ego_and_lka(agent, runner, routine_config)
-            if routine_config.quantify_dynamics_errors:
-                outdir = modelpath2outdir(agent.get_model_path())
-                log_dynamics_errors(errors, outdir, env_step)
-            save(agent, dynamics)
-            log(agent, dynamics, env_step, train_step, errors)
+            # if routine_config.quantify_dynamics_errors:
+            #     outdir = modelpath2outdir(agent.get_model_path())
+            #     log_dynamics_errors(errors, outdir, env_step)
+            eval_and_log(agent, dynamics, runner, routine_config, agent.training_data, eval_data, errors)
 
 
 def main(configs, train=train):

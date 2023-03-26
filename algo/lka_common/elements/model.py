@@ -87,14 +87,14 @@ class LKAModelBase(MAModelBase):
         stats.kl_mu_pi = kl_mu_pi
 
         lka_dist = self.joint_policy(
-            self.lookahead_params.policies, rng, data
+            self.prev_lka_params.policies, rng, data
         )
         kl_lka_pi = lka_dist.kl_divergence(pi_dist)
         stats.kl_lka_pi = kl_lka_pi
         stats.kl_mu_lka_diff = kl_mu_pi - kl_lka_pi
 
         mix_policies = [self.prev_params.policies[0]]
-        mix_policies += self.lookahead_params.policies[1:]
+        mix_policies += self.prev_lka_params.policies[1:]
         mix_dist = self.joint_policy(
             mix_policies, rng, data
         )

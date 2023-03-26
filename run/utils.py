@@ -119,7 +119,7 @@ def read_config(algo, env, filename=None):
 
     return config
 
-def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True):
+def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True, return_path=False):
     configs_dir = get_configs_dir(algo)
     if filename is None:
         filename = get_filename_with_env(env)
@@ -144,7 +144,8 @@ def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True):
 
     if to_attrdict:
         config = dict2AttrDict(config)
-
+    if return_path:
+        return config, path
     return config
 
 

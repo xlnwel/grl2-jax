@@ -12,7 +12,7 @@ envs=(
     # escalation
     # escalation
     # escalation
-    # escalation
+    escalation
     staghunt
     # staghunt
 )
