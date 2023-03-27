@@ -5,23 +5,23 @@ from algo.happo.run import prepare_buffer
 
 
 @timeit
-def lka_env_run(agent, runner: Runner, routine_config, lka_aids, name='lka'):
+def lka_env_run(agent, runner: Runner, routine_config, name='lka', **kwargs):
     env_output = runner.run(
         agent, 
         n_steps=routine_config.n_steps, 
-        lka_aids=lka_aids, 
-        name=name
+        name=name, 
+        **kwargs
     )
     prepare_buffer(agent, env_output, routine_config.compute_return_at_once, True)
 
 
 @timeit
-def env_run(agent, runner: Runner, routine_config, lka_aids, name='real'):
+def env_run(agent, runner: Runner, routine_config, name='real', **kwargs):
     env_output = runner.run(
         agent, 
         n_steps=routine_config.n_steps, 
-        lka_aids=lka_aids, 
-        name=name
+        name=name, 
+        **kwargs
     )
     prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
 
@@ -59,7 +59,7 @@ def train(
     eval_data = load_eval_data(filename=env_name)
 
     while env_step < routine_config.MAX_STEPS:
-        env_step = env_run(agent, runner, routine_config, lka_aids=[])
+        env_step = env_run(agent, runner, routine_config, lka_aids=[], store_info=True)
         lka_optimize(agent)
         ego_optimize(agent)
         time2record = to_record(env_step)

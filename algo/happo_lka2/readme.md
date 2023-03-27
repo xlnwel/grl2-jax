@@ -1,3 +1,3 @@
-### HAPPO + Model-Based Looking-Ahead
+### HAPPO + Lookahead
 
-Looking-ahead policies are learned using a learned model.
+We collect data from the environment to train lookahead policies, which we subsequently utilize to gather data for optimizing $\pi$.

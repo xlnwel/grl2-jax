@@ -67,12 +67,12 @@ class TrainingLoop:
     def sample_data(self):
         with Timer('sample'):
             data = self.buffer.sample()
+        self.training_data = data
         if data is None:
             return None
         data.setdefault('global_state', data.obs)
         if 'next_obs' in data:
             data.setdefault('next_global_state', data.next_obs)
-        self.training_data = data
 
         return data
 

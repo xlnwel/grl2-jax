@@ -73,7 +73,7 @@ for a2 in "${args2[@]}"; do
     # kws="0#dynamics_name=$d 1#model_loss_type=$a1 1#n_epochs=$a2"
     for e in "${envs[@]}"; do
         env="${suite}-${e}"
-        for s in {0..3}; do
+        for s in {0..4}; do
             py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
             commands+=("$py_script")
             echo $py_script

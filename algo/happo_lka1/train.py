@@ -31,9 +31,10 @@ def train(
     eval_data = load_eval_data(filename=env_name)
 
     while env_step < routine_config.MAX_STEPS:
-        lka_env_run(agent, runner, routine_config, lka_aids=[])
+        lka_env_run(agent, runner, routine_config, lka_aids=[], store_info=True)
         lka_optimize(agent)
-        env_step = env_run(agent, runner, routine_config, lka_aids=[])
+        env_step = env_run(agent, runner, routine_config, 
+                           lka_aids=[], store_info=False)
         ego_optimize(agent)
         time2record = to_record(env_step)
 

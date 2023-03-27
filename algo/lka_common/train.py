@@ -86,6 +86,13 @@ def lka_optimize(agent):
 
 
 @timeit
+def real_lka_train(agent, runner, routine_config, n_runs, run_fn, opt_fn, **kwargs):
+    for _ in range(n_runs):
+        run_fn(agent, runner, routine_config, **kwargs)
+        opt_fn(agent)
+
+
+@timeit
 def lka_train(agent, dynamics, routine_config, dynamics_routine_config, 
         n_runs, rng, lka_aids, run_fn=dynamics_run, opt_fn=lka_optimize):
     assert n_runs >= 0, n_runs
@@ -141,28 +148,28 @@ def eval_policy_distances(agent, data, name=None, n=None):
 def eval_ego_and_lka(agent, runner, routine_config):
     agent.model.swap_params()
     agent.model.swap_lka_params()
-    prev_ego_score, _, _ = evaluate(agent, runner, routine_config)
+    mu_score, _, _ = evaluate(agent, runner, routine_config)
     lka_score, _, _ = evaluate(agent, runner, routine_config, None)
     agent.model.swap_params()
     agent.model.swap_lka_params()
-    ego_score, _, _ = evaluate(agent, runner, routine_config)
-
-    prev_ego_score = np.array(prev_ego_score)
-    lka_score = np.array(lka_score)
-    ego_score = np.array(ego_score)
-    lka_pego_score_diff = lka_score - prev_ego_score
-    ego_pego_score_diff = ego_score - prev_ego_score
-    ego_lka_score_diff = ego_score - lka_score
-    agent.store(
-        prev_ego_score=prev_ego_score, 
-        ego_score=ego_score, 
-        lka_score=lka_score, 
-        lka_pego_score_diff=lka_pego_score_diff, 
-        ego_pego_score_diff=ego_pego_score_diff, 
-        ego_lka_score_diff=ego_lka_score_diff, 
-    )
     agent.model.check_current_params()
     agent.model.check_current_lka_params()
+    pi_score, _, _ = evaluate(agent, runner, routine_config)
+
+    mu_score = np.array(mu_score)
+    lka_score = np.array(lka_score)
+    pi_score = np.array(pi_score)
+    lka_mu_score_diff = lka_score - mu_score
+    pi_mu_score_diff = pi_score - mu_score
+    pi_lka_score_diff = pi_score - lka_score
+    agent.store(
+        mu_score=mu_score, 
+        pi_score=pi_score, 
+        lka_score=lka_score, 
+        lka_mu_score_diff=lka_mu_score_diff, 
+        pi_mu_score_diff=pi_mu_score_diff, 
+        pi_lka_score_diff=pi_lka_score_diff, 
+    )
 
 
 @timeit
