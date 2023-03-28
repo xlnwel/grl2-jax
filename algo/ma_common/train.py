@@ -149,7 +149,12 @@ def log_dynamics(model, env_step, score, error_stats):
 
 
 @timeit
-def log(agent, dynamics, errors):
+# def log(agent, dynamics, errors):
+def log(*args):
+    if len(args) == 3:
+        agent, dynamics, errors  = args
+    elif len(args) == 5:
+        agent, dynamics, env_step, train_step, errors = args
     env_step = agent.get_env_step()
     train_step = agent.get_train_step()
     error_stats = prepare_dynamics_errors(errors)
@@ -175,7 +180,6 @@ def build_agent(config, env_stats, save_monitor_stats_to_disk=True, save_config=
     agent = elements.agent
 
     return agent
-
 
 
 def main(configs, train):
