@@ -40,7 +40,7 @@ done
 # python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-Walker2d_2x3/happo_lka1/0325/baseline/seed=2/a0 -ne 10 -ns 1000
 # python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-Walker2d_2x3/happo_lka1/0325/baseline/seed=3/a0 -ne 10 -ns 1000
 
-python run/gen_data_from_expert.py
-rsync -avz data /System/Volumes/Data/mnt/公共区/cxw
+# python run/gen_data_from_expert.py
+# rsync -avz data /System/Volumes/Data/mnt/公共区/cxw
 
-./scripts/run_inf
+# ./scripts/run_inf

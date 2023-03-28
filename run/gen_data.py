@@ -65,10 +65,12 @@ def load_config_from_filedir(filedir, from_algo=False):
         config, 
         root_dir=root_dir, 
         model_name=model_name, 
+        name=algo, 
+        seed=names[-2]
     )
     print_dict(config)
-    yaml_path = f'{filedir}/config'
-    yaml_op.save_config(config, path=yaml_path)
+    # yaml_path = f'{filedir}/config'
+    # yaml_op.save_config(config, path=yaml_path)
 
     return config
 

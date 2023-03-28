@@ -20,13 +20,13 @@ def update_config(config, dynamics_config):
 
 
 @timeit
-def env_run(agent, runner: Runner, dynamics, routine_config, lka_aids, name='real'):
+def env_run(agent, runner: Runner, dynamics, routine_config, name='real', **kwargs):
     env_output = runner.run(
         agent, 
         n_steps=routine_config.n_steps, 
         dynamics=dynamics, 
-        lka_aids=lka_aids, 
-        name=name
+        name=name, 
+        **kwargs
     )
     prepare_buffer(
         agent, 
@@ -43,8 +43,8 @@ def env_run(agent, runner: Runner, dynamics, routine_config, lka_aids, name='rea
 
 @timeit
 def ego_train(agent, runner, dynamics, routine_config, 
-        lka_aids, run_fn, opt_fn):
-    env_step = run_fn(agent, runner, dynamics, routine_config, lka_aids)
+        run_fn, opt_fn, **kwargs):
+    env_step = run_fn(agent, runner, dynamics, routine_config, **kwargs)
     train_step = opt_fn(agent)
 
     return env_step, train_step
@@ -93,9 +93,9 @@ def train(
         time2record = to_record(env_step)
 
         dynamics_optimize(dynamics)
-        if routine_config.quantify_dynamics_errors and time2record:
-            errors.train = quantify_dynamics_errors(
-                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
+        # if routine_config.quantify_dynamics_errors and time2record:
+        #     errors.train = quantify_dynamics_errors(
+        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         lka_train(
             agent, 
@@ -104,13 +104,13 @@ def train(
             dynamics_routine_config, 
             n_runs=routine_config.n_lookahead_steps, 
             rng=lka_rng, 
-            lka_aids=[], 
+            lka_aids=None, 
             run_fn=dynamics_run, 
             opt_fn=lka_optimize, 
         )
-        if routine_config.quantify_dynamics_errors and time2record:
-            errors.lka = quantify_dynamics_errors(
-                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
+        # if routine_config.quantify_dynamics_errors and time2record:
+        #     errors.lka = quantify_dynamics_errors(
+        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
 
         env_step, _ = ego_train(
             agent, 
@@ -121,9 +121,9 @@ def train(
             run_fn=env_run, 
             opt_fn=ego_optimize
         )
-        if routine_config.quantify_dynamics_errors and time2record:
-            errors.ego = quantify_dynamics_errors(
-                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
+        # if routine_config.quantify_dynamics_errors and time2record:
+        #     errors.ego = quantify_dynamics_errors(
+        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
             # if routine_config.quantify_dynamics_errors:

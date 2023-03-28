@@ -1,8 +1,8 @@
 ---
-algorithm: &algo haa2c_mb
-name: haa2c_mb
+algorithm: &algo happo_lka1
+name: happo_lka1
 dynamics_name: dynamics
-info: haa2c_mb
+info: happo_lka1
 
 precision: 32
 
