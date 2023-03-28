@@ -1,5 +1,6 @@
 import argparse
 import os, sys
+from enum import Enum
 from pathlib import Path
 import json
 import pandas as pd
@@ -11,7 +12,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import do_logging
 from core.mixin.monitor import is_nonempty_file, merge_data
-from tools.file import yield_dirs
 from tools import yaml_op
 from tools.utils import flatten_dict, recursively_remove
 
@@ -24,6 +24,7 @@ def get_model_path(dirpath) -> ModelPath:
     model_path = ModelPath('/'.join(d[:3]), '/'.join(d[3:]))
     return model_path
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('directory',
@@ -35,14 +36,15 @@ def parse_args():
                         nargs='*')
     parser.add_argument('--name', '-n', 
                         type=str, 
-                        default=None, 
+                        default=[], 
                         nargs='*')
     parser.add_argument('--target', '-t', 
                         type=str, 
                         default='~/Documents/html-logs')
     parser.add_argument('--date', '-d', 
                         type=str, 
-                        default=None)
+                        default=[], 
+                        nargs='*')
     parser.add_argument('--n_processes', '-np', 
                         type=int, 
                         default=16)
@@ -94,81 +96,6 @@ def rename_env(config: dict):
     return config
 
 
-# def process_data(args, d):
-#     config_name = 'config.yaml' 
-#     player0_config_name = 'config_p0.yaml' 
-#     js_name = 'parameter.json'
-#     record_name = 'record.txt'
-#     process_name = 'progress.csv'
-
-#     directory = os.path.abspath(args.directory)
-#     target = os.path.expanduser(args.target)
-
-#     while directory.endswith('/'):
-#         directory = directory[:-1]
-
-#     # load config
-#     yaml_path = '/'.join([d, config_name])
-#     if not os.path.exists(yaml_path):
-#         new_yaml_path = '/'.join([d, player0_config_name])
-#         if os.path.exists(new_yaml_path):
-#             yaml_path = new_yaml_path
-#         else:
-#             do_logging(f'{yaml_path} does not exist', color='magenta')
-#             return
-#     config = yaml_op.load_config(yaml_path)
-#     root_dir = config.root_dir
-#     model_name = config.model_name
-#     strs = f'{root_dir}/{model_name}'.split('/')
-#     for s in strs[::-1]:
-#         if directory.endswith(s):
-#             directory = directory.removesuffix(f'/{s}')
-
-#     target_dir = d.replace(directory, target)
-#     do_logging(f'Copy from {d} to {target_dir}')
-#     if not os.path.isdir(target_dir):
-#         Path(target_dir).mkdir(parents=True)
-#     assert os.path.isdir(target_dir), target_dir
-    
-#     # define paths
-#     json_path = '/'.join([target_dir, js_name])
-#     record_path = '/'.join([d, record_name])
-#     csv_path = '/'.join([target_dir, process_name])
-#     # do_logging(f'yaml path: {yaml_path}')
-#     if not os.path.exists(record_path):
-#         do_logging(f'{record_path} does not exist', color='magenta')
-#         return
-#     # save config
-#     to_remove_keys = ['root_dir', 'seed']
-#     seed = config['seed']
-#     config = recursively_remove(config, to_remove_keys)
-#     config['seed'] = seed
-#     config = remove_lists(config)
-#     config = flatten_dict(config)
-#     config = rename_env(config)
-#     config = remove_redundancies(config)
-#     config['model_name'] = config['model_name'].split('/')[1]
-
-#     with open(json_path, 'w') as json_file:
-#         json.dump(config, json_file)
-
-#     # save stats
-#     try:
-#         data = pd.read_table(record_path, on_bad_lines='skip')
-#     except:
-#         do_logging(f'Record path ({record_path}) constains no data', color='magenta')
-#         return
-#     if len(data.keys()) == 1:
-#         data = pd.read_csv(record_path)
-#     for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
-#         if k not in data.keys():
-#             try:
-#                 data[k] = (data[f'{k}1'] + data[f'{k}2']) / 2
-#             except:
-#                 pass
-#     data.to_csv(csv_path)
-
-
 def process_data(data):
     if 'model_error/ego&train-trans' in data:
         k1_err = data[f'model_error/ego-trans']
@@ -202,7 +129,87 @@ def to_csv(env_name, v):
             data[SCORE] = (data[SCORE] - min_score) / (max_score - min_score)
             print(f'\t{csv_path}. norm score max={np.max(data[SCORE])}, min={np.min(data[SCORE])}')
         data.to_csv(csv_path)
-        
+
+
+class DirLevel(Enum):
+    ROOT = 0
+    LOGS = 1
+    ENV = 2
+    ALGO = 3
+    DATE = 4
+    MODEL = 5
+    SEED = 6
+    FINAL = 7
+    
+    def next(self):
+        v = self.value + 1
+        if v > 7:
+            raise ValueError(f'Enumeration ended')
+        return DirLevel(v)
+
+
+
+def join_dir_name(filedir, filename):
+    return '/'.join([filedir, filename])
+
+
+def get_level(search_dir, last_prefix):
+    for d in os.listdir(search_dir):
+        if d.endswith('logs'):
+            return DirLevel.ROOT
+    all_names = search_dir.split('/')
+    last_name = all_names[-1]
+    if any([last_name.startswith(p) for p in last_prefix]):
+        return DirLevel.FINAL
+    if last_name.endswith('logs'):
+        return DirLevel.LOGS
+    if last_name.startswith('seed'):
+        return DirLevel.SEED
+    suite = None
+    for name in search_dir.split('/'):
+        if name.endswith('-logs'):
+            suite = name.split('-')[0]
+    if last_name.startswith(f'{suite}'):
+        return DirLevel.ENV
+    if last_name.isdigit():
+        return DirLevel.DATE
+    # find algorithm name
+    algo = None
+    model = None
+    for i, name in enumerate(all_names):
+        if name.isdigit():
+            algo = all_names[i-1]
+            if len(all_names) == i+2:
+                return DirLevel.MODEL
+    if algo is None:
+        return DirLevel.ALGO
+    
+    return DirLevel.FINAL
+
+
+def fixed_pattern_search(search_dir, level=DirLevel.LOGS, matches=[], ignores=[]):
+    if level != DirLevel.FINAL:
+        if not os.path.isdir(search_dir):
+            return []
+        for d in os.listdir(search_dir):
+            for f in fixed_pattern_search(
+                join_dir_name(search_dir, d), 
+                level=level.next(), 
+                matches=matches, 
+                ignores=ignores
+            ):
+                yield f
+        return []
+    if matches:
+        for m in matches:
+            if m in search_dir:
+                yield search_dir
+        return []
+    for i in ignores:
+        if i in search_dir:
+            return []
+    yield search_dir
+
 
 if __name__ == '__main__':
     args = parse_args()
@@ -212,6 +219,7 @@ if __name__ == '__main__':
     js_name = 'parameter.json'
     record_name = 'record'
     process_name = 'progress.csv'
+    name = args.name
     date = args.date
     do_logging(f'Loading logs on date: {date}')
 
@@ -233,22 +241,23 @@ if __name__ == '__main__':
         if not os.path.exists(new_logs):
             Path(new_logs).mkdir(parents=True)
         cmd = ['rsync', '-avz', old_logs, new_logs, '--exclude', 'src']
-        for n in args.name:
+        for n in name:
             cmd += ['--include', n]
         do_logging(' '.join(cmd))
         process = subprocess.Popen(cmd)
 
     search_dir = directory
+    level = get_level(search_dir, args.prefix)
+    print('Search directory level:', level)
     # all_data = collections.defaultdict(list)
-    for d in yield_dirs(search_dir, args.prefix, is_suffix=False, root_matches=args.name):
-        if date is not None and date not in d:
-            do_logging(f'Bypass directory "{d}" due to mismatch date')
-            continue
-            
-        if args.ignore and args.ignore in d:
-            do_logging(f'Bypass directory "{d}" as it contains ignore pattern "{args.ignore}"')
-            continue
+    # for d in yield_dirs(search_dir, args.prefix, is_suffix=False, root_matches=args.name):
+    matches = args.name + args.date
+    ignores = args.ignore
 
+    for d in fixed_pattern_search(search_dir, level=level, matches=matches, ignores=ignores):
+        last_name = d.split('/')[-1]
+        if not any([last_name.startswith(p) for p in args.prefix]):
+            continue
         # load config
         yaml_path = '/'.join([d, config_name])
         if not os.path.exists(yaml_path):

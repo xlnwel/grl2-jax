@@ -11,22 +11,22 @@ envs=(
     # $1
     # escalation
     # escalation
-    # escalation
+    escalation
     escalation
     staghunt
-    # staghunt
+    staghunt
 )
 configs=(
     "${suite}"
 )
 args1=(
-    256,256
-    256,256
-    128,128
-    128,128
+    640
+    1280
+    1280
+    2560
 )
 args2=(
-    64,64
+    640
     128,128
     64,64
     128,128
@@ -95,21 +95,22 @@ commands=()
 # for a2 in "${args2[@]}"; do
 # kws="0#n_epochs=$1"
 # kws="0#dynamics_name=$d"
-    # for e in "${envs[@]}"; do
-env="${suite}-${e}"
+kws="0#norm_adv=False 0#n_simulated_envs=$a1"
+# for e in "${envs[@]}"; do
 config="${e}"
+env="${suite}-${e}"
 for s in {0..15}; do
     py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
     commands+=("$py_script")
     echo $py_script
-    # eval $py_script
 done
-#     done
 # done
+# config="${e}"
+# env="${suite}-${e}"
+# for s in {0..15}; do
+#     py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#     commands+=("$py_script")
+#     echo $py_script
 # done
-# echo ${commands[@]}s
-lc=${#commands[@]}
-p=$((lc / le))
-# echo $p
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

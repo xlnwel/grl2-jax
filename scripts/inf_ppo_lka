@@ -9,21 +9,16 @@ envs=(
     staghunt
 )
 algos=(
-    $1
+    # $1
+    happo
     # happo
     # happo_lka1
     # happo_lka1
     # happo_lka2
-    # happo_lka2
+    happo_lka2
 )
 args1=(
-    $2
-    10
-    10
-    10
-    20
-    20
-    20
+    ppo
 )
 args2=(
     $3
@@ -69,17 +64,37 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-# kws="0#n_epochs=$a1"
-for e in "${envs[@]}"; do
-    config=$e
-    env="${suite}-${e}"
-    for s in {0..15}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-        # eval $py_script
+for a1 in "${args1[@]}"; do
+    kws="0#norm_adv=False"
+    for e in "${envs[@]}"; do
+        config=$e
+        env="${suite}-${e}"
+        for s in {0..7}; do
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+            commands+=("$py_script")
+            echo $py_script
+        done
     done
 done
+for a1 in "${args1[@]}"; do
+    kws="0#norm_adv=False"
+    for e in "${envs[@]}"; do
+        config=$e
+        env="${suite}-${e}"
+        for s in {8..15}; do
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+            commands+=("$py_script")
+            echo $py_script
+        done
+    done
+done
+# config=$e
+# env="${suite}-${e}"
+# for s in {0..15}; do
+#     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#     commands+=("$py_script")
+#     echo $py_script
+# done
 # echo ${commands[@]}s
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 
 echo "Script completed"

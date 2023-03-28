@@ -12,7 +12,6 @@ from core.log import do_logging
 from core.mixin.monitor import is_nonempty_file, merge_data
 from tools.file import yield_dirs
 from tools import yaml_op
-from tools.utils import flatten_dict, recursively_remove
 
 ModelPath = collections.namedtuple('ModelPath', 'root_dir model_name')
 Data = collections.namedtuple('data', 'mean std')

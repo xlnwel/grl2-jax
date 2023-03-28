@@ -5,24 +5,23 @@ export PYTHONPATH=.
 suite=$1
 shift
 algos=(
-    # happo
+    happo
     # happo_lka1
-    # happo_lka2
-    $1
+    happo_lka2
+    # $1
     # masac_lka1
-    mambpo
+    # mambpo
 )
 envs=(
     Ant_2x4
-    HalfCheetah_2x3
     Walker2d_2x3
+    HalfCheetah_2x3
 )
 configs=(
     "${suite}"
 )
 args1=(
-    step
-    batch
+    ppo
 )
 args2=(
     $2
@@ -69,17 +68,20 @@ a3=${args3[$idx]}
 
 commands=()
 # kws="update_scheme=$a1"
-# for a in "${algos[@]}"; do
-for e in "${envs[@]}"; do
-    env="${suite}-${e}"
-    for s in {0..3}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-        # eval $py_script
+for a1 in "${args1[@]}"; do
+    for a in "${algos[@]}"; do
+        kws="0#norm_adv=False"
+        for e in "${envs[@]}"; do
+            env="${suite}-${e}"
+            for s in {0..3}; do
+                py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+                commands+=("$py_script")
+                echo $py_script
+                # eval $py_script
+            done
+        done
     done
 done
-# done
 # echo ${commands[@]}s
 lc=${#commands[@]}
 p=$((lc / le))

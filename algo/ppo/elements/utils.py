@@ -179,6 +179,16 @@ def compute_actor_loss(
             )
         stats.ppo_pg_loss = ppo_pg_loss
         stats.ppo_clip_loss = ppo_clip_loss
+    elif config.pg_type == 'correct_ppo':
+        cppo_pg_loss, cppo_clip_loss, raw_pg_loss = \
+            jax_loss.correct_ppo_loss(
+                advantage=stats.advantage, 
+                pi_logprob=stats.pi_logprob, 
+                mu_logprob=data.mu_logprob, 
+                clip_range=config.ppo_clip_range, 
+            )
+        stats.cppo_pg_loss = cppo_pg_loss
+        stats.cppo_clip_loss = cppo_clip_loss
     else:
         raise NotImplementedError
     if raw_pg_loss.ndim == 4:   # reduce the action dimension for continuous actions

@@ -112,12 +112,10 @@ class Trainer(TrainerBase):
 
         data = flatten_dict({k: v 
             for k, v in data.items() if v is not None}, prefix='data')
-        stats = prefix_name(stats, 'theta')
         stats.update(data)
         stats['theta/popart/mean'] = [rms.mean for rms in self.popart]
         stats['theta/popart/std'] = [rms.std for rms in self.popart]
-        with Timer('stats_subsampling'):
-            stats = sample_stats(stats, max_record_size=100)
+        # stats = sample_stats(stats, max_record_size=100)
 
         return stats
 
@@ -151,14 +149,14 @@ class Trainer(TrainerBase):
         teammate_log_ratio = jnp.zeros_like(data.mu_logprob[:, :, :1])
 
         v_target = [None for _ in self.aid2uids]
-        stats_list = []
+        all_stats = AttrDict()
         ret_rng, rng = random.split(rng)
         for aid in random.permutation(rng, self.n_agents):
             aid = int(aid)
             uids = self.aid2uids[aid]
             agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, aid)
             agent_data = data.slice(indices=uids, axis=2)
-            for _ in range(n_epochs):
+            for e in range(n_epochs):
                 vts = []
                 np.random.shuffle(indices)
                 for idx in np.split(indices, n_mbs):
@@ -177,21 +175,20 @@ class Trainer(TrainerBase):
                             compute_teammate_log_ratio=False
                         )
                     vts.append(stats.pop('v_target'))
+                all_stats.update(**prefix_name(stats, name=f'agent{aid}_epoch{e}'))
             teammate_log_ratio = self.compute_teammate_log_ratio(
                 agent_theta.policy, self.rng, teammate_log_ratio, agent_data
             )
             
             v_target[aid] = np.concatenate(vts)
-            stats.teammate_log_ratio = teammate_log_ratio
-            stats_list.append(stats)
+            all_stats[f'agent{aid}/teammate_log_ratio'] = teammate_log_ratio
             theta, opt_state = set_params_and_opt(
                 theta, opt_state, aid, agent_theta, agent_opt_state)
         
         if return_stats:
-            stats = batch_dicts(stats_list, np.stack)
-            stats.v_target = np.concatenate(v_target, 2)
-            assert stats.v_target.shape == data.reward.shape, (stats.v_target.shape, data.reward.shape)
-            return theta, opt_state, stats, ret_rng
+            all_stats.v_target = np.concatenate(v_target, 2)
+            assert all_stats.v_target.shape == data.reward.shape, (all_stats.v_target.shape, data.reward.shape)
+            return theta, opt_state, all_stats, ret_rng
         return theta, opt_state, ret_rng
 
     def stepwise_sequential_opt(self, theta, opt_state, data, 
@@ -200,10 +197,10 @@ class Trainer(TrainerBase):
         shuffle_rng = rngs[:n_epochs]
         ret_rng = rngs[-1]
         rngs = rngs[n_epochs:-1]
+        all_stats = AttrDict()
         for e in range(n_epochs):
             indices = random.shuffle(shuffle_rng[e], indices)
             v_target = []
-            stats_list = []
             for i, idx in enumerate(np.split(indices, n_mbs)):
                 vts = [None for _ in self.aid2uids]
                 data_slice = data.slice(idx.tolist())   # note that bugs may happen when n_mbs == n_envs and idx is jnp.array
@@ -232,15 +229,14 @@ class Trainer(TrainerBase):
                         theta, opt_state, aid, agent_theta, agent_opt_state)
                     
                     vts[aid] = stats.pop('v_target')
+                    all_stats.update(**prefix_name(stats, name=f'agent{aid}_epoch{e}'))
                 v_target.append(vts)
-                stats_list.append(stats)
 
         if return_stats:
-            stats = batch_dicts(stats_list, np.stack)
             v_target = [np.concatenate(v, 2) for v in v_target]
-            stats.v_target = np.concatenate(v_target)
-            assert stats.v_target.shape == data.reward.shape, (stats.v_target.shape, data.reward.shape)
-            return theta, opt_state, stats, ret_rng
+            all_stats.v_target = np.concatenate(v_target)
+            assert all_stats.v_target.shape == data.reward.shape, (all_stats.v_target.shape, data.reward.shape)
+            return theta, opt_state, all_stats, ret_rng
         return theta, opt_state, ret_rng
 
     def sync_lookahead_params(self):

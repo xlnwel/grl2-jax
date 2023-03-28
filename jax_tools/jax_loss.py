@@ -405,6 +405,24 @@ def ppo_loss(
     return pg_loss, clipped_loss, loss
 
 
+def correct_ppo_loss(
+    *, 
+    advantage, 
+    pi_logprob, 
+    mu_logprob, 
+    clip_range
+):
+    ratio = jnp.exp(pi_logprob - mu_logprob)
+    neutral_ratio = jnp.exp(pi_logprob - lax.stop_gradient(pi_logprob))
+    jax_assert.assert_shape_compatibility([advantage, ratio])
+    ratio = jnp.where(jnp.logical_and((advantage >= 0), (ratio < 1)), neutral_ratio, ratio)
+    pg_loss, clipped_loss = _compute_ppo_policy_losses(
+        advantage, ratio, clip_range)
+    loss = jnp.maximum(pg_loss, clipped_loss)
+    
+    return pg_loss, clipped_loss, loss
+
+
 def high_order_ppo_loss(
     *, 
     advantage, 

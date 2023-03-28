@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict
-from jax_tools import jax_loss
+from jax_tools import jax_loss, jax_math
 from tools.rms import denormalize
 from .utils import *
 
@@ -122,6 +122,7 @@ class Loss(LossBase):
             data, 
             stats, 
         )
+        stats = summarize_adv_ratio(stats, data)
         loss = actor_loss + value_loss + stats.kl_loss
         stats.loss = loss
 
@@ -279,3 +280,31 @@ def create_loss(config, model, name='happo'):
     loss = Loss(config=config, model=model, name=name)
 
     return loss
+
+
+def summarize_adv_ratio(stats, data):
+    stats.raw_adv_ratio_pp = jax_math.mask_mean(
+        jnp.logical_and(stats.raw_adv > 0, stats.ratio > 1), 
+        data.sample_mask, data.n)
+    stats.raw_adv_ratio_pn = jax_math.mask_mean(
+        jnp.logical_and(stats.raw_adv > 0, stats.ratio < 1), 
+        data.sample_mask, data.n)
+    stats.raw_adv_ratio_np = jax_math.mask_mean(
+        jnp.logical_and(stats.raw_adv < 0, stats.ratio > 1), 
+        data.sample_mask, data.n)
+    stats.raw_adv_ratio_nn = jax_math.mask_mean(
+        jnp.logical_and(stats.raw_adv < 0, stats.ratio < 1), 
+        data.sample_mask, data.n)
+    stats.adv_ratio_pp = jax_math.mask_mean(
+        jnp.logical_and(stats.advantage > 0, stats.ratio > 1), 
+        data.sample_mask, data.n)
+    stats.adv_ratio_pn = jax_math.mask_mean(
+        jnp.logical_and(stats.advantage > 0, stats.ratio < 1), 
+        data.sample_mask, data.n)
+    stats.adv_ratio_np = jax_math.mask_mean(
+        jnp.logical_and(stats.advantage < 0, stats.ratio > 1), 
+        data.sample_mask, data.n)
+    stats.adv_ratio_nn = jax_math.mask_mean(
+        jnp.logical_and(stats.advantage < 0, stats.ratio < 1), 
+        data.sample_mask, data.n)
+    return stats
