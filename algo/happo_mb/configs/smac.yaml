@@ -1,7 +1,8 @@
 ---
-algorithm: &algo happo
-name: happo
-info: happo
+algorithm: &algo happo_mb
+name: happo_mb
+dynamics_name: sdynamics
+info: happo_mb
 
 precision: 32
 
@@ -19,21 +20,27 @@ routine:
     LOG_PERIOD: 2e5
     EVAL_PERIOD: null
 
+    n_eval_envs: 1000
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 0
-    lookahead_rollout: sim
+    n_lookahead_steps: 1
+    n_simulated_envs: &nse 400
+    n_simulated_steps: &nss 10
+    model_rollout_type: sim
     compute_return_at_once: False
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
+    restore_state: False
+    switch_model_at_every_step: False
+    quantify_dynamics_errors: False
 
 env:
     env_name: &env_name smac-5m_vs_6m
     n_runners: &nrunners 1
-    n_envs: &nenvs 32
+    n_envs: &nenvs 4
     timeout_done: &td False
     env_args:
         obs_all_health: True
@@ -110,6 +117,9 @@ loss:
     prnn_bptt: 10
     vrnn_bptt: 10
 
+    lka_prnn_bptt: 10
+    lka_vrnn_bptt: 10
+
     # hyperparams for policy optimization
     pg_type: ppo
     ppo_clip_range: .2
@@ -121,7 +131,7 @@ loss:
     value_loss: clip_huber
     huber_threshold: 10
     value_clip_range: .2
-    value_sample_mask: True
+    value_sample_mask: False
 
     stats:
         gamma: *gamma
@@ -135,10 +145,16 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: 10
-    n_lka_epochs: 10
+    n_epochs: &nepochs 10
+    
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
+
+    update_scheme: step
+    n_simulated_envs: *nse
+    n_simulated_steps: *nss
+    n_lka_epochs: 10
+    n_lka_mbs: 1
 
     popart: *popart
 
@@ -174,6 +190,7 @@ buffer:
     n_steps: *nsteps
     queue_size: 2
     timeout_done: *td
+    max_wait_time: .01
 
     gamma: *gamma
     lam: *lam
@@ -189,3 +206,4 @@ buffer:
         - mu_logits
         - state_reset
         - state
+        - lookahead

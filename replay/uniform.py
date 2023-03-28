@@ -195,7 +195,10 @@ class UniformReplay(Buffer):
 
     def _update_obs_rms(self, trajs):
         if self.config.model_norm_obs:
-            self.obs_rms.update(np.stack([traj['obs'] for traj in trajs]))
+            if self.config.model_use_state:
+                self.obs_rms.update(np.stack([traj['env_state'] for traj in trajs]))
+            else:
+                self.obs_rms.update(np.stack([traj['obs'] for traj in trajs]))
 
     def save(self, filedir=None, filename=None):
         filedir = filedir or self._filedir

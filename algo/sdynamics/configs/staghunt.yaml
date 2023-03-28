@@ -1,0 +1,130 @@
+---
+algorithm: &algo dynamics
+name: dynamics
+info: dynamics
+
+precision: 32
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be re-specified in the entry point
+root_dir: *algo
+model_name: *algo
+
+routine:
+    algorithm: *algo
+
+    MAX_STEPS: 2e7
+    n_steps: &nsteps 50
+    LOG_PERIOD: 2e5
+    EVAL_PERIOD: null
+
+    n_envs: &nenvs 256
+
+    model_warm_up: True
+    model_warm_up_steps: 5e4
+
+env:
+    env_name: &env_name magw-staghunt
+    n_runners: &nrunners 1
+    n_envs: *nenvs
+    max_episode_steps: 50
+    reward_scale: .1
+    population_size: 1
+    timeout_done: &td False
+
+    uid2aid: [0, 1]
+
+agent: {}
+
+monitor:
+    use_tensorboard: True
+
+strategy:
+    algorithm: *algo
+    train_loop:
+        ergodic: True
+        samples_per_epochs: 5e4
+        n_valid_samples: 1e4
+        n_epochs: &nepochs 5
+
+model:
+    aid: 0
+    n_elites: 5
+    global_state_type: concat
+    rn_std: .1
+    model_norm_obs: &obs_norm False
+    deterministic_trans: True
+    model_loss_type: &mlt discrete
+
+    emodels:
+        nn_id: emodels
+        n_models: &n 1
+        units_list: [256, 256, 256]
+        activation: relu
+        norm: null
+        out_type: discrete
+        out_config:
+            n_classes: 5
+            max_logvar: .5
+            min_logvar: -10
+    reward:
+        nn_id: reward
+        out_size: 1
+        units_list: [256, 256]
+        activation: relu
+        norm: null
+        out_scale: .01
+    discount:
+        nn_id: discount
+        out_size: 1
+        units_list: [64, 64]
+        activation: relu
+        norm: null
+        out_scale: .01
+
+loss:
+    model_loss_type: discrete
+    n_models: *n
+    model_norm_obs: *obs_norm
+
+    model_coef: 1
+    reward_coef: 1
+    discount_coef: 1
+
+trainer:
+    algorithm: *algo
+    aid: 0
+    trust_threshold: null
+    timeout_done: *td
+    model_norm_obs: *obs_norm
+
+    model_opt:
+        opt_name: adam
+        lr: 5e-4
+        clip_norm: null
+        eps: 1e-5
+        weight_decay: null
+
+actor: {}
+
+
+buffer:
+    type: uniform
+
+    model_norm_obs: *obs_norm
+    n_runners: *nrunners
+    n_envs: *nenvs
+    max_size: 6e4
+    min_size: 1e3
+    batch_size: 256
+    sample_size: 1
+
+    max_steps: 1
+
+    sample_keys: 
+        - obs
+        - action
+        - reward
+        - discount
+        - reset
