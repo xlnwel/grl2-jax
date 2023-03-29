@@ -17,7 +17,7 @@ routine:
 
     MAX_STEPS: 1e7
     n_steps: &nsteps 100
-    LOG_PERIOD: 2e5
+    LOG_PERIOD: 1e5
     EVAL_PERIOD: null
 
     n_eval_envs: 1000
@@ -29,7 +29,7 @@ routine:
     n_simulated_envs: &nse 400
     n_simulated_steps: &nss 10
     model_rollout_type: sim
-    compute_return_at_once: False
+    compute_return_at_once: True
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null

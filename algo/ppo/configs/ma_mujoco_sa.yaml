@@ -25,7 +25,7 @@ routine:
 
     n_lookahead_steps: 0
     model_rollout_type: sim
-    compute_return_at_once: False
+    compute_return_at_once: True
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3

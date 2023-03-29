@@ -109,20 +109,31 @@ class Loss(LossBase):
             q_loc=data.mu_loc,  
             q_scale=data.mu_scale, 
             logits_mask=data.action_mask, 
-            sample_mask=data.sample_mask, 
+        )
+        stats.kl = jax_loss.kl_divergence(
+            kl_type=self.config.kl_type, 
+            **kl_stats
+        )
+        stats.pos_kl = jnp.where(stats.advantage > 0, stats.kl, 0)
+        stats.raw_pos_kl_loss, stats.pos_kl_loss = jax_loss.to_loss(
+            stats.pos_kl, 
+            self.config.pos_kl_coef, 
+            mask=data.sample_mask, 
             n=data.n
         )
-        stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
-            kl_type=self.config.kl_type, 
-            kl_coef=self.config.kl_coef, 
-            **kl_stats
+        stats.neg_kl = jnp.where(stats.advantage < 0, -stats.kl, 0)
+        stats.raw_neg_kl_loss, stats.neg_kl_loss = jax_loss.to_loss(
+            stats.neg_kl, 
+            self.config.neg_kl_coef, 
+            mask=data.sample_mask, 
+            n=data.n
         )
         value_loss, stats = compute_vf_loss(
             self.config, 
             data, 
             stats, 
         )
-        loss = actor_loss + value_loss + stats.kl_loss
+        loss = actor_loss + value_loss + stats.pos_kl_loss + stats.neg_kl_loss
         stats.loss = loss
 
         return loss, stats
@@ -262,15 +273,26 @@ class Loss(LossBase):
             q_loc=data.mu_loc,  
             q_scale=data.mu_scale, 
             logits_mask=data.action_mask, 
-            sample_mask=data.sample_mask, 
-            n=data.n
         )
-        stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
+        stats.kl = jax_loss.kl_divergence(
             kl_type=self.config.kl_type, 
-            kl_coef=self.config.kl_coef, 
             **kl_stats
         )
-        loss = actor_loss + stats.kl_loss
+        stats.pos_kl = jnp.where(stats.advantage > 0, stats.kl, 0)
+        stats.raw_pos_kl_loss, stats.pos_kl_loss = jax_loss.to_loss(
+            stats.pos_kl, 
+            self.config.pos_kl_coef, 
+            mask=data.sample_mask, 
+            n=data.n
+        )
+        stats.neg_kl = jnp.where(stats.advantage < 0, -stats.kl, 0)
+        stats.raw_neg_kl_loss, stats.neg_kl_loss = jax_loss.to_loss(
+            stats.neg_kl, 
+            self.config.neg_kl_coef, 
+            mask=data.sample_mask, 
+            n=data.n
+        )
+        loss = actor_loss + stats.pos_kl_loss + stats.neg_kl_loss
 
         return loss, stats
 

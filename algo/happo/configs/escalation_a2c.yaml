@@ -31,7 +31,7 @@ env:
     n_runners: &nrunners 1
     n_envs: &nenvs 64
     max_episode_steps: 50
-    reward_scale: .1
+    reward_scale: 1
     population_size: 1
     timeout_done: &td False
 

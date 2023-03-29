@@ -1,8 +1,7 @@
 from functools import partial
 
-from algo.ma_common.train import *
-from algo.lka_common.train import lka_optimize, eval_and_log
-from algo.happo.train import env_run, load_eval_data, eval_policy_distances
+from algo.lka_common.train import *
+from algo.happo.train import lka_env_run, env_run
 
 
 def train(
@@ -31,14 +30,26 @@ def train(
     env_name = runner.env_config().env_name
     eval_data = load_eval_data(filename=env_name)
 
+    n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
-        env_step = env_run(agent, runner, routine_config, lka_aids=[], name=None)
-        lka_optimize(agent)
-        train_step = ego_optimize(agent)
+        i = np.random.choice(n_agents)
+        real_lka_train(
+            agent, 
+            runner, 
+            routine_config, 
+            n_runs=routine_config.n_lookahead_steps, 
+            run_fn=lka_env_run, 
+            opt_fn=lka_optimize, 
+            lka_aids=None, 
+            store_info=False
+        )
+        env_step = env_run(agent, runner, routine_config, 
+                           lka_aids=[i], store_info=True)
+        ego_optimize(agent)
         time2record = to_record(env_step)
 
         if time2record:
-            eval_and_log(agent, None, None, routine_config, agent.training_data, eval_data)
+            eval_and_log(agent, None, runner, routine_config, agent.training_data, eval_data)
 
 
 main = partial(main, train=train)

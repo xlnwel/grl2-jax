@@ -4,7 +4,7 @@ import jax
 
 from core.ckpt.pickle import restore
 from core.elements.builder import ElementsBuilder
-from core.typing import get_basic_model_name, dict2AttrDict
+from core.typing import get_basic_model_name, dict2AttrDict, tree_slice
 from tools.display import print_dict_info
 from tools.plot import prepare_data_for_plotting, lineplot_dataframe
 from tools.store import StateStore
@@ -122,8 +122,12 @@ def log_dynamics_errors(errors, outdir, env_step):
             # lineplot_dataframe(data[k], filename, y=y, outdir=outdir)
 
 
-def load_eval_data(filedir='/System/Volumes/Data/mnt/公共区/cxw/data', filename='uniform'):
+def load_eval_data(filename, filedir='/System/Volumes/Data/mnt/公共区/cxw/data', n=None):
     data = restore(filedir=filedir, filename=filename)
+    if n is not None:
+        maxlen = data['obs'].shape[0]
+        indices = np.random.randint(0, maxlen, n)
+        data = tree_slice(data, indices)
     print_dict_info(data)
     return data
 
@@ -176,11 +180,13 @@ def eval_ego_and_lka(agent, runner, routine_config):
 def eval_and_log(agent, dynamics, runner, routine_config, 
                  train_data, eval_data, errors={}, n=1000):
     eval_policy_distances(agent, eval_data, name='eval', n=n)
-    seqlen = train_data.obs.shape[1]
-    train_data = dict2AttrDict({k: train_data[k] for k in eval_data})
-    train_data = jax.tree_util.tree_map(
-        lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)
-    eval_policy_distances(agent, train_data, n=n)
-    eval_ego_and_lka(agent, runner, routine_config)
+    if train_data:
+        seqlen = train_data.obs.shape[1]
+        train_data = dict2AttrDict({k: train_data[k] for k in eval_data})
+        train_data = jax.tree_util.tree_map(
+            lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)
+        eval_policy_distances(agent, train_data, n=n)
+    if runner is not None:
+        eval_ego_and_lka(agent, runner, routine_config)
     save(agent, dynamics)
     log(agent, dynamics, errors)

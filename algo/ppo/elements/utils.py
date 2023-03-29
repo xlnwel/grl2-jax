@@ -48,6 +48,7 @@ def compute_values(
             state_reset, axis=seq_axis)
         if bptt is not None:
             shape = x.shape[:-1]
+            assert x.shape[1] % bptt == 0, (x.shape, bptt)
             x, next_x, state_reset, next_state_reset, state = \
                 _reshape_for_bptt(
                     x, next_x, state_reset, next_state_reset, state, bptt=bptt
@@ -78,6 +79,7 @@ def compute_policy_dist(
 ):
     if state is not None and bptt is not None:
         shape = x.shape[:-1]
+        assert x.shape[1] % bptt == 0, (x.shape, bptt)
         x, state_reset, state, action_mask = _reshape_for_bptt(
             x, state_reset, state, action_mask, bptt=bptt
         )

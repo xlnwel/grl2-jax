@@ -1,8 +1,8 @@
 ---
-algorithm: &algo haa2c_mb2
-name: haa2c_mb2
+algorithm: &algo happo_lka3
+name: happo_lka3
 dynamics_name: dynamics
-info: haa2c_mb2
+info: happo_lka3
 
 precision: 32
 
@@ -15,18 +15,19 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 1e7
-    n_steps: &nsteps 5
+    MAX_STEPS: 5e6
+    n_steps: &nsteps 100
     LOG_PERIOD: 1e5
     EVAL_PERIOD: null
 
+    n_eval_envs: 1000
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
     n_lookahead_steps: 1
-    n_simulated_envs: &nse 16
-    n_simulated_steps: &nss 5
+    n_simulated_envs: &nse 400
+    n_simulated_steps: &nss 10
     model_rollout_type: sim
     compute_return_at_once: True
     ignore_ratio_for_ego: False
@@ -34,15 +35,17 @@ routine:
     perm: null
     restore_state: False
     switch_model_at_every_step: False
+    quantify_dynamics_errors: True
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
     n_runners: &nrunners 1
-    n_envs: &nenvs 16
+    n_envs: &nenvs 40
     max_episode_steps: 1000
     timeout_done: &td False
     env_args:
         agent_obsk: 0
+    norm_obs: False
 
 agent: {}
 
@@ -71,7 +74,7 @@ model:
         sigmoid_scale: True
         std_x_coef: 1.
         std_y_coef: .5
-        use_feature_norm: True
+        use_feature_norm: False
     value:
         nn_id: value
         units_list: [64, 64]
@@ -80,11 +83,11 @@ model:
         norm: layer
         rnn_type: &vrnn null
         rnn_units: 64
-        use_feature_norm: True
+        use_feature_norm: False
 
 loss:
     # hyperparams for value target and advantage
-    target_type: vtrace
+    target_type: gae
     c_clip: 1
     rho_clip: 1
     adv_type: gae
@@ -122,14 +125,15 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 1
-    n_mbs: &nmbs 1
+    n_epochs: &nepochs 5
+    n_mbs: &nmbs 40
     n_steps: *nsteps         # BPTT length
 
+    update_scheme: step
     n_simulated_envs: *nse
     n_simulated_steps: *nss
-    n_lka_epochs: 1
-    n_lka_mbs: 1
+    n_lka_epochs: 5
+    n_lka_mbs: 40
 
     popart: *popart
 
@@ -165,6 +169,7 @@ buffer:
     n_steps: *nsteps
     queue_size: 2
     timeout_done: *td
+    max_wait_time: .01
 
     gamma: *gamma
     lam: *lam

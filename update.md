@@ -17,4 +17,7 @@ algo.ppo.elements.utils中的compute_actor_loss函数中的policy_sample_mask判
 2. 把eval相关的函数整理到eval_and_log
 
 2023.03.28
-1. ma_common/train.py中函数log的参数进行了修改，老版代码是5个参数，为了兼容train_smac改成了3个参数，代码有冲突，暂时更改成了*args，根据参数个数定义参数含义。
+1. ma_common/train.py中函数log的参数进行了修改，老版代码是5个参数，为了兼容train_smac改成了3个参数，代码有冲突，暂时更改成了*args，根据参数个数定义参数含义。(由于在log函数中自动从agent里读取env_step和train_step, 所以把这两个参数忽略了)
+
+2023.03.29
+关闭advantage normalization, 对A>0时加一个KL.

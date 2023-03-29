@@ -12,25 +12,26 @@ envs=(
     # escalation
     # escalation
     escalation
-    escalation
-    staghunt
-    staghunt
+    # escalation
+    # staghunt
+    # staghunt
 )
 configs=(
     "${suite}"
 )
 args1=(
-    640
-    1280
-    1280
-    2560
+    100
+    50
+    # 640
+    # 640
+    # 1280
+    # 1280
 )
 args2=(
-    640
-    128,128
-    64,64
-    128,128
-    # 5e-4
+    10
+    15
+    10
+    15
 )
 args3=(
     discrete
@@ -95,7 +96,8 @@ commands=()
 # for a2 in "${args2[@]}"; do
 # kws="0#n_epochs=$1"
 # kws="0#dynamics_name=$d"
-kws="0#norm_adv=False 0#n_simulated_envs=$a1"
+# kws="0#norm_adv=False 0#n_simulated_envs=$a1 0#n_simulated_steps=$a2"
+kws="0#norm_adv=False 1#ergodic=False n_epochs=$a1"
 # for e in "${envs[@]}"; do
 config="${e}"
 env="${suite}-${e}"

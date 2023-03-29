@@ -11,24 +11,39 @@ envs=(
 algos=(
     # $1
     happo
+    happo
     # happo
     # happo_lka1
     # happo_lka1
-    # happo_lka2
+    happo_lka2
     happo_lka2
 )
 args1=(
-    ppo
+    # ppo
+    # correct_ppo
+    # 10
+    1
+    .1
+    # 10
+    # 20
+    # 20
+    # 20
+    # 30
+    # 30
+    # 15
+    # 20
+    # 20
 )
 args2=(
-    $3
-    64
-    128
+    # $3
     256
+    400
 )
-args3=(10)
-date=$(date +"%m%d")
-# date="0204"
+args3=(
+    10
+)
+# date=$(date +"%m%d")
+date="0330"
 info=""
 ld="${suite}-logs"
 # gpus=$(nvidia-smi -L | wc -l)
@@ -64,8 +79,8 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-for a1 in "${args1[@]}"; do
-    kws="0#norm_adv=False"
+for a2 in "${args2[@]}"; do
+    kws="0#norm_adv=False 0#n_envs=$a2 0#pos_kl_coef=$a1"
     for e in "${envs[@]}"; do
         config=$e
         env="${suite}-${e}"
@@ -76,8 +91,8 @@ for a1 in "${args1[@]}"; do
         done
     done
 done
-for a1 in "${args1[@]}"; do
-    kws="0#norm_adv=False"
+for a2 in "${args2[@]}"; do
+    kws="0#norm_adv=False 0#n_envs=$a2 0#pos_kl_coef=$a1"
     for e in "${envs[@]}"; do
         config=$e
         env="${suite}-${e}"
@@ -89,11 +104,14 @@ for a1 in "${args1[@]}"; do
     done
 done
 # config=$e
-# env="${suite}-${e}"
-# for s in {0..15}; do
-#     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-#     commands+=("$py_script")
-#     echo $py_script
+# kws="0#norm_adv=False 0#pos_kl_coef=$a1"
+# for e in "${envs[@]}"; do
+#     env="${suite}-${e}"
+#     for s in {0..7}; do
+#         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#         commands+=("$py_script")
+#         echo $py_script
+#     done
 # done
 # echo ${commands[@]}s
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 

@@ -12,6 +12,8 @@ def to_loss(
     mask=None, 
     n=None, 
 ):
+    if coef is None:
+        coef = 0
     scaled_loss = coef * raw_stats
     loss = jax_math.mask_mean(scaled_loss, mask, n)
     return scaled_loss, loss
@@ -518,7 +520,59 @@ def _compute_ppo_policy_losses(advantages, ratio, clip_range):
     return pg_loss, clipped_loss
 
 
-def compute_kl(
+def kl_divergence(
+    *, 
+    kl_type,
+    logp=None,
+    logq=None, 
+    sample_prob=1., 
+    p_logits=None,
+    q_logits=None,
+    p_loc=None,
+    p_scale=None,
+    q_loc=None,
+    q_scale=None,
+    logits_mask=None, 
+):
+    if kl_type == 'forward_approx':
+        kl = jax_div.kl_from_samples(
+            logp=logq, 
+            logq=logp,
+            sample_prob=sample_prob, 
+        )
+    elif kl_type == 'reverse_approx':
+        kl = jax_div.reverse_kl_from_samples(
+            logp=logp, 
+            logq=logq,
+            sample_prob=sample_prob, 
+        )
+    elif kl_type == 'forward':
+        kl = jax_div.kl_from_distributions(
+            p_logits=q_logits, 
+            q_logits=p_logits, 
+            p_loc=q_loc, 
+            p_scale=q_scale, 
+            q_loc=p_loc, 
+            q_scale=p_scale, 
+            logits_mask=logits_mask, 
+        )
+    elif kl_type == 'reverse':
+        kl = jax_div.kl_from_distributions(
+            p_logits=p_logits, 
+            q_logits=q_logits, 
+            p_loc=p_loc, 
+            p_scale=p_scale, 
+            q_loc=q_loc, 
+            q_scale=q_scale, 
+            logits_mask=logits_mask, 
+        )
+    else:
+        raise NotImplementedError(f'Unknown kl {kl_type}')
+
+    return kl
+
+
+def compute_kl_loss(
     *, 
     kl_type,
     kl_coef=None, 
@@ -540,40 +594,19 @@ def compute_kl(
     q is the target distribution
     """
     if kl_coef is not None:
-        if kl_type == 'forward_approx':
-            kl = jax_div.kl_from_samples(
-                logp=logq, 
-                logq=logp,
-                sample_prob=sample_prob, 
-            )
-        elif kl_type == 'reverse_approx':
-            kl = jax_div.reverse_kl_from_samples(
-                logp=logp, 
-                logq=logq,
-                sample_prob=sample_prob, 
-            )
-        elif kl_type == 'forward':
-            kl = jax_div.kl_from_distributions(
-                p_logits=q_logits, 
-                q_logits=p_logits, 
-                p_loc=q_loc, 
-                p_scale=q_scale, 
-                q_loc=p_loc, 
-                q_scale=p_scale, 
-                logits_mask=logits_mask, 
-            )
-        elif kl_type == 'reverse':
-            kl = jax_div.kl_from_distributions(
-                p_logits=p_logits, 
-                q_logits=q_logits, 
-                p_loc=p_loc, 
-                p_scale=p_scale, 
-                q_loc=q_loc, 
-                q_scale=q_scale, 
-                logits_mask=logits_mask, 
-            )
-        else:
-            raise NotImplementedError(f'Unknown kl {kl_type}')
+        kl = kl_divergence(
+            kl_type=kl_type, 
+            logp=logp, 
+            logq=logq, 
+            sample_prob=sample_prob, 
+            p_logits=p_logits, 
+            q_logits=q_logits, 
+            p_loc=p_loc, 
+            p_scale=p_scale, 
+            q_loc=q_loc, 
+            q_scale=q_scale, 
+            logits_mask=logits_mask, 
+        )
         raw_kl_loss, kl_loss = to_loss(
             kl, 
             kl_coef, 

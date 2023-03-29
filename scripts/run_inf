@@ -30,10 +30,11 @@
 
 # ./scripts/inf magw 2 inf_magw_mb
 # ./scripts/inf magw 1 inf_ppo_lka happo_lka1
-# ./scripts/inf magw 2 inf_ppo_lka
-./scripts/inf magw 4 inf_magw_mb
+# ./scripts/inf magw 6 inf_ppo_lka
+# ./scripts/inf magw 4 inf_ppo_lka
+# ./scripts/inf magw 2 inf_magw_mb
 
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo
+./scripts/inf ma_mujoco 1 inf_mujoco_ppo
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo happo
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo happo_lka2
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb

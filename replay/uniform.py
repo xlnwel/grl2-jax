@@ -148,6 +148,8 @@ class UniformReplay(Buffer):
             yield self._get_samples(idxes[i:i+batch_size], self._memory)
     
     def range_sample(self, start, n):
+        if not self.ready_to_sample():
+            return None
         end = min(len(self), start+n)
         idxes = np.arange(start, end)
         # print('range sample idx max', np.max(idxes), 'min', np.min(idxes))

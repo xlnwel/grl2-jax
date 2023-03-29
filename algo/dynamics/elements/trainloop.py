@@ -16,9 +16,11 @@ class TrainingLoop(TrainingLoopBase):
                     n += 1
             else:
                 data = self.sample_data()
+                if data is None:
+                    break
                 stats = self._train_with_data(data)
                 n += 1
-        
+
         if n > 0:
             valid_stats = self.valid_stats()
             stats.update(valid_stats)

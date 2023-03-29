@@ -1,8 +1,7 @@
 ---
-# NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo sync2-zero
-name: zero
-version: 0
+algorithm: &algo happo
+name: happo
+info: happo
 
 precision: 32
 
@@ -52,7 +51,7 @@ ray_config:
 monitor: {}
 
 runner:
-    n_runners: &nrunners 60
+    n_runners: &nrunners 2
     n_steps: &nsteps 64
     push_every_episode: False
 
@@ -81,152 +80,68 @@ env:
     use_hidden: False
     use_event: False
     agentwise_global_state: False
+    timeout_done: &td True
 
 agent: {}
 
 strategy:
     algorithm: *algo
-    train_loop:
-        use_dataset: &dataset False
-        K: &K null
-        L: &L 0
-        extra_meta_step: &ems 0 # 0/1
+    train_loop: {}
 
 model:
     aid: 0
-    rnn_type: &rnn null
-    K: *K
-    L: *L
-    extra_meta_step: *ems
+    gamma: &gamma .995
 
-    encoder: 
-        nn_id: mlp
-        units_list: []
-        kernel_initializer: orthogonal
-        activation: relu
-        norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1e-5
-    rnn:
-        nn_id: *rnn
-        units: 256
-        kernel_initializer: orthogonal
-        recurrent_initializer: orthogonal
-        use_ln: True
     policy:
         nn_id: policy
         units_list: [256, 256, 256]
-        kernel_initializer: orthogonal
+        w_init: orthogonal
         activation: relu
         norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1e-5
-        eval_act_temp: 1
-        out_gain: .01
-        indexed: null
-        indexed_config:
-            use_shared_bias: True
-            use_bias: True
-            kernel_initializer: orthogonal
-            activation: relu
+        out_scale: .01
+        rnn_type: null
+        rnn_units: 256
     value:
         nn_id: value
         units_list: [256, 256, 256]
-        kernel_initializer: orthogonal
+        w_init: orthogonal
         activation: relu
         norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1e-5
-        indexed: null
-        indexed_config:
-            use_shared_bias: False
-            use_bias: True
-            kernel_initializer: orthogonal
-            activation: relu
-    embed: null
-    meta:
-        nn_id: meta
-        pg_coef:
-            outer: 1
-            default: 1
-            init: null
-            act: sigmoid
-        entropy_coef:
-            outer: 5e-4
-            default: 5e-4
-            scale: 5e-4
-            bias: 5e-4
-            init: null
-            act: tanh
-        value_coef:
-            outer: 1
-            default: 1
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
-        gamma: 
-            outer: &gamma .995
-            default: *gamma
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
-        lam:
-            outer: &lam .95
-            default: *lam
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
+        rnn_type: null
+        rnn_units: 256
 
 loss:
-    rl:
-        # hyperparams for value target and advantage
-        target_type: gae
-        c_clip: 1
-        rho_clip: 1
-        adv_type: vtrace
-        norm_adv: True
+    # hyperparams for value target and advantage
+    target_type: gae
+    c_clip: 1
+    rho_clip: 1
+    adv_type: gae
+    norm_adv: True
 
-        # hyperparams for policy optimization
-        pg_type: ppo
-        ppo_clip_range: .2
-        use_dice: False
-        dice_axis: null
-        dice_lam: 1
-        kl: reverse
-        kl_coef: 1
+    prnn_bptt: 64
+    vrnn_bptt: 64
 
-        # hyperparams for value learning
-        value_loss: mse
-        value_clip_range: .2
-        sample_mask: False
-    meta:
-        # hyperparams for value target and advantage
-        target_type: gae
-        c_clip: 1
-        rho_clip: 1
-        adv_type: vtrace
-        norm_adv: True
+    lka_prnn_bptt: 64
+    lka_vrnn_bptt: 64
 
-        # hyperparams for policy optimization
-        pg_type: ppo
-        ppo_clip_range: .2
-        use_dice: False
-        dice_axis: null
-        dice_lam: 1
-        kl: reverse
-        kl_coef: 1
-        policy_sample_mask: True
+    # hyperparams for policy optimization
+    pg_type: ppo
+    ppo_clip_range: .2
+    kl_type: reverse
+    kl_coef: 0
+    policy_sample_mask: True
 
-        # hyperparams for value learning
-        value_loss: mse
-        value_clip_range: .2
-        value_sample_mask: False
+    # hyperparams for value learning
+    value_loss: clip
+    value_clip_range: .2
+    value_sample_mask: False
+
+    stats:
+        gamma: *gamma
+        lam: &lam .95
+        pg_coef: 1
+        entropy_coef: 5e-4
+        value_coef: 1
 
 trainer:
     algorithm: *algo
@@ -235,70 +150,54 @@ trainer:
     n_envs: *nenvs
     n_epochs: &nepochs 5
     n_mbs: &nmbs 1
-    sample_size: *ss         # BPTT length
-    timeout_done: True
-    meta_type: plain
-    K: *K
-    L: *L
-    extra_meta_step: *ems
-    store_state: True
+    n_steps: *nsteps
+    update_scheme: step
 
-    optimizer:
+    n_simulated_envs: *nse
+    n_simulated_steps: *nss
+    n_lka_epochs: *nepochs
+    n_lka_mbs: *nmbs
+
+    theta_opt:
         opt_name: adam
-        schedule_lr: False
         lr: 1e-4
         clip_norm: .5
-        epsilon: 1e-5
-        weight_decay: 0
-    meta_opt:
-        opt_name: adam
-        schedule_lr: False
-        lr: 1e-4
-        clip_norm: .5
-        epsilon: 1e-5
+        eps: 1e-5
 
 actor:
-    algorithm: *algo
-
+    update_obs_rms_at_execution: False
+    update_obs_at_execution: False
     rms:
         obs_names: [obs, global_state]
-        normalize_obs: *irms
-        normalize_reward: True
-        obs_normalized_axis: [0, 1]
-        reward_normalized_axis: [0, 1]
-        update_reward_rms_in_time: True
+        obs_normalized_axis: [0, 1, 2]
+        reward_normalized_axis: [0, 1, 2]
+        normalize_obs: False
+        obs_clip: 10
+        normalize_reward: False
+        update_reward_rms_in_time: False
         gamma: *gamma
 
 buffer:
     type: ac
-    use_dataset: *dataset
 
     n_runners: *nrunners
     n_envs: *nenvs
     n_steps: *nsteps
-    fragment_size: null
-    sample_size: *ss
-    K: *K
-    L: *L
-    extra_meta_step: *ems
     queue_size: 2
-    timeout_done: True
-    rnn_type: *rnn
+    timeout_done: *td
 
-    # mini-batch size = n_runners * n_envs * epslen / n_mbs
-    sample_keys:
+    gamma: *gamma
+    lam: *lam
+
+    sample_keys: 
         - obs
         - global_state
-        - prev_reward
-        - prev_action
-        - action_mask
         - action
         - value
         - reward
         - discount
         - reset
         - mu_logprob
-        - mu
-        - mask
-        - h
-        - c
+        - mu_logits
+        - state_reset
+        - state
