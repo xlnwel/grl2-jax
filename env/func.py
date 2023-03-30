@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def is_ma_suite(env_name):
     # ma_suites = ['overcooked', 'smac', 'grf', 'grid_world']
-    ma_suites = ['overcooked', 'grf', 'grid_world']
+    ma_suites = ['overcooked', 'grid_world']    # It seems that ma_suites does note fit current codes
     for suite in ma_suites:
         if env_name.startswith(suite):
             return True

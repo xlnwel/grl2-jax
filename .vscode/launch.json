@@ -17,9 +17,10 @@
                 // "-a", "masac_lka", "dynamics", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "ma_mujoco-logs", "-n", "debug", "-s", "3", "-kw", "0#quantify_dynamics_errors=False", "0#model_warm_up=False",
                 // "-a", "happo_mb", "dynamics", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "ma_mujoco-logs", "-n", "debug", "-s", "3", "-na", "2", "--gpu=0", "-kw", "0#quantify_dynamics_errors=False", "0#model_warm_up=False", "1#model_loss_type=mse", "1#deterministic_trans=True"
                 // "-a", "happo", "-e", "smac-2s3z", "-c", "smac", "-ld", "debug-logs", "-n", "debug2", "-s", "4",
-                "-a", "happo_mb", "sdynamics", "-e", "smac-2s3z", "-c", "smac", "-ld", "debug-logs", "-n", "debug2", "-s", "4",
-                // "-a", "happo", "-e", "smac-5m_vs_6m", "-c", "smac", "-ld", "debug-logs", "-n", "debug", "-s", "4",
-                // "-a", "happo", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "debug-logs", "-n", "debug", "-s", "4",
+                // "-a", "happo_mb", "sdynamics", "-e", "smac-2s3z", "-c", "smac", "-ld", "debug-logs", "-n", "debug2", "-s", "4",
+                // "-a", "happo", "-e", "grf-11_vs_11_hard_stochastic", "-c", "grf", "-ld", "debug-logs", "-n", "debug2", "-s", "4",
+                // "-a", "happo", "-e", "smac-5m_vs_6m", "-c", "smac", "-ld", "debug-logs", "-n", "debug", "-s", "4", "-te", "train_smac",
+                "-a", "happo", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "debug-logs", "-n", "debug", "-s", "4",
                 // "-a", "happo_mb", "happo_mb", "dynamics", "-e=ma_mujoco-Ant_2x4", "-c=ma_mujoco", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-ki=2",
                 // "-a", "happo_mb", "happo_mb", "dynamics", "-e=magw-escalation", "-c=escalation", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-ki=2",
             ]

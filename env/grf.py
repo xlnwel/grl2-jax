@@ -54,11 +54,17 @@ class GRF:
         #     number_of_right_players_agent_controls
 
         if uid2aid is None:
-            if number_of_left_players_agent_controls > 0:
-                uid2aid = tuple(np.zeros(number_of_left_players_agent_controls, dtype=np.int32)) \
-                    + tuple(np.ones(number_of_right_players_agent_controls, dtype=np.int32))
+            if getattr(kwargs, 'share_policy', False):
+                if number_of_left_players_agent_controls > 0:
+                    uid2aid = tuple(np.zeros(number_of_left_players_agent_controls, dtype=np.int32)) \
+                        + tuple(np.ones(number_of_right_players_agent_controls, dtype=np.int32))
+                else:
+                    uid2aid = tuple(np.zeros(number_of_right_players_agent_controls, dtype=np.int32))
             else:
-                uid2aid = tuple(np.zeros(number_of_right_players_agent_controls, dtype=np.int32))
+                if number_of_left_players_agent_controls > 0:
+                    uid2aid = tuple(np.arange(number_of_left_players_agent_controls + number_of_right_players_agent_controls, dtype=np.int32))
+                else:
+                    uid2aid = tuple(np.arange(number_of_right_players_agent_controls, dtype=np.int32))
         self.uid2aid = uid2aid
         self.aid2uids = compute_aid2uids(self.uid2aid)
         self.n_units = len(self.uid2aid)
@@ -237,7 +243,7 @@ class GRF:
             for uids, a in zip(self.aid2uids, self.action_dim)]
         for uids, a, oh in zip(self.aid2uids, action, action_oh):
             oh[np.arange(len(uids)), a] = 1
-        action = np.concatenate(action)
+        # action = np.concatenate(action)
         obs, reward, done, info = self.env.step(action)
 
         reward = self._get_reward(reward, info)
