@@ -36,6 +36,8 @@ routine:
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
 
+    concise_mode: True
+
 env:
     env_name: &env_name grf-11_vs_11_hard_stochastic
     representation: simple115v2
@@ -51,13 +53,13 @@ env:
     add_role_to_obs: False
     shared_ckpt_reward: False
 
-    max_episode_steps: 3000
+    max_episode_steps: 200
     use_action_mask: False
     uid2aid: null
     share_policy: False
 
     n_runners: &nrunners 1
-    n_envs: &nenvs 64
+    n_envs: &nenvs 32
 
     use_idx: False
     use_hidden: False

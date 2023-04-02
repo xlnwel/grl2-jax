@@ -179,13 +179,14 @@ def eval_ego_and_lka(agent, runner, routine_config):
 @timeit
 def eval_and_log(agent, dynamics, runner, routine_config, 
                  train_data, eval_data, errors={}, n=1000):
-    eval_policy_distances(agent, eval_data, name='eval', n=n)
-    if train_data:
-        seqlen = train_data.obs.shape[1]
-        train_data = dict2AttrDict({k: train_data[k] for k in eval_data})
-        train_data = jax.tree_util.tree_map(
-            lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)
-        eval_policy_distances(agent, train_data, n=n)
+    if not getattr(routine_config, "concise_mode", False):
+        eval_policy_distances(agent, eval_data, name='eval', n=n)
+        if train_data:
+            seqlen = train_data.obs.shape[1]
+            train_data = dict2AttrDict({k: train_data[k] for k in eval_data})
+            train_data = jax.tree_util.tree_map(
+                lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)
+            eval_policy_distances(agent, train_data, n=n)
     if runner is not None:
         eval_ego_and_lka(agent, runner, routine_config)
     save(agent, dynamics)
