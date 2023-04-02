@@ -60,13 +60,12 @@ def train(
 
     while env_step < routine_config.MAX_STEPS:
         env_step = env_run(agent, runner, routine_config, lka_aids=[], store_info=True)
-        if not getattr(routine_config, "concise_mode", False):
-            lka_optimize(agent)
+        # lka_optimize(agent)
         ego_optimize(agent)
         time2record = to_record(env_step)
 
         if time2record:
-            eval_and_log(agent, None, runner, routine_config, 
+            eval_and_log(agent, None, None, routine_config, 
                          agent.training_data, eval_data, eval_lka=False)
 
 

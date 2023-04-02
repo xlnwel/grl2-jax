@@ -20,7 +20,14 @@ configs=(
     "${suite}"
 )
 args1=(
+    $1
+    200
+    200
+    150
+    150
     100
+    100
+    50
     50
     # 640
     # 640
@@ -28,10 +35,9 @@ args1=(
     # 1280
 )
 args2=(
-    10
-    15
-    10
-    15
+    $2
+    True
+    False
 )
 args3=(
     discrete
@@ -54,6 +60,7 @@ dynamics=(
     "dynamics"
 )
 date=$(date +"%m%d")
+# date="0401"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
@@ -97,7 +104,7 @@ commands=()
 # kws="0#n_epochs=$1"
 # kws="0#dynamics_name=$d"
 # kws="0#norm_adv=False 0#n_simulated_envs=$a1 0#n_simulated_steps=$a2"
-kws="0#norm_adv=False 1#ergodic=False n_epochs=$a1"
+kws="0#norm_adv=False 1#n_epochs=$a1 1#deterministic_trans=$a2"
 # for e in "${envs[@]}"; do
 config="${e}"
 env="${suite}-${e}"

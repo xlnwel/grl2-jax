@@ -8,6 +8,11 @@ from core.typing import AttrDict
 from tools.aggregator import Aggregator
 
 
+def time2str(duration):
+    return (f'{duration*1000:.3g}ms' if duration < 1e-1 
+            else f'{duration:.3g}s')
+
+
 def get_current_datetime():
     t = int(time.time())
     t = datetime.datetime.fromtimestamp(t)
@@ -33,7 +38,7 @@ def timeit_now(func, *args, name=None, to_print=True,
         do_logging(f'{name if name else func.__name__}: '
             f'Start "{time.strftime("%d %b %H:%M:%S", start_time)}"' 
             f'End "{time.strftime("%d %b %H:%M:%S", end_time)}" ' 
-            f'Duration "{end - start:.3g}s"')
+            f'Duration "{time2str(end - start)}s"')
 
     return end - start, result if return_duration else result
 
@@ -83,20 +88,23 @@ class Timer:
             aggregator = self.aggregators[self._summary_name]
             if duration > self._min_duration:
                 aggregator.add(duration)
-            if self._period is not None and aggregator.count >= self._period:
-                if self._mode == 'average':
-                    duration = aggregator.average()
-                    duration = (f'{duration*1000:.3g}ms' if duration < 1e-1 
-                                else f'{duration:.3g}s')
+            if self._period is not None:
+                if self._period == 1:
                     do_logging(
-                        f'{self._summary_name} duration: "{duration}" averaged over {self._period} times',
+                        f'{self._summary_name} duration: "{time2str(duration)}"',
+                        backtrack=3
+                    )
+                elif self._mode == 'average':
+                    duration = aggregator.average()
+                    do_logging(
+                        f'{self._summary_name} duration: "{time2str(duration)}" averaged over {self._period} times',
                         backtrack=3
                     )
                     # aggregator.reset()
                 else:
                     duration = aggregator.sum
                     do_logging(
-                        f'{self._summary_name} duration: "{duration}" for {aggregator.count} times', 
+                        f'{self._summary_name} duration: "{time2str(duration)}" for {aggregator.count} times', 
                             backtrack=3
                     )
 
@@ -188,7 +196,7 @@ class TBTimer:
                 tf.summary.scalar(f'time/{self._summary_name}', duration, step=step)
                 aggregator.reset()
                 if self._print_terminal_info:
-                    do_logging(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times')
+                    do_logging(f'{self._summary_name} duration: "{time2str(duration)}" averaged over {self._period} times')
 
 
 class LoggerTimer:

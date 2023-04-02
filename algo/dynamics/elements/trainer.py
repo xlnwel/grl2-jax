@@ -7,8 +7,9 @@ import haiku as hk
 from core.log import do_logging, pwc
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
-from core.typing import dict2AttrDict
+from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
+from tools.feature import one_hot
 from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
 
@@ -53,18 +54,16 @@ class Trainer(TrainerBase):
     def train(self, data):
         data = self.process_data(data)
         theta = self.model.theta.copy()
-        with Timer(f'dynamics_train'):
-            theta, self.params.theta, stats = \
-                self.jit_train(
-                    theta, 
-                    opt_state=self.params.theta, 
-                    data=data, 
-                )
+        theta, self.params.theta, stats = \
+            self.jit_train(
+                theta, 
+                opt_state=self.params.theta, 
+                data=data, 
+                return_stats=False
+            )
         self.model.set_weights(theta)
-        assert stats.mean_loss.shape[0] == self.model.config.emodels.n_models, (stats.mean_loss)
         elite_indices = np.argsort(stats.mean_loss)
         self.model.rank_elites(elite_indices)
-        self._evaluate_model(stats)
 
         data = flatten_dict(data, prefix='data')
         stats = prefix_name(stats, f'dynamics')
@@ -92,8 +91,9 @@ class Trainer(TrainerBase):
         rng, 
         opt_state, 
         data, 
+        return_stats=False
     ):
-        do_logging('train is traced', backtrack=4)
+        do_logging('dynamics train is traced', backtrack=4)
         theta, opt_state, stats = optimizer.optimize(
             self.loss.loss, 
             theta, 
@@ -106,11 +106,19 @@ class Trainer(TrainerBase):
             name='train/dynamics'
         )
 
+        if not return_stats:
+            stats = AttrDict(
+                model_mae=stats.model_mae, 
+                obs_consistency=stats.obs_consistency, 
+                reward_mae=stats.reward_mae, 
+                discount_mae=stats.discount_mae, 
+                trans_mae=stats.trans_mae, 
+            )
         return theta, opt_state, stats
 
     def process_data(self, data):
         if self.env_stats.is_action_discrete[0]:
-            data.action = self.model.process_action(data.action)
+            data.action = one_hot(data.action, self.env_stats.action_dim[0])
         if self.model.config.model_norm_obs:
             data.obs_loc, data.obs_scale = \
                 self.model.obs_rms.get_rms_stats(with_count=False)
@@ -127,11 +135,9 @@ class Trainer(TrainerBase):
             return
         if not self._is_trust_worthy:
             if 'model_mae' in stats:
-                print('model mae', stats.model_mae)
                 self._is_trust_worthy = np.mean(stats.model_mae) <= self.config.trust_threshold
             else:
                 assert 'mean_loss' in stats, list(stats)
-                print('mean loss', np.mean(stats.mean_loss))
                 self._is_trust_worthy = np.mean(stats.mean_loss) <= self.config.trust_threshold
         
     # def haiku_tabulate(self, data=None):

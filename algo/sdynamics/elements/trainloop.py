@@ -11,7 +11,7 @@ class TrainingLoop(TrainingLoopBase):
         stats = {}
         for _ in range(self.config.n_epochs):
             if self.config.ergodic:
-                for data in self.buffer.ergodic_sample(n=self.config.samples_per_epochs):
+                for data in self.buffer.ergodic_sample(n=self.config.training_data_size):
                     stats = self._train_with_data(data)
                     n += 1
             else:
@@ -26,7 +26,7 @@ class TrainingLoop(TrainingLoopBase):
         return n, stats
 
     def valid_stats(self):
-        data = self.buffer.range_sample(0, self.config.n_valid_samples)
+        data = self.buffer.range_sample(0, self.config.valid_data_size)
         data = self.trainer.process_data(data)
 
         _, stats = self.trainer.loss.loss(

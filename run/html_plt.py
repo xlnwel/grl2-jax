@@ -301,6 +301,7 @@ if __name__ == '__main__':
         config = flatten_dict(config)
         config = rename_env(config)
         config = remove_redundancies(config)
+        config = {k: str(v) for k, v in config.items()}
         # config['model_name'] = config['model_name'].split('/')[1]
         config['buffer/sample_keys'] = []
 

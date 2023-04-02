@@ -5,7 +5,7 @@ from types import FunctionType
 from typing import Dict, Tuple
 
 from core.elements.actor import Actor
-# from core.elements.buffer import create_dataset
+# from core.elements.dataset import create_dataset
 from core.elements.model import Model
 from core.elements.strategy import Strategy
 from core.elements.trainer import TrainerBase
@@ -136,7 +136,7 @@ class ElementsBuilder:
     # ):
     #     config = dict2AttrDict(config or self.config)
     #     env_stats = dict2AttrDict(env_stats or self.env_stats)
-    #     if self.config.buffer.get('use_dataset'):
+    #     if self.config.buffer.use_dataset:
     #         am = pkg.import_module(
     #             'elements.utils', algo=config.algorithm, place=-1)
     #         data_format = am.get_data_format(

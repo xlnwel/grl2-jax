@@ -2,8 +2,7 @@ import numpy as np
 
 
 def one_hot(i, n):
-    x = [0] * n
-    x[i] = 1
+    x = np.eye(n)[i]
     return x
 
 def rad2tri(x):

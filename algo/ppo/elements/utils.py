@@ -35,14 +35,8 @@ def compute_values(
     **kwargs
 ):
     if state is None:
-        if state is not None:
-            (state_reset, state), (next_state_reset, next_state) = \
-                jax_utils.split_data((state_reset, state), axis=seq_axis)
-            value, _ = func(params, rng, x, state_reset, state)
-            next_value, _ = func(params, rng, next_x, next_state_reset, next_state)
-        else:
-            value, _ = func(params, rng, x)
-            next_value, _ = func(params, rng, next_x) 
+        value, _ = func(params, rng, x)
+        next_value, _ = func(params, rng, next_x) 
     else:
         state_reset, next_state_reset = jax_utils.split_data(
             state_reset, axis=seq_axis)
@@ -188,6 +182,7 @@ def compute_actor_loss(
                 pi_logprob=stats.pi_logprob, 
                 mu_logprob=data.mu_logprob, 
                 clip_range=config.ppo_clip_range, 
+                opt_pg=config.opt_pg
             )
         stats.cppo_pg_loss = cppo_pg_loss
         stats.cppo_clip_loss = cppo_clip_loss
@@ -285,18 +280,18 @@ def compute_vf_loss(
 def record_target_adv(stats):
     stats.explained_variance = jax_math.explained_variance(
         stats.v_target, stats.value)
-    stats.v_target_unit_std = jnp.std(stats.v_target, axis=-1)
-    stats.raw_adv_unit_std = jnp.std(stats.raw_adv, axis=-1)
+    # stats.v_target_unit_std = jnp.std(stats.v_target, axis=-1)
+    # stats.raw_adv_unit_std = jnp.std(stats.raw_adv, axis=-1)
     return stats
 
 
 def record_policy_stats(data, stats, act_dist):
-    stats.diff_frac = jax_math.mask_mean(
-        lax.abs(stats.pi_logprob - data.mu_logprob) > 1e-5, 
-        data.sample_mask, data.n)
-    stats.approx_kl = .5 * jax_math.mask_mean(
-        (stats.log_ratio)**2, data.sample_mask, data.n)
-    stats.approx_kl_max = jnp.max(.5 * (stats.log_ratio)**2)
+    # stats.diff_frac = jax_math.mask_mean(
+    #     lax.abs(stats.pi_logprob - data.mu_logprob) > 1e-5, 
+    #     data.sample_mask, data.n)
+    # stats.approx_kl = .5 * jax_math.mask_mean(
+    #     (stats.log_ratio)**2, data.sample_mask, data.n)
+    # stats.approx_kl_max = jnp.max(.5 * (stats.log_ratio)**2)
     stats.update(act_dist.get_stats(prefix='pi'))
 
     return stats

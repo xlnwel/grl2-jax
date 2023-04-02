@@ -1,8 +1,7 @@
 import os
+import inspect
 import logging
 from datetime import datetime
-
-from tools.utils import get_frame
 
 
 color2num = dict(
@@ -166,3 +165,9 @@ def do_logging(
                 log_func(decorate_content(f'{k}: {v}'))
     else:
         raise ValueError(f'{x} is of unknown type.')
+
+def get_frame(backtrack):
+    frame = inspect.currentframe()
+    for _ in range(backtrack):
+        frame = frame.f_back
+    return frame

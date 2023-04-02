@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.timer import timeit
-from tools.utils import yield_from_dict
+from tools.utils import yield_from_tree
 from env.typing import EnvOutput
 from env.func import create_env
 from algo.masac.run import *
@@ -94,7 +94,7 @@ def branched_rollout(agent, agent_params, dynamics, dynamics_params, routine_con
         rng, env_output, routine_config.n_simulated_steps
     )
     for data in data_list:
-        for d in yield_from_dict(data):
+        for d in yield_from_tree(data):
             agent.buffer.merge(d)
 
     agent.model.switch_params(False, lka_aids)

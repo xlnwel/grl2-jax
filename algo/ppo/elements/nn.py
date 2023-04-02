@@ -50,7 +50,7 @@ class Policy(hk.Module):
         if self.is_action_discrete:
             if action_mask is not None:
                 jax_assert.assert_shape_compatibility([x, action_mask])
-                x = jnp.where(action_mask, x, -1e10)
+                x = jnp.where(action_mask, x, -float('inf'))
             return x, state
         else:
             if self.out_act == 'tanh':

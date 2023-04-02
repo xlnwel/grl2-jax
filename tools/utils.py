@@ -435,9 +435,15 @@ def split_dict(d):
 
     return d
 
-def yield_from_dict(d):
-    vals, keys = jax.tree_util.tree_flatten(d)
+def yield_from_tree(tree):
+    vals, keys = jax.tree_util.tree_flatten(tree)
     for v in zip(*vals):
+        yield jax.tree_util.tree_unflatten(keys, v)
+
+def yield_from_tree_with_indices(tree, indices, axis):
+    vals, keys = jax.tree_util.tree_flatten(tree)
+    for idx in indices:
+        v = [v.take(indices=idx, axis=axis) for v in vals]
         yield jax.tree_util.tree_unflatten(keys, v)
 
 def product_flatten_dict(**kwargs):

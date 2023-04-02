@@ -1,11 +1,11 @@
 from tools.timer import timeit
-from tools.utils import yield_from_dict
+from tools.utils import yield_from_tree
 from algo.lka_common.run import *
 
 
 def add_data_to_buffer(agent, data):
     for step_data in data:
-        for d in yield_from_dict(step_data):
+        for d in yield_from_tree(step_data):
             agent.buffer.merge(d) 
 
 

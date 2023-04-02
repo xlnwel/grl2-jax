@@ -16,6 +16,7 @@ class Representation:
     MAT='mat'
     SIMPLE115='simple115v2'
 
+
 class GRF:
     def __init__(
         self,
@@ -131,15 +132,18 @@ class GRF:
         self.use_event = use_event
 
         self.action_space = [
-            self.env.action_space[0] 
+            self.env.action_space
             if isinstance(self.env.action_space, gym.spaces.MultiDiscrete) 
             else self.env.action_space 
             for _ in range(self.n_agents)]
-        self.action_shape = [a.shape for a in self.action_space]
-        self.action_dim = [a.n for a in self.action_space]
+        self.action_shape = [() for _ in self.action_space]
+        self.action_dim = [a for a in self.env.action_space.nvec]
         self.action_dtype = [np.int32 for _ in self.action_space]
-        self.is_action_discrete = [isinstance(a, gym.spaces.Discrete) for a in self.action_space]
+        self.is_action_discrete = [True for _ in self.action_space]
 
+        self.observation_space = self.env.observation_space
+        self.reward_range = self.env.reward_range
+        self.metadata = self.env.metadata
         obs = self.reset()
         self.obs_shape = [{k: v.shape[-1:] for k, v in o.items()} for o in obs]
         self.obs_dtype = [{k: v.dtype for k, v in o.items()} for o in obs]
@@ -174,8 +178,6 @@ class GRF:
             s = dict(
                 obs=obs_shape, 
                 global_state=obs_shape, 
-                prev_reward=(), 
-                prev_action=(self.action_dim[i],), 
             )
             if self.use_action_mask:
                 s['action_mask'] = (self.action_space[i].n,)
@@ -199,8 +201,6 @@ class GRF:
             d = dict(
                 obs=obs_dtype, 
                 global_state=obs_dtype, 
-                prev_reward=np.float32, 
-                prev_action=np.float32, 
             )
             if self.use_action_mask:
                 d['action_mask'] = bool
@@ -328,8 +328,6 @@ class GRF:
             agent_obs = [dict(
                 obs=obs[uids], 
                 global_state=obs[uids], 
-                prev_reward=reward[aid], 
-                prev_action=action[aid], 
                 action_mask=act_masks[uids], 
             ) for aid, uids in enumerate(self.aid2uids)]
         else:
@@ -338,8 +336,6 @@ class GRF:
             agent_obs = [dict(
                 obs=obs[uids], 
                 global_state=obs[uids], 
-                prev_reward=reward[aid], 
-                prev_action=action[aid], 
             ) for aid, uids in enumerate(self.aid2uids)]
             if self.use_idx:
                 for o, uids in zip(agent_obs, self.aid2uids):

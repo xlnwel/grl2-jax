@@ -13,7 +13,7 @@ from core.log import do_logging
 from core.typing import AttrDict
 from replay.local import EpisodicBuffer
 from replay.utils import load_data, save_data
-from tools.utils import batch_dicts, yield_from_dict
+from tools.utils import batch_dicts, yield_from_tree
 from tools.display import print_dict_info
 from replay import replay_registry
 
@@ -62,7 +62,7 @@ class EpisodicReplay(Buffer):
 
     def add(self, idxes=None, **data):
         if self.n_envs > 1:
-            for i, d in enumerate(yield_from_dict(data)):
+            for i, d in enumerate(yield_from_tree(data)):
                 eps = self._tmp_bufs[i].add(**d)
                 if eps is not None:
                     self.merge(eps)

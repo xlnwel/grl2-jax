@@ -31,10 +31,25 @@
 # ./scripts/inf magw 2 inf_magw_mb
 # ./scripts/inf magw 1 inf_ppo_lka happo_lka1
 # ./scripts/inf magw 6 inf_ppo_lka
-# ./scripts/inf magw 4 inf_ppo_lka
-# ./scripts/inf magw 2 inf_magw_mb
-
-./scripts/inf ma_mujoco 1 inf_mujoco_ppo
+# ./scripts/inf magw 3 inf_ppo_lka
+# ./scripts/inf magw 8 inf_magw_mb
+# ./scripts/inf magw 1 inf_magw_mb 50 True
+# ./scripts/inf magw 1 inf_magw_mb 50 False
+# ./scripts/inf magw 1 inf_magw_mb 100 True
+# ./scripts/inf magw 1 inf_magw_mb 100 False
+# ./scripts/inf magw 1 inf_magw_mb 150 True
+# ./scripts/inf magw 1 inf_magw_mb 150 False
+# ./scripts/inf magw 1 inf_magw_mb 200 True
+# ./scripts/inf magw 1 inf_magw_mb 200 False
+./scripts/inf magw 1 inf_ppo_lka 1 True
+./scripts/inf magw 1 inf_ppo_lka 1 False
+./scripts/inf magw 1 inf_ppo_lka .5 True
+./scripts/inf magw 1 inf_ppo_lka .5 False
+# ./scripts/inf ma_mujoco 3 inf_mujoco_ppo
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 50
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 100
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 150
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 200
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo happo
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo happo_lka2
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb
