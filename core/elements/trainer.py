@@ -49,11 +49,11 @@ class TrainerBase(ParamsCheckpointBase):
         )
 
     def compile_train(self):
-        with Timer(f'{self.name}_jit_train'):
-            _jit_train = jax.jit(self.theta_train)
-        def jit_train(*args, **kwargs):
+        with Timer(f'{self.name}_jit_train', 1):
+            _jit_train = jax.jit(self.theta_train, static_argnames='return_stats')
+        def jit_train(*args, return_stats=True, **kwargs):
             self.rng, rng = jax.random.split(self.rng)
-            return _jit_train(*args, rng=rng, **kwargs)
+            return _jit_train(*args, rng=rng, return_stats=return_stats, **kwargs)
         self.jit_train = jit_train
         self.haiku_tabulate()
 

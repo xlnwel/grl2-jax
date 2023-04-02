@@ -62,8 +62,8 @@ strategy:
     algorithm: *algo
     train_loop:
         ergodic: True
-        samples_per_epochs: 5e4
-        n_valid_samples: 1e4
+        training_data_size: 5e4
+        valid_data_size: 1e4
         n_epochs: &nepochs 5
 
 model:

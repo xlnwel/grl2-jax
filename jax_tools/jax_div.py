@@ -1,9 +1,59 @@
 from jax import lax
 import jax.numpy as jnp
-import rlax
 import chex
 import distrax
 
+
+def kl_divergence(
+    *, 
+    reg_type,
+    logp=None,
+    logq=None, 
+    sample_prob=1., 
+    p_logits=None,
+    q_logits=None,
+    p_loc=None,
+    p_scale=None,
+    q_loc=None,
+    q_scale=None,
+    logits_mask=None, 
+):
+    if reg_type == 'forward_approx':
+        kl = kl_from_samples(
+            logp=logq, 
+            logq=logp, 
+            sample_prob=sample_prob, 
+        )
+    elif reg_type == 'reverse_approx':
+        kl = reverse_kl_from_samples(
+            logp=logp, 
+            logq=logq, 
+            sample_prob=sample_prob, 
+        )
+    elif reg_type == 'forward':
+        kl = kl_from_distributions(
+            p_logits=q_logits, 
+            q_logits=p_logits, 
+            p_loc=q_loc, 
+            p_scale=q_scale, 
+            q_loc=p_loc, 
+            q_scale=p_scale, 
+            logits_mask=logits_mask, 
+        )
+    elif reg_type == 'reverse':
+        kl = kl_from_distributions(
+            p_logits=p_logits, 
+            q_logits=q_logits, 
+            p_loc=p_loc, 
+            p_scale=p_scale, 
+            q_loc=q_loc, 
+            q_scale=q_scale, 
+            logits_mask=logits_mask, 
+        )
+    else:
+        raise NotImplementedError(f'Unknown kl {reg_type}')
+
+    return kl
 
 def kl_from_distributions(
     *, 
@@ -20,8 +70,8 @@ def kl_from_distributions(
         qd = distrax.MultivariateNormalDiag(q_loc, q_scale)
     else:
         if logits_mask is not None:
-            p_logits = jnp.where(logits_mask, p_logits, 1e-8)
-            q_logits = jnp.where(logits_mask, q_logits, 1e-8)
+            p_logits = jnp.where(logits_mask, p_logits, -float('inf'))
+            q_logits = jnp.where(logits_mask, q_logits, -float('inf'))
         pd = distrax.Categorical(p_logits)
         qd = distrax.Categorical(q_logits)
     kl = pd.kl_divergence(qd)
@@ -30,28 +80,28 @@ def kl_from_distributions(
 
 def kl_from_samples(
     *,
+    logp, 
+    logq, 
+    sample_prob=None
+):
+    if sample_prob is None:
+        sample_prob = 1.
+    p = lax.exp(logp)
+    q = lax.exp(logq)
+    approx_kl = q * lax.stop_gradient(-p / q / sample_prob)
+    return approx_kl
+
+def reverse_kl_from_samples(
+    *,
     logp,
     logq, 
-    sample_prob, 
+    sample_prob=None
 ):
     if sample_prob is None:
         sample_prob = 1.
     log_ratio = logp - logq
     p = lax.exp(logp)
     approx_kl = p * lax.stop_gradient((log_ratio + 1) / sample_prob)
-    return approx_kl
-
-def reverse_kl_from_samples(
-    *,
-    logp, 
-    logq, 
-    sample_prob
-):
-    if sample_prob is None:
-        sample_prob = 1.
-    p = lax.exp(logp)
-    q = lax.exp(logq)
-    approx_kl = q * lax.stop_gradient(p / q / sample_prob)
     return approx_kl
 
 def js_from_samples(
@@ -176,7 +226,7 @@ def tsallis_from_distributions(
     return tsallis
 
 
-def compute_mid_multivariate_normal(dist1, dist2):
-    mid_loc = (dist1.loc + dist2.loc) / 2.
-    mid_scale = lax.pow(lax.pow(dist1.scale_diag, 2.)/4. + lax.pow(dist2.scale_diag, 2.)/4., 1/2)
-    return MultivariateNormalDiag(mid_loc, mid_scale, dist1._joint_log_prob)
+def wasserstein(
+    p_loc, p_scale, q_loc, q_scale
+):
+    return lax.pow(p_loc - q_loc, 2.) + lax.pow(p_scale - q_scale, 2.)

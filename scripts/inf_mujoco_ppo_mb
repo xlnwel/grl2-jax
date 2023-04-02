@@ -16,8 +16,11 @@ configs=(
     "${suite}"
 )
 args1=(
-    mse 
-    mbpo
+    $1
+    50
+    100
+    150
+    200
 )
 args2=(
     10
@@ -69,17 +72,18 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-for a2 in "${args2[@]}"; do
+# for a2 in "${args2[@]}"; do
     # kws="0#dynamics_name=$d 1#model_loss_type=$a1 1#n_epochs=$a2"
-    for e in "${envs[@]}"; do
-        env="${suite}-${e}"
-        for s in {0..4}; do
-            py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-            commands+=("$py_script")
-            echo $py_script
-            # eval $py_script
-        done
+for e in "${envs[@]}"; do
+    kws="0#norm_adv=False 1#n_epochs=$a1"
+    env="${suite}-${e}"
+    for s in {0..4}; do
+        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+        # eval $py_script
     done
+    # done
 done
 # done
 # echo ${commands[@]}s

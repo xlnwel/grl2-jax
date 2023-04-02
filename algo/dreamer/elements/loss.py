@@ -204,7 +204,7 @@ class Loss(LossBase):
             n=data.n
         )
         stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
-            kl_type=self.config.kl_type, 
+            reg_type=self.config.reg_type, 
             kl_coef=self.config.kl_coef, 
             **kl_stats
         )

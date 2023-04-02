@@ -8,8 +8,9 @@ from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict, subdict
 from replay.local import NStepBuffer
-from tools.utils import batch_dicts, yield_from_dict
+from tools.utils import batch_dicts, yield_from_tree
 from tools.rms import RunningMeanStd
+from tools.timer import Timer
 from replay import replay_registry
 
 
@@ -65,7 +66,7 @@ class UniformReplay(Buffer):
 
     def add(self, idxes=None, **data):
         if self.n_envs > 1:
-            for i, d in enumerate(yield_from_dict(data)):
+            for i, d in enumerate(yield_from_tree(data)):
                 if i >= len(self._tmp_bufs):
                     self._tmp_bufs.append(NStepBuffer(
                         self.config, self.env_stats, self.model, self.aid, 0))
@@ -80,7 +81,7 @@ class UniformReplay(Buffer):
     def add_and_pop(self, idxes=None, **data):
         popped_data = []
         if self.n_envs > 1:
-            for i, d in enumerate(yield_from_dict(data)):
+            for i, d in enumerate(yield_from_tree(data)):
                 if i >= len(self._tmp_bufs):
                     self._tmp_bufs.append(NStepBuffer(
                         self.config, self.env_stats, self.model, self.aid, 0))

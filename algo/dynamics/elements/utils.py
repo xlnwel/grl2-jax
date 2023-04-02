@@ -1,7 +1,7 @@
 from jax import nn
 import jax.numpy as jnp
 
-from core.typing import AttrDict
+from core.typing import AttrDict, dict2AttrDict
 
 
 def prefix_name(terms, name):
@@ -39,3 +39,25 @@ def combine_sa(x, a):
     x = jnp.concatenate([x, a], -1)
 
     return x
+
+
+def get_data_format(config, env_stats, model):
+    aid = model.aid
+    batch_size = config.batch_size
+    seqlen = config.seqlen
+    n_units = env_stats.n_units
+    obs_shapes = env_stats.obs_shape[aid]
+    obs_dtypes = env_stats.obs_dtype[aid]
+    basic_shape = (batch_size, seqlen, n_units)
+    data = {
+        k: jnp.zeros((batch_size, seqlen, n_units, *v), obs_dtypes[k]) 
+        for k, v in obs_shapes.items()}
+    data.update({
+        f'next_{k}': jnp.zeros((batch_size, seqlen, n_units, *v), obs_dtypes[k]) 
+        for k, v in obs_shapes.items()})
+    data = dict2AttrDict(data)
+    data.setdefault('global_state', data.obs)
+    action_dim = env_stats.action_dim[aid]
+    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
+    data.reset = jnp.zeros(basic_shape, jnp.float32)
+    data.reward = jnp.zeros(basic_shape, jnp.float32)

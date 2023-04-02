@@ -7,35 +7,39 @@ shift
 algos=(
     happo
     # happo_lka1
-    happo_lka2
+    # happo_lka2
     # $1
     # masac_lka1
     # mambpo
 )
 envs=(
     Ant_2x4
-    Walker2d_2x3
     HalfCheetah_2x3
+    Walker2d_2x3
 )
 configs=(
     "${suite}"
 )
 args1=(
     # ppo
+    # True
+    # False
     1
+    .5
     .1
 )
 args2=(
-    $2
     1
+    .5
+    .1
 )
 args3=(
     $3
-    1
+    0
 )
-# date=$(date +"%m%d")
-date="0330"
-info=""
+date=$(date +"%m%d")
+# date="0331"
+info="sg"
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
 # for x in $(seq 1 1); do
@@ -71,20 +75,21 @@ a3=${args3[$idx]}
 
 commands=()
 # kws="update_scheme=$a1"
+# for a1 in "${args1[@]}"; do
+    # for a in "${algos[@]}"; do
 for a1 in "${args1[@]}"; do
-    for a in "${algos[@]}"; do
-        kws="0#norm_adv=False 0#pos_kl_coef=$a1"
-        for e in "${envs[@]}"; do
-            env="${suite}-${e}"
-            for s in {0..3}; do
-                py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-                commands+=("$py_script")
-                echo $py_script
-                # eval $py_script
-            done
-        done
+# for e in "${envs[@]}"; do
+    kws="0#norm_adv=False 0#reg_type=simple 0#rescaled_by_adv=True 0#pos_reg_coef=$a1"
+    env="${suite}-${e}"
+    for s in {0..3}; do
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+        # eval $py_script
     done
 done
+    # done
+# done
 # echo ${commands[@]}s
 lc=${#commands[@]}
 p=$((lc / le))

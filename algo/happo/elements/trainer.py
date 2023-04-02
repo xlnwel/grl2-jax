@@ -14,7 +14,7 @@ from core.typing import AttrDict
 from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
 from tools.timer import Timer
-from tools.utils import flatten_dict, prefix_name, batch_dicts
+from tools.utils import flatten_dict, prefix_name, batch_dicts, yield_from_tree_with_indices
 from algo.lka_common.elements.model import LOOKAHEAD, pop_lookahead
 from algo.lka_common.elements.trainer import *
 
@@ -30,6 +30,15 @@ class Trainer(TrainerBase):
         self.lka_rng = self.rng
         self.perm_lka_rng = perm_rng
         self.perm_rng = perm_rng
+
+        if self.config.n_simulated_envs:
+            self.lka_indices = np.arange(self.config.n_simulated_envs)
+        else:
+            self.lka_indices = self.indices
+        self.n_epochs = self.config.n_epochs
+        self.n_mbs = self.config.n_mbs
+        self.n_lka_epochs = self.config.get('n_lka_epochs', self.n_epochs)
+        self.n_lka_mbs = self.config.get('n_lka_mbs', self.n_mbs)
 
     def build_optimizers(self):
         theta = self.model.theta.copy()
@@ -59,17 +68,19 @@ class Trainer(TrainerBase):
 
     def compile_train(self):
         _jit_train = jax.jit(self.theta_train, 
-            static_argnames=['aid', 'compute_teammate_log_ratio'])
+            static_argnames=['aid', 'compute_teammate_log_ratio', 'return_stats'])
         def jit_train(*args, **kwargs):
             self.rng, rng = random.split(self.rng)
             return _jit_train(*args, rng=rng, **kwargs)
         self.jit_train = jit_train
-
+        
+        _jit_lka_train = jax.jit(self.lka_train, 
+            static_argnames=['aid', 'compute_teammate_log_ratio', 'return_stats'])
         def jit_lka_train(*args, **kwargs):
             self.lka_rng, rng = random.split(self.lka_rng)
-            return _jit_train(*args, rng=rng, **kwargs)
+            return _jit_lka_train(*args, rng=rng, **kwargs)
         self.jit_lka_train = jit_lka_train
-
+        
         self.haiku_tabulate()
 
     def train(self, data: AttrDict):
@@ -86,16 +97,18 @@ class Trainer(TrainerBase):
         if self.config.update_scheme == 'step':
             theta, opt_state, stats, self.perm_rng = \
                 self.stepwise_sequential_opt(
-                    theta, opt_state, data, self.config.n_epochs, 
-                    self.config.n_mbs, self.indices, 
-                    self.jit_train, self.perm_rng
+                    theta, opt_state, data, self.n_epochs, 
+                    self.n_mbs, self.indices, 
+                    self.jit_train, self.perm_rng, 
+                    return_stats=True
                 )
         else:
             theta, opt_state, stats, self.perm_rng = \
                 self.sequential_opt(
-                    theta, opt_state, data, self.config.n_epochs, 
-                    self.config.n_mbs, self.indices, 
-                    self.jit_train, self.perm_rng
+                    theta, opt_state, data, self.n_epochs, 
+                    self.n_mbs, self.indices, 
+                    self.jit_train, self.perm_rng, 
+                    return_stats=True
                 )
 
         for p in theta.policies:
@@ -121,20 +134,23 @@ class Trainer(TrainerBase):
         theta.policies, is_lookahead = pop_lookahead(theta.policies)
         assert all([lka == True for lka in is_lookahead]), is_lookahead
         opt_state = self.lookahead_opt_state
+
         if self.config.update_scheme == 'step':
             theta, opt_state, self.perm_lka_rng = self.stepwise_sequential_opt(
-                theta, opt_state, data, self.config.n_epochs, 
-                self.config.n_mbs, self.indices, 
+                theta, opt_state, data, self.n_lka_epochs, 
+                self.n_lka_mbs, self.lka_indices, 
+                self.jit_lka_train, self.perm_lka_rng, 
+                return_stats=False
+            )
+        elif self.config.update_scheme == 'whole':
+            theta, opt_state, self.perm_lka_rng = self.sequential_opt(
+                theta, opt_state, data, self.n_lka_epochs, 
+                self.n_lka_mbs, self.lka_indices, 
                 self.jit_lka_train, self.perm_lka_rng, 
                 return_stats=False
             )
         else:
-            theta, opt_state, self.perm_lka_rng = self.sequential_opt(
-                theta, opt_state, data, self.config.n_epochs, 
-                self.config.n_mbs, self.indices, 
-                self.jit_lka_train, self.perm_lka_rng, 
-                return_stats=False
-            )
+            raise NotImplementedError(self.config.update_scheme)
 
         for p in theta.policies:
             p[LOOKAHEAD] = True
@@ -190,24 +206,28 @@ class Trainer(TrainerBase):
 
     def stepwise_sequential_opt(self, theta, opt_state, data, 
             n_epochs, n_mbs, indices, train_fn, rng, return_stats=True):
-        rngs = random.split(rng, n_epochs+n_epochs*n_mbs+1)
-        shuffle_rng = rngs[:n_epochs]
-        ret_rng = rngs[-1]
-        rngs = rngs[n_epochs:-1]
+        # rngs = random.split(rng, n_epochs+n_epochs*n_mbs+1)
+        # shuffle_rng = rngs[:n_epochs]
+        # ret_rng = rngs[-1]
+        # rngs = rngs[n_epochs:-1]
+        period = 10 if n_epochs > 10 else 2
         all_stats = AttrDict()
+            
         for e in range(n_epochs):
-            indices = random.shuffle(shuffle_rng[e], indices)
+            # indices = random.shuffle(shuffle_rng[e], indices)
+            np.random.shuffle(indices)
+            _indices = np.split(indices, n_mbs)
             v_target = []
-            for i, idx in enumerate(np.split(indices, n_mbs)):
+            for i, data_slice in enumerate(yield_from_tree_with_indices(data, _indices, axis=0)):
                 vts = [None for _ in self.aid2uids]
-                data_slice = data.slice(idx.tolist())   # note that bugs may happen when n_mbs == n_envs and idx is jnp.array
                 teammate_log_ratio = jnp.zeros_like(data_slice.mu_logprob[:, :, :1])
-                rng = rngs[e*n_mbs + i]
-                for aid in random.permutation(rng, self.n_agents):
-                    aid = int(aid)
-                    uids = self.aid2uids[aid]
+                # rng = rngs[e*n_mbs + i]
+                # for aid in random.permutation(rng, self.n_agents):
+                aids = np.random.permutation(self.n_agents)
+                uids = [self.aid2uids[aid] for aid in aids]
+                for aid, agent_data in zip(aids, 
+                        yield_from_tree_with_indices(data_slice, uids, axis=2)):
                     agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, aid)
-                    agent_data = data_slice.slice(indices=uids, axis=2)
                     if self.config.popart:
                         agent_data.popart_mean = self.popart[aid].mean
                         agent_data.popart_std = self.popart[aid].std
@@ -218,23 +238,26 @@ class Trainer(TrainerBase):
                             data=agent_data, 
                             teammate_log_ratio=teammate_log_ratio, 
                             aid=aid,
-                            compute_teammate_log_ratio=True
+                            compute_teammate_log_ratio=True, 
+                            return_stats=self.config.get('debug', False)
                         )
                     teammate_log_ratio = stats.teammate_log_ratio
 
                     theta, opt_state = set_params_and_opt(
                         theta, opt_state, aid, agent_theta, agent_opt_state)
                     
-                    vts[aid] = stats.pop('v_target')
-                    all_stats.update(**prefix_name(stats, name=f'agent{aid}_epoch{e}'))
+                    if return_stats:
+                        vts[aid] = stats.pop('v_target')
+                        if (e % period == 0 or e == n_epochs - 1) and (i == 0 or i == n_mbs - 1):
+                            all_stats.update(**prefix_name(stats, name=f'agent{aid}_epoch{e}'))
                 v_target.append(vts)
 
         if return_stats:
             v_target = [np.concatenate(v, 2) for v in v_target]
             all_stats.v_target = np.concatenate(v_target)
             assert all_stats.v_target.shape == data.reward.shape, (all_stats.v_target.shape, data.reward.shape)
-            return theta, opt_state, all_stats, ret_rng
-        return theta, opt_state, ret_rng
+            return theta, opt_state, all_stats, rng
+        return theta, opt_state, rng
 
     def sync_lookahead_params(self):
         self.model.sync_lookahead_params()
@@ -248,7 +271,8 @@ class Trainer(TrainerBase):
         data, 
         teammate_log_ratio, 
         aid, 
-        compute_teammate_log_ratio=True
+        compute_teammate_log_ratio=True, 
+        return_stats=True
     ):
         do_logging('train is traced', backtrack=4)            
         rngs = random.split(rng, 3)
@@ -296,6 +320,85 @@ class Trainer(TrainerBase):
             stats.teammate_log_ratio = self.compute_teammate_log_ratio(
                 theta.policy, rngs[2], teammate_log_ratio, data)
 
+        if not return_stats:
+            inverse_mu = 1 / jnp.exp(data.mu_logprob)
+            stats = AttrDict(
+                ratio=stats.ratio, 
+                log_ratio=stats.log_ratio, 
+                reg=stats.reg, 
+                pos_reg=stats.pos_reg, 
+                reg_below_threshold=stats.reg_below_threshold, 
+                reg_above_threshold=stats.reg_above_threshold, 
+                inverse_mu=inverse_mu, 
+                clip_frac=stats.clip_frac, 
+                v_target=stats.v_target, 
+                teammate_log_ratio=stats.teammate_log_ratio, 
+                raw_adv_ratio_pp=stats.raw_adv_ratio_pp, 
+                raw_adv_ratio_pn=stats.raw_adv_ratio_pn
+            )
+        return theta, opt_state, stats
+
+    def lka_train(
+        self, 
+        theta, 
+        rng, 
+        opt_state, 
+        data, 
+        teammate_log_ratio,
+        aid, 
+        compute_teammate_log_ratio=True, 
+        return_stats=False
+    ):
+        do_logging('lka train is traced', backtrack=4)
+        rngs = random.split(rng, 3)
+        if self.config.get('theta_opt'):
+            theta, opt_state, stats = optimizer.optimize(
+                self.loss.lka_loss, 
+                theta, 
+                opt_state, 
+                kwargs={
+                    'rng': rngs[0], 
+                    'data': data,
+                    'teammate_log_ratio': teammate_log_ratio,
+                }, 
+                opt=self.opts.theta[aid], 
+                name='train/theta'
+            )
+        else:
+            theta.value, opt_state.value, stats = optimizer.optimize(
+                self.loss.lka_value_loss, 
+                theta.value, 
+                opt_state.value, 
+                kwargs={
+                    'rng': rngs[0], 
+                    'policy_theta': theta.policy, 
+                    'data': data,
+                }, 
+                opt=self.opts.vs[aid], 
+                name='train/value'
+            )
+            theta.policy, opt_state.policy, stats = optimizer.optimize(
+                self.loss.lka_policy_loss, 
+                theta.policy, 
+                opt_state.policy, 
+                kwargs={
+                    'rng': rngs[1], 
+                    'data': data, 
+                    'stats': stats,
+                    'teammate_log_ratio': teammate_log_ratio,
+                }, 
+                opt=self.opts.policies[aid], 
+                name='train/policy'
+            )
+
+        if compute_teammate_log_ratio:
+            stats.teammate_log_ratio = self.compute_teammate_log_ratio(
+                theta.policy, rngs[2], teammate_log_ratio, data)
+
+        if not return_stats:
+            stats = AttrDict(
+                teammate_log_ratio=stats.teammate_log_ratio
+            )
         return theta, opt_state, stats
 
     def compute_teammate_log_ratio(

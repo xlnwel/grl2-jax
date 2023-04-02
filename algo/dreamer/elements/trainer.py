@@ -12,6 +12,7 @@ from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import dict2AttrDict, AttrDict
 from tools.display import print_dict_info
+from tools.feature import one_hot
 from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
 
@@ -159,7 +160,7 @@ class Trainer(TrainerBase):
 
     def process_data(self, data):
         if self.env_stats.is_action_discrete[0]:
-            data.action = self.model.process_action(data.action)
+            data.action = one_hot(data.action, self.env_stats.action_dim[0])
             
         return data
 

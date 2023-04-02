@@ -115,7 +115,7 @@ class Loss(LossBase):
             n=data.n
         )
         stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
-            kl_type=self.config.kl_type, 
+            reg_type=self.config.reg_type, 
             kl_coef=self.config.kl_coef, 
             **kl_stats
         )
@@ -234,7 +234,7 @@ class Loss(LossBase):
             n=data.n
         )
         stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
-            kl_type=self.config.kl_type, 
+            reg_type=self.config.reg_type, 
             kl_coef=self.config.kl_coef, 
             **kl_stats
         )
@@ -254,7 +254,7 @@ class Loss(LossBase):
             n=data.n 
         )
         stats.future_kl, stats.future_raw_kl_loss, stats.future_kl_loss = jax_loss.compute_kl(
-            kl_type=self.config.future_kl_type, 
+            reg_type=self.config.future_kl_type, 
             kl_coef=self.config.future_kl_coef, 
             **future_kl_stats
         )
@@ -412,7 +412,7 @@ class Loss(LossBase):
             n=data.n
         )
         stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
-            kl_type=self.config.kl_type, 
+            reg_type=self.config.reg_type, 
             kl_coef=self.config.kl_coef, 
             **kl_stats
         )

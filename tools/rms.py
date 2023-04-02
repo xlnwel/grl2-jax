@@ -4,8 +4,10 @@ import numpy as np
 from tools.utils import expand_dims_match, moments
 
 
-Stats = collections.namedtuple('RMS', 'mean var')
-StatsWithCount = collections.namedtuple('RMS', 'mean var count')
+StatsWithVar = collections.namedtuple('RMS', 'mean var')
+StatsWithVarCount = collections.namedtuple('RMS', 'mean var count')
+StatsWithStd = collections.namedtuple('RMS', 'mean var')
+StatsWithStdCount = collections.namedtuple('RMS', 'mean var count')
 
 
 def combine_rms(rms1, rms2):
@@ -26,7 +28,7 @@ def combine_rms(rms1, rms2):
     assert np.all(np.isfinite(M2)), f'M2: {M2}'
     new_var = M2 / total_count
 
-    return StatsWithCount(new_mean, new_var, total_count)
+    return StatsWithVarCount(new_mean, new_var, total_count)
 
 
 def denormalize(x, mean, std, zero_center=True, mask=None):
@@ -122,11 +124,17 @@ class RunningMeanStd:
         self._std = np.sqrt(self._var)
         self._count = count
 
-    def get_rms_stats(self, with_count=True):
+    def get_rms_stats(self, with_count=True, return_std=False):
         if with_count:
-            return StatsWithCount(self._mean, self._var, self._count)
+            if return_std:
+                return StatsWithStdCount(self._mean, self._std, self._count)
+            else:
+                return StatsWithVarCount(self._mean, self._var, self._count)
         else:
-            return Stats(self._mean, self._var)
+            if return_std:
+                return StatsWithStd(self._mean, self._std)
+            else:
+                return StatsWithVar(self._mean, self._var)
 
     def update(self, x, mask=None, axis=None):
         x = x.astype(np.float64)
@@ -156,8 +164,8 @@ class RunningMeanStd:
         assert self._var.shape == batch_var.shape
 
         new_mean, new_var, total_count = combine_rms(
-            StatsWithCount(self._mean, self._var, self._count), 
-            StatsWithCount(batch_mean, batch_var, batch_count))
+            StatsWithVarCount(self._mean, self._var, self._count), 
+            StatsWithVarCount(batch_mean, batch_var, batch_count))
         self._mean = new_mean
         self._var = new_var
         self._std = np.sqrt(self._var + self._epsilon)

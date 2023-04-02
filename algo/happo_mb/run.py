@@ -1,5 +1,6 @@
 import numpy as np
 
+from tools.rms import denormalize
 from tools.utils import batch_dicts
 from tools.timer import timeit
 from algo.lka_common.run import *
@@ -24,9 +25,13 @@ def add_data_to_buffer(
     data.state_reset = np.concatenate([data.state_reset, np.expand_dims(reset, 1)], 1)
 
     if compute_return:
-        value = data.value
         if agent.trainer.config.popart:
-            value = agent.trainer.popart.denormalize(data.value)
+            poparts = [p.get_rms_stats(with_count=False) for p in agent.trainer.popart]
+            mean, var = [np.stack(s) for s in zip(*poparts)]
+            std = np.sqrt(var)
+            value = denormalize(data.value, mean, std)
+        else:
+            value = data.value
         value, next_value = value[:, :-1], value[:, 1:]
         data.advantage, data.v_target = compute_gae(
             reward=data.reward, 

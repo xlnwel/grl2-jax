@@ -103,8 +103,8 @@ loss:
     # hyperparams for policy optimization
     pg_type: ppo
     ppo_clip_range: .2
-    kl_type: reverse
-    kl_coef: 0
+    reg_type: kl_reverse
+    reg_coef: 0
     policy_sample_mask: True
 
     # hyperparams for value learning

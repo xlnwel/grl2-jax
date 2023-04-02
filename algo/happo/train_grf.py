@@ -65,7 +65,7 @@ def train(
         time2record = to_record(env_step)
 
         if time2record:
-            eval_and_log(agent, None, runner, routine_config, 
+            eval_and_log(agent, None, None, routine_config, 
                          agent.training_data, eval_data, eval_lka=False)
 
 

@@ -412,12 +412,16 @@ def correct_ppo_loss(
     advantage, 
     pi_logprob, 
     mu_logprob, 
-    clip_range
+    clip_range, 
+    opt_pg=False
 ):
     ratio = jnp.exp(pi_logprob - mu_logprob)
     neutral_ratio = jnp.exp(pi_logprob - lax.stop_gradient(pi_logprob))
     jax_assert.assert_shape_compatibility([advantage, ratio])
-    ratio = jnp.where(jnp.logical_and((advantage >= 0), (ratio < 1)), neutral_ratio, ratio)
+    cond = advantage >= 0
+    if opt_pg:
+        cond = jnp.logical_and(cond, ratio < 1)
+    ratio = jnp.where(cond, neutral_ratio, ratio)
     pg_loss, clipped_loss = _compute_ppo_policy_losses(
         advantage, ratio, clip_range)
     loss = jnp.maximum(pg_loss, clipped_loss)
@@ -520,61 +524,9 @@ def _compute_ppo_policy_losses(advantages, ratio, clip_range):
     return pg_loss, clipped_loss
 
 
-def kl_divergence(
-    *, 
-    kl_type,
-    logp=None,
-    logq=None, 
-    sample_prob=1., 
-    p_logits=None,
-    q_logits=None,
-    p_loc=None,
-    p_scale=None,
-    q_loc=None,
-    q_scale=None,
-    logits_mask=None, 
-):
-    if kl_type == 'forward_approx':
-        kl = jax_div.kl_from_samples(
-            logp=logq, 
-            logq=logp,
-            sample_prob=sample_prob, 
-        )
-    elif kl_type == 'reverse_approx':
-        kl = jax_div.reverse_kl_from_samples(
-            logp=logp, 
-            logq=logq,
-            sample_prob=sample_prob, 
-        )
-    elif kl_type == 'forward':
-        kl = jax_div.kl_from_distributions(
-            p_logits=q_logits, 
-            q_logits=p_logits, 
-            p_loc=q_loc, 
-            p_scale=q_scale, 
-            q_loc=p_loc, 
-            q_scale=p_scale, 
-            logits_mask=logits_mask, 
-        )
-    elif kl_type == 'reverse':
-        kl = jax_div.kl_from_distributions(
-            p_logits=p_logits, 
-            q_logits=q_logits, 
-            p_loc=p_loc, 
-            p_scale=p_scale, 
-            q_loc=q_loc, 
-            q_scale=q_scale, 
-            logits_mask=logits_mask, 
-        )
-    else:
-        raise NotImplementedError(f'Unknown kl {kl_type}')
-
-    return kl
-
-
 def compute_kl_loss(
     *, 
-    kl_type,
+    reg_type,
     kl_coef=None, 
     logp=None,
     logq=None, 
@@ -594,8 +546,8 @@ def compute_kl_loss(
     q is the target distribution
     """
     if kl_coef is not None:
-        kl = kl_divergence(
-            kl_type=kl_type, 
+        kl = jax_div.kl_divergence(
+            reg_type=reg_type, 
             logp=logp, 
             logq=logq, 
             sample_prob=sample_prob, 

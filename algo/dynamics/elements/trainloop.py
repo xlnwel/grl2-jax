@@ -1,5 +1,6 @@
 from core.elements.trainloop import TrainingLoop as TrainingLoopBase
 from tools.utils import prefix_name
+from tools.timer import Timer, timeit
 
 
 class TrainingLoop(TrainingLoopBase):
@@ -11,7 +12,7 @@ class TrainingLoop(TrainingLoopBase):
         stats = {}
         for _ in range(self.config.n_epochs):
             if self.config.ergodic:
-                for data in self.buffer.ergodic_sample(n=self.config.samples_per_epochs):
+                for data in self.buffer.ergodic_sample(n=self.config.training_data_size):
                     stats = self._train_with_data(data)
                     n += 1
             else:
@@ -21,14 +22,11 @@ class TrainingLoop(TrainingLoopBase):
                 stats = self._train_with_data(data)
                 n += 1
 
-        if n > 0:
-            valid_stats = self.valid_stats()
-            stats.update(valid_stats)
-
         return n, stats
 
+    @timeit
     def valid_stats(self):
-        data = self.buffer.range_sample(0, self.config.n_valid_samples)
+        data = self.buffer.range_sample(0, self.config.valid_data_size)
         data = self.trainer.process_data(data)
 
         _, stats = self.trainer.loss.loss(

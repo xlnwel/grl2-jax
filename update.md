@@ -19,5 +19,6 @@ algo.ppo.elements.utils中的compute_actor_loss函数中的policy_sample_mask判
 2023.03.28
 1. ma_common/train.py中函数log的参数进行了修改，老版代码是5个参数，为了兼容train_smac改成了3个参数，代码有冲突，暂时更改成了*args，根据参数个数定义参数含义。(由于在log函数中自动从agent里读取env_step和train_step, 所以把这两个参数忽略了)
 
-2023.03.29
-关闭advantage normalization, 对A>0时加一个KL.
+2023.04.02
+加速训练: 1. 把jit外面的jax函数都换成numpy的相关函数. 2. 添加return_stats选项以减少训练时不必要的stats统计. 3. 把model训练从ergodic sampling切换到random sampling. 
+增加了一些loss来针对A>0时的counter-intuitive updates

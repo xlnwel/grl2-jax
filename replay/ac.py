@@ -172,7 +172,7 @@ class ACBuffer(Buffer):
         self._queue[0][key] = value
 
     """ Sampling """
-    def sample(self, sample_keys=None):
+    def sample(self, sample_keys=None, batch_size=None):
         ready = self._wait_to_sample()
         if not ready:
             return None

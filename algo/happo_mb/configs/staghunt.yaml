@@ -87,22 +87,25 @@ loss:
     prnn_bptt: 10
     vrnn_bptt: 10
 
-    lka_prnn_bptt: 10
-    lka_vrnn_bptt: 10
-
     # hyperparams for policy optimization
     pg_type: ppo
     ppo_clip_range: .2
-    kl_type: reverse
-    kl_coef: 0
-    pos_kl_coef: 0
-    neg_kl_coef: 0
+    reg_type: kl_reverse
+    reg_coef: 0
+    pos_reg_coef: 0
+    neg_reg_coef: 0
     policy_sample_mask: True
 
     # hyperparams for value learning
     value_loss: clip
     value_clip_range: .2
     value_sample_mask: False
+
+    # hyperparams for lka
+    lka_prnn_bptt: 10
+    lka_vrnn_bptt: 10
+    lka_reg_type: kl_reverse
+    pos_lka_reg_coef: 0
 
     stats:
         gamma: *gamma

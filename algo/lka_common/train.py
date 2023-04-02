@@ -133,7 +133,7 @@ def load_eval_data(filename, filedir='/System/Volumes/Data/mnt/公共区/cxw/dat
 
 
 @timeit
-def eval_policy_distances(agent, data, name=None, n=None):
+def eval_policy_distances(agent, data, name=None, n=None, eval_lka=True):
     if not data:
         return
     data = data.copy()
@@ -143,7 +143,7 @@ def eval_policy_distances(agent, data, name=None, n=None):
         if n < bs:
             indices = np.random.permutation(bs)[:n]
             data = data.slice(indices)
-    stats = agent.model.compute_policy_distances(data)
+    stats = agent.model.compute_policy_distances(data, eval_lka=eval_lka)
     stats = prefix_name(stats, name)
     agent.store(**stats)
 
@@ -178,14 +178,14 @@ def eval_ego_and_lka(agent, runner, routine_config):
 
 @timeit
 def eval_and_log(agent, dynamics, runner, routine_config, 
-                 train_data, eval_data, errors={}, n=1000):
-    eval_policy_distances(agent, eval_data, name='eval', n=n)
+                 train_data, eval_data, errors={}, n=500, eval_lka=True):
+    eval_policy_distances(agent, eval_data, name='eval', n=n, eval_lka=eval_lka)
     if train_data:
         seqlen = train_data.obs.shape[1]
         train_data = dict2AttrDict({k: train_data[k] for k in eval_data})
         train_data = jax.tree_util.tree_map(
             lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)
-        eval_policy_distances(agent, train_data, n=n)
+        eval_policy_distances(agent, train_data, n=n, eval_lka=eval_lka)
     if runner is not None:
         eval_ego_and_lka(agent, runner, routine_config)
     save(agent, dynamics)

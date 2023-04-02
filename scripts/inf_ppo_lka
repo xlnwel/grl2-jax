@@ -6,45 +6,37 @@ suite=$1
 shift
 envs=(
     escalation
-    staghunt
+    # staghunt
 )
 algos=(
     # $1
-    happo
-    happo
     # happo
+    # happo
+    happo
     # happo_lka1
     # happo_lka1
-    happo_lka2
-    happo_lka2
+    # happo_lka2
+    # happo_lka2
 )
 args1=(
     # ppo
     # correct_ppo
-    # 10
-    1
+    $1
+    .5
     .1
-    # 10
-    # 20
-    # 20
-    # 20
-    # 30
-    # 30
-    # 15
-    # 20
-    # 20
 )
 args2=(
     # $3
-    256
-    400
+    $2
+    0
 )
 args3=(
-    10
+    1
+    0
 )
-# date=$(date +"%m%d")
-date="0330"
-info=""
+date=$(date +"%m%d")
+# date="0331"
+info="sg"
 ld="${suite}-logs"
 # gpus=$(nvidia-smi -L | wc -l)
 # for x in $(seq 1 1); do
@@ -79,39 +71,71 @@ a3=${args3[$idx]}
 # kws=$@
 
 commands=()
-for a2 in "${args2[@]}"; do
-    kws="0#norm_adv=False 0#n_envs=$a2 0#pos_kl_coef=$a1"
-    for e in "${envs[@]}"; do
-        config=$e
-        env="${suite}-${e}"
-        for s in {0..7}; do
-            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-            commands+=("$py_script")
-            echo $py_script
-        done
-    done
-done
-for a2 in "${args2[@]}"; do
-    kws="0#norm_adv=False 0#n_envs=$a2 0#pos_kl_coef=$a1"
-    for e in "${envs[@]}"; do
-        config=$e
-        env="${suite}-${e}"
-        for s in {8..15}; do
-            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-            commands+=("$py_script")
-            echo $py_script
-        done
-    done
-done
-# config=$e
-# kws="0#norm_adv=False 0#pos_kl_coef=$a1"
-# for e in "${envs[@]}"; do
-#     env="${suite}-${e}"
-#     for s in {0..7}; do
-#         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-#         commands+=("$py_script")
-#         echo $py_script
+# for a1 in "${args1[@]}"; do
+#     kws="0#norm_adv=True 0#n_lka_epochs=$a1"
+#     for e in "${envs[@]}"; do
+#         config=$e
+#         env="${suite}-${e}"
+#         for s in {0..7}; do
+#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#             commands+=("$py_script")
+#             echo $py_script
+#         done
 #     done
+# done
+# for a1 in "${args1[@]}"; do
+#     kws="0#norm_adv=False 0#pos_reg_coef=$a1"
+#     for e in "${envs[@]}"; do
+#         config=$e
+#         env="${suite}-${e}"
+#         for s in {8..15}; do
+#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#             commands+=("$py_script")
+#             echo $py_script
+#         done
+#     done
+# done
+config=$e
+# for a3 in "${args3[@]}"; do
+#     kws="0#norm_adv=False 0#n_lka_epochs=$a1 0#pos_lka_reg_coef=$a2 0#pos_reg_coef=$a3"
+#     for e in "${envs[@]}"; do
+#         env="${suite}-${e}"
+#         for s in {0..15}; do
+#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#             commands+=("$py_script")
+#             echo $py_script
+#         done
+#     done
+# done
+# happo
+a="happo"
+kws="0#norm_adv=$a2 0#reg_type=simple 0#rescaled_by_adv=True 0#pos_reg_coef=$a1"
+for e in "${envs[@]}"; do
+    env="${suite}-${e}"
+    for s in {0..15}; do
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+    done
+done
+# a=happo_mb
+# args1=(
+#     200
+#     150
+#     100
+#     50
+# )
+# la1=${#args1[@]}
+# idx=$(($INF_MAC_NODE_RANK % $la1))
+# a1=${args1[$idx]}
+# kws="0#norm_adv=False 1#ergodic=False n_epochs=$a1"
+# # for e in "${envs[@]}"; do
+# config="${e}"
+# env="${suite}-${e}"
+# for s in {0..15}; do
+#     py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#     commands+=("$py_script")
+#     echo $py_script
 # done
 # echo ${commands[@]}s
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 
