@@ -72,11 +72,11 @@ class RMS:
                 self._obs_rms[k] = RunningMeanStd(
                     self._obs_normalized_axis, 
                     clip=config.get('obs_clip', 5), 
-                    name=f'{k}_rms', ndim=1)
+                    name=f'{k}_rms', ndim=getattr(config, "obs_normalized_ndim", 1))
         self._reward_rms = self._normalize_reward \
             and RunningMeanStd(self._reward_normalized_axis, 
                 clip=config.get('rew_clip', 10), 
-                name='reward_rms', ndim=0)
+                name='reward_rms', ndim=getattr(config, "reward_normalized_ndim", 0))
         if self._normalize_reward_with_return is not None:
             self._return = 0
         else:

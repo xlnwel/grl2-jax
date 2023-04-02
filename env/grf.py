@@ -55,7 +55,7 @@ class GRF:
         #     number_of_right_players_agent_controls
 
         if uid2aid is None:
-            if getattr(kwargs, 'share_policy', False):
+            if kwargs.get('share_policy', False):
                 if number_of_left_players_agent_controls > 0:
                     uid2aid = tuple(np.zeros(number_of_left_players_agent_controls, dtype=np.int32)) \
                         + tuple(np.ones(number_of_right_players_agent_controls, dtype=np.int32))

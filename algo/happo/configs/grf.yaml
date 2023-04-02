@@ -56,7 +56,7 @@ env:
     max_episode_steps: 200
     use_action_mask: False
     uid2aid: null
-    share_policy: False
+    share_policy: True
 
     n_runners: &nrunners 1
     n_envs: &nenvs 32
@@ -65,7 +65,7 @@ env:
     use_hidden: False
     use_event: False
     agentwise_global_state: False
-    timeout_done: &td True
+    timeout_done: &td False
 
 agent: {}
 
@@ -155,16 +155,18 @@ trainer:
         eps: 1e-5
 
 actor:
-    update_obs_rms_at_execution: False
+    update_obs_rms_at_execution: True
     update_obs_at_execution: False
     rms:
         obs_names: [obs, global_state]
-        obs_normalized_axis: [0, 1, 2]
-        reward_normalized_axis: [0, 1, 2]
-        normalize_obs: False
+        obs_normalized_axis: [0]    # obs_at_execution has no axis of time-sequential
+        reward_normalized_axis: [0] # reward_normalized_axis has no axis of time-sequential
+        obs_normalized_ndim: 2
+        reward_normalized_ndim: 1
+        normalize_obs: True
         obs_clip: 10
-        normalize_reward: False
-        update_reward_rms_in_time: False
+        normalize_reward: True
+        update_reward_rms_in_time: True
         gamma: *gamma
 
 buffer:
