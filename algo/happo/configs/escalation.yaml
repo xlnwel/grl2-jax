@@ -94,7 +94,7 @@ loss:
     opt_pg: False
     ppo_clip_range: .2
     rescaled_by_adv: False
-    lower_threshold: -2
+    lower_threshold: -2.
     reg_type: kl_reverse
     reg_coef: 0
     pos_reg_coef: 0

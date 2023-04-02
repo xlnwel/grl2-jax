@@ -524,10 +524,10 @@ def compute_regularization(
         return stats
     elif reg_type == 'simple':
         prob = lax.exp(stats.pi_logprob)
-        stats.reg_below_threshold = stats.pi_logprob - data.mu_logprob < -lower_threshold
+        stats.reg_below_threshold = stats.pi_logprob - data.mu_logprob < float(lower_threshold)
         stats.reg_above_threshold = stats.pi_logprob - data.mu_logprob > lax.log(1.2)
         stats.reg = lax.min(prob * lax.stop_gradient(
-            lax.max(stats.pi_logprob - data.mu_logprob, -1.)), 
+            lax.max(stats.pi_logprob - data.mu_logprob, float(lower_threshold))), 
             lax.stop_gradient(prob) * lax.log(1.2))
     elif reg_type == 'wasserstein':
         stats.reg = jax_div.wasserstein(

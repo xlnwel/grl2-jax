@@ -94,8 +94,10 @@ loss:
 
     # hyperparams for policy optimization
     pg_type: ppo
+    opt_pg: False
     ppo_clip_range: .2
     rescaled_by_adv: False
+    lower_threshold: -2.
     reg_type: wasserstein
     reg_coef: 0
     pos_reg_coef: 0
