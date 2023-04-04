@@ -133,7 +133,6 @@ class Model(ModelBase):
             params.reward, rngs[1], data.obs, action, next_obs, stats)
         discount, stats = self.discount(
             params.discount, rngs[2], next_obs, stats)
-        reset = 1 - discount
 
         if self.config.model_norm_obs:
             next_obs = denormalize(next_obs, data.obs_loc, data.obs_scale)
@@ -148,6 +147,16 @@ class Model(ModelBase):
             raise NotImplementedError
 
         obs = dict2AttrDict({'obs': next_obs, 'global_state': global_state})
+        
+        # Deal with the case when the environment has already been reset
+        prev_discount = 1 - data.reset
+        prev_discount_exp = jnp.expand_dims(prev_discount, -1)
+        obs = jax.tree_util.tree_map(lambda x: x * prev_discount_exp, obs)
+        obs.sample_mask = prev_discount
+        reward = reward * prev_discount
+        discount = discount * prev_discount
+        reset = 1 - discount
+        
         env_out = EnvOutput(obs, reward, discount, reset)
 
         return env_out, stats, data.state

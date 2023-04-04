@@ -43,8 +43,9 @@ def ego_train(agent, runner, routine_config, lka_aids, run_fn, opt_fn):
 
 
 @timeit
-def evaluate(agent, runner: Runner, routine_config, lka_aids=[], record_video=False, name='eval'):
+def evaluate(agent, runner: Runner, routine_config, lka_aids=[], prev_aids=[], record_video=False, name='eval'):
     agent.model.switch_params(True, lka_aids)
+    agent.model.switch_prev_params(prev_aids)
 
     scores, epslens, _, video = runner.eval_with_video(
         agent, 
@@ -54,7 +55,9 @@ def evaluate(agent, runner: Runner, routine_config, lka_aids=[], record_video=Fa
     )
 
     agent.model.switch_params(False, lka_aids)
+    agent.model.switch_prev_params(prev_aids)
     agent.model.check_params(False)
+    agent.model.check_current_params()
 
     return scores, epslens, video
 

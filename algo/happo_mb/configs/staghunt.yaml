@@ -89,7 +89,10 @@ loss:
 
     # hyperparams for policy optimization
     pg_type: ppo
+    opt_pg: False
     ppo_clip_range: .2
+    rescaled_by_adv: False
+    lower_threshold: -2
     reg_type: kl_reverse
     reg_coef: 0
     pos_reg_coef: 0
@@ -121,7 +124,8 @@ trainer:
     n_envs: *nenvs
     n_epochs: &nepochs 10
     n_mbs: &nmbs 1
-    n_steps: *nsteps         # BPTT length
+    n_steps: *nsteps
+    update_scheme: step
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss

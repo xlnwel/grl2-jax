@@ -1,3 +1,4 @@
+from core.typing import AttrDict
 from core.elements.trainloop import TrainingLoop as TrainingLoopBase
 from tools.utils import prefix_name
 from tools.timer import Timer, timeit
@@ -10,18 +11,16 @@ class TrainingLoop(TrainingLoopBase):
 
         n = 0
         stats = {}
-        for _ in range(self.config.n_epochs):
-            if self.config.ergodic:
-                for data in self.buffer.ergodic_sample(n=self.config.training_data_size):
-                    stats = self._train_with_data(data)
-                    n += 1
-            else:
-                data = self.sample_data()
-                if data is None:
-                    break
+        if self.config.ergodic:
+            for data in self.buffer.ergodic_sample(n=self.config.training_data_size):
                 stats = self._train_with_data(data)
                 n += 1
-
+        else:
+            data = self.sample_data()
+            if data is None:
+                return 0, AttrDict()
+            stats = self._train_with_data(data)
+            n += 1
         return n, stats
 
     @timeit

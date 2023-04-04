@@ -54,6 +54,8 @@ def prepare_params(agent, dynamics):
 def rollout(agent, agent_params, dynamics, dynamics_params, rng, 
             env_output, states, n_steps, elite_indices=None):
     data_list = []
+    if 'sample_mask' not in env_output.obs:
+        env_output.obs.sample_mask = jnp.ones_like(env_output.reset)
 
     for _ in jnp.arange(n_steps):
         rng, agent_rng, env_rng = jax.random.split(rng, 3)
@@ -61,8 +63,9 @@ def rollout(agent, agent_params, dynamics, dynamics_params, rng,
         agent_inp = []
         for aid, uids in enumerate(agent.env_stats.aid2uids):
             agent_inp.append(obs.slice(indices=uids, axis=1))
+            agent_inp[-1].reset = reset = env_output.reset[:, uids]
             if agent.has_rnn:
-                agent_inp[-1].state_reset = reset = env_output.reset[:, uids]
+                agent_inp[-1].state_reset = reset
                 reset = jnp.expand_dims(reset, -1)
                 state = states[aid]
                 agent_inp[-1].state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
@@ -71,6 +74,7 @@ def rollout(agent, agent_params, dynamics, dynamics_params, rng,
 
         model_inp = obs.copy()
         model_inp.action = action
+        model_inp.reset = env_output.reset
         model_inp.obs_loc = dynamics_params.obs_loc
         model_inp.obs_scale = dynamics_params.obs_scale
         new_env_output, _, _ = dynamics.raw_action(

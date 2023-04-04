@@ -485,24 +485,18 @@ def create_loss(config, model, name='happo'):
 
 
 def summarize_adv_ratio(stats, data):
-    stats.raw_adv_ratio_pp = jax_math.mask_mean(
-        jnp.logical_and(stats.raw_adv > 0, stats.ratio > 1), 
-        data.sample_mask, data.n)
-    stats.raw_adv_ratio_pn = jax_math.mask_mean(
-        jnp.logical_and(stats.raw_adv > 0, stats.ratio < 1), 
-        data.sample_mask, data.n)
+    stats.raw_adv_ratio_pp = jnp.logical_and(stats.raw_adv > 0, stats.ratio > 1)
+    stats.raw_adv_ratio_pn = jnp.logical_and(stats.raw_adv > 0, stats.ratio < 1)
     # stats.raw_adv_ratio_np = jax_math.mask_mean(
     #     jnp.logical_and(stats.raw_adv < 0, stats.ratio > 1), 
     #     data.sample_mask, data.n)
     # stats.raw_adv_ratio_nn = jax_math.mask_mean(
     #     jnp.logical_and(stats.raw_adv < 0, stats.ratio < 1), 
     #     data.sample_mask, data.n)
-    # stats.adv_ratio_pp = jax_math.mask_mean(
-    #     jnp.logical_and(stats.advantage > 0, stats.ratio > 1), 
-    #     data.sample_mask, data.n)
-    # stats.adv_ratio_pn = jax_math.mask_mean(
-    #     jnp.logical_and(stats.advantage > 0, stats.ratio < 1), 
-    #     data.sample_mask, data.n)
+    stats.adv_ratio_pp = jnp.logical_and(stats.advantage > 0, stats.ratio > 1)
+    stats.adv_ratio_pn = jnp.logical_and(stats.advantage > 0, stats.ratio < 1)
+    stats.pp_ratio = jnp.where(stats.adv_ratio_pp, stats.ratio, 1)
+    stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 1)
     # stats.adv_ratio_np = jax_math.mask_mean(
     #     jnp.logical_and(stats.advantage < 0, stats.ratio > 1), 
     #     data.sample_mask, data.n)
