@@ -2,7 +2,9 @@
 .DS_Store
 *.pyc
 __pycache__
-model_test
+*_test
+*_test
+*_test
 **logs**
 vs.code-workspace
 conventions.md
