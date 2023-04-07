@@ -101,7 +101,7 @@ class MujocoMulti(MultiAgentEnv):
         self.timelimit_env = self.wrapped_env.env
         self.timelimit_env._max_episode_steps = self.episode_limit
         self.env = self.timelimit_env.env
-        self.timelimit_env.reset()
+        self.obs = self.timelimit_env.reset()
         self.obs_size = self.get_obs_size()
         self.share_obs_size = self.get_state_size()
 
@@ -123,7 +123,7 @@ class MujocoMulti(MultiAgentEnv):
 
         # need to remove dummy actions that arise due to unequal action vector sizes across agents
         flat_actions = np.concatenate([actions[i][:self.action_space[i].low.shape[0]] for i in range(self.n_agents)])
-        obs_n, reward_n, done_n, info_n = self.wrapped_env.step(flat_actions)
+        self.obs, reward_n, done_n, info_n = self.wrapped_env.step(flat_actions)
         self.steps += 1
 
         info = {}
@@ -148,7 +148,7 @@ class MujocoMulti(MultiAgentEnv):
 
     def get_obs(self):
         """ Returns all agent observat3ions in a list """
-        state = self.env._get_obs()
+        state = self.obs
         obs_n = []
         for a in range(self.n_agents):
             agent_id_feats = np.zeros(self.n_agents, dtype=np.float32)
@@ -180,6 +180,7 @@ class MujocoMulti(MultiAgentEnv):
 
     def get_obs_size(self):
         """ Returns the shape of the observation """
+
         if self.agent_obsk is None:
             return self.get_obs_agent(0).size
         else:
@@ -188,7 +189,7 @@ class MujocoMulti(MultiAgentEnv):
 
     def get_state(self, team=None):
         # TODO: May want global states for different teams (so cannot see what the other team is communicating e.g.)
-        state = self.env._get_obs()
+        state = self.obs
         share_obs = []
         for a in range(self.n_agents):
             agent_id_feats = np.zeros(self.n_agents, dtype=np.float32)
@@ -226,7 +227,7 @@ class MujocoMulti(MultiAgentEnv):
     def reset(self, **kwargs):
         """ Returns initial observations and states"""
         self.steps = 0
-        self.timelimit_env.reset()
+        self.obs = self.timelimit_env.reset()
         return self.get_obs(), self.get_state(), self.get_avail_actions()
 
     def render(self, **kwargs):

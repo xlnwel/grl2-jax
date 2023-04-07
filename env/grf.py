@@ -137,7 +137,7 @@ class GRF:
             else self.env.action_space 
             for _ in range(self.n_agents)]
         self.action_shape = [() for _ in self.action_space]
-        self.action_dim = [a for a in self.env.action_space.nvec]
+        self.action_dim = [int(a) for a in self.env.action_space.nvec]
         self.action_dtype = [np.int32 for _ in self.action_space]
         self.is_action_discrete = [True for _ in self.action_space]
 
@@ -261,6 +261,7 @@ class GRF:
         self._dense_score += rewards
         self._left_score += 1 if info['score_reward'] == 1 else 0
         self._right_score += 1 if info['score_reward'] == -1 else 0
+        diff_score = self._left_score - self._right_score
         if self.name.startswith('11_vs_11') and self._epslen == self.max_episode_steps:
             done = True
             self._score = np.where(
@@ -268,12 +269,13 @@ class GRF:
                 self._left_score > self._right_score)
             self._score[self.number_of_left_players_agent_controls:] = \
                 - self._score[self.number_of_left_players_agent_controls:]
+        else:
+            self._score = diff_score > 0
         dones = np.tile(done, self.n_units)
 
         self._consecutive_action = np.array(
             [pa == a for pa, a in zip(self._prev_action, action)], bool)
         self._prev_action = action
-        diff_score = self._left_score - self._right_score
         if self.number_of_right_players_agent_controls != 0:
             diff_score[-self.number_of_right_players_agent_controls:] *= -1
         info = {

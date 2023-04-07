@@ -6,7 +6,7 @@ from core.log import do_logging
 from core.typing import get_basic_model_name
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from tools.display import print_dict
-from tools.utils import modify_config, prefix_name
+from tools.utils import modify_config, prefix_name, flatten_dict
 from tools.timer import Every, Timer, timeit
 from algo.ma_common.run import Runner
 
@@ -114,16 +114,23 @@ def prepare_dynamics_errors(errors):
 
 @timeit
 def log_agent(agent, env_step, train_step, error_stats):
-    run_time = Timer('ego_run').last()
+    run_time = Timer('env_run').last()
     train_time = Timer('ego_optimize').last()
     fps = 0 if run_time == 0 else agent.get_env_step_intervals() / run_time
     tps = 0 if train_time == 0 else agent.get_train_step_intervals() / train_time
-    
+    rms = agent.actor.get_auxiliary_stats()
+    rms_dict = {}
+    for i, v in enumerate(rms):
+        rms_dict[f'aux/obs{i}'] = v
+    rms_dict[f'aux/reward'] = rms[-1]
+    rms_dict = flatten_dict(rms_dict)
+
     agent.store(**{
             'stats/train_step': train_step, 
             'time/fps': fps, 
             'time/tps': tps, 
         }, 
+        **rms_dict, 
         **error_stats, 
         **Timer.top_stats()
     )

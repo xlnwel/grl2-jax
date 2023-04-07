@@ -333,7 +333,7 @@ class Loss(LossBase):
         )
 
         stats = compute_regularization(
-            stats, data, self.config.lka_reg_type, self.config.pos_lka_reg_coef,
+            stats, data, self.config.reg_type, self.config.pos_lka_reg_coef,
             self.config.rescaled_by_adv, self.config.lower_threshold)
         value_loss, stats = compute_vf_loss(
             self.config, 
@@ -470,7 +470,7 @@ class Loss(LossBase):
         )
 
         stats = compute_regularization(
-            stats, data, self.config.lka_reg_type, self.config.pos_lka_reg_coef,
+            stats, data, self.config.reg_type, self.config.pos_lka_reg_coef,
             self.config.rescaled_by_adv, self.config.lower_threshold)
 
         loss = actor_loss + stats.pos_reg_loss

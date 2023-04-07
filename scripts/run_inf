@@ -41,15 +41,50 @@
 # ./scripts/inf magw 1 inf_magw_mb 150 False
 # ./scripts/inf magw 1 inf_magw_mb 200 True
 # ./scripts/inf magw 1 inf_magw_mb 200 False
-./scripts/inf magw 1 inf_ppo_lka 1 True
-./scripts/inf magw 1 inf_ppo_lka 1 False
-./scripts/inf magw 1 inf_ppo_lka .5 True
-./scripts/inf magw 1 inf_ppo_lka .5 False
-# ./scripts/inf ma_mujoco 3 inf_mujoco_ppo
+# ./scripts/inf magw 1 inf_ppo_lka 1 True
+# ./scripts/inf magw 1 inf_ppo_lka 1 False
+# ./scripts/inf magw 1 inf_ppo_lka .5 True
+# ./scripts/inf magw 1 inf_ppo_lka .5 False
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 50
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 100
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 150
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 200
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo happo
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo happo_lka2
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb
+
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo Ant_2x4 wasserstein 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo Ant_2x4 simple 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo HalfCheetah_2x3 wasserstein 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo HalfCheetah_2x3 simple 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo Walker2d_2x3 wasserstein 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo Walker2d_2x3 simple 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Ant_2x4 200
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Ant_2x4 500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Ant_2x4 800
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb HalfCheetah_2x3 200
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb HalfCheetah_2x3 500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb HalfCheetah_2x3 800
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Walker2d_2x3 200
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Walker2d_2x3 500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Walker2d_2x3 800
+# ./scripts/inf magw 1 inf_magw_mb 300 escalation
+# ./scripts/inf magw 1 inf_magw_mb 500 escalation
+# ./scripts/inf magw 1 inf_magw_mb 300 staghunt
+# ./scripts/inf magw 1 inf_magw_mb 300 staghunt
+# ./scripts/inf magw 1 inf_magw_mb 500 staghunt
+# ./scripts/inf magw 1 inf_magw_mb 1000 staghunt
+# ./scripts/inf magw 1 inf_magw_mb 300 
+# ./scripts/inf magw 1 inf_magw_mb 400 
+
+# ./scripts/inf ma_mujoco 3 inf_mujoco_ppo 
+# ./scripts/inf magw 4 inf_ppo_lka
+# ./scripts/inf grf 1 inf_grf 50 5e-4 1e-2
+# ./scripts/inf grf 1 inf_grf 50 5e-4 1e-3
+# ./scripts/inf grf 1 inf_grf 50 1e-3 1e-2
+# ./scripts/inf grf 1 inf_grf 50 1e-3 1e-3
+# ./scripts/inf grf 1 inf_grf 100 5e-4 1e-2
+# ./scripts/inf grf 1 inf_grf 100 5e-4 1e-3
+# ./scripts/inf grf 1 inf_grf 100 1e-3 1e-2
+# ./scripts/inf grf 1 inf_grf 100 1e-3 1e-3
+./scripts/inf ma_mujoco 4 inf_mujoco_ppo
+# ./scripts/inf grf 8 inf_grf 

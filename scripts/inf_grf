@@ -1,0 +1,93 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+suite=$1
+shift
+algos=(
+    happo
+)
+envs=(
+    academy_3_vs_1_with_keeper
+    # academy_corner
+)
+configs=$envs
+args1=(
+    100
+    100
+    100
+    100
+    200
+    200
+    200
+    200
+)
+args2=(
+    15
+    15
+    10
+    10
+)
+args3=(
+    True
+    False
+)
+args4=(
+    True
+    # False
+    # .1
+)
+date=$(date +"%m%d")
+# date="0331"
+info=""
+ld="${suite}-logs"
+
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
+
+le=${#envs[@]}
+idx=$(($INF_MAC_NODE_RANK % $le))
+e=${envs[$idx]}
+env="${suite}-${e}"
+lc=${#configs[@]}
+idx=$(($INF_MAC_NODE_RANK % $lc))
+config=${configs[$idx]}
+la=${#algos[@]}
+idx=$(($INF_MAC_NODE_RANK % $la))
+a=${algos[$idx]}
+la1=${#args1[@]}
+idx=$(($INF_MAC_NODE_RANK % $la1))
+a1=${args1[$idx]}
+la2=${#args2[@]}
+idx=$(($INF_MAC_NODE_RANK % $la2))
+a2=${args2[$idx]}
+la3=${#args3[@]}
+idx=$(($INF_MAC_NODE_RANK % $la3))
+a3=${args3[$idx]}
+# kws=$@
+
+commands=()
+# config="${e}"
+# for a1 in "${args1[@]}"; do
+#     for a2 in "${args2[@]}"; do
+#         for a3 in "${args3[@]}"; do
+for a4 in "${args4[@]}"; do
+    for e in "${envs[@]}"; do
+        kws="0#n_steps=$a1 0#n_epochs=$a2 0#norm_adv=$a3"
+        env="${suite}-${e}"
+        for s in {0..2}; do
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+            commands+=("$py_script")
+            echo $py_script
+            # eval $py_script
+        done
+    done
+done
+#         done
+#     done
+# done
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 6 -L 1 bash -c COMMAND 
+echo "Script completed"

@@ -149,14 +149,15 @@ def eval_policy_distances(agent, data, name=None, n=None, eval_lka=True):
 
 
 @timeit
-def eval_ego_and_lka(agent, runner, routine_config):
+def eval_ego_and_lka(agent, runner: Runner, routine_config):
     agent.model.swap_lka_params()
-    mu_score, _, _ = evaluate(agent, runner, routine_config, prev_aids=[0, 1])
-    lka_score, _, _ = evaluate(agent, runner, routine_config, None)
+    mu_score, _, _ = evaluate(agent, runner, routine_config, prev_aids=None)
+    lka_score, _, _ = evaluate(agent, runner, routine_config, lka_aids=None)
     pi_score, _, _ = evaluate(agent, runner, routine_config)
-    mu_lka_score, _, _ = evaluate(agent, runner, routine_config, lka_aids=[1], prev_aids=[0])
-    pi_lka_score, _, _ = evaluate(agent, runner, routine_config, lka_aids=[1])
-    pi_mu_score, _, _ = evaluate(agent, runner, routine_config, prev_aids=[1])
+    other_aids = list(range(1, runner.env_stats().n_agents))
+    mu_lka_score, _, _ = evaluate(agent, runner, routine_config, lka_aids=other_aids, prev_aids=[0])
+    pi_lka_score, _, _ = evaluate(agent, runner, routine_config, lka_aids=other_aids)
+    pi_mu_score, _, _ = evaluate(agent, runner, routine_config, prev_aids=other_aids)
     agent.model.swap_lka_params()
     agent.model.check_current_lka_params()
 

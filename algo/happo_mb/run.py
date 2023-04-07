@@ -23,6 +23,10 @@ def add_data_to_buffer(
     data.value = np.concatenate([data.value, np.expand_dims(value, 1)], 1)
     reset = env_output.reset
     data.state_reset = np.concatenate([data.state_reset, np.expand_dims(reset, 1)], 1)
+    data.reward = agent.actor.process_reward_with_rms(
+        data.reward, data.discount, False)
+    data = agent.actor.normalize_obs(data, is_next=False)
+    data = agent.actor.normalize_obs(data, is_next=True)
 
     if compute_return:
         if agent.trainer.config.popart:

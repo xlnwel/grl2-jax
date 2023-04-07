@@ -8,10 +8,12 @@ algos=(
     happo_mb
 )
 envs=(
+    $1
     Ant_2x4
     HalfCheetah_2x3
     Walker2d_2x3
 )
+shift
 configs=(
     "${suite}"
 )
@@ -19,11 +21,11 @@ args1=(
     $1
     50
     100
-    150
-    200
 )
 args2=(
-    10
+    # $2
+    400
+    800
 )
 args3=(
     $3
@@ -31,15 +33,12 @@ args3=(
 )
 dynamics=(
     "dynamics"
-    # "dynamics"
 )
 date=$(date +"%m%d")
+# date="0403"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
-# for x in $(seq 1 1); do
-#     shift
-# done
 
 if [ -z "$info" ]; then
     n=$date
@@ -72,23 +71,24 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
+# for a1 in "${args1[@]}"; do
 # for a2 in "${args2[@]}"; do
-    # kws="0#dynamics_name=$d 1#model_loss_type=$a1 1#n_epochs=$a2"
-for e in "${envs[@]}"; do
-    kws="0#norm_adv=False 1#n_epochs=$a1"
-    env="${suite}-${e}"
-    for s in {0..4}; do
-        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-        # eval $py_script
-    done
-    # done
+kws="1#n_epochs=$a1"
+env="${suite}-${e}"
+for s in {0..9}; do
+    py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+    commands+=("$py_script")
+    echo $py_script
 done
 # done
-# echo ${commands[@]}s
-lc=${#commands[@]}
-p=$((lc / le))
-# echo $p
+# done
+# a="happo_lka2"
+# kws="1#n_epochs=$a1"
+# env="${suite}-${e}"
+# for s in {0..7}; do
+#     py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#     commands+=("$py_script")
+#     echo $py_script
+# done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

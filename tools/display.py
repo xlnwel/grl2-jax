@@ -7,19 +7,18 @@ from core.log import do_logging
 
 
 def print_dict(tree, prefix='', level='pwt', backtrack=3):
-    if isinstance(tree, Sequence):
-        for v in tree:
-            print_dict(v, prefix, level=level, backtrack=backtrack+1)
-    for k, v in tree.items():
-        if isinstance(v, Dict):
-            do_logging(f'{prefix} {k}')
-            print_dict(v, prefix+'\t')
-        elif isinstance(v, tuple) and hasattr(v, '_asdict'):
-            # namedtuple is assumed
-            do_logging(f'{prefix} {k}')
-            print_dict(v._asdict(), prefix+'\t')
-        else:
-            do_logging(f'{prefix} {k}: {v}')
+    if isinstance(tree, tuple) and hasattr(tree, '_asdict'):
+        print_dict(tree._asdict(), prefix+'\t', level=level, backtrack=backtrack+1)
+    elif isinstance(tree, Dict):
+        for k, v in tree.items():
+            if isinstance(v, Dict):
+                do_logging(f'{prefix} {k}')
+                print_dict(v, prefix=f'{prefix} {k}\t', level=level, backtrack=backtrack+1)
+            else:
+                print_dict(v, prefix=f'{prefix} {k}\t', level=level, backtrack=backtrack+1)
+    else:
+        do_logging(f'{prefix}: {tree}', level=level, backtrack=backtrack)
+
 
 def print_array(v, prefix, level, backtrack):
     do_logging(f'{prefix}: {v.shape} {v.dtype} '
@@ -49,7 +48,7 @@ def print_dict_info(tree, prefix='', level='pwt', backtrack=3):
             else:
                 do_logging(f'{prefix} {k}: {v} {type(v)}', level=level, backtrack=backtrack)
     else:
-        do_logging(f'{tree}', level=level, backtrack=backtrack)
+        do_logging(f'{prefix}: {tree}', level=level, backtrack=backtrack)
 
 def summarize_arrays(tree):
     n = 0

@@ -25,3 +25,7 @@ algo.ppo.elements.utils中的compute_actor_loss函数中的policy_sample_mask判
 
 2023.04.04
 更新done的处理方式: a) 用model rollout时, 假如环境已经reset, 我们返回obs全为0同时sample_mask为0. b) 计算transition loss时把reset的样本mask掉.
+
+2023.04.07
+1. 更新RMS的处理.
+2. 完成GRF的测试

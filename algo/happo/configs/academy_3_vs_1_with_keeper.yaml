@@ -15,7 +15,7 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 1e7
-    n_steps: &nsteps 64
+    n_steps: &nsteps 100
     LOG_PERIOD: 1e5
     EVAL_PERIOD: null
 
@@ -39,7 +39,7 @@ routine:
     concise_mode: True
 
 env:
-    env_name: &env_name grf-11_vs_11_hard_stochastic
+    env_name: &env_name grf-academy_3_vs_1_with_keeper
     representation: simple115v2
     rewards: scoring,checkpoints
     render: False
@@ -58,8 +58,8 @@ env:
     uid2aid: null
     share_policy: True
 
-    n_runners: &nrunners 1
-    n_envs: &nenvs 32
+    n_runners: &nrunners 8
+    n_envs: &nenvs 8
 
     use_idx: False
     use_hidden: False
@@ -82,21 +82,21 @@ model:
 
     policy:
         nn_id: policy
-        units_list: [256, 256, 256]
+        units_list: [64, 64]
         w_init: orthogonal
         activation: relu
         norm: null
         out_scale: .01
         rnn_type: &prnn null
-        rnn_units: 256
+        rnn_units: 64
     value:
         nn_id: value
-        units_list: [256, 256, 256]
+        units_list: [64, 64]
         w_init: orthogonal
         activation: relu
         norm: null
         rnn_type: &vrnn null
-        rnn_units: 256
+        rnn_units: 64
 
 loss:
     # hyperparams for value target and advantage
@@ -106,11 +106,11 @@ loss:
     adv_type: gae
     norm_adv: True
 
-    prnn_bptt: 64
-    vrnn_bptt: 64
+    prnn_bptt: 10
+    vrnn_bptt: 10
 
-    lka_prnn_bptt: 64
-    lka_vrnn_bptt: 64
+    lka_prnn_bptt: 10
+    lka_vrnn_bptt: 10
 
     # hyperparams for policy optimization
     pg_type: ppo
@@ -130,7 +130,7 @@ loss:
         gamma: *gamma
         lam: &lam .95
         pg_coef: 1
-        entropy_coef: 5e-4
+        entropy_coef: 1e-3
         value_coef: 1
 
 trainer:
@@ -147,26 +147,28 @@ trainer:
     n_simulated_steps: *nss
     n_lka_epochs: *nepochs
     n_lka_mbs: *nmbs
+    debug: False
 
     theta_opt:
         opt_name: adam
-        lr: 1e-4
-        clip_norm: .5
+        lr: 5e-4
+        clip_norm: 10
         eps: 1e-5
 
 actor:
-    update_obs_rms_at_execution: True
+    update_obs_rms_at_execution: False
     update_obs_at_execution: False
-    rms:
+    obs_rms:
         obs_names: [obs, global_state]
-        obs_normalized_axis: [0]    # obs_at_execution has no axis of time-sequential
-        reward_normalized_axis: [0] # reward_normalized_axis has no axis of time-sequential
+        obs_normalized_axis: [0, 1]    # reward is normalized at once with the sequential dimension
         obs_normalized_ndim: 2
-        reward_normalized_ndim: 1
         normalize_obs: True
         obs_clip: 10
+    reward_rms:
+        reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
+        reward_normalized_ndim: 1
         normalize_reward: True
-        update_reward_rms_in_time: True
+        update_reward_rms_in_time: False
         gamma: *gamma
 
 buffer:

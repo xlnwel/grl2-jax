@@ -31,6 +31,23 @@ def env_run(agent, runner: Runner, routine_config, name='real', **kwargs):
     return agent.get_env_step()
 
 
+def init_running_stats(agent, runner: Runner):
+    MODEL_EVAL_STEPS = runner.env.max_episode_steps
+    do_logging(f'Model evaluation steps: {MODEL_EVAL_STEPS}')
+
+    runner.run(
+        agent, 
+        n_steps=MODEL_EVAL_STEPS, 
+        lka_aids=[], 
+        collect_data=agent.actor.is_obs_or_reward_normalized
+    )
+    if agent.actor.is_obs_or_reward_normalized:
+        data = agent.buffer.get_data()
+        agent.actor.update_reward_rms(data.reward, data.discount)
+        agent.actor.update_obs_rms(data)
+        agent.actor.reset_reward_rms_return()
+    agent.actor.print_rms()
+
 
 def train(
     agent, 
@@ -39,8 +56,6 @@ def train(
     # env_run=env_run, 
     # ego_optimize=ego_optimize
 ):
-    MODEL_EVAL_STEPS = runner.env.max_episode_steps
-    do_logging(f'Model evaluation steps: {MODEL_EVAL_STEPS}')
     do_logging('Training starts...')
     env_step = agent.get_env_step()
     to_record = Every(
@@ -49,12 +64,7 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(
-        agent, 
-        n_steps=MODEL_EVAL_STEPS, 
-        lka_aids=[], 
-        collect_data=False
-    )
+    init_running_stats(agent, runner)
     env_name = runner.env_config().env_name
     eval_data = load_eval_data(filename=env_name)
 
