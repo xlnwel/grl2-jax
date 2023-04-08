@@ -48,6 +48,9 @@ class GRF:
     ):
         self.name = env_name
         self.representation = representation
+        self.to_render = render
+        self.share_reward = kwargs.get('share_reward', False)
+        assert self.share_reward, "Non-shared reward."
 
         # assert number_of_left_players_agent_controls in (1, 11), \
         #     number_of_left_players_agent_controls
@@ -255,19 +258,22 @@ class GRF:
             self._ckpt_score[self.number_of_left_players_agent_controls:] += \
                 reward[self.number_of_left_players_agent_controls:] + info['score_reward']
 
-        rewards = np.reshape(reward, -1)
+        if self.share_reward:
+            rewards = np.ones(self.n_units, dtype=np.float32) * np.sum(reward)
+        else:
+            rewards = np.reshape(reward, -1)
 
         self._epslen += 1
         self._dense_score += rewards
         self._left_score += 1 if info['score_reward'] == 1 else 0
         self._right_score += 1 if info['score_reward'] == -1 else 0
-        if self.name.startswith('11_vs_11') and self._epslen == self.max_episode_steps:
-            done = True
-            self._score = np.where(
-                self._left_score < self._right_score, -1, 
-                self._left_score > self._right_score)
-            self._score[self.number_of_left_players_agent_controls:] = \
-                - self._score[self.number_of_left_players_agent_controls:]
+        # if self.name.startswith('11_vs_11') and self._epslen == self.max_episode_steps:
+        #     done = True
+        #     self._score = np.where(
+        #         self._left_score < self._right_score, -1, 
+        #         self._left_score > self._right_score)
+        #     self._score[self.number_of_left_players_agent_controls:] = \
+        #         - self._score[self.number_of_left_players_agent_controls:]
         dones = np.tile(done, self.n_units)
 
         self._consecutive_action = np.array(
@@ -297,6 +303,9 @@ class GRF:
         return agent_obs, agent_rewards, agent_dones, info
 
     def render(self):
+        if not self.to_render:
+            self.env.render(mode='rgb_array')
+            self.to_render = True
         obs = self._raw_obs()[0]
         return obs['frame']
 
