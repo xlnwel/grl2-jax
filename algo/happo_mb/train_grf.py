@@ -12,56 +12,7 @@ from algo.lka_common.train import *
 from algo.happo.run import prepare_buffer
 from algo.happo.train import init_running_stats
 from algo.happo_mb.run import branched_rollout, Runner
-
-
-def update_config(config, dynamics_config):
-    if config.routine.compute_return_at_once:
-        config.buffer.sample_keys += ['advantage', 'v_target']
-        config.dynamics_name = dynamics_config.dynamics_name
-
-
-@timeit
-def env_run(agent, runner: Runner, dynamics, routine_config, name='real', **kwargs):
-    env_output = runner.run(
-        agent, 
-        n_steps=routine_config.n_steps, 
-        dynamics=dynamics, 
-        name=name, 
-        **kwargs
-    )
-    prepare_buffer(
-        agent, 
-        env_output, 
-        routine_config.compute_return_at_once, 
-    )
-
-    env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
-    agent.add_env_step(env_steps_per_run)
-
-    return agent.get_env_step()
-
-
-@timeit
-def ego_train(agent, runner, dynamics, routine_config, 
-        run_fn, opt_fn, **kwargs):
-    env_step = run_fn(agent, runner, dynamics, routine_config, **kwargs)
-    train_step = opt_fn(agent)
-
-    return env_step, train_step
-
-
-dynamics_run = partial(dynamics_run, rollout_fn=branched_rollout)
-
-
-def get_lka_aids(rollout_type, n_agents):
-    if rollout_type == 'full':
-        lka_aids = list(range(n_agents))
-    elif rollout_type == 'part':
-        n = np.random.choice(n_agents+1)
-        lka_aids = np.random.choice(n_agents, n, replace=False)
-    else:
-        raise NotImplementedError(rollout_type)
-    return lka_aids
+from algo.happo_mb.train import update_config, env_run, ego_train, dynamics_run, get_lka_aids
     
 
 def train(
@@ -139,7 +90,7 @@ def train(
             #     log_dynamics_errors(errors, outdir, env_step)
             stats = dynamics.valid_stats()
             dynamics.store(**stats)
-            eval_and_log(agent, dynamics, runner, routine_config, 
+            eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, errors)
 
 

@@ -76,15 +76,24 @@
 # ./scripts/inf magw 1 inf_magw_mb 300 
 # ./scripts/inf magw 1 inf_magw_mb 400 
 
-# ./scripts/inf ma_mujoco 3 inf_mujoco_ppo 
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo 
 # ./scripts/inf magw 4 inf_ppo_lka
-# ./scripts/inf grf 1 inf_grf 50 5e-4 1e-2
-# ./scripts/inf grf 1 inf_grf 50 5e-4 1e-3
-# ./scripts/inf grf 1 inf_grf 50 1e-3 1e-2
-# ./scripts/inf grf 1 inf_grf 50 1e-3 1e-3
-# ./scripts/inf grf 1 inf_grf 100 5e-4 1e-2
-# ./scripts/inf grf 1 inf_grf 100 5e-4 1e-3
-# ./scripts/inf grf 1 inf_grf 100 1e-3 1e-2
-# ./scripts/inf grf 1 inf_grf 100 1e-3 1e-3
-./scripts/inf ma_mujoco 4 inf_mujoco_ppo
+# ./scripts/inf grf 1 inf_grf
+# ./scripts/inf grf 1 inf_grf_is simple 1
+# ./scripts/inf grf 1 inf_grf_is kl_reverse 1
+./scripts/inf grf 3 inf_grf_lka 300
+./scripts/inf grf 3 inf_grf_lka 500
+./scripts/inf grf 3 inf_grf_lka 800
+# ./scripts/inf grf 1 inf_grf False 10 50
+# ./scripts/inf grf 1 inf_grf False 15 50
+# ./scripts/inf grf 1 inf_grf False 15 100
+# ./scripts/inf grf 1 inf_grf False 20 100
+# ./scripts/inf grf 1 inf_grf False 25 100
+# ./scripts/inf grf 1 inf_grf False 30 100
+# ./scripts/inf grf 1 inf_grf False 15 200
+# ./scripts/inf grf 1 inf_grf False 20 200
+# ./scripts/inf grf 1 inf_grf False 25 200
+# ./scripts/inf grf 1 inf_grf False 30 200
+# ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb
+# ./scripts/inf ma_mujoco 3 inf_mujoco_ppo
 # ./scripts/inf grf 8 inf_grf 

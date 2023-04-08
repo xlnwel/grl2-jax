@@ -1,15 +1,14 @@
 import numpy as np
 
 from tools.rms import denormalize
+from tools.display import print_dict_info
 from algo.ma_common.run import Runner, concat_along_unit_dim
-from algo.lka_common.elements.model import LOOKAHEAD
 
 
 def prepare_buffer(
     agent, 
     env_output, 
     compute_return=True, 
-    lookahead=False, 
 ):
     buffer = agent.buffer
     value = agent.compute_value(env_output)
@@ -26,7 +25,8 @@ def prepare_buffer(
     
     if compute_return:
         if agent.trainer.config.popart:
-            poparts = [p.get_rms_stats(with_count=False, return_std=True) for p in agent.trainer.popart]
+            poparts = [p.get_rms_stats(with_count=False, return_std=True) 
+                       for p in agent.trainer.popart]
             mean, std = [np.stack(s) for s in zip(*poparts)]
             value = denormalize(data.value, mean, std)
         else:
@@ -41,7 +41,7 @@ def prepare_buffer(
             next_value=next_value, 
             reset=data.reset,
         )
-    data[LOOKAHEAD] = lookahead
+
     buffer.move_to_queue(data)
 
 

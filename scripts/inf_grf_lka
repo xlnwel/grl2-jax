@@ -5,7 +5,7 @@ export PYTHONPATH=.
 suite=$1
 shift
 algos=(
-    happo
+    happo_mb
 )
 envs=(
     academy_3_vs_1_with_keeper
@@ -76,17 +76,17 @@ commands=()
 #     for a2 in "${args2[@]}"; do
 #         for a3 in "${args3[@]}"; do
 # for a4 in "${args4[@]}"; do
-kws=""
-for e in "${envs[@]}"; do
-    env="${suite}-${e}"
-    config="${e}"
-    for s in {0..4}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-        # eval $py_script
-    done
+kws="1#n_epochs=$1"
+# for e in "${envs[@]}"; do
+env="${suite}-${e}"
+config="${e}"
+for s in {0..4}; do
+    py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+    commands+=("$py_script")
+    echo $py_script
+    # eval $py_script
 done
+# done
 # done
 #         done
 #     done

@@ -114,7 +114,6 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    lka_reg_type: wasserstein
     pos_lka_reg_coef: 0
 
     stats:
@@ -134,6 +133,11 @@ trainer:
     n_steps: *nsteps         # BPTT length
 
     update_scheme: step
+    n_simulated_envs: *nse
+    n_simulated_steps: *nss
+    n_lka_epochs: 5
+    n_lka_mbs: 40
+
     popart: *popart
 
     policy_opt:
@@ -154,7 +158,7 @@ actor:
         obs_names: [obs, global_state]
         obs_normalized_axis: [0, 1]    # obs_at_execution has no axis of time-sequential
         obs_normalized_ndim: 2
-        normalize_obs: False
+        normalize_obs: True
         obs_clip: 10
     reward_rms:
         reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension

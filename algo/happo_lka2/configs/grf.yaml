@@ -35,6 +35,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
+    rollout_type: part
 
     concise_mode: True
 

@@ -36,6 +36,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: True
+    rollout_type: part
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -123,7 +124,6 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    lka_reg_type: wasserstein
     pos_lka_reg_coef: 0
 
     stats:
@@ -168,7 +168,7 @@ actor:
         obs_names: [obs, global_state]
         obs_normalized_axis: [0, 1]    # obs_at_execution has no axis of time-sequential
         obs_normalized_ndim: 2
-        normalize_obs: False
+        normalize_obs: True
         obs_clip: 10
     reward_rms:
         reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension

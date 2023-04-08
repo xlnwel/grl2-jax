@@ -40,6 +40,12 @@ class Actor(ActorBase):
     def get_obs_names(self):
         return self.obs_rms[0].obs_names
     
+    def get_obs_rms(self):
+        return [
+            rms.get_rms_stats(with_count=False, return_std=True) 
+            for rms in self.obs_rms
+        ]
+
     def update_obs_rms(self, obs):
         for aid, uids in enumerate(self.model.env_stats.aid2uids):
             o = tree_slice(obs, indices=uids, axis=2)

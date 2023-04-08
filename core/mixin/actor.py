@@ -286,11 +286,13 @@ class ObsRunningMeanStd:
         if self.rms:
             self.rms.reset_rms_stats()
 
-    def get_rms_stats(self, with_count=True, return_std=False):
+    def get_rms_stats(self, with_count=True, return_std=False, return_dict=False):
         rms = AttrDict()
         if self._normalize_obs:
             for k, v in self.rms.items():
                 rms[k] = v.get_rms_stats(with_count=with_count, return_std=return_std) 
+                if return_dict:
+                    rms[k] = rms[k]._asdict()
 
         return rms
 

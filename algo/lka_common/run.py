@@ -5,6 +5,7 @@ import jax.numpy as jnp
 from core.typing import AttrDict, dict2AttrDict
 from env.typing import EnvOutput
 from env.func import create_env
+from tools.rms import normalize
 from tools.timer import timeit
 from algo.ma_common.run import *
 
@@ -13,6 +14,7 @@ from algo.ma_common.run import *
 def initialize_for_dynamics_run(agent, dynamics, routine_config):
     sample_keys = agent.buffer.obs_keys + ['state'] \
         if routine_config.restore_state else agent.buffer.obs_keys
+    sample_keys += ['discount', 'reset']
     obs = dynamics.buffer.sample_from_recency(
         batch_size=routine_config.n_simulated_envs, 
         sample_keys=sample_keys, 
@@ -21,8 +23,8 @@ def initialize_for_dynamics_run(agent, dynamics, routine_config):
         return None, None
     basic_shape = obs.obs.shape[:-1]
     reward = np.zeros(basic_shape, np.float32)
-    discount = np.ones(basic_shape, np.float32)
-    reset = np.zeros(basic_shape, np.float32)
+    discount = obs.pop('discount')
+    reset = obs.pop('reset')
 
     env_output = EnvOutput(obs, reward, discount, reset)
 
@@ -52,7 +54,7 @@ def prepare_params(agent, dynamics):
 
 @partial(jax.jit, static_argnums=[0, 2, 7])
 def rollout(agent, agent_params, dynamics, dynamics_params, rng, 
-            env_output, states, n_steps, elite_indices=None):
+            env_output, states, n_steps, obs_rms=None, obs_clip=None):
     data_list = []
     if 'sample_mask' not in env_output.obs:
         env_output.obs.sample_mask = jnp.ones_like(env_output.reset)
@@ -62,6 +64,12 @@ def rollout(agent, agent_params, dynamics, dynamics_params, rng,
         obs = env_output.obs
         agent_inp = []
         for aid, uids in enumerate(agent.env_stats.aid2uids):
+            agent_obs = obs.slice(indices=uids, axis=1)
+            if obs_rms is not None:
+                for k, v in obs_rms[aid].items():
+                    agent_obs[k] = normalize(agent_obs[k], *v)
+                    if obs_clip is not None:
+                        agent_obs[k] = jnp.clip(agent_obs[k], -obs_clip, obs_clip)
             agent_inp.append(obs.slice(indices=uids, axis=1))
             agent_inp[-1].reset = reset = env_output.reset[:, uids]
             if agent.has_rnn:

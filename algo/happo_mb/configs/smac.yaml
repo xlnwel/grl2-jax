@@ -208,4 +208,3 @@ buffer:
         - mu_logits
         - state_reset
         - state
-        - lookahead

@@ -12,7 +12,7 @@ def lka_env_run(agent, runner: Runner, routine_config, name='lka', **kwargs):
         name=name, 
         **kwargs
     )
-    prepare_buffer(agent, env_output, routine_config.compute_return_at_once, True)
+    prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
 
 
 @timeit

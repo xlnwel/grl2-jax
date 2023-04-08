@@ -33,6 +33,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
+    rollout_type: part
 
 env:
     env_name: &env_name magw-staghunt
@@ -107,7 +108,6 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    lka_reg_type: kl_reverse
     pos_lka_reg_coef: 0
 
     stats:
@@ -177,4 +177,3 @@ buffer:
         - mu_logits
         - state_reset
         - state
-        - lookahead

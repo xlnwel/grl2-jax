@@ -59,7 +59,7 @@ class Trainer(TrainerBase):
                 theta, 
                 opt_state=self.params.theta, 
                 data=data, 
-                return_stats=False
+                return_stats=True
             )
         self.model.set_weights(theta)
         elite_indices = np.argsort(stats.mean_loss)

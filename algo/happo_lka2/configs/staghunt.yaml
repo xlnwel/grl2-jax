@@ -32,6 +32,7 @@ routine:
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
+    rollout_type: part
 
 env:
     env_name: &env_name magw-staghunt
@@ -103,7 +104,6 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    lka_reg_type: kl_reverse
     pos_lka_reg_coef: 0
 
     stats:

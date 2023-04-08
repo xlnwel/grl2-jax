@@ -106,7 +106,6 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    lka_reg_type: kl_reverse
     pos_lka_reg_coef: 0
 
     stats:

@@ -5,7 +5,6 @@ from tools.utils import batch_dicts
 from tools.timer import timeit
 from algo.lka_common.run import *
 from algo.ma_common.run import Runner
-from algo.happo.elements.model import LOOKAHEAD
 from algo.happo.run import compute_gae
 
 
@@ -23,16 +22,15 @@ def add_data_to_buffer(
     data.value = np.concatenate([data.value, np.expand_dims(value, 1)], 1)
     reset = env_output.reset
     data.state_reset = np.concatenate([data.state_reset, np.expand_dims(reset, 1)], 1)
-    data.reward = agent.actor.process_reward_with_rms(
-        data.reward, data.discount, False)
+    data.reward = agent.actor.normalize_reward(data.reward)
     data = agent.actor.normalize_obs(data, is_next=False)
     data = agent.actor.normalize_obs(data, is_next=True)
 
     if compute_return:
         if agent.trainer.config.popart:
-            poparts = [p.get_rms_stats(with_count=False) for p in agent.trainer.popart]
-            mean, var = [np.stack(s) for s in zip(*poparts)]
-            std = np.sqrt(var)
+            poparts = [p.get_rms_stats(with_count=False, return_std=True) 
+                       for p in agent.trainer.popart]
+            mean, std = [np.stack(s) for s in zip(*poparts)]
             value = denormalize(data.value, mean, std)
         else:
             value = data.value
@@ -46,7 +44,7 @@ def add_data_to_buffer(
             next_value=next_value, 
             reset=data.reset,
         )
-    data[LOOKAHEAD] = True
+
     buffer.move_to_queue(data)
 
 
@@ -60,6 +58,12 @@ def branched_rollout(agent, dynamics, routine_config, rng, lka_aids):
         dynamics.model.choose_elite()
     agent.model.switch_params(True, lka_aids)
     agent_params, dynamics_params = prepare_params(agent, dynamics)
+    if agent.actor.config.obs_rms.normalize_obs:
+        obs_rms = agent.actor.get_obs_rms()
+        obs_clip = agent.actor.config.obs_rms.obs_clip
+    else:
+        obs_rms = None
+        obs_clip = None
 
     # elite_indices = dynamics.model.elite_indices[:dynamics.model.n_elites]
     data, env_output, states = rollout(
@@ -67,7 +71,7 @@ def branched_rollout(agent, dynamics, routine_config, rng, lka_aids):
         dynamics.model, dynamics_params, 
         rng, env_output, states, 
         routine_config.n_simulated_steps, 
-        # elite_indices
+        obs_rms, obs_clip
     )
     add_data_to_buffer(agent, data, env_output, states, 
         routine_config.compute_return_at_once)
