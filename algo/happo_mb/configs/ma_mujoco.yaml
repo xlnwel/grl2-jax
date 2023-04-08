@@ -26,7 +26,7 @@ routine:
     size: [256, 256]
 
     n_lookahead_steps: 1
-    n_simulated_envs: &nse 400
+    n_simulated_envs: &nse 800
     n_simulated_steps: &nss 10
     model_rollout_type: sim
     compute_return_at_once: True
@@ -36,6 +36,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
+    rollout_type: part
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -65,11 +66,12 @@ model:
         nn_id: policy
         units_list: [64, 64]
         w_init: orthogonal
-        activation: relu
+        activation: tanh
         norm: layer
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
+        out_act: tanh
         init_std: .2
         sigmoid_scale: True
         std_x_coef: 1.
@@ -79,7 +81,7 @@ model:
         nn_id: value
         units_list: [64, 64]
         w_init: orthogonal
-        activation: relu
+        activation: tanh
         norm: layer
         rnn_type: &vrnn null
         rnn_units: 64
@@ -92,17 +94,18 @@ loss:
     rho_clip: 1
     adv_type: gae
     norm_adv: True
+    zero_center: True
     popart: &popart True
 
     prnn_bptt: 10
     vrnn_bptt: 10
 
-    lka_prnn_bptt: 10
-    lka_vrnn_bptt: 10
-
     # hyperparams for policy optimization
     pg_type: ppo
+    opt_pg: False
     ppo_clip_range: .2
+    rescaled_by_adv: False
+    lower_threshold: -2.
     reg_type: wasserstein
     reg_coef: 0
     pos_reg_coef: 0
@@ -118,7 +121,6 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    lka_reg_type: wasserstein
     pos_lka_reg_coef: 0
 
     stats:
@@ -159,12 +161,15 @@ trainer:
 actor:
     update_obs_rms_at_execution: False
     update_obs_at_execution: False
-    rms:
+    obs_rms:
         obs_names: [obs, global_state]
-        obs_normalized_axis: [0, 1, 2]
-        reward_normalized_axis: [0, 1, 2]
-        normalize_obs: False
+        obs_normalized_axis: [0, 1]    # obs_at_execution has no axis of time-sequential
+        obs_normalized_ndim: 2
+        normalize_obs: True
         obs_clip: 10
+    reward_rms:
+        reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
+        reward_normalized_ndim: 1
         normalize_reward: False
         update_reward_rms_in_time: False
         gamma: *gamma
@@ -194,4 +199,3 @@ buffer:
         - mu_scale
         - state_reset
         - state
-        - lookahead

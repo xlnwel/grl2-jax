@@ -33,6 +33,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
+    rollout_type: part
 
 env:
     env_name: &env_name magw-staghunt
@@ -89,7 +90,10 @@ loss:
 
     # hyperparams for policy optimization
     pg_type: ppo
+    opt_pg: False
     ppo_clip_range: .2
+    rescaled_by_adv: False
+    lower_threshold: -2
     reg_type: kl_reverse
     reg_coef: 0
     pos_reg_coef: 0
@@ -104,7 +108,6 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    lka_reg_type: kl_reverse
     pos_lka_reg_coef: 0
 
     stats:
@@ -121,7 +124,8 @@ trainer:
     n_envs: *nenvs
     n_epochs: &nepochs 10
     n_mbs: &nmbs 1
-    n_steps: *nsteps         # BPTT length
+    n_steps: *nsteps
+    update_scheme: step
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss
@@ -137,12 +141,15 @@ trainer:
 actor:
     update_obs_rms_at_execution: False
     update_obs_at_execution: False
-    rms:
+    obs_rms:
         obs_names: [obs, global_state]
-        obs_normalized_axis: [0, 1, 2]
-        reward_normalized_axis: [0, 1, 2]
+        obs_normalized_axis: [0, 1]    # obs_at_execution has no axis of time-sequential
+        obs_normalized_ndim: 2
         normalize_obs: False
         obs_clip: 10
+    reward_rms:
+        reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
+        reward_normalized_ndim: 1
         normalize_reward: False
         update_reward_rms_in_time: False
         gamma: *gamma
@@ -170,4 +177,3 @@ buffer:
         - mu_logits
         - state_reset
         - state
-        - lookahead

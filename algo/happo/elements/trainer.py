@@ -13,7 +13,6 @@ from core import optimizer
 from core.typing import AttrDict
 from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
-from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name, batch_dicts, yield_from_tree_with_indices
 from algo.lka_common.elements.model import LOOKAHEAD, pop_lookahead
 from algo.lka_common.elements.trainer import *
@@ -157,6 +156,10 @@ class Trainer(TrainerBase):
         self.model.set_lka_params(theta)
         self.lookahead_opt_state = opt_state
 
+        data = flatten_dict({k: v 
+            for k, v in data.items() if v is not None}, prefix='lka/data')
+        return data
+    
     def sequential_opt(self, theta, opt_state, data, 
             n_epochs, n_mbs, indices, train_fn, rng, return_stats=True):
         teammate_log_ratio = jnp.zeros_like(data.mu_logprob[:, :, :1])
@@ -248,7 +251,11 @@ class Trainer(TrainerBase):
                     
                     if return_stats:
                         vts[aid] = stats.pop('v_target')
-                        if (e % period == 0 or e == n_epochs - 1) and (i == 0 or i == n_mbs - 1):
+                        if e == n_epochs-1 and i == n_mbs - 1:
+                            all_stats.update(**prefix_name(stats, name=f'agent{aid}_last_epoch'))
+                        elif e == 0 and i == 0:
+                            all_stats.update(**prefix_name(stats, name=f'agent{aid}_first_epoch'))
+                        elif e % period == 0 and i == n_mbs - 1:
                             all_stats.update(**prefix_name(stats, name=f'agent{aid}_epoch{e}'))
                 v_target.append(vts)
 
@@ -331,10 +338,13 @@ class Trainer(TrainerBase):
                 reg_above_threshold=stats.reg_above_threshold, 
                 inverse_mu=inverse_mu, 
                 clip_frac=stats.clip_frac, 
+                entropy=stats.entropy, 
                 v_target=stats.v_target, 
                 teammate_log_ratio=stats.teammate_log_ratio, 
                 raw_adv_ratio_pp=stats.raw_adv_ratio_pp, 
-                raw_adv_ratio_pn=stats.raw_adv_ratio_pn
+                raw_adv_ratio_pn=stats.raw_adv_ratio_pn, 
+                pp_ratio=stats.pp_ratio, 
+                pn_ratio=stats.pn_ratio,
             )
         return theta, opt_state, stats
 

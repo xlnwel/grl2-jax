@@ -1,15 +1,14 @@
 import numpy as np
 
 from tools.rms import denormalize
+from tools.display import print_dict_info
 from algo.ma_common.run import Runner, concat_along_unit_dim
-from algo.lka_common.elements.model import LOOKAHEAD
 
 
 def prepare_buffer(
     agent, 
     env_output, 
     compute_return=True, 
-    lookahead=False, 
 ):
     buffer = agent.buffer
     value = agent.compute_value(env_output)
@@ -17,11 +16,18 @@ def prepare_buffer(
         'value': value, 
         'state_reset': concat_along_unit_dim(env_output.reset)
     })
+    data.reward = agent.actor.process_reward_with_rms(
+        data.reward, data.discount, update_rms=True)
+    obs = {k: data[k] for k in agent.actor.get_obs_names()}
+    data = agent.actor.normalize_obs(data, is_next=False)
+    data = agent.actor.normalize_obs(data, is_next=True)
+    agent.actor.update_obs_rms(obs)
+    
     if compute_return:
         if agent.trainer.config.popart:
-            poparts = [p.get_rms_stats(with_count=False) for p in agent.trainer.popart]
-            mean, var = [np.stack(s) for s in zip(*poparts)]
-            std = np.sqrt(var)
+            poparts = [p.get_rms_stats(with_count=False, return_std=True) 
+                       for p in agent.trainer.popart]
+            mean, std = [np.stack(s) for s in zip(*poparts)]
             value = denormalize(data.value, mean, std)
         else:
             value = data.value
@@ -35,7 +41,7 @@ def prepare_buffer(
             next_value=next_value, 
             reset=data.reset,
         )
-    data[LOOKAHEAD] = lookahead
+
     buffer.move_to_queue(data)
 
 
@@ -43,7 +49,7 @@ def compute_gae(
     reward, 
     discount, 
     value, 
-    gamma,
+    gamma, 
     gae_discount, 
     next_value=None, 
     reset=None, 

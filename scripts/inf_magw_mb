@@ -11,6 +11,7 @@ envs=(
     # $1
     # escalation
     # escalation
+    $2
     escalation
     # escalation
     # staghunt
@@ -60,7 +61,7 @@ dynamics=(
     "dynamics"
 )
 date=$(date +"%m%d")
-# date="0401"
+# date="0403"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
@@ -99,13 +100,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-# for a1 in "${args1[@]}"; do
-# for a2 in "${args2[@]}"; do
-# kws="0#n_epochs=$1"
-# kws="0#dynamics_name=$d"
-# kws="0#norm_adv=False 0#n_simulated_envs=$a1 0#n_simulated_steps=$a2"
-kws="0#norm_adv=False 1#n_epochs=$a1 1#deterministic_trans=$a2"
-# for e in "${envs[@]}"; do
+kws="1#n_epochs=$a1"
 config="${e}"
 env="${suite}-${e}"
 for s in {0..15}; do
@@ -113,13 +108,5 @@ for s in {0..15}; do
     commands+=("$py_script")
     echo $py_script
 done
-# done
-# config="${e}"
-# env="${suite}-${e}"
-# for s in {0..15}; do
-#     py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-#     commands+=("$py_script")
-#     echo $py_script
-# done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

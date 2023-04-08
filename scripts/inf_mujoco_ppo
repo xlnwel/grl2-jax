@@ -5,14 +5,11 @@ export PYTHONPATH=.
 suite=$1
 shift
 algos=(
-    happo
-    # happo_lka1
-    # happo_lka2
-    # $1
-    # masac_lka1
-    # mambpo
+    # happo
+    happo_lka2
 )
 envs=(
+    $1
     Ant_2x4
     HalfCheetah_2x3
     Walker2d_2x3
@@ -20,31 +17,30 @@ envs=(
 configs=(
     "${suite}"
 )
+shift
 args1=(
-    # ppo
-    # True
-    # False
-    1
-    .5
-    .1
+    # $2
+    full
+    part
 )
 args2=(
-    1
-    .5
-    .1
+    False
+    False
 )
 args3=(
-    $3
-    0
+    True
+    False
+)
+args4=(
+    1
+    .5
+    # .1
 )
 date=$(date +"%m%d")
 # date="0331"
-info="sg"
+info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
-# for x in $(seq 1 1); do
-#     shift
-# done
 
 if [ -z "$info" ]; then
     n=$date
@@ -74,25 +70,47 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-# kws="update_scheme=$a1"
 # for a1 in "${args1[@]}"; do
-    # for a in "${algos[@]}"; do
-for a1 in "${args1[@]}"; do
-# for e in "${envs[@]}"; do
-    kws="0#norm_adv=False 0#reg_type=simple 0#rescaled_by_adv=True 0#pos_reg_coef=$a1"
+# for a2 in "${args2[@]}"; do
+#     for a3 in "${args3[@]}"; do
+#         for a4 in "${args4[@]}"; do
+#         # for e in "${envs[@]}"; do
+#             kws="0#norm_adv=$a1 0#reg_type=$a2 0#rescaled_by_adv=$a3 0#pos_reg_coef=$a4"
+#             env="${suite}-${e}"
+#             for s in {0..4}; do
+#                 py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#                 commands+=("$py_script")
+#                 echo $py_script
+#                 # eval $py_script
+#             done
+#         done
+#     done
+# done
+# done
+# a="happo"
+# env="${suite}-${e}"
+# # for a in "${algos[@]}"; do
+# for s in {0..4}; do
+#     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#     commands+=("$py_script")
+#     echo $py_script
+#     # eval $py_script
+# done
+# done
+a="happo_lka2"
+# kws="lka_reg_type=$1 pos_lka_reg_coef=$2"
+# env="${suite}-${e}"
+# for a in "${algos[@]}"; do
+for e in "${envs[@]}"; do
     env="${suite}-${e}"
-    for s in {0..3}; do
+    kws="rollout_type=part"
+    for s in {0..4}; do
         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script
     done
 done
-    # done
 # done
-# echo ${commands[@]}s
-lc=${#commands[@]}
-p=$((lc / le))
-# echo $p
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

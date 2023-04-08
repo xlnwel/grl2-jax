@@ -125,7 +125,7 @@ actor:
         obs_names: [obs]
         normalize_obs: *irms
         normalize_reward: True
-        obs_normalized_axis: [0]
+        obs_normalized_axis: [0, 1]
         reward_normalized_axis: [0]
         update_reward_rms_in_time: True
         gamma: &gamma .99

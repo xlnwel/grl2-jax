@@ -8,9 +8,10 @@ from tools.utils import set_path
 
 
 def apply_rms_to_inp(inp, rms, update_rms):
-    inp = rms.process_obs_with_rms(
-        inp, mask=inp.sample_mask, 
-        update_rms=update_rms
+    inp = rms.process(
+        inp, 
+        update_rms=update_rms, 
+        mask=inp.sample_mask, 
     )
     return inp
 
@@ -128,7 +129,7 @@ class Actor:
             })
         if self.config.get('update_obs_at_execution', True) \
             and not evaluation and self.rms is not None \
-                and self.rms.is_obs_normalized:
+                and self.config.rms.normalize_obs:
             stats.update({k: inp[k] 
                 for k in self.config.rms.obs_names})
         return action, stats, state

@@ -169,5 +169,6 @@ def do_logging(
 def get_frame(backtrack):
     frame = inspect.currentframe()
     for _ in range(backtrack):
-        frame = frame.f_back
+        if frame.f_back:
+            frame = frame.f_back
     return frame

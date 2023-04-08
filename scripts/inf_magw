@@ -1,0 +1,116 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+suite=$1
+shift
+algos=(
+    happo
+)
+envs=(
+    escalation
+    escalation
+    escalation
+    escalation
+    # staghunt
+    # staghunt
+    # staghunt
+    # staghunt
+)
+configs=$envs
+args1=(
+    True
+    True
+    False
+    False
+)
+args2=(
+    simple
+    kl_reverse
+)
+args3=(
+    True
+    True
+    False
+    False
+)
+args4=(
+    1
+    .5
+    # .1
+)
+date=$(date +"%m%d")
+# date="0331"
+info=""
+ld="${suite}-logs"
+
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
+
+le=${#envs[@]}
+idx=$(($INF_MAC_NODE_RANK % $le))
+e=${envs[$idx]}
+env="${suite}-${e}"
+lc=${#configs[@]}
+idx=$(($INF_MAC_NODE_RANK % $lc))
+config=${configs[$idx]}
+la=${#algos[@]}
+idx=$(($INF_MAC_NODE_RANK % $la))
+a=${algos[$idx]}
+la1=${#args1[@]}
+idx=$(($INF_MAC_NODE_RANK % $la1))
+a1=${args1[$idx]}
+la2=${#args2[@]}
+idx=$(($INF_MAC_NODE_RANK % $la2))
+a2=${args2[$idx]}
+la3=${#args3[@]}
+idx=$(($INF_MAC_NODE_RANK % $la3))
+a3=${args3[$idx]}
+# kws=$@
+
+commands=()
+# config="${e}"
+# for a1 in "${args1[@]}"; do
+# for a2 in "${args2[@]}"; do
+# for a3 in "${args3[@]}"; do
+for a4 in "${args4[@]}"; do
+    # for e in "${envs[@]}"; do
+    kws="0#reg_type=$a2 0#rescaled_by_adv=$a3 0#pos_reg_coef=$a4"
+    env="${suite}-${e}"
+    for s in {0..15}; do
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+        # eval $py_script
+    done
+    # done
+done
+# done
+# done
+# done
+# a=happo_mb
+# args1=(
+#     200
+#     150
+#     100
+#     50
+# )
+# la1=${#args1[@]}
+# idx=$(($INF_MAC_NODE_RANK % $la1))
+# a1=${args1[$idx]}
+# kws="0#norm_adv=False 1#ergodic=False n_epochs=$a1"
+# for e in "${envs[@]}"; do
+# kws="norm_adv=$a1"
+# config="${e}"
+# env="${suite}-${e}"
+# for s in {0..15}; do
+#     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#     commands+=("$py_script")
+#     echo $py_script
+# done
+# echo ${commands[@]}s
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND 
+echo "Script completed"

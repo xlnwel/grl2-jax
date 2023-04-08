@@ -58,6 +58,10 @@ def flatten_dict(d: dict, prefix=None, suffix=None):
             v = flatten_dict(v, suffix=suffix)
             for kk, vv in v.items():
                 result[f'{k}/{kk}'] = vv
+        elif isinstance(v, tuple) and hasattr(v, '_asdict'):
+            v = flatten_dict(v._asdict(), suffix=suffix)
+            for kk, vv in v.items():
+                result[f'{k}/{kk}'] = vv
         else:
             k = add_suffix(k, suffix)
             result[k] = v

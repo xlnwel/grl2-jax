@@ -6,8 +6,8 @@ from tools.utils import expand_dims_match, moments
 
 StatsWithVar = collections.namedtuple('RMS', 'mean var')
 StatsWithVarCount = collections.namedtuple('RMS', 'mean var count')
-StatsWithStd = collections.namedtuple('RMS', 'mean var')
-StatsWithStdCount = collections.namedtuple('RMS', 'mean var count')
+StatsWithStd = collections.namedtuple('RMS', 'mean std')
+StatsWithStdCount = collections.namedtuple('RMS', 'mean std count')
 
 
 def combine_rms(rms1, rms2):

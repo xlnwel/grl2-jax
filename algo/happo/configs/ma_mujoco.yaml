@@ -59,11 +59,12 @@ model:
         nn_id: policy
         units_list: [64, 64]
         w_init: orthogonal
-        activation: relu
+        activation: tanh
         norm: layer
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
+        out_act: tanh
         init_std: .2
         sigmoid_scale: True
         std_x_coef: 1.
@@ -73,7 +74,7 @@ model:
         nn_id: value
         units_list: [64, 64]
         w_init: orthogonal
-        activation: relu
+        activation: tanh
         norm: layer
         rnn_type: &vrnn null
         rnn_units: 64
@@ -113,7 +114,6 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    lka_reg_type: wasserstein
     pos_lka_reg_coef: 0
 
     stats:
@@ -133,6 +133,11 @@ trainer:
     n_steps: *nsteps         # BPTT length
 
     update_scheme: step
+    n_simulated_envs: *nse
+    n_simulated_steps: *nss
+    n_lka_epochs: 5
+    n_lka_mbs: 40
+
     popart: *popart
 
     policy_opt:
@@ -149,12 +154,15 @@ trainer:
 actor:
     update_obs_rms_at_execution: False
     update_obs_at_execution: False
-    rms:
+    obs_rms:
         obs_names: [obs, global_state]
-        obs_normalized_axis: [0, 1, 2]
-        reward_normalized_axis: [0, 1, 2]
-        normalize_obs: False
+        obs_normalized_axis: [0, 1]    # obs_at_execution has no axis of time-sequential
+        obs_normalized_ndim: 2
+        normalize_obs: True
         obs_clip: 10
+    reward_rms:
+        reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
+        reward_normalized_ndim: 1
         normalize_reward: False
         update_reward_rms_in_time: False
         gamma: *gamma

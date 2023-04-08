@@ -17,11 +17,12 @@ class TrainingLoop(TrainingLoopBase):
                     do_logging('Bypassing lookahead train')
                     return
 
-                self.trainer.lookahead_train(data, **kwargs)
+                stats = self.trainer.lookahead_train(data, **kwargs)
         else:
             data = self.sample_data()
             if data is None:
                 do_logging('Bypassing lookahead train')
                 return
 
-            self.trainer.lookahead_train(data, **kwargs)
+            stats = self.trainer.lookahead_train(data, **kwargs)
+        return stats
