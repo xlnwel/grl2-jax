@@ -201,6 +201,11 @@ class Model(ModelBase):
         path = '/'.join([self.config.root_dir, self.config.model_name])
         return path
 
+    def update_obs_rms(self, rms):
+        if rms is not None:
+            assert self.config.model_norm_obs, self.config.model_norm_obs
+            self.obs_rms.update_from_moments(*rms, ignore_const=True)
+
     def save(self):
         super().save()
         self.save_obs_rms()

@@ -17,7 +17,7 @@ class Strategy(StrategyBase):
             ) for uids in self.aid2uids]
             resets = [env_output.reset[:, uids] for uids in self.aid2uids]
         inps = self._memory.add_memory_state_to_input(inps, resets, states)
-        value = self.model.compute_value(inps)
+        value = self.actor.compute_value(inps)
         return value
 
 

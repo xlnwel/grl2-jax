@@ -1,13 +1,14 @@
 from core.typing import AttrDict
 from core.elements.trainloop import TrainingLoop as TrainingLoopBase
+from tools.display import print_dict_info
 from tools.utils import prefix_name
-from tools.timer import Timer, timeit
+from tools.timer import timeit
 
 
 class TrainingLoop(TrainingLoopBase):
     def _train(self):
         obs_rms = self.buffer.get_obs_rms()
-        self.trainer.update_rms(obs_rms)
+        self.model.update_obs_rms(obs_rms)
 
         n = 0
         stats = {}

@@ -49,6 +49,7 @@ model:
     model_norm_obs: &obs_norm True
     deterministic_trans: True
     model_loss_type: &mlt mse
+    obs_clip: 10
 
     emodels:
         nn_id: emodels

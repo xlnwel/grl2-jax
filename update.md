@@ -29,3 +29,7 @@ algo.ppo.elements.utils中的compute_actor_loss函数中的policy_sample_mask判
 2023.04.07
 1. 更新RMS的处理.
 2. 完成GRF的测试
+
+2023.04.09
+1. 添加选项在算RMS的时候忽略固定值. 固定值会导致std很小, 从而导致normalize后的极大值
+2. 在model warm up的时候增加额外的训练epochs, 参数为model_warm_up_train_epochs

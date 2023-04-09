@@ -86,7 +86,7 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    init_running_stats(agent, runner)
+    init_running_stats(agent, runner, dynamics)
     env_name = runner.env_config().env_name
     eval_data = load_eval_data(filename=env_name)
     rng = dynamics.model.rng
@@ -99,7 +99,12 @@ def train(
         errors = AttrDict()
         time2record = to_record(env_step)
 
-        dynamics_optimize(dynamics)
+        if env_step < dynamics_routine_config.model_warm_up_steps:
+            for _ in range(dynamics_routine_config.model_warm_up_train_epochs):
+                dynamics_optimize(dynamics)
+            stats = dynamics.valid_stats()
+        else:
+            dynamics_optimize(dynamics)
         # if routine_config.quantify_dynamics_errors and time2record:
         #     errors.train = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])

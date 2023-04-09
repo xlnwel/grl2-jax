@@ -22,6 +22,7 @@ routine:
     n_envs: &nenvs 256
 
     model_warm_up: True
+    model_warm_up_train_epochs: 5
     model_warm_up_steps: 5e4
 
 env:
@@ -56,6 +57,7 @@ model:
     model_norm_obs: &obs_norm False
     deterministic_trans: True
     model_loss_type: &mlt discrete
+    obs_clip: 10
 
     emodels:
         nn_id: emodels

@@ -3,8 +3,8 @@ import jax
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
-from core.utils import configure_gpu, set_seed, save_code
-from core.typing import dict2AttrDict, ModelPath
+from core.utils import configure_gpu, set_seed
+from tools.display import print_dict_info
 from tools.utils import batch_dicts
 from tools.timer import Every, Timer
 from env.func import create_env
@@ -23,7 +23,7 @@ def run(
             new_env_output = env.step(action)
             buffer.collect(
                 reset=np.concatenate(new_env_output.reset, -1),
-                obs=batch_dicts(new_env_output.obs, 
+                obs=batch_dicts(env_output.obs, 
                     func=lambda x: np.concatenate(x, -2)),
                 action=action, 
                 next_obs=batch_dicts(new_env_output.obs, 
@@ -47,21 +47,25 @@ def split_env_output(env_output):
 def run_model(model, buffer, routine_config):
     sample_keys = buffer.obs_keys + ['state'] \
         if routine_config.restore_state else buffer.obs_keys 
+    sample_keys += ['discount', 'reset']
     obs = buffer.sample_from_recency(
         batch_size=routine_config.n_envs, 
         sample_keys=sample_keys, 
     )
     shape = obs.obs.shape[:-1]
-    reward = np.zeros(shape)
-    discount = np.ones(shape)
-    reset = np.zeros(shape)
+    n_agents = shape[-1]
+    action_dim = model.env_stats.action_dim[0]
+    reward = np.zeros(shape, np.float32)
+    discount = obs.pop('discount')
+    reset = obs.pop('reset')
 
     env_output = EnvOutput(obs, reward, discount, reset)
     model.model.choose_elite()
     for i in range(routine_config.n_steps):
-        action = np.random.randint(0, 5, (routine_config.n_envs, 2))
+        action = np.random.randint(0, action_dim, (routine_config.n_envs, n_agents))
+        env_output.obs['reset'] = env_output.reset
         env_output.obs['action'] = action
-        _, env_stats = model(env_output)
+        env_output, env_stats = model(env_output)
         model.store(**env_stats)
 
 
@@ -102,12 +106,13 @@ def train(
             # train the model
             with Timer('train'):
                 model.train_record()
-            
-            run_model(
-                model, 
-                buffer, 
-                routine_config, 
-            )
+            if step < routine_config.model_warm_up_steps:
+                stats = model.valid_stats()
+            # run_model(
+            #     model, 
+            #     buffer, 
+            #     routine_config, 
+            # )
         
             if to_record(step):
                 record_stats(model, step)

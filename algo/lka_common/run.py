@@ -70,13 +70,13 @@ def rollout(agent, agent_params, dynamics, dynamics_params, rng,
                     agent_obs[k] = normalize(agent_obs[k], *v)
                     if obs_clip is not None:
                         agent_obs[k] = jnp.clip(agent_obs[k], -obs_clip, obs_clip)
-            agent_inp.append(obs.slice(indices=uids, axis=1))
-            agent_inp[-1].reset = reset = env_output.reset[:, uids]
+            agent_obs.reset = reset = env_output.reset[:, uids]
             if agent.has_rnn:
-                agent_inp[-1].state_reset = reset
+                agent_obs.state_reset = reset
                 reset = jnp.expand_dims(reset, -1)
                 state = states[aid]
-                agent_inp[-1].state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
+                agent_obs.state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
+            agent_inp.append(agent_obs)
         action, stats, states = agent.raw_action(
             agent_params, agent_rng, agent_inp)
 
@@ -87,7 +87,6 @@ def rollout(agent, agent_params, dynamics, dynamics_params, rng,
         model_inp.obs_scale = dynamics_params.obs_scale
         new_env_output, _, _ = dynamics.raw_action(
             dynamics_params, env_rng, model_inp, 
-            # elite_indices=elite_indices
         )
 
         data = obs
