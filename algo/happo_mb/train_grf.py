@@ -1,4 +1,3 @@
-from functools import partial
 import jax
 import ray
 
@@ -6,12 +5,11 @@ from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from core.typing import AttrDict, modelpath2outdir
 from tools.display import print_dict
-from tools.timer import Every, timeit
+from tools.timer import Every
 from algo.lka_common.run import quantify_dynamics_errors
 from algo.lka_common.train import *
-from algo.happo.run import prepare_buffer
 from algo.happo.train import init_running_stats
-from algo.happo_mb.run import branched_rollout, Runner
+from algo.happo_mb.run import Runner
 from algo.happo_mb.train import update_config, env_run, ego_train, dynamics_run, get_lka_aids
     
 
@@ -37,7 +35,7 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    init_running_stats(agent, runner)
+    init_running_stats(agent, runner, dynamics)
     env_name = runner.env_config().env_name
     eval_data = load_eval_data(filename=env_name)
     rng = dynamics.model.rng
@@ -50,7 +48,12 @@ def train(
         errors = AttrDict()
         time2record = to_record(env_step)
 
-        dynamics_optimize(dynamics)
+        if env_step < dynamics_routine_config.model_warm_up_steps:
+            for _ in range(dynamics_routine_config.model_warm_up_train_epochs):
+                dynamics_optimize(dynamics)
+            stats = dynamics.valid_stats()
+        else:
+            dynamics_optimize(dynamics)
         # if routine_config.quantify_dynamics_errors and time2record:
         #     errors.train = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])

@@ -9,7 +9,7 @@ algos=(
     happo_lka2
 )
 envs=(
-    $1
+    # $1
     Ant_2x4
     HalfCheetah_2x3
     Walker2d_2x3
@@ -87,23 +87,10 @@ commands=()
 #     done
 # done
 # done
-# a="happo"
-# env="${suite}-${e}"
-# # for a in "${algos[@]}"; do
-# for s in {0..4}; do
-#     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-#     commands+=("$py_script")
-#     echo $py_script
-#     # eval $py_script
-# done
-# done
-a="happo_lka2"
-# kws="lka_reg_type=$1 pos_lka_reg_coef=$2"
-# env="${suite}-${e}"
+a="happo"
+env="${suite}-${e}"
 # for a in "${algos[@]}"; do
 for e in "${envs[@]}"; do
-    env="${suite}-${e}"
-    kws="rollout_type=part"
     for s in {0..4}; do
         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
         commands+=("$py_script")
@@ -111,6 +98,20 @@ for e in "${envs[@]}"; do
         # eval $py_script
     done
 done
+# a="happo_lka2"
+# kws="lka_reg_type=$1 pos_lka_reg_coef=$2"
+# env="${suite}-${e}"
+# for a in "${algos[@]}"; do
+# for e in "${envs[@]}"; do
+#     env="${suite}-${e}"
+#     kws="rollout_type=part"
+#     for s in {0..4}; do
+#         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#         commands+=("$py_script")
+#         echo $py_script
+#         # eval $py_script
+#     done
+# done
 # done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

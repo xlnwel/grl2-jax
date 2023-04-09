@@ -31,14 +31,16 @@ def env_run(agent, runner: Runner, routine_config, name='real', **kwargs):
     return agent.get_env_step()
 
 
-def init_running_stats(agent, runner: Runner):
-    MODEL_EVAL_STEPS = runner.env.max_episode_steps
-    do_logging(f'Model evaluation steps: {MODEL_EVAL_STEPS}')
+def init_running_stats(agent, runner: Runner, dynamics=None, n_steps=None):
+    if n_steps is None:
+        n_steps = runner.env.max_episode_steps
+    do_logging(f'Pre-training running steps: {n_steps}')
 
     runner.run(
         agent, 
-        n_steps=MODEL_EVAL_STEPS, 
+        n_steps=n_steps, 
         lka_aids=[], 
+        dynamics=dynamics, 
         collect_data=agent.actor.is_obs_or_reward_normalized
     )
     if agent.actor.is_obs_or_reward_normalized:

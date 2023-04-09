@@ -10,7 +10,7 @@ StatsWithStd = collections.namedtuple('RMS', 'mean std')
 StatsWithStdCount = collections.namedtuple('RMS', 'mean std count')
 
 
-def combine_rms(rms1, rms2):
+def combine_rms(rms1, rms2, ignore_const=True):
     if np.any(np.abs(rms1.mean - rms2.mean)) > 100 \
         or np.any(np.abs(rms1.var - rms2.var)) > 100:
         raise ValueError(f'Large difference between two RMSs {rms1} vs {rms2}')
@@ -27,6 +27,9 @@ def combine_rms(rms1, rms2):
     M2 = m_a + m_b + delta**2 * count1 * count2 / total_count
     assert np.all(np.isfinite(M2)), f'M2: {M2}'
     new_var = M2 / total_count
+    if ignore_const:
+        new_var = np.where(
+            np.logical_and(var1 == 1, var2 < 1e-6), var1, new_var)
 
     return StatsWithVarCount(new_mean, new_var, total_count)
 
@@ -41,7 +44,7 @@ def denormalize(x, mean, std, zero_center=True, mask=None):
     return x_new
 
 
-def normalize(x, mean, std, zero_center=True, clip=None, mask=None):
+def normalize(x, mean, std, zero_center=True, clip=None, mask=None, np=np):
     x_new = x
     if zero_center:
         x_new = x_new - mean
@@ -155,7 +158,7 @@ class RunningMeanStd:
                 assert batch_mean.ndim == self._ndim, (batch_mean.shape, self._ndim)
             self.update_from_moments(batch_mean, batch_var, batch_count)
 
-    def update_from_moments(self, batch_mean, batch_var, batch_count):
+    def update_from_moments(self, batch_mean, batch_var, batch_count, ignore_const=True):
         assert np.all(batch_var >= 0), batch_var[batch_var < 0]
         if self._count == self._epsilon:
             self._mean = np.zeros_like(batch_mean, 'float64')
@@ -165,7 +168,9 @@ class RunningMeanStd:
 
         new_mean, new_var, total_count = combine_rms(
             StatsWithVarCount(self._mean, self._var, self._count), 
-            StatsWithVarCount(batch_mean, batch_var, batch_count))
+            StatsWithVarCount(batch_mean, batch_var, batch_count), 
+            ignore_const=ignore_const
+        )
         self._mean = new_mean
         self._var = new_var
         self._std = np.sqrt(self._var + self._epsilon)

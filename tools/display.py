@@ -26,7 +26,9 @@ def print_array(v, prefix, level, backtrack):
         level=level, backtrack=backtrack+1)
 
 def print_dict_info(tree, prefix='', level='pwt', backtrack=3):
-    if isinstance(tree, (Sequence)):
+    if isinstance(tree, tuple) and hasattr(tree, '_asdict'):
+        print_dict_info(tree._asdict(), prefix+'\t', level=level, backtrack=backtrack+1)
+    elif isinstance(tree, (list, tuple)):
         for i, v in enumerate(tree):
             print_dict_info(v, f'{prefix} idx({i})', level=level, backtrack=backtrack+1)
     elif isinstance(tree, (np.ndarray, jnp.DeviceArray, jax.ShapedArray)):

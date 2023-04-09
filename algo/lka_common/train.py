@@ -56,7 +56,7 @@ def dynamics_run(agent, dynamics, routine_config, dynamics_routine_config,
         rng, lka_aids, rollout_fn, name='dynamics'):
     if dynamics_routine_config.model_warm_up and \
         agent.get_env_step() < dynamics_routine_config.model_warm_up_steps:
-        return
+        return False
 
     def constructor():
         return agent.build_memory()
@@ -184,14 +184,13 @@ def eval_ego_and_lka(agent, runner: Runner, routine_config):
 @timeit
 def eval_and_log(agent, dynamics, runner, routine_config, 
                  train_data, eval_data, errors={}, n=500, eval_lka=True):
-    if not getattr(routine_config, "concise_mode", False):
-        eval_policy_distances(agent, eval_data, name='eval', n=n, eval_lka=eval_lka)
-        if train_data:
-            seqlen = train_data.obs.shape[1]
-            train_data = dict2AttrDict({k: train_data[k] for k in eval_data})
-            train_data = jax.tree_util.tree_map(
-                lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)
-            eval_policy_distances(agent, train_data, n=n, eval_lka=eval_lka)
+    eval_policy_distances(agent, eval_data, name='eval', n=n, eval_lka=eval_lka)
+    if train_data:
+        seqlen = train_data.obs.shape[1]
+        train_data = dict2AttrDict({k: train_data[k] for k in eval_data})
+        train_data = jax.tree_util.tree_map(
+            lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)
+        eval_policy_distances(agent, train_data, n=n, eval_lka=eval_lka)
     if runner is not None:
         eval_ego_and_lka(agent, runner, routine_config)
     save(agent, dynamics)

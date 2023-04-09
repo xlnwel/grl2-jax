@@ -71,7 +71,7 @@ def branched_rollout(agent, dynamics, routine_config, rng, lka_aids):
         dynamics.model, dynamics_params, 
         rng, env_output, states, 
         routine_config.n_simulated_steps, 
-        obs_rms, obs_clip
+        obs_rms=obs_rms, obs_clip=obs_clip
     )
     add_data_to_buffer(agent, data, env_output, states, 
         routine_config.compute_return_at_once)

@@ -215,10 +215,10 @@ class GRF:
         return dtype
 
     def random_action(self):
-        action = [
+        action = np.concatenate([
             np.random.randint(0, self.action_dim[0], len(uids)) 
             for uids in self.aid2uids
-        ]
+        ])
 
         return action
 

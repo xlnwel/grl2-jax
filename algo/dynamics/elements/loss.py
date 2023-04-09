@@ -26,10 +26,13 @@ class Loss(LossBase):
         name='theta',
     ):
         rngs = random.split(rng, 3)
+        obs_clip = self.model.config.obs_clip
 
         if self.model.config.model_norm_obs:
-            data.obs = normalize(data.obs, data.obs_loc, data.obs_scale)
-            data.next_obs = normalize(data.next_obs, data.obs_loc, data.obs_scale)
+            data.obs = normalize(
+                data.obs, data.obs_loc, data.obs_scale, clip=obs_clip, np=jnp)
+            data.next_obs = normalize(
+                data.next_obs, data.obs_loc, data.obs_scale, clip=obs_clip, np=jnp)
 
         dist = self.modules.emodels(
             theta.emodels, rngs[0], data.obs, data.action, training=True
