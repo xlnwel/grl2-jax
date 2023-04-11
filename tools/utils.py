@@ -205,8 +205,16 @@ def expand_dims_match(x: np.ndarray, target: np.ndarray):
         while len(x.shape) < len(target.shape):
             x = np.expand_dims(x, -1)
     """
-    assert x.shape == target.shape[:x.ndim], (x.shape, target.shape)
-    return x[(*[slice(None) for _ in x.shape], *(None,)*(target.ndim - x.ndim))]
+    if x.ndim == target.ndim:
+        return x
+    elif x.shape == target.shape[:x.ndim]:
+        # adding axes to the front
+        return x[(*(None,)*(target.ndim - x.ndim), *[slice(None) for _ in x.shape])]
+    elif x.shape == target.shape[-x.ndim:]:
+        # adding axes to the end
+        return x[(*[slice(None) for _ in x.shape], *(None,)*(target.ndim - x.ndim))]
+    else:
+        raise ValueError(f'Incompatible shapes: {(x.shape, target.shape)}')
 
 def moments(x, axis=None, mask=None):
     if x.dtype == np.uint8:
@@ -498,12 +506,15 @@ def product_flatten_dict(**kwargs):
 
     return result
 
-def batch_dicts(x, func=np.stack):
+def batch_dicts(x, func=np.stack, keys=None):
     if x is None:
         return x
     res = AttrDict()
     
-    for k, v in x[0].items():
+    if keys is None:
+        keys = x[0].keys()
+    for k in keys:
+        v = x[0][k]
         if isinstance(v, dict):
             v = batch_dicts([xx[k] for xx in x], func=func)
             if v:

@@ -64,7 +64,7 @@ strategy:
         ergodic: False
         training_data_size: 1e5
         valid_data_size: 1e4
-        n_epochs: &nepochs 100
+        n_epochs: &nepochs 400
 
 model:
     aid: 0
@@ -79,7 +79,7 @@ model:
     emodels:
         nn_id: emodels
         n_models: &n 1
-        units_list: [256, 256, 256]
+        units_list: [256, 256, 256, 256]
         activation: relu
         norm: null
         out_scale: .01

@@ -8,26 +8,20 @@ algos=(
     happo_mb
 )
 envs=(
+    $1
     academy_3_vs_1_with_keeper
-    academy_corner
-    academy_counterattack_hard
+    # academy_corner
+    # academy_counterattack_hard
 )
+shift
 configs=$envs
 args1=(
-    100
-    100
-    100
-    100
-    200
-    200
-    200
-    200
+    10
+    15
 )
 args2=(
-    15
-    15
-    20
-    20
+    True
+    False
 )
 args3=(
     True
@@ -39,7 +33,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-# date="0331"
+date="0412"
 info=""
 ld="${suite}-logs"
 
@@ -76,11 +70,11 @@ commands=()
 #     for a2 in "${args2[@]}"; do
 #         for a3 in "${args3[@]}"; do
 # for a4 in "${args4[@]}"; do
-kws="1#n_epochs=$1"
+kws="0#n_simulated_envs=$1 0#n_simulated_steps=$a1 1#emodels:norm=$2 1#n_epochs=$3"
 # for e in "${envs[@]}"; do
 env="${suite}-${e}"
 config="${e}"
-for s in {0..4}; do
+for s in {0..3}; do
     py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
     commands+=("$py_script")
     echo $py_script

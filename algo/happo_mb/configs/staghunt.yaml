@@ -25,7 +25,7 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 1
+    n_lka_steps: 1
     n_simulated_envs: &nse 1280
     n_simulated_steps: &nss 10
     model_rollout_type: sim
@@ -43,6 +43,7 @@ env:
     reward_scale: .1
     population_size: 1
     timeout_done: &td False
+    use_sample_mask: True
 
     uid2aid: [0, 1]
 
@@ -177,3 +178,4 @@ buffer:
         - mu_logits
         - state_reset
         - state
+        - sample_mask

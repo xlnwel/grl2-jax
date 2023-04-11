@@ -19,9 +19,9 @@ routine:
     EVAL_PERIOD: null
 
     run_with_future_opponents: True
-    n_lookahead_steps: 1
+    n_lka_steps: 1
     n_lookahead_envs: 64
-    n_lookahead_steps: 8
+    n_lka_steps: 8
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3

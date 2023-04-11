@@ -104,7 +104,7 @@ def train(
     all_aids = list(range(len(agents)))
     while step < routine_config.MAX_STEPS:
         # train lookahead agents
-        for _ in range(routine_config.n_lookahead_steps):
+        for _ in range(routine_config.n_lka_steps):
             for i, agent in enumerate(agents):
                 with Timer('lookahead_run'):
                     env_outputs = [None for _ in all_aids]

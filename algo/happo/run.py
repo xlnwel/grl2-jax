@@ -22,6 +22,7 @@ def prepare_buffer(
     data = agent.actor.normalize_obs(data, is_next=False)
     data = agent.actor.normalize_obs(data, is_next=True)
     agent.actor.update_obs_rms(obs)
+    data.sample_mask = np.ones_like(data.reward, np.float32)
     
     if compute_return:
         if agent.trainer.config.popart:

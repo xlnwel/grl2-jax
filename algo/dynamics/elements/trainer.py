@@ -120,8 +120,9 @@ class Trainer(TrainerBase):
         if self.env_stats.is_action_discrete[0]:
             data.action = one_hot(data.action, self.env_stats.action_dim[0])
         if self.model.config.model_norm_obs:
-            data.obs_loc, data.obs_scale = \
-                self.model.obs_rms.get_rms_stats(with_count=False)
+            data.obs_loc, data.obs_scale = self.model.get_obs_rms()
+            dim_mask = self.model.get_const_dim_mask()
+            data.dim_mask = jnp.zeros_like(data.obs) + dim_mask
 
         return data
 

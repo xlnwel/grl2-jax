@@ -564,7 +564,7 @@ class Single2MultiAgent(gym.Wrapper):
             n_units=getattr(env, 'n_units', 1),
             uid2aid=getattr(env, 'uid2aid', [0]),
             aid2uids=getattr(env, 'aid2uids', [[0]]),
-            use_sample_mask=[False],
+            use_sample_mask=[getattr(env, 'use_sample_mask', False)],
             use_action_mask=[getattr(env, 'use_action_mask', False)],
             is_multi_agent=True,
             is_simultaneous_move=True,

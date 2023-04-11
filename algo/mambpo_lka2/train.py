@@ -1,3 +1,7 @@
+from tools.store import TempStore
+from replay.dual import DualReplay, PRIMAL_REPLAY
+from algo.lka_common.run import prepare_params
+from algo.lka_common.train import load_eval_data, eval_and_log
 from algo.mambpo_lka.train import *
 
 
@@ -50,18 +54,20 @@ def train(
         final=routine_config.MAX_STEPS
     )
     runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
+    env_name = runner.env_config().env_name
+    eval_data = load_eval_data(filename=env_name)
     rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
         rng, run_rng = jax.random.split(rng, 2)
-        errors = AttrDict()
+        # errors = AttrDict()
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
         time2record = to_record(env_step)
         
         dynamics_optimize(dynamics)
-        if routine_config.quantify_dynamics_errors and time2record:
-            errors.train = quantify_dynamics_errors(
-                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
+        # if routine_config.quantify_dynamics_errors and time2record:
+        #     errors.train = quantify_dynamics_errors(
+        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if routine_config.lka_test:
             lka_optimize(agent)
@@ -79,7 +85,7 @@ def train(
                 dynamics, 
                 routine_config, 
                 dynamics_routine_config, 
-                n_runs=routine_config.n_lookahead_steps, 
+                n_runs=routine_config.n_lka_steps, 
                 run_fn=dynamics_run, 
                 opt_fn=lka_optimize, 
                 rng=rngs[0]
@@ -92,21 +98,17 @@ def train(
                 rngs[1]
             )
         
-        if routine_config.quantify_dynamics_errors and time2record:
-            errors.lka = quantify_dynamics_errors(
-                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
+        # if routine_config.quantify_dynamics_errors and time2record:
+        #     errors.lka = quantify_dynamics_errors(
+        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
 
-        train_step = ego_optimize(agent)
-        if routine_config.quantify_dynamics_errors and time2record:
-            errors.ego = quantify_dynamics_errors(
-                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
+        ego_optimize(agent)
+        # if routine_config.quantify_dynamics_errors and time2record:
+        #     errors.ego = quantify_dynamics_errors(
+        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_ego_and_lka(agent, runner, routine_config)
-            save(agent, dynamics)
-            if routine_config.quantify_dynamics_errors:
-                outdir = modelpath2outdir(agent.get_model_path())
-                log_dynamics_errors(errors, outdir, env_step)
-            log(agent, dynamics, env_step, train_step, errors)
+            eval_and_log(agent, None, runner, routine_config, 
+                         agent.training_data, eval_data, eval_lka=False)
 
 main = partial(main, train=train)

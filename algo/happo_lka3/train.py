@@ -37,7 +37,7 @@ def train(
             agent, 
             runner, 
             routine_config, 
-            n_runs=routine_config.n_lookahead_steps, 
+            n_runs=routine_config.n_lka_steps, 
             run_fn=lka_env_run, 
             opt_fn=lka_optimize, 
             lka_aids=None, 

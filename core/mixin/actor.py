@@ -60,10 +60,10 @@ class RewardRunningMeanStd:
         self.rms = RunningMeanStd(
             self._reward_normalized_axis, 
             clip=config.setdefault('rew_clip', 10), 
-            name='reward_rms', 
+            name=name, 
             ndim=config.setdefault("reward_normalized_ndim", 0)
         )
-        print_dict(config, prefix='reward_rms')
+        print_dict(config, prefix=name)
 
         self.reset_return()
 
@@ -207,9 +207,10 @@ class ObsRunningMeanStd:
                 self.rms[k] = RunningMeanStd(
                     self._obs_normalized_axis, 
                     clip=config.setdefault('obs_clip', 5), 
-                    name=f'{k}_rms', ndim=config.setdefault("obs_normalized_ndim", 1)
+                    name=f'{k}_rms', 
+                    ndim=config.setdefault("obs_normalized_ndim", 1)
                 )
-        print_dict(config, prefix='obs_rms')
+        print_dict(config, prefix=name)
 
     @property
     def obs_names(self):

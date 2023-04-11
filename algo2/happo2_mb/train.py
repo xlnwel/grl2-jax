@@ -75,7 +75,7 @@ def ego_run(agents, runner, model_buffer, routine_config):
         runner.run(
             routine_config.n_steps, 
             agents, 
-            model_buffer if routine_config.n_lookahead_steps > 0 else None, 
+            model_buffer if routine_config.n_lka_steps > 0 else None, 
             all_aids, all_aids, 
             compute_return=routine_config.compute_return_at_once
         )
@@ -288,7 +288,7 @@ def train(
                 dynamics, 
                 routine_config, 
                 aids=aids, 
-                n_runs=routine_config.n_lookahead_steps, 
+                n_runs=routine_config.n_lka_steps, 
                 run_fn=lka_run_fn, 
                 opt_fn=lka_opt_fn, 
                 rng=lka_rng

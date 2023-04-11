@@ -24,7 +24,7 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 1
+    n_lka_steps: 1
     n_simulated_envs: &nse 640
     n_simulated_steps: &nss 10
     model_rollout_type: sim
@@ -61,6 +61,7 @@ env:
     n_runners: &nrunners 8
     n_envs: &nenvs 8
 
+    use_sample_mask: True
     use_idx: False
     use_hidden: False
     use_event: False
@@ -200,3 +201,4 @@ buffer:
         - mu_logits
         - state_reset
         - state
+        - sample_mask

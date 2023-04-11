@@ -187,7 +187,9 @@ def eval_and_log(agent, dynamics, runner, routine_config,
     eval_policy_distances(agent, eval_data, name='eval', n=n, eval_lka=eval_lka)
     if train_data:
         seqlen = train_data.obs.shape[1]
-        train_data = dict2AttrDict({k: train_data[k] for k in eval_data})
+        if eval_data:
+            train_data = {k: train_data[k] for k in eval_data}
+        train_data = dict2AttrDict(train_data)
         train_data = jax.tree_util.tree_map(
             lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)
         eval_policy_distances(agent, train_data, n=n, eval_lka=eval_lka)

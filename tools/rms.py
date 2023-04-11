@@ -1,6 +1,7 @@
 import collections
 import numpy as np
 
+from core.log import do_logging
 from tools.utils import expand_dims_match, moments
 
 
@@ -10,9 +11,9 @@ StatsWithStd = collections.namedtuple('RMS', 'mean std')
 StatsWithStdCount = collections.namedtuple('RMS', 'mean std count')
 
 
-def combine_rms(rms1, rms2, ignore_const=True):
-    if np.any(np.abs(rms1.mean - rms2.mean)) > 100 \
-        or np.any(np.abs(rms1.var - rms2.var)) > 100:
+def combine_rms(rms1, rms2):
+    if np.any(np.abs(rms1.mean - rms2.mean) > 100) \
+        or np.any(np.abs(rms1.var - rms2.var) > 100):
         raise ValueError(f'Large difference between two RMSs {rms1} vs {rms2}')
 
     mean1, var1, count1 = rms1
@@ -27,14 +28,17 @@ def combine_rms(rms1, rms2, ignore_const=True):
     M2 = m_a + m_b + delta**2 * count1 * count2 / total_count
     assert np.all(np.isfinite(M2)), f'M2: {M2}'
     new_var = M2 / total_count
-    if ignore_const:
-        new_var = np.where(
-            np.logical_and(var1 == 1, var2 < 1e-6), var1, new_var)
 
     return StatsWithVarCount(new_mean, new_var, total_count)
 
 
-def denormalize(x, mean, std, zero_center=True, mask=None):
+def denormalize(x, mean, std, zero_center=True, mask=None, 
+                dim_mask=None, np=np):
+    """ Denormalize x using mean and std
+    mask chooses which samples to apply denormalization
+    dim_mask mask out dimensions with small variance
+    """
+    std = std if dim_mask is None else np.where(dim_mask, std, 1.)
     x_new = x * std
     if zero_center:
         x_new = x_new + mean
@@ -44,10 +48,16 @@ def denormalize(x, mean, std, zero_center=True, mask=None):
     return x_new
 
 
-def normalize(x, mean, std, zero_center=True, clip=None, mask=None, np=np):
+def normalize(x, mean, std, zero_center=True, clip=None, mask=None, 
+              dim_mask=None, np=np):
+    """ Normalize x using mean and std
+    mask chooses which samples to apply normalization
+    dim_mask mask out dimensions with small variance
+    """
     x_new = x
     if zero_center:
         x_new = x_new - mean
+    std = std if dim_mask is None else np.where(dim_mask, std, 1.)
     x_new = x_new / std
     if clip:
         x_new = np.clip(x_new, -clip, clip)
@@ -59,7 +69,7 @@ def normalize(x, mean, std, zero_center=True, clip=None, mask=None, np=np):
 
 class RunningMeanStd:
     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
-    def __init__(self, axis, epsilon=1e-8, clip=None, name=None, ndim=None):
+    def __init__(self, axis, epsilon=1e-8, clip=None, name=None, ndim=None, const_threshold=1e-3):
         """ Computes running mean and std from data
         A reimplementation of RunningMeanStd from OpenAI's baselines
 
@@ -91,6 +101,8 @@ class RunningMeanStd:
         self.reset_rms_stats()
         self._clip = clip
         self._ndim = ndim # expected number of dimensions
+        self._const_threshold = const_threshold
+        assert self._const_threshold > np.sqrt(self._epsilon), (self._const_threshold, self._epsilon)
 
     @property
     def axis(self):
@@ -112,19 +124,23 @@ class RunningMeanStd:
     def count(self):
         return self._count
 
+    def const_dim_mask(self):
+        dim_mask = self._std > self._const_threshold
+        return dim_mask
+
     def is_initialized(self):
-        return self._count > self._epsilon
+        return self._count > 0
 
     def reset_rms_stats(self):
         self._mean = 0
         self._var = 1
         self._std = 1
-        self._count = self._epsilon # avoid var being zero
+        self._count = 0 # avoid var being zero
 
     def set_rms_stats(self, mean, var, count):
         self._mean = mean
         self._var = var
-        self._std = np.sqrt(self._var)
+        self._std = np.sqrt(self._var + self._epsilon)
         self._count = count
 
     def get_rms_stats(self, with_count=True, return_std=False):
@@ -158,9 +174,9 @@ class RunningMeanStd:
                 assert batch_mean.ndim == self._ndim, (batch_mean.shape, self._ndim)
             self.update_from_moments(batch_mean, batch_var, batch_count)
 
-    def update_from_moments(self, batch_mean, batch_var, batch_count, ignore_const=True):
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
         assert np.all(batch_var >= 0), batch_var[batch_var < 0]
-        if self._count == self._epsilon:
+        if self._count == 0:
             self._mean = np.zeros_like(batch_mean, 'float64')
             self._var = np.ones_like(batch_var, 'float64')
         assert self._mean.shape == batch_mean.shape
@@ -169,15 +185,13 @@ class RunningMeanStd:
         new_mean, new_var, total_count = combine_rms(
             StatsWithVarCount(self._mean, self._var, self._count), 
             StatsWithVarCount(batch_mean, batch_var, batch_count), 
-            ignore_const=ignore_const
         )
         self._mean = new_mean
         self._var = new_var
         self._std = np.sqrt(self._var + self._epsilon)
         self._count = total_count
-        assert np.all(self._var > 0), self._var[self._var <= 0]
 
-    def normalize(self, x, zero_center=True, mask=None):
+    def normalize(self, x, zero_center=True, mask=None, ignore_const=True):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
         assert self._std is not None, (self._mean, self._std, self._count)
         if self._count == self._epsilon:
@@ -186,21 +200,31 @@ class RunningMeanStd:
             return x
         # assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
         #     (x.shape, self._var.shape, self._axis)
+        dim_mask = self.const_dim_mask() if ignore_const else None
         x_new = x.astype(np.float32)
-        x_new = normalize(x_new, self._mean, self._std,
-            zero_center=zero_center, clip=self._clip, mask=mask)
+        x_new = normalize(
+            x_new, self._mean, self._std,
+            zero_center=zero_center, 
+            clip=self._clip, mask=mask, 
+            dim_mask=dim_mask
+        )
         return x_new
 
-    def denormalize(self, x, zero_center=True, mask=None):
+    def denormalize(self, x, zero_center=True, mask=None, ignore_const=True):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
         assert self._std is not None, (self._mean, self._std, self._count)
         # assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
         #     (x.shape, self._var.shape, self._axis)
         if self._count == self._epsilon:
             return x
+        dim_mask = self.const_dim_mask() if ignore_const else None
         x_new = x.astype(np.float32)
-        x_new = denormalize(x_new, self._mean, self._std, 
-            zero_center=zero_center, mask=mask)
+        x_new = denormalize(
+            x_new, self._mean, self._std, 
+            zero_center=zero_center, mask=mask, 
+            dim_mask=dim_mask, 
+            const_threshold=self._const_threshold
+        )
         return x_new
 
 
