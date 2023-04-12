@@ -107,7 +107,7 @@ def ego_run(agents, runner, routine_config):
     for i, agent in enumerate(agents):
         assert agent.buffer.size() == 0, f"buffer {i}: {agent.buffer.size()}"
 
-    if routine_config.n_lookahead_steps:
+    if routine_config.n_lka_steps:
         for i in all_aids:
             lka_aids = [aid for aid in all_aids if aid != i]
             with StateStore(f'real{i}', constructor, get_fn, set_fn):
@@ -267,7 +267,7 @@ def train(
             runner, 
             routine_config, 
             aids=aids, 
-            n_runs=routine_config.n_lookahead_steps, 
+            n_runs=routine_config.n_lka_steps, 
             run_fn=lka_run_fn, 
             opt_fn=lka_opt_fn
         )

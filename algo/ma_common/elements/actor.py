@@ -40,9 +40,9 @@ class Actor(ActorBase):
     def get_obs_names(self):
         return self.obs_rms[0].obs_names
     
-    def get_obs_rms(self):
+    def get_obs_rms(self, with_count=False, return_std=True):
         return [
-            rms.get_rms_stats(with_count=False, return_std=True) 
+            rms.get_rms_stats(with_count=with_count, return_std=return_std) 
             for rms in self.obs_rms
         ]
 

@@ -65,6 +65,7 @@ class UniformReplay(Buffer):
         return self.add_and_pop(idxes=idxes, **data)
 
     def add(self, idxes=None, **data):
+        trajs = []
         if self.n_envs > 1:
             for i, d in enumerate(yield_from_tree(data)):
                 if i >= len(self._tmp_bufs):
@@ -72,13 +73,15 @@ class UniformReplay(Buffer):
                         self.config, self.env_stats, self.model, self.aid, 0))
                 traj = self._tmp_bufs[i].add(**d)
                 if traj is not None:
-                    self.merge(traj)
+                    trajs.append(traj)
         else:
             traj = self._tmp_bufs[0].add(**data)
             if traj is not None:
-                self.merge(traj)
+                trajs.append(traj)
+        self.merge(trajs)
 
     def add_and_pop(self, idxes=None, **data):
+        trajs = []
         popped_data = []
         if self.n_envs > 1:
             for i, d in enumerate(yield_from_tree(data)):
@@ -87,11 +90,12 @@ class UniformReplay(Buffer):
                         self.config, self.env_stats, self.model, self.aid, 0))
                 traj = self._tmp_bufs[i].add(**d)
                 if traj is not None:
-                    popped_data.extend(self.merge_and_pop(traj))
+                    trajs.append(traj)
         else:
             traj = self._tmp_bufs[0].add(**data)
             if traj is not None:
-                popped_data.extend(self.merge_and_pop(traj))
+                trajs.append(traj)
+        popped_data.extend(self.merge_and_pop(trajs))
 
         return popped_data
 
@@ -199,9 +203,13 @@ class UniformReplay(Buffer):
     def _update_obs_rms(self, trajs):
         if self.config.model_norm_obs:
             if self.config.model_use_state:
-                self.obs_rms.update(np.stack([traj['env_state'] for traj in trajs]))
+                self.obs_rms.update(
+                    np.stack([traj['env_state'] for traj in trajs]), 
+                )
             else:
-                self.obs_rms.update(np.stack([traj['obs'] for traj in trajs]))
+                self.obs_rms.update(
+                    np.stack([traj['obs'] for traj in trajs]), 
+                )
 
     def save(self, filedir=None, filename=None):
         filedir = filedir or self._filedir

@@ -39,7 +39,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-# date="0331"
+date="0412"
 info=""
 ld="${suite}-logs"
 
@@ -80,7 +80,7 @@ kws=""
 # for e in "${envs[@]}"; do
 env="${suite}-${e}"
 config="${e}"
-for s in {0..4}; do
+for s in {0..3}; do
     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
     commands+=("$py_script")
     echo $py_script

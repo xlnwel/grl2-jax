@@ -4,6 +4,7 @@ import jax.numpy as jnp
 
 from . import jax_assert
 
+
 def safe_ratio(pi, mu, eps=1e-8):
     return pi / (mu + eps)
 
@@ -14,19 +15,19 @@ def lower_clip(x, threshold):
     return x if threshold is None else jnp.maximum(threshold, x)
 
 """ Masked Mathematic Operations """
-def _compute_n(mask, n):
+def count_masks(mask, axis=None, n=None):
     if mask is not None and n is None:
-        n = jnp.sum(mask)
+        n = jnp.sum(mask, axis=axis)
         n = jnp.where(n == 0, 1., n)
     return n
 
 def mask_mean(x, mask=None, n=None, axis=None):
-    n = _compute_n(mask, n)
+    n = count_masks(mask, axis=axis, n=n)
     return jnp.mean(x, axis=axis) if mask is None \
         else jnp.sum(x * mask, axis=axis) / n
 
 def mask_moments(x, mask=None, n=None, axis=None):
-    n = _compute_n(mask, n)
+    n = count_masks(mask, axis=axis, n=n)
     mean = mask_mean(x, mask=mask, n=n, axis=axis)
     var = mask_mean((x - mean)**2, mask=mask, n=n, axis=axis)
     return mean, var

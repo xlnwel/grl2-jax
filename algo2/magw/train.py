@@ -116,11 +116,11 @@ def train(
         
         # train lookahead agents
         if routine_config.run_with_future_opponents:
-            for _ in range(routine_config.n_lookahead_steps):
+            for _ in range(routine_config.n_lka_steps):
                 run_lookahead_agent(
                     model, 
                     routine_config.n_lookahead_envs, 
-                    routine_config.n_lookahead_steps
+                    routine_config.n_lka_steps
                 )
         
         if to_record(step):

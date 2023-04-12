@@ -38,6 +38,7 @@ class GRF:
         # required configs for grl
         max_episode_steps=3000,
         use_action_mask=False,
+        use_sample_mask=False, 
         uid2aid=None,
         seed=None, 
         use_idx=False, 
@@ -128,7 +129,7 @@ class GRF:
         self.max_episode_steps = max_episode_steps
 
         self.use_action_mask = use_action_mask  # if action mask is used
-        self.use_sample_mask = False              # if life mask is used
+        self.use_sample_mask = use_sample_mask              # if life mask is used
         self.use_idx = use_idx
         self.use_hidden = use_hidden
         self.use_event = use_event

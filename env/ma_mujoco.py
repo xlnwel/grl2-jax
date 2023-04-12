@@ -20,6 +20,8 @@ class MAMujoco(gym.Wrapper):
         self.action_space = self.env.action_space
 
         self.single_agent = config.single_agent
+        self.use_sample_mask = config.get('use_sample_mask', False)
+
         if self.single_agent:
             self.n_agents = 1
             self.n_units = self.env.n_agents

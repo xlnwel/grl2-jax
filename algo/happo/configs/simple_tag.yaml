@@ -23,7 +23,7 @@ routine:
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
-    n_lookahead_steps: 0
+    n_lka_steps: 0
     model_rollout_type: sim
     compute_return_at_once: True
     perm: null

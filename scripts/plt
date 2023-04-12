@@ -26,7 +26,7 @@ do
     today=$(date +"%m%d")
     yesterday=$(date -v-1d "+%m%d")
     dby=$(date -v-2d "+%m%d")
-    # tda="0402"
+    tda="0412"
     # tda=$(date -v-3d "+%m%d")
     # fda=$(date -v-4d "+%m%d")
 

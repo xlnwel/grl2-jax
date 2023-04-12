@@ -87,7 +87,7 @@ def train(
     all_aids = list(range(len(agents)))
     while step < routine_config.MAX_STEPS:
         # train lookahead agents
-        for _ in range(routine_config.n_lookahead_steps):
+        for _ in range(routine_config.n_lka_steps):
             with Timer('lookahead_run'):
                 if routine_config.model_rollout_type == 'sim':
                     with StateStore('sim', 
@@ -125,7 +125,7 @@ def train(
         for b in buffers:
             assert b.size() == 0, b.size()
         with rt:
-            # if routine_config.n_lookahead_steps:
+            # if routine_config.n_lka_steps:
             #     env_outputs = [None for _ in all_aids]
             #     for i in all_aids:
             #         lka_aids = [aid for aid in all_aids if aid != i]

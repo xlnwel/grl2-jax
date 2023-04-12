@@ -41,6 +41,7 @@ class GridWorldEnv(gym.Env):
         choose=0, 
         length=5, 
         reward_scale=.1, 
+        use_sample_mask=False, 
         **kwargs
     ):
         env_map = {
@@ -59,6 +60,7 @@ class GridWorldEnv(gym.Env):
         self.max_episode_steps = max_episode_steps
         self.length = length
         self.reward_scale = reward_scale
+        self.use_sample_mask = use_sample_mask
         self.color_map = DEFAULT_COLOURS          
         self.share_reward = False
         self.shape_reward = False

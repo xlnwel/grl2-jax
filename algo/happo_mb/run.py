@@ -58,12 +58,8 @@ def branched_rollout(agent, dynamics, routine_config, rng, lka_aids):
         dynamics.model.choose_elite()
     agent.model.switch_params(True, lka_aids)
     agent_params, dynamics_params = prepare_params(agent, dynamics)
-    if agent.actor.config.obs_rms.normalize_obs:
-        obs_rms = agent.actor.get_obs_rms()
-        obs_clip = agent.actor.config.obs_rms.obs_clip
-    else:
-        obs_rms = None
-        obs_clip = None
+    agent_obs_rms, agent_obs_clip, dynamics_obs_rms, dynamics_dim_mask = \
+        prepare_rms(agent, dynamics)
 
     # elite_indices = dynamics.model.elite_indices[:dynamics.model.n_elites]
     data, env_output, states = rollout(
@@ -71,7 +67,10 @@ def branched_rollout(agent, dynamics, routine_config, rng, lka_aids):
         dynamics.model, dynamics_params, 
         rng, env_output, states, 
         routine_config.n_simulated_steps, 
-        obs_rms=obs_rms, obs_clip=obs_clip
+        agent_obs_rms=agent_obs_rms, 
+        agent_obs_clip=agent_obs_clip, 
+        dynamics_obs_rms=dynamics_obs_rms, 
+        dynamics_dim_mask=dynamics_dim_mask, 
     )
     add_data_to_buffer(agent, data, env_output, states, 
         routine_config.compute_return_at_once)

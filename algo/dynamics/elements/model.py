@@ -44,8 +44,7 @@ class Model(ModelBase):
         self.n_elites = min(self.config.n_elites, self.config.emodels.n_models)
         self.n_selected_elites = collections.defaultdict(lambda: 0)
 
-        if self.config.model_norm_obs:
-            self.obs_rms = RunningMeanStd([0, 1])
+        self.obs_rms = RunningMeanStd([0, 1])
 
     def build_nets(self):
         aid = self.config.get('aid', 0)
@@ -103,6 +102,7 @@ class Model(ModelBase):
         self.act_rng, act_rng = jax.random.split(self.act_rng)
         if self.config.model_norm_obs:
             data.obs_loc, data.obs_scale = self.obs_rms.get_rms_stats(with_count=False)
+        data.dim_mask = self.get_const_dim_mask()
         env_out, stats, state = self.jit_action(
             self.params, act_rng, data, evaluation)
         stats.update(self.n_selected_elites)
@@ -117,25 +117,37 @@ class Model(ModelBase):
         elite_indices=None, 
     ):
         rngs = random.split(rng, 3)
+        dim_mask = jnp.zeros_like(data.obs) + data.dim_mask
         action = self.process_action(data.action)
         if self.config.model_norm_obs:
-            data.obs = normalize(data.obs, data.obs_loc, data.obs_scale)
-
-        if elite_indices is None:
-            model = params.model
+            obs = normalize(
+                data.obs, 
+                data.obs_loc, 
+                data.obs_scale, 
+                dim_mask=dim_mask, 
+                np=jnp
+            )
         else:
-            idx = random.randint(rngs[0], (), 0, self.n_elites)
-            model = self.get_ith_model(idx, eparams=params.emodels)
+            obs = data.obs
+
+        model = params.model
         stats = AttrDict()
         next_obs, stats = self.next_obs(
-            model, rngs[0], data.obs, action, stats, evaluation)
+            model, rngs[0], obs, action, dim_mask, stats, evaluation)
         reward, stats = self.reward(
-            params.reward, rngs[1], data.obs, action, next_obs, stats)
+            params.reward, rngs[1], obs, action, next_obs, stats)
         discount, stats = self.discount(
             params.discount, rngs[2], next_obs, stats)
 
         if self.config.model_norm_obs:
-            next_obs = denormalize(next_obs, data.obs_loc, data.obs_scale)
+            next_obs = denormalize(
+                next_obs, 
+                data.obs_loc, 
+                data.obs_scale, 
+                dim_mask=dim_mask, 
+                np=jnp
+            )
+        next_obs = jnp.where(dim_mask, next_obs, data.obs)
 
         if self.config.global_state_type == 'concat':
             global_state = jnp.expand_dims(next_obs, -3)
@@ -161,7 +173,7 @@ class Model(ModelBase):
 
         return env_out, stats, data.state
 
-    def next_obs(self, params, rng, obs, action, stats, evaluation):
+    def next_obs(self, params, rng, obs, action, dim_mask, stats, evaluation):
         rngs = random.split(rng, 2)
 
         dist = self.modules.model(params, rngs[0], obs, action)
@@ -172,7 +184,8 @@ class Model(ModelBase):
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
             next_obs = obs + next_obs
-        stats.update(dist.get_stats('model'))
+        # we set constant observations to zero to minimize their influence
+        next_obs = jnp.where(dim_mask, next_obs, 0.)
 
         return next_obs, stats
 
@@ -181,14 +194,12 @@ class Model(ModelBase):
         rewards = dist.mode()
         if isinstance(dist, jax_dist.Categorical):
             rewards = self.env_stats.reward_map[rewards]
-        stats.update(dist.get_stats('reward'))
 
         return rewards, stats
 
     def discount(self, params, rng, obs, stats):
         dist = self.modules.discount(params, rng, obs)
         discount = dist.mode()
-        stats.update(dist.get_stats('discount'))
 
         return discount, stats
 
@@ -201,10 +212,17 @@ class Model(ModelBase):
         path = '/'.join([self.config.root_dir, self.config.model_name])
         return path
 
+    def get_obs_rms(self, with_count=False, return_std=True):
+        return self.obs_rms.get_rms_stats(with_count=with_count, return_std=return_std) 
+
+    def get_const_dim_mask(self):
+        dim_mask = self.obs_rms.const_dim_mask()
+        return np.any(dim_mask, 0)
+
     def update_obs_rms(self, rms):
         if rms is not None:
             assert self.config.model_norm_obs, self.config.model_norm_obs
-            self.obs_rms.update_from_moments(*rms, ignore_const=True)
+            self.obs_rms.update_from_moments(*rms)
 
     def save(self):
         super().save()
@@ -216,13 +234,14 @@ class Model(ModelBase):
 
     def save_obs_rms(self):
         filedir = self.get_obs_rms_dir()
-        save(self.popart, filedir=filedir, filename='popart')
+        save(self.obs_rms, filedir=filedir, filename='obs_rms')
 
     def restore_obs_rms(self):
         filedir = self.get_obs_rms_dir()
-        self.popart = restore(
-            filedir=filedir, filename='popart', 
-            default=RunningMeanStd((0, 1)))
+        self.obs_rms = restore(
+            filedir=filedir, filename='obs_rms', 
+            default=RunningMeanStd((0, 1))
+        )
 
 
 def setup_config_from_envstats(config, env_stats):

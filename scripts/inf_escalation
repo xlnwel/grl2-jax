@@ -146,7 +146,7 @@ echo "Script completed"
 # fi
 # for a in "${algos[@]}"; do
 #     for s in {0..9}; do
-#         kws="n_lookahead_steps=$a1"
+#         kws="n_lka_steps=$a1"
 #         # echo $kws
 #         env="${suite}-${e}"
 #         if [[ "$OSTYPE" == 'linux-gnu'* ]]; then

@@ -115,7 +115,7 @@ def train(
             dynamics, 
             routine_config, 
             dynamics_routine_config, 
-            n_runs=routine_config.n_lookahead_steps, 
+            n_runs=routine_config.n_lka_steps, 
             rng=lka_rng, 
             lka_aids=lka_aids, 
             run_fn=dynamics_run, 
@@ -172,7 +172,6 @@ def main(configs, train=train):
     agent = build_agent(config, env_stats)
     # build dynamics
     dynamics = build_dynamics(config, dynamics_config, env_stats)
-    print('dynamics', dynamics.model)
     save_code_for_seed(config)
 
     routine_config = config.routine.copy()
