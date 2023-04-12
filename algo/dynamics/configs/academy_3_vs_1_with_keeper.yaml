@@ -39,7 +39,7 @@ env:
     add_role_to_obs: False
     shared_ckpt_reward: False
 
-    max_episode_steps: 200
+    max_episode_steps: 400
     use_action_mask: False
     uid2aid: null
     share_policy: False

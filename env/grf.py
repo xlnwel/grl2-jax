@@ -50,7 +50,6 @@ class GRF:
         self.representation = representation
         self.to_render = render
         self.share_reward = kwargs.get('share_reward', False)
-        assert self.share_reward, "Non-shared reward."
 
         # assert number_of_left_players_agent_controls in (1, 11), \
         #     number_of_left_players_agent_controls
