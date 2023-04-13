@@ -5,7 +5,7 @@
 # ./scripts/inf ma_mujoco 1 inf_masac
 # ./scripts/inf ma_mujoco 3 inf_mambpo
 # ./scripts/inf ma_mujoco 1 inf_mambpo 400
-# ./scripts/inf ma_mujoco 4 inf_masac_lka2
+# ./scripts/inf ma_mujoco 2 inf_masac_lka2
 # ./scripts/inf ma_mujoco 1 inf_masac_lka 200 True
 # ./scripts/inf ma_mujoco 1 inf_masac_lka 200 False
 # ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 True
@@ -45,6 +45,11 @@
 # ./scripts/inf magw 1 inf_ppo_lka 1 False
 # ./scripts/inf magw 1 inf_ppo_lka .5 True
 # ./scripts/inf magw 1 inf_ppo_lka .5 False
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka True 400 uniform
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka True 400 per
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka True 800 uniform
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka True 800 per
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 50
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 100
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 150
@@ -88,12 +93,16 @@
 # ./scripts/inf grf 3 inf_grf 10
 # ./scripts/inf grf 3 inf_grf 15
 # ./scripts/inf grf 1 inf_grf_is kl_reverse 1
-./scripts/inf grf 3 inf_grf
+# ./scripts/inf grf 3 inf_grf
 # ./scripts/inf grf 3 inf_grf_is simple 1
-./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 None 500
-./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 None 800
-./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 layer 500
-./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 layer 800
+# ./scripts/inf grf 1 inf_grf_lka True 400 uniform
+# ./scripts/inf grf 1 inf_grf_lka
+./scripts/inf grf 3 inf_grf_lka per 1 256
+./scripts/inf grf 3 inf_grf_lka per 1 512
+./scripts/inf grf 3 inf_grf_lka per 3 512
+# ./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 None 800
+# ./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 layer 500
+# ./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 layer 800
 # ./scripts/inf grf 1 inf_grf_lka academy_corner True 5 400
 # ./scripts/inf grf 1 inf_grf_lka academy_corner False 5 400
 # ./scripts/inf grf 1 inf_grf_lka academy_counterattack_hard True 5 400

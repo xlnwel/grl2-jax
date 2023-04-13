@@ -10,7 +10,6 @@ from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.feature import one_hot
-from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
 
 
@@ -62,7 +61,7 @@ class Trainer(TrainerBase):
                 return_stats=True
             )
         self.model.set_weights(theta)
-        elite_indices = np.argsort(stats.mean_loss)
+        elite_indices = np.argsort(stats.emodel_loss)
         self.model.rank_elites(elite_indices)
 
         data = flatten_dict(data, prefix='data')

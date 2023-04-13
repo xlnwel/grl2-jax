@@ -1,38 +1,39 @@
-from tools.store import TempStore
+from tools.store import StateStore
 from replay.dual import DualReplay, PRIMAL_REPLAY
-from algo.lka_common.run import prepare_params
 from algo.lka_common.train import load_eval_data, eval_and_log
 from algo.mambpo_lka.train import *
 
 
 @timeit
-def mix_run(agent, dynamics, routine_config, dynamics_routine_config, rng):
+def mix_run(agent, dynamics, routine_config, dynamics_routine_config, rng, name='mix'):
     if dynamics_routine_config.model_warm_up and \
         agent.get_env_step() < dynamics_routine_config.model_warm_up_steps:
         return
 
-    def get_agent_states():
-        state = agent.get_states()
-        # we collect lookahead data into the slow replay
+    def constructor():
+        return agent.build_memory()
+    
+    def enter_set(states):
+        states = agent.set_memory(states)
+        # we put the data collected from the dynamics into the secondary replay
         if isinstance(agent.buffer, DualReplay):
             agent.buffer.set_default_replay(routine_config.lookahead_replay)
-        return state
+        return states
     
-    def set_agent_states(states):
-        agent.set_states(states)
+    def exit_set(states):
+        states = agent.set_memory(states)
         if isinstance(agent.buffer, DualReplay):
             agent.buffer.set_default_replay(PRIMAL_REPLAY)
+        return states
 
     # run (pi^i, x^{-i}) for all i
     routine_config = routine_config.copy()
     routine_config.n_simulated_envs //= dynamics.env_stats.n_agents
-    with TempStore(get_agent_states, set_agent_states):
+    with StateStore(name, constructor, enter_set, exit_set):
         for i in range(dynamics.env_stats.n_agents):
             lka_aids = [j for j in range(dynamics.env_stats.n_agents) if j != i]
-            agent_params, dynamics_params = prepare_params(agent, dynamics)
             branched_rollout(
-                agent, agent_params, dynamics, dynamics_params, 
-                routine_config, rng, lka_aids
+                agent, dynamics, routine_config, rng, lka_aids
             )
 
 
@@ -53,7 +54,7 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
+    runner.run(agent, n_steps=MODEL_EVAL_STEPS, lka_aids=[], collect_data=False)
     env_name = runner.env_config().env_name
     eval_data = load_eval_data(filename=env_name)
     rng = agent.model.rng

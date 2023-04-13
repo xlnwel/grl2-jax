@@ -8,16 +8,17 @@ algos=(
     happo_mb
 )
 envs=(
-    $1
+    # $1
     academy_3_vs_1_with_keeper
     # academy_corner
     # academy_counterattack_hard
 )
-shift
+# shift
 configs=$envs
 args1=(
-    10
-    15
+    1e-3
+    8e-4
+    5e-4
 )
 args2=(
     True
@@ -33,7 +34,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-date="0412"
+# date="0413"
 info=""
 ld="${suite}-logs"
 
@@ -66,21 +67,25 @@ a3=${args3[$idx]}
 
 commands=()
 # config="${e}"
-# for a1 in "${args1[@]}"; do
-#     for a2 in "${args2[@]}"; do
-#         for a3 in "${args3[@]}"; do
-# for a4 in "${args4[@]}"; do
-kws="0#n_simulated_envs=$1 0#n_simulated_steps=$a1 1#emodels:norm=$2 1#n_epochs=$3"
-# for e in "${envs[@]}"; do
-env="${suite}-${e}"
-config="${e}"
-for s in {0..3}; do
-    py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-    commands+=("$py_script")
-    echo $py_script
-    # eval $py_script
-done
+# kws="1#type=uniform 1#batch_size=512 1#lr=1e-3"
+# for s in {0..3}; do
+#     py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+#     commands+=("$py_script")
+#     echo $py_script
+#     # eval $py_script
 # done
+for a1 in "${args1[@]}"; do
+    kws="1#type=$1 1#model_prio_coef=$2 1#batch_size=$3 1#lr=$a1"
+    # for e in "${envs[@]}"; do
+    env="${suite}-${e}"
+    config="${e}"
+    for s in {0..3}; do
+        py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+        # eval $py_script
+    done
+done
 # done
 #         done
 #     done

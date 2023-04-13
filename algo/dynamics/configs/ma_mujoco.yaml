@@ -43,9 +43,9 @@ strategy:
     algorithm: *algo
     train_loop:
         ergodic: False
-        training_data_size: 1e5
+        training_data_size: &ds 1e6
         valid_data_size: 1e4
-        n_epochs: &nepochs 100
+        n_epochs: &nepochs 300
 
 model:
     aid: 0
@@ -90,6 +90,7 @@ loss:
     model_loss_type: *mlt
     n_models: *n
     model_norm_obs: *obs_norm
+    pred_raw: False
 
     model_coef: 1
     reward_coef: 1
@@ -117,7 +118,7 @@ buffer:
     model_norm_obs: *obs_norm
     n_runners: *nrunners
     n_envs: *nenvs
-    max_size: 1e5
+    max_size: *ds
     min_size: 1e3
     batch_size: 256
     sample_size: 1

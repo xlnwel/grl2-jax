@@ -67,7 +67,7 @@ class Trainer(TrainerBase):
 
         for p in theta.policies:
             p[LOOKAHEAD] = False
-        self.model.params = theta
+        self.model.set_params(theta)
         data = flatten_dict(data, prefix='data')
         stats = prefix_name(stats, 'theta')
         stats.update(data)
@@ -89,7 +89,7 @@ class Trainer(TrainerBase):
         
         for p in theta.policies:
             p[LOOKAHEAD] = True
-        self.model.lookahead_params = theta
+        self.model.set_lka_params(theta)
         self.lookahead_opt_state = opt_state
 
     def sync_lookahead_params(self):

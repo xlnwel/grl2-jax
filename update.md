@@ -36,3 +36,8 @@ algo.ppo.elements.utils中的compute_actor_loss函数中的policy_sample_mask判
 
 2023.04.11
 1. 忽略对obs中常量维度的预测. a) 在RMS中添加dim_mask来决定哪些dimension事常量, 并在normalization/denormalization的时候对常量std设置为1. b) 计算loss时忽略常量. c) 预测时把常量用原来obs的常量代替
+
+2023.04.13
+1. model添加预测raw space上的delta
+2. 支持prioritized experience replay
+3. 支持MAMBPO_LKA

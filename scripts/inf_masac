@@ -85,10 +85,5 @@ for e in "${envs[@]}"; do
         # eval $py_script
     done
 done
-# done
-# echo ${commands[@]}s
-# lc=${#commands[@]}
-# p=$((lc / le))
-# echo $commands
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

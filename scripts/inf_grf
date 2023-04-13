@@ -39,7 +39,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-date="0412"
+# date="0412"
 info=""
 ld="${suite}-logs"
 

@@ -84,6 +84,8 @@ class ELayer(hk.Module):
     def __call__(self, x):
         w, b = self.build_net(x)
         if self.expand_edim:
+            # The last two dims are used for standard matrix oprations. 
+            # The antepenultimate is the ensemble dimension, same for w and b
             x = jnp.expand_dims(x, -3)
         assert (x.shape[-3] == 1) or (x.shape[-3] == self.ensemble_size), (x.shape, self.ensemble_size)
         x = x @ w + b

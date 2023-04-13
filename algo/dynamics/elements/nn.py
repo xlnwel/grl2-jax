@@ -142,7 +142,7 @@ class Reward(hk.Module):
         self.out_size = out_size
         self.config = dict2AttrDict(config, to_copy=True)
 
-    def __call__(self, x, action, next_x):
+    def __call__(self, x, action, next_x=None):
         if self.balance_dimension:
             obs_transform, action_transform, net = self.build_net()
             obs_embed = obs_transform(x)
@@ -195,8 +195,9 @@ class Discount(hk.Module):
         self.out_size = out_size
         self.config = dict2AttrDict(config, to_copy=True)
 
-    def __call__(self, x):
-        x = x.astype(jnp.float32)
+    def __call__(self, x, action):
+        action = joint_actions(action)
+        x = jnp.concatenate([x, action], -1)
         net = self.build_net()
         x = net(x)
         x = jnp.squeeze(x, -1)

@@ -10,6 +10,9 @@ from tools import utils
 from algo.dynamics.elements.nn import ENSEMBLE_AXIS
 
 
+SAMPLE_AXIS = 1
+
+
 def expand_ensemble_dim(x, n_models):
     assert ENSEMBLE_AXIS == 0, ENSEMBLE_AXIS
     ex = jnp.expand_dims(x, ENSEMBLE_AXIS)
@@ -65,27 +68,27 @@ class Loss(LossBase):
             model_target = jnp.array(next_obs_ensemble, dtype=jnp.int32)
         stats.model_target = model_target
 
-        # expand dim_mask to have the same shape as the observation
-        dim_mask = jnp.zeros_like(model_target) + dim_mask
+        edim_mask = jnp.zeros_like(model_target) + dim_mask
         model_loss, stats = compute_model_loss(
-            self.config, dist, model_target, stats, dim_mask)
+            self.config, dist, model_target, stats, 
+            edim_mask, scale=data.obs_scale if self.model.config.model_norm_obs else None
+        )
 
         # we use the predicted obs to predict the reward and discount
         pred_obs = lax.stop_gradient(dist.mode())
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             pred_obs = obs + pred_obs
-        # we set constant observations to zero to minimize their influence
-        pred_obs = jnp.where(dim_mask, pred_obs, 0.)
 
         # reward loss
+        reward_obs = self.model.get_reward_obs(dim_mask, data.obs, obs)
         reward_dist = self.modules.reward(
-            theta.reward, rngs[1], obs, data.action, pred_obs)
+            theta.reward, rngs[1], reward_obs, data.action)
         reward_loss, stats = compute_reward_loss(
             self.config, reward_dist, data.reward, stats)
 
         # discount loss
         discount_dist = self.modules.discount(
-            theta.discount, rngs[2], pred_obs)
+            theta.discount, rngs[2], obs, data.action)
         discount_loss, stats = compute_discount_loss(
             self.config, discount_dist, data.discount, stats)
 
@@ -100,12 +103,43 @@ class Loss(LossBase):
                     np=jnp
                 )
             stats.trans_mae = jnp.where(
-                dim_mask, lax.abs(data.next_obs - pred_obs), 0.)
+                dim_mask, lax.abs(next_obs - pred_obs), 0.)
         else:
-            stats.trans_mae = stats.model_mae
+            if self.model.config.model_norm_obs:
+                pred_obs = denormalize(
+                    pred_obs, 
+                    data.obs_loc, 
+                    data.obs_scale, 
+                    dim_mask=dim_mask, 
+                    np=jnp
+                )
+                next_obs = jnp.zeros_like(model_target) + data.next_obs
+                stats.trans_mae = jnp.where(
+                    dim_mask, lax.abs(next_obs - pred_obs), 0.)
+            else:
+                stats.trans_mae = stats.model_mae
 
         loss = model_loss + reward_loss + discount_loss
+        if data.is_ratio is not None:
+            loss = data.is_ratio * loss
         stats.loss = loss
+        loss = jnp.mean(loss)
+
+        model_priority = jax_math.mask_mean(
+            stats.trans_mae, mask=edim_mask, 
+            axis=utils.except_axis(stats.trans_mae, SAMPLE_AXIS))
+        reward_priority = jnp.mean(stats.reward_mae, axis=[1, 2])
+        discount_priority = jnp.mean(stats.discount_mae, axis=[1, 2])
+        chex.assert_rank([model_priority, reward_priority, discount_priority], 1)
+
+        stats.model_priority = model_priority
+        stats.reward_priority = reward_priority
+        stats.discount_priority = discount_priority
+        stats.priority = (
+            self.config.model_prio_coef * model_priority 
+            + self.config.reward_prio_coef * reward_priority 
+            + self.config.discount_prio_coef * discount_priority
+        )
 
         return loss, stats
 
@@ -117,9 +151,11 @@ def create_loss(config, model, name='model'):
 
 
 def compute_model_loss(
-    config, dist, model_target, stats, dim_mask,
+    config, dist, model_target, stats, dim_mask, scale=None, 
 ):
-    n = jax_math.count_masks(dim_mask)
+    n = jax_math.count_masks(
+        dim_mask, axis=utils.except_axis(dim_mask, [ENSEMBLE_AXIS, SAMPLE_AXIS])
+    )
     if config.model_loss_type == 'mbpo':
         mean_loss, var_loss = jax_loss.mbpo_model_loss(
             dist.loc, 
@@ -130,36 +166,36 @@ def compute_model_loss(
             dim_mask, lax.abs(dist.loc - model_target), 0.)
         mean_loss = jax_math.mask_mean(
             mean_loss, mask=dim_mask, n=n, 
-            axis=utils.except_axis(mean_loss, ENSEMBLE_AXIS)
+            axis=utils.except_axis(mean_loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
         var_loss = jax_math.mask_mean(
             var_loss, mask=dim_mask, n=n, 
-            axis=utils.except_axis(var_loss, ENSEMBLE_AXIS)
+            axis=utils.except_axis(var_loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
         stats.mean_loss = mean_loss
         stats.var_loss = var_loss
-        loss = jnp.sum(mean_loss) + jnp.sum(var_loss)
-        chex.assert_rank([mean_loss, var_loss], 1)
+        loss = mean_loss + var_loss
     elif config.model_loss_type == 'ce':
         loss = - dist.log_prob(model_target)
         stats.model_mae = jnp.where(
             dim_mask, lax.abs(dist.loc - model_target), 0.)
-        stats.mean_loss = jax_math.mask_mean(
+        loss = jax_math.mask_mean(
             loss, mask=dim_mask, n=n, 
-            axis=utils.except_axis(loss, ENSEMBLE_AXIS)
+            axis=utils.except_axis(loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
-        chex.assert_rank([stats.mean_loss], 1)
-        loss = jnp.sum(stats.mean_loss)
     elif config.model_loss_type == 'mse':
-        loss = .5 * (dist.loc - model_target)**2
         stats.model_mae = jnp.where(
             dim_mask, lax.abs(dist.loc - model_target), 0.)
-        stats.mean_loss = jax_math.mask_mean(
+        if scale is None or not config.pred_raw:
+            mean = dist.loc
+        else:
+            mean = dist.loc * scale
+            model_target = model_target * scale
+        loss = .5 * (mean - model_target)**2
+        loss = jax_math.mask_mean(
             loss, mask=dim_mask, n=n, 
-            axis=utils.except_axis(loss, ENSEMBLE_AXIS)
+            axis=utils.except_axis(loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
-        chex.assert_rank([stats.mean_loss], 1)
-        loss = jnp.sum(stats.mean_loss)
     elif config.model_loss_type == 'discrete':
         loss = - dist.log_prob(model_target)
         pred_next_obs = dist.mode()
@@ -172,15 +208,15 @@ def compute_model_loss(
         stats.obs_consistency = jax_math.mask_mean(
             obs_cons == 1, mask=dim_mask, n=n, 
         )
-        stats.mean_loss = jax_math.mask_mean(
+        loss = jax_math.mask_mean(
             loss, mask=dim_mask, n=n, 
-            axis=utils.except_axis(loss, ENSEMBLE_AXIS)
+            axis=utils.except_axis(loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
-        assert len(stats.mean_loss.shape) == 1, stats.mean_loss.shape
-        loss = jnp.sum(stats.mean_loss)
     else:
         raise NotImplementedError(config.model_loss_type)
-    stats.model_loss = config.model_coef * loss
+    stats.emodel_loss = jnp.mean(loss, SAMPLE_AXIS)
+    loss = config.model_coef * jnp.sum(loss, ENSEMBLE_AXIS)
+    stats.model_loss = loss
 
     return loss, stats
 
@@ -196,6 +232,7 @@ def compute_reward_loss(
         stats.reward_mae < .1 * (jnp.max(reward) - jnp.min(reward)))
     stats.scaled_reward_loss, reward_loss = jax_loss.to_loss(
         raw_reward_loss, config.reward_coef, 
+        axis=utils.except_axis(raw_reward_loss, SAMPLE_AXIS)
     )
     stats.reward_loss = reward_loss
 
@@ -209,9 +246,12 @@ def compute_discount_loss(
     pred_discount = discount_dist.mode()
     stats.pred_discount = pred_discount
     stats.discount_mae = lax.abs(pred_discount - discount)
+    discount_self_cons = jnp.all(discount == pred_discount, -1)
+    stats.discount_self_consistency = jnp.mean(discount_self_cons)
     stats.discount_consistency = jnp.mean(discount == pred_discount)
     stats.scaled_discount_loss, discount_loss = jax_loss.to_loss(
         raw_discount_loss, config.discount_coef, 
+        axis=utils.except_axis(raw_discount_loss, SAMPLE_AXIS)
     )
     stats.discount_loss = discount_loss
 

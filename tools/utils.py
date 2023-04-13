@@ -207,14 +207,21 @@ def expand_dims_match(x: np.ndarray, target: np.ndarray):
     """
     if x.ndim == target.ndim:
         return x
-    elif x.shape == target.shape[:x.ndim]:
+    elif x.shape == target.shape[-x.ndim:]:
         # adding axes to the front
         return x[(*(None,)*(target.ndim - x.ndim), *[slice(None) for _ in x.shape])]
-    elif x.shape == target.shape[-x.ndim:]:
+    elif x.shape == target.shape[:x.ndim]:
         # adding axes to the end
         return x[(*[slice(None) for _ in x.shape], *(None,)*(target.ndim - x.ndim))]
     else:
         raise ValueError(f'Incompatible shapes: {(x.shape, target.shape)}')
+
+def expand_shape_match(x, target, np=np):
+    if x.shape == target.shape:
+        return x
+    x = expand_dims_match(x, target)
+    x = x + np.zeros_like(target)
+    return x
 
 def moments(x, axis=None, mask=None):
     if x.dtype == np.uint8:

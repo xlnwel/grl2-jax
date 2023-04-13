@@ -4,6 +4,7 @@ import jax.numpy as jnp
 
 from core.typing import AttrDict
 from tools.rms import normalize
+from tools.utils import expand_shape_match
 from jax_tools import jax_assert, jax_math, jax_loss, jax_utils
 
 
@@ -214,6 +215,8 @@ def compute_actor_loss(
     loss = pg_loss + entropy_loss
     stats.actor_loss = loss
 
+    if sample_mask is not None:
+        sample_mask = expand_shape_match(sample_mask, stats.ratio, np=jnp)
     clip_frac = jax_math.mask_mean(
         lax.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2), 
         sample_mask, data.n)
