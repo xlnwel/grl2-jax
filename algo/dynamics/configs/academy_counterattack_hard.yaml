@@ -18,7 +18,7 @@ routine:
     n_steps: &nsteps 10
     LOG_PERIOD: 2e5
 
-    n_envs: &nenvs 64
+    n_envs: 64
 
     model_warm_up: True
     model_warm_up_train_epochs: 1
