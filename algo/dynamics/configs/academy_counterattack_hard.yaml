@@ -18,21 +18,40 @@ routine:
     n_steps: &nsteps 10
     LOG_PERIOD: 2e5
 
-    n_envs: &nenvs 64
+    n_envs: 64
 
     model_warm_up: True
-    model_warm_up_train_epochs: 5
+    model_warm_up_train_epochs: 1
     model_warm_up_steps: 5e4
 
 env:
     env_name: &env_name grf-academy_counterattack_hard
-    n_runners: &nrunners 1
-    n_envs: *nenvs
-    max_episode_steps: 1000
-    population_size: 1
-    timeout_done: &td False
+    representation: simple115v2
+    rewards: scoring,checkpoints
+    render: False
+    write_full_episode_dumps: False
+    write_video: False
+    dump_frequency: 1000
+    logdir: results/grf
+    extra_players: null
+    number_of_left_players_agent_controls: 3
+    number_of_right_players_agent_controls: 0
+    add_role_to_obs: False
+    shared_ckpt_reward: False
 
-    uid2aid: [0, 1]
+    max_episode_steps: 200
+    use_action_mask: False
+    uid2aid: null
+    share_policy: False
+
+    n_runners: &nrunners 8
+    n_envs: &nenvs 8
+
+    use_idx: False
+    use_hidden: False
+    use_event: False
+    agentwise_global_state: False
+    timeout_done: &td False
 
 agent: {}
 
@@ -43,9 +62,9 @@ strategy:
     algorithm: *algo
     train_loop:
         ergodic: False
-        training_data_size: 1e5
+        training_data_size: &ds 1e5
         valid_data_size: 1e4
-        n_epochs: &nepochs 400
+        n_epochs: &nepochs 500
 
 model:
     aid: 0
@@ -54,6 +73,7 @@ model:
     rn_std: .1
     model_norm_obs: &obs_norm True
     deterministic_trans: True
+    share_reward: True
     model_loss_type: &mlt mse
     obs_clip: 10
 
@@ -62,7 +82,8 @@ model:
         n_models: &n 1
         units_list: [256, 256, 256, 256]
         activation: relu
-        norm: null
+        norm: layer
+        out_scale: .01
         out_type: continuous
         out_config:
             max_logvar: .5
@@ -72,7 +93,7 @@ model:
         out_size: 1
         units_list: [256, 256]
         activation: relu
-        norm: null
+        norm: layer
         out_scale: .01
         use_next_obs: False
         balance_dimension: False
@@ -83,18 +104,22 @@ model:
         out_size: 1
         units_list: [256, 256]
         activation: relu
-        norm: null
+        norm: layer
         out_scale: 1
 
 loss:
     model_loss_type: *mlt
     n_models: *n
     model_norm_obs: *obs_norm
-    pred_raw: False
+    pred_raw: True
 
     model_coef: 1
     reward_coef: 1
     discount_coef: 1
+
+    model_prio_coef: 1
+    reward_prio_coef: 1
+    discount_prio_coef: 1
 
 trainer:
     algorithm: *algo
@@ -105,9 +130,10 @@ trainer:
 
     model_opt:
         opt_name: adam
-        lr: 5e-4
+        lr: 1e-3
         clip_norm: 10
         eps: 1e-5
+        weight_decay: 1e-6
 
 actor: {}
 
@@ -116,10 +142,12 @@ buffer:
     type: uniform
 
     model_norm_obs: *obs_norm
+    use_is_ratio: False
     n_runners: *nrunners
     n_envs: *nenvs
-    max_size: 1e5
+    max_size: *ds
     min_size: 1e3
+    n_recency: 2e4
     batch_size: 256
     sample_size: 1
 

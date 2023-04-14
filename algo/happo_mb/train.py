@@ -18,6 +18,8 @@ def update_config(config, dynamics_config):
     if config.routine.compute_return_at_once:
         config.buffer.sample_keys += ['advantage', 'v_target']
         config.dynamics_name = dynamics_config.dynamics_name
+        if dynamics_config.model.emodels.n_models == 1:
+            config.routine.switch_model_at_every_step = False
 
 
 @timeit

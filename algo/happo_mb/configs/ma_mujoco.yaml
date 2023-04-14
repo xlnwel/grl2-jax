@@ -36,7 +36,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
-    rollout_type: part
+    rollout_type: full
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -68,7 +68,7 @@ model:
         units_list: [64, 64]
         w_init: orthogonal
         activation: tanh
-        norm: layer
+        norm: null
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
@@ -83,7 +83,7 @@ model:
         units_list: [64, 64]
         w_init: orthogonal
         activation: tanh
-        norm: layer
+        norm: null
         rnn_type: &vrnn null
         rnn_units: 64
         use_feature_norm: False

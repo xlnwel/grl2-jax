@@ -89,6 +89,7 @@ commands=()
 # done
 # a="happo"
 # for a in "${algos[@]}"; do
+kw=$@
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

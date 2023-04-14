@@ -201,7 +201,6 @@ def _run_with_configs(cmd_args):
         assert len(configs) == 1, 'No support for multi-agent grid search.'
         _grid_search(configs[0], main, cmd_args)
     else:
-        do_logging(configs, level='info')
         main(configs)
 
 

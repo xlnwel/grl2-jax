@@ -64,7 +64,7 @@ strategy:
         ergodic: False
         training_data_size: &ds 1e6
         valid_data_size: 1e4
-        n_epochs: &nepochs 400
+        n_epochs: &nepochs 800
 
 model:
     aid: 0

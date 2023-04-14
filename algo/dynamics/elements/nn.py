@@ -38,7 +38,7 @@ DISCRETE_MODEL = 'discrete'
 
 
 def get_out_kwargs(out_type, out_config, out_size):
-    kwargs = AttrDict(out_layer_type='elayer')
+    kwargs = AttrDict(out_layer_type='elinear')
     if out_type == DISCRETE_MODEL:
         kwargs.out_size = out_config.n_classes
         kwargs.out_kwargs = {'ensemble_size': out_size, 'expand_edim': True}

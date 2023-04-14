@@ -61,8 +61,6 @@ class Trainer(TrainerBase):
                 return_stats=True
             )
         self.model.set_weights(theta)
-        elite_indices = np.argsort(stats.emodel_loss)
-        self.model.rank_elites(elite_indices)
 
         data = flatten_dict(data, prefix='data')
         stats = prefix_name(stats, f'dynamics')
@@ -102,7 +100,7 @@ class Trainer(TrainerBase):
                 'data': data, 
             }, 
             opt=self.opts.theta, 
-            name='train/dynamics'
+            name='opt/dynamics'
         )
 
         if not return_stats:

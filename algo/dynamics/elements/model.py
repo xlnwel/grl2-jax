@@ -64,8 +64,9 @@ class Model(ModelBase):
     def theta(self):
         return self.params.subdict('emodels', 'reward', 'discount')
 
-    def rank_elites(self, elite_indices):
-        self.elite_indices = elite_indices
+    def rank_elites(self, metrics):
+        self.elite_indices = np.argsort(metrics)
+        self.choose_elite()
 
     def choose_elite(self, idx=None):
         if idx is None:
@@ -133,10 +134,17 @@ class Model(ModelBase):
         else:
             obs = data.obs
 
-        model = params.model
+        if elite_indices is None:
+            model = self.modules.model
+            model_params = params.model
+        else:
+            model = self.modules.emodels
+            model_params = params.emodels
         stats = AttrDict()
         next_obs, stats = self.next_obs(
-            model, rngs[0], obs, action, dim_mask, stats, evaluation)
+            model, model_params, rngs[0], obs, action, 
+            dim_mask, elite_indices, stats, evaluation
+        )
         
         reward_obs = self.get_reward_obs(dim_mask, data.obs, obs)
         reward, stats = self.reward(
@@ -179,14 +187,18 @@ class Model(ModelBase):
 
         return env_out, stats, data.state
 
-    def next_obs(self, params, rng, obs, action, dim_mask, stats, evaluation):
-        rngs = random.split(rng, 2)
+    def next_obs(self, model, params, rng, obs, action, 
+                 dim_mask, elite_indices, stats, evaluation):
+        rngs = random.split(rng, 3)
 
-        dist = self.modules.model(params, rngs[0], obs, action)
+        dist = model(params, rngs[0], obs, action)
         if evaluation or self.config.deterministic_trans:
             next_obs = dist.mode()
         else:
             next_obs = dist.sample(seed=rngs[1])
+        if elite_indices is not None:
+            i = random.choice(rngs[2], elite_indices)
+            next_obs = next_obs.take(i, axis=0)
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
             next_obs = obs + next_obs

@@ -123,7 +123,7 @@ class UniformReplay(Buffer):
     """ Sampling """
     def sample_from_recency(self, batch_size, sample_keys=None, n=None, add_seq_dim=False):
         batch_size = batch_size or self.batch_size
-        n = max(batch_size, n or self.n_recency)
+        n = min(len(self), max(batch_size, n or self.n_recency))
         if n > len(self):
             return None
         idxes = np.arange(len(self)-n, len(self))
