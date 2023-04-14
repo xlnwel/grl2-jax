@@ -6,7 +6,7 @@ suite=$1
 shift
 algos=(
     # happo
-    happo_lka2
+    happo
 )
 envs=(
     # $1
@@ -87,10 +87,10 @@ commands=()
 #     done
 # done
 # done
-a="happo"
-env="${suite}-${e}"
+# a="happo"
 # for a in "${algos[@]}"; do
 for e in "${envs[@]}"; do
+    env="${suite}-${e}"
     for s in {0..4}; do
         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
         commands+=("$py_script")

@@ -19,14 +19,18 @@ def branched_rollout(agent, dynamics, routine_config, rng, lka_aids):
         dynamics.model.choose_elite()
     agent.model.switch_params(True, lka_aids)
     agent_params, dynamics_params = prepare_params(agent, dynamics)
+    agent_obs_rms, agent_obs_clip, dynamics_obs_rms, dynamics_dim_mask = \
+        prepare_rms(agent, dynamics)
 
-    # elite_indices = dynamics.model.elite_indices[:dynamics.model.n_elites]
     data, env_output, _ = rollout(
         agent.model, agent_params, 
         dynamics.model, dynamics_params, 
         rng, env_output, states, 
         routine_config.n_simulated_steps, 
-        # elite_indices
+        agent_obs_rms=agent_obs_rms, 
+        agent_obs_clip=agent_obs_clip, 
+        dynamics_obs_rms=dynamics_obs_rms, 
+        dynamics_dim_mask=dynamics_dim_mask, 
     )
     add_data_to_buffer(agent, data)
 

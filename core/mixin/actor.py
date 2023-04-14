@@ -47,7 +47,7 @@ class RewardRunningMeanStd:
         self.name = name
         self._filedir = '/'.join(config.model_path)
 
-        self._gamma = config['gamma']
+        self._gamma = config.gamma
         self._reward_normalized_axis = tuple(
             config.setdefault('reward_normalized_axis', (0, 1)))
         self._normalize_reward = config.setdefault('normalize_reward', False)

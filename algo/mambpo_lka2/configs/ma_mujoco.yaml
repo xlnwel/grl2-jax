@@ -44,6 +44,7 @@ env:
         agent_obsk: 0
     single_agent: False
     norm_obs: False
+    use_sample_mask: False
 
 agent: {}
 
@@ -54,7 +55,7 @@ strategy:
     algorithm: *algo
     train_loop: 
         n_epochs: 200
-        n_lka_epochs: 100
+        n_lka_epochs: 200
 
 model:
     aid: 0

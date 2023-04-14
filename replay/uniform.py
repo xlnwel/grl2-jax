@@ -6,12 +6,11 @@ from core.ckpt.pickle import save, restore
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
-from core.typing import AttrDict, subdict
+from core.typing import AttrDict
 from replay.local import NStepBuffer
 from tools.utils import batch_dicts, yield_from_tree
-from tools.rms import RunningMeanStd
-from tools.timer import Timer
 from replay import replay_registry
+from replay.mixin.rms import TemporaryRMS
 
 
 @replay_registry.register('uniform')
@@ -45,7 +44,7 @@ class UniformReplay(Buffer):
         self._memory = collections.deque(maxlen=self.max_size)
 
         if self.config.model_norm_obs:
-            self.obs_rms = RunningMeanStd([0])
+            self.obs_rms = TemporaryRMS(self.config.get('obs_name', 'obs'), [0])
         self._tmp_bufs: List[NStepBuffer] = [
             NStepBuffer(config, env_stats, model, aid, 0) 
             for _ in range(self.n_envs)
@@ -56,6 +55,10 @@ class UniformReplay(Buffer):
 
     def ready_to_sample(self):
         return len(self._memory) >= self.min_size
+
+    def get_obs_rms(self):
+        if self.config.model_norm_obs:
+            return self.obs_rms.retrieve_rms()
 
     def reset(self):
         pass
@@ -117,7 +120,8 @@ class UniformReplay(Buffer):
         self._update_obs_rms(trajs)
         return popped_data
 
-    def sample_from_recency(self, batch_size, sample_keys, n=None, **kwargs):
+    """ Sampling """
+    def sample_from_recency(self, batch_size, sample_keys=None, n=None, add_seq_dim=False):
         batch_size = batch_size or self.batch_size
         n = max(batch_size, n or self.n_recency)
         if n > len(self):
@@ -125,7 +129,8 @@ class UniformReplay(Buffer):
         idxes = np.arange(len(self)-n, len(self))
         idxes = np.random.choice(idxes, size=batch_size, replace=False)
 
-        samples = batch_dicts([subdict(self._memory[i], *sample_keys) for i in idxes])
+        samples = self._get_samples(
+            idxes, self._memory, sample_keys=sample_keys, add_seq_dim=add_seq_dim)
 
         return samples
         
@@ -160,14 +165,7 @@ class UniformReplay(Buffer):
         # print('range sample idx max', np.max(idxes), 'min', np.min(idxes))
         return self._get_samples(idxes, self._memory)
 
-    def get_obs_rms(self):
-        if self.config.model_norm_obs:
-            rms = self.obs_rms.get_rms_stats() \
-                if self.obs_rms.is_initialized() else None
-            self.obs_rms.reset_rms_stats()
-            assert not self.obs_rms.is_initialized(), (self.obs_rms._count, self.obs_rms._epsilon, self.obs_rms.is_initialized())
-            return rms        
-
+    """ Retrieval """
     def retrieve_all_data(self):
         self.clear_local_buffer()
         data = self._memory
@@ -194,23 +192,21 @@ class UniformReplay(Buffer):
 
         return samples
 
-    def _get_samples(self, idxes, memory):
-        fn = lambda x: np.expand_dims(np.stack(x), 1)
-        samples = batch_dicts([memory[i] for i in idxes], func=fn)
+    def _get_samples(self, idxes, memory, sample_keys=None, add_seq_dim=True):
+        if add_seq_dim:
+            fn = lambda x: np.expand_dims(np.stack(x), 1)
+        else:
+            fn = np.stack
+        samples = batch_dicts(
+            [memory[i] for i in idxes], func=fn, keys=sample_keys)
 
         return samples
 
     def _update_obs_rms(self, trajs):
         if self.config.model_norm_obs:
-            if self.config.model_use_state:
-                self.obs_rms.update(
-                    np.stack([traj['env_state'] for traj in trajs]), 
-                )
-            else:
-                self.obs_rms.update(
-                    np.stack([traj['obs'] for traj in trajs]), 
-                )
+            self.obs_rms.update_obs_rms(trajs)
 
+    """ Save & Restore """
     def save(self, filedir=None, filename=None):
         filedir = filedir or self._filedir
         filename = filename or self._filename

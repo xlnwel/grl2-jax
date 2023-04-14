@@ -1,3 +1,5 @@
+import numpy as np
+
 from core.typing import AttrDict
 from core.elements.trainloop import TrainingLoop as TrainingLoopBase
 from tools.display import print_dict_info
@@ -21,12 +23,16 @@ class TrainingLoop(TrainingLoopBase):
             if data is None:
                 return 0, AttrDict()
             stats = self._train_with_data(data)
+            if self.buffer.type() == 'per':
+                priority = stats['dynamics/priority']
+                self.buffer.update_priorities(priority, data.idxes)
             n += 1
+
         return n, stats
 
     @timeit
     def valid_stats(self):
-        data = self.buffer.range_sample(0, self.config.valid_data_size)
+        data = self.buffer.sample_from_recency(self.config.valid_data_size, add_seq_dim=True)
         data = self.trainer.process_data(data)
 
         _, stats = self.trainer.loss.loss(

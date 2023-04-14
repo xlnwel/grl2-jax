@@ -56,9 +56,9 @@ class Model(ModelBase):
         self.params.emodels, self.modules.emodels = self.build_net(
             data.obs, data.action, True, name='emodels')
         self.params.reward, self.modules.reward = self.build_net(
-            data.obs, data.action, data.obs, name='reward')
+            data.obs, data.action, name='reward')
         self.params.discount, self.modules.discount = self.build_net(
-            data.obs, name='discount')
+            data.obs, data.action, name='discount')
 
     @property
     def theta(self):
@@ -117,7 +117,10 @@ class Model(ModelBase):
         elite_indices=None, 
     ):
         rngs = random.split(rng, 3)
-        dim_mask = jnp.zeros_like(data.obs) + data.dim_mask
+        if data.dim_mask is None:
+            dim_mask = jnp.ones_like(data.obs)
+        else:
+            dim_mask = jnp.zeros_like(data.obs) + data.dim_mask
         action = self.process_action(data.action)
         if self.config.model_norm_obs:
             obs = normalize(
@@ -134,10 +137,13 @@ class Model(ModelBase):
         stats = AttrDict()
         next_obs, stats = self.next_obs(
             model, rngs[0], obs, action, dim_mask, stats, evaluation)
+        
+        reward_obs = self.get_reward_obs(dim_mask, data.obs, obs)
         reward, stats = self.reward(
-            params.reward, rngs[1], obs, action, next_obs, stats)
+            params.reward, rngs[1], reward_obs, action, stats)
+        
         discount, stats = self.discount(
-            params.discount, rngs[2], next_obs, stats)
+            params.discount, rngs[2], obs, action, stats)
 
         if self.config.model_norm_obs:
             next_obs = denormalize(
@@ -184,21 +190,20 @@ class Model(ModelBase):
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
             next_obs = obs + next_obs
-        # we set constant observations to zero to minimize their influence
-        next_obs = jnp.where(dim_mask, next_obs, 0.)
+        next_obs = jnp.where(dim_mask, next_obs, obs)
 
         return next_obs, stats
 
-    def reward(self, params, rng, obs, action, next_obs, stats):
-        dist = self.modules.reward(params, rng, obs, action, next_obs)
+    def reward(self, params, rng, obs, action, stats=AttrDict()):
+        dist = self.modules.reward(params, rng, obs, action)
         rewards = dist.mode()
         if isinstance(dist, jax_dist.Categorical):
             rewards = self.env_stats.reward_map[rewards]
 
         return rewards, stats
 
-    def discount(self, params, rng, obs, stats):
-        dist = self.modules.discount(params, rng, obs)
+    def discount(self, params, rng, obs, action, stats):
+        dist = self.modules.discount(params, rng, obs, action)
         discount = dist.mode()
 
         return discount, stats
@@ -208,6 +213,15 @@ class Model(ModelBase):
             action = nn.one_hot(action, self.env_stats.action_dim[0])
         return action
 
+    def get_reward_obs(self, dim_mask, obs, norm_obs):
+        # For agent-specific reward, we keep constant dimensions in that some dimensions represent the agent's identity
+        reward_obs = jnp.where(dim_mask, norm_obs, obs)
+        return reward_obs
+
+    def get_discount_obs(self, dim_mask, pred_obs):
+        discount_next_obs = jnp.where(dim_mask, pred_obs, 0)
+        return discount_next_obs
+        
     def get_obs_rms_dir(self):
         path = '/'.join([self.config.root_dir, self.config.model_name])
         return path

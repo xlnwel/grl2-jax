@@ -11,11 +11,12 @@ def to_loss(
     coef, 
     mask=None, 
     n=None, 
+    axis=None
 ):
     if coef is None:
         coef = 0
     scaled_loss = coef * raw_stats
-    loss = jax_math.mask_mean(scaled_loss, mask, n)
+    loss = jax_math.mask_mean(scaled_loss, mask, n, axis=axis)
     return scaled_loss, loss
 
 

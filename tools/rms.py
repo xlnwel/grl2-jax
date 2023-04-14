@@ -12,9 +12,9 @@ StatsWithStdCount = collections.namedtuple('RMS', 'mean std count')
 
 
 def combine_rms(rms1, rms2):
-    if np.any(np.abs(rms1.mean - rms2.mean) > 100) \
-        or np.any(np.abs(rms1.var - rms2.var) > 100):
-        raise ValueError(f'Large difference between two RMSs {rms1} vs {rms2}')
+    # if np.any(np.abs(rms1.mean - rms2.mean) > 100) \
+    #     or np.any(np.abs(rms1.var - rms2.var) > 100):
+    #     do_logging(f'Large difference between two RMSs {rms1} vs {rms2}')
 
     mean1, var1, count1 = rms1
     mean2, var2, count2 = rms2
@@ -36,7 +36,7 @@ def denormalize(x, mean, std, zero_center=True, mask=None,
                 dim_mask=None, np=np):
     """ Denormalize x using mean and std
     mask chooses which samples to apply denormalization
-    dim_mask mask out dimensions with small variance
+    dim_mask masks out dimensions with small variance
     """
     std = std if dim_mask is None else np.where(dim_mask, std, 1.)
     x_new = x * std
@@ -52,7 +52,7 @@ def normalize(x, mean, std, zero_center=True, clip=None, mask=None,
               dim_mask=None, np=np):
     """ Normalize x using mean and std
     mask chooses which samples to apply normalization
-    dim_mask mask out dimensions with small variance
+    dim_mask masks out dimensions with small variance
     """
     x_new = x
     if zero_center:
@@ -135,7 +135,7 @@ class RunningMeanStd:
         self._mean = 0
         self._var = 1
         self._std = 1
-        self._count = 0 # avoid var being zero
+        self._count = 0
 
     def set_rms_stats(self, mean, var, count):
         self._mean = mean
@@ -223,7 +223,6 @@ class RunningMeanStd:
             x_new, self._mean, self._std, 
             zero_center=zero_center, mask=mask, 
             dim_mask=dim_mask, 
-            const_threshold=self._const_threshold
         )
         return x_new
 

@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict
-from jax_tools import jax_div, jax_loss, jax_math
+from jax_tools import jax_div, jax_loss
 from tools.rms import denormalize
 from .utils import *
 
@@ -549,6 +549,8 @@ def compute_regularization(
     stats.pos_reg = jnp.where(stats.advantage > 0, stats.reg, 0)
     if rescaled_by_adv:
         stats.pos_reg = stats.advantage * stats.pos_reg
+    if data.sample_mask is not None:
+        data.sample_mask = expand_shape_match(data.sample_mask, stats.ratio, np=jnp)
     stats.raw_pos_reg_loss, stats.pos_reg_loss = jax_loss.to_loss(
         stats.pos_reg, 
         pos_reg_coef, 

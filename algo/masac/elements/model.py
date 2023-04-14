@@ -50,8 +50,10 @@ class Model(LKAModelBase):
             ))
         self.params.temp, self.modules.temp = self.build_net(name='temp')
 
+        self.set_params(self.params)
         self.sync_target_params()
         self.sync_lookahead_params()
+        self.set_lka_params(self.lookahead_params)
 
     def compile_model(self):
         self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))

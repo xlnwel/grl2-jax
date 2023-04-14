@@ -52,7 +52,7 @@ def parse_args():
                         action='store_true')
     parser.add_argument('--ignore', '-i',
                         type=str, 
-                        default=None)
+                        default=[])
     args = parser.parse_args()
 
     return args

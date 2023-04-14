@@ -6,6 +6,8 @@ from core.typing import AttrDict, dict2AttrDict
 from tools.utils import eval_config, flatten_dict
 
 
+YAML_SUFFIX = '.yaml'
+
 def default_path(path):
     if path.startswith('/'):
         return Path(path)
@@ -14,8 +16,8 @@ def default_path(path):
 
 # load arguments from config.yaml
 def load_config(path='config', to_attrdict=True):
-    if not path.endswith('.yaml'):
-        path = path + '.yaml'
+    if not path.endswith(YAML_SUFFIX):
+        path = path + YAML_SUFFIX
     path = default_path(path)
     if not path.exists():
         do_logging(f'No configuration is found at: {path}', level='pwc', backtrack=4)
@@ -33,12 +35,12 @@ def load_config(path='config', to_attrdict=True):
             print(exc)
 
 # save config to config.yaml
-def save_config(config: dict, config_to_update={}, path='config.yaml'):
+def save_config(config: dict, config_to_update={}, path='config'):
     assert isinstance(config, dict)
     if isinstance(config, AttrDict):
         config = config.asdict()
-    if not path.endswith('.yaml'):
-        path = path + '.yaml'
+    if not path.endswith(YAML_SUFFIX):
+        path = path + YAML_SUFFIX
     
     path = default_path(path)
     if path.exists():

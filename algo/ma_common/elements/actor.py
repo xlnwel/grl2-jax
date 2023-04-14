@@ -2,7 +2,7 @@ import numpy as np
 
 from core.elements.actor import Actor as ActorBase, apply_rms_to_inp
 from core.mixin.actor import ObsRunningMeanStd, RewardRunningMeanStd
-from core.typing import tree_slice
+from core.typing import AttrDict, tree_slice
 from tools.rms import normalize
 from tools.utils import batch_dicts
 from algo.ma_common.run import concat_along_unit_dim
@@ -10,6 +10,10 @@ from algo.ma_common.run import concat_along_unit_dim
 
 class Actor(ActorBase):
     def setup_checkpoint(self):
+        if 'obs_rms' not in self.config:
+            self.config.obs_rms = AttrDict()
+        if 'reward_rms' not in self.config:
+            self.config.reward_rms = AttrDict()
         self.config.obs_rms.model_path = self._model_path
         self.config.reward_rms.model_path = self._model_path
         self.obs_rms = [

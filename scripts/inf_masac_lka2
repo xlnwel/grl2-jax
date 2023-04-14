@@ -6,13 +6,13 @@ suite=$1
 shift
 algos=(
     # $1
-    masac_lka2
-    masac_lka2
+    mambpo
+    mambpo_lka2
 )
 # shift
 envs=(
     Ant_2x4
-    # HalfCheetah_2x3
+    HalfCheetah_2x3
     Walker2d_2x3
 )
 configs=(
@@ -82,22 +82,17 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-for a4 in "${args4[@]}"; do
-    kws="0#n_epochs=$a1 0#n_lka_epochs=100 0#lookahead_q=$a4 0#lka_test=$a2"
-    for e in "${envs[@]}"; do
-        config="${suite}"
-        env="${suite}-${e}"
-        for s in {0..3}; do
-            py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -s $s -kw $kws"
-            commands+=("$py_script")
-            echo $py_script
-            # eval $py_script
-        done
+# for a4 in "${args4[@]}"; do
+#     kws="0#n_epochs=$a1"
+for e in "${envs[@]}"; do
+    config="${suite}"
+    env="${suite}-${e}"
+    for s in {0..4}; do
+        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+        # eval $py_script
     done
 done
-# echo ${commands[@]}s
-lc=${#commands[@]}
-p=$((lc / le))
-# echo $p
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

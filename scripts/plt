@@ -23,15 +23,15 @@ dir=$1
 
 while true
 do
+    tomorrow=$(date -v+1d "+%m%d")
     today=$(date +"%m%d")
     yesterday=$(date -v-1d "+%m%d")
     dby=$(date -v-2d "+%m%d")
-    tda="0412"
     # tda=$(date -v-3d "+%m%d")
     # fda=$(date -v-4d "+%m%d")
 
     # rm -rf html-logs
-    py_script="python run/html_plt.py $@ -p a0 dynamics -d $today $yesterday $dby $tda $fda"
+    py_script="python run/html_plt.py $@ -p a0 dynamics -d $tomorrow $today $yesterday $dby $tda $fda"
     echo $py_script
     eval $py_script
     echo "sleeping for 300 seconds"

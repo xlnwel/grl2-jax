@@ -11,7 +11,7 @@ from algo.ma_common.run import Runner
 from algo.ma_common.train import env_run, ego_optimize, build_agent, save, log
 from algo.lka_common.run import quantify_dynamics_errors
 from algo.lka_common.train import dynamics_run, dynamics_optimize, \
-    eval_ego_and_lka, log_dynamics_errors, build_dynamics
+    build_dynamics, load_eval_data, eval_and_log
 from algo.mambpo.run import branched_rollout
 
 
@@ -43,7 +43,9 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
+    runner.run(agent, n_steps=MODEL_EVAL_STEPS, lka_aids=[], collect_data=False)
+    env_name = runner.env_config().env_name
+    eval_data = load_eval_data(filename=env_name)
     rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
@@ -60,27 +62,23 @@ def train(
             run_rng, 
             lka_aids=[]
         )
-        if routine_config.quantify_dynamics_errors and time2record:
-            errors.train = quantify_dynamics_errors(
-                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
+        # if routine_config.quantify_dynamics_errors and time2record:
+        #     errors.train = quantify_dynamics_errors(
+        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
         
         if dynamics_routine_config.model_warm_up and \
             agent.get_env_step() < dynamics_routine_config.model_warm_up_steps:
-            train_step = ego_optimize(agent, warm_up_stage=True)
+            ego_optimize(agent, warm_up_stage=True)
         else:
-            train_step = ego_optimize(agent)
+            ego_optimize(agent)
 
-        if routine_config.quantify_dynamics_errors and time2record:
-            errors.ego = quantify_dynamics_errors(
-                agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
+        # if routine_config.quantify_dynamics_errors and time2record:
+        #     errors.ego = quantify_dynamics_errors(
+        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_ego_and_lka(agent, runner, routine_config)
-            if routine_config.quantify_dynamics_errors:
-                outdir = modelpath2outdir(agent.get_model_path())
-                log_dynamics_errors(errors, outdir, env_step)
-            save(agent, dynamics)
-            log(agent, dynamics, env_step, train_step, errors)
+            eval_and_log(agent, None, runner, routine_config, 
+                         agent.training_data, eval_data, eval_lka=False)
 
 
 def main(configs, train=train):
