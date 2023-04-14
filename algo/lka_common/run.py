@@ -44,6 +44,8 @@ def initialize_for_dynamics_run(agent, dynamics, routine_config):
 @timeit
 def prepare_params(agent, dynamics):
     agent_params = agent.model.params
+    # from copy import deepcopy
+    # agent_params = deepcopy(agent_params)
     dynamics_params = dynamics.model.params
 
     return agent_params, dynamics_params
@@ -72,7 +74,8 @@ def rollout(
     dynamics, dynamics_params, 
     rng, env_output, states, n_steps, 
     agent_obs_rms=None, agent_obs_clip=None, 
-    dynamics_obs_rms=None, dynamics_dim_mask=None
+    dynamics_obs_rms=None, dynamics_dim_mask=None, 
+    elite_indices=None
 ):
     data_list = []
     if 'sample_mask' not in env_output.obs:
@@ -109,6 +112,7 @@ def rollout(
         model_inp.dim_mask = dynamics_dim_mask
         new_env_output, _, _ = dynamics.raw_action(
             dynamics_params, env_rng, model_inp, 
+            elite_indices=elite_indices
         )
 
         data = obs

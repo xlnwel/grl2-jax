@@ -82,8 +82,10 @@
 # ./scripts/inf magw 1 inf_magw_mb 400 
 
 # mujoco
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo 
-# ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo 0#norm=layer 
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#n_lka_epochs=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#n_lka_epochs=4
 # ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb True
 # ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb False
 
@@ -93,13 +95,20 @@
 # ./scripts/inf grf 3 inf_grf 10
 # ./scripts/inf grf 3 inf_grf 15
 # ./scripts/inf grf 1 inf_grf_is kl_reverse 1
-# ./scripts/inf grf 3 inf_grf
-# ./scripts/inf grf 3 inf_grf_is simple 1
-# ./scripts/inf grf 1 inf_grf_lka True 400 uniform
-# ./scripts/inf grf 1 inf_grf_lka
-./scripts/inf grf 3 inf_grf_lka per 1 256
-./scripts/inf grf 3 inf_grf_lka per 1 512
-./scripts/inf grf 3 inf_grf_lka per 3 512
+./scripts/inf grf 1 inf_grf 0#n_epochs=15
+./scripts/inf grf 1 inf_grf 0#n_epochs=20
+
+./scripts/inf grf 1 inf_grf_lka 0#n_epochs=15 0#n_lka_epochs=5
+./scripts/inf grf 1 inf_grf_lka 0#n_epochs=15 0#n_lka_epochs=10
+./scripts/inf grf 1 inf_grf_lka 0#n_epochs=15 0#n_lka_epochs=15
+./scripts/inf grf 1 inf_grf_lka 0#n_epochs=20 0#n_lka_epochs=5
+./scripts/inf grf 1 inf_grf_lka 0#n_epochs=20 0#n_lka_epochs=10
+./scripts/inf grf 1 inf_grf_lka 0#n_epochs=20 0#n_lka_epochs=15
+# ./scripts/inf grf 1 inf_grf_lka 0#n_lka_epochs=5 1#n_models=3
+# ./scripts/inf grf 1 inf_grf_lka 0#n_lka_steps=3 0#n_lka_epochs=5 1#n_models=3
+# ./scripts/inf grf 1 inf_grf_lka 0#n_lka_steps=5 0#n_lka_epochs=3 1#n_models=1
+# ./scripts/inf grf 1 inf_grf_lka 0#n_lka_steps=5 0#n_lka_epochs=3 1#n_models=3
+
 # ./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 None 800
 # ./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 layer 500
 # ./scripts/inf grf 2 inf_grf_lka academy_3_vs_1_with_keeper 1280 layer 800

@@ -58,8 +58,8 @@ class Layer:
         return x
 
 
-@layer_registry.register('elayer')
-class ELayer(hk.Module):
+@layer_registry.register('elinear')
+class ELinear(hk.Module):
     def __init__(
         self, 
         out_size, 

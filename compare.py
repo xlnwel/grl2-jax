@@ -45,8 +45,8 @@ if __name__ == '__main__':
     record_name = 'record.txt'
     # results = []
     # for i in range(1, 11):
-    #     directory1 = f'/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1209/n_lookahead_steps=0/seed={i}/a0/record.txt'
-    #     directory2 = f'/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1209/n_lookahead_steps=0/seed={i}/a0/record.txt'
+    #     directory1 = f'/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1209/n_lka_steps=0/seed={i}/a0/record.txt'
+    #     directory2 = f'/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1209/n_lka_steps=0/seed={i}/a0/record.txt'
 
     #     data1 = pd.read_table(directory1, on_bad_lines='skip')
     #     data2 = pd.read_table(directory2, on_bad_lines='skip')
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     
     # for i in range(1, 11):
     #     directory1 = f'/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/baseline/seed={i}/a0/record.txt'
-    #     directory2 = f'/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/run_with_future_opponents=True-n_lookahead_steps=3/seed={i}/a0/record.txt'
+    #     directory2 = f'/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/run_with_future_opponents=True-n_lka_steps=3/seed={i}/a0/record.txt'
 
     #     data1 = pd.read_table(directory1, on_bad_lines='skip')
     #     data2 = pd.read_table(directory2, on_bad_lines='skip')
@@ -65,7 +65,7 @@ if __name__ == '__main__':
 
     for env in ('staghunt', 'escalation'):
         for i in (0, 1, 3, 5):
-            directory = f'/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-{env}/zero/1209/n_lookahead_steps={i}/'
+            directory = f'/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-{env}/zero/1209/n_lka_steps={i}/'
             results = []
             final = []
             for d in yield_dirs(directory, 'a0', is_suffix=False):
@@ -92,7 +92,7 @@ if __name__ == '__main__':
             print(f'{env}-{name}. Final {metric}:', '\t'*blank2, f'{np.nanmean(final):4.4g}')
 
 
-    # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/run_with_future_opponents=True-n_lookahead_steps=3'
+    # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/run_with_future_opponents=True-n_lka_steps=3'
     # results = []
     # for d in yield_dirs(directory, 'a0', is_suffix=False):
     #     record_path = '/'.join([d, record_name])
@@ -120,7 +120,7 @@ if __name__ == '__main__':
     # ppo2_res = np.sort(ppo2_res)[::-1]
     # print('PPO. Performance difference before and after training:', '\t'*4, np.mean(ppo2_res), np.std(ppo2_res))
 
-    # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/has_hare=False-run_with_future_opponents=True-n_lookahead_steps=3'
+    # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/has_hare=False-run_with_future_opponents=True-n_lka_steps=3'
     # results = []
     # for d in yield_dirs(directory, 'a0', is_suffix=False):
     #     record_path = '/'.join([d, record_name])
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     # plt.savefig('hist.png')
 
 
-    # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1130/run_with_future_opponents=True-n_lookahead_steps=3'
+    # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1130/run_with_future_opponents=True-n_lka_steps=3'
     # results = []
     # for d in yield_dirs(directory, 'a0', is_suffix=False):
     #     record_path = '/'.join([d, record_name])

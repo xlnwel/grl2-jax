@@ -60,7 +60,7 @@ model:
         units_list: [64, 64]
         w_init: orthogonal
         activation: tanh
-        norm: layer
+        norm: null
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
@@ -75,7 +75,7 @@ model:
         units_list: [64, 64]
         w_init: orthogonal
         activation: tanh
-        norm: layer
+        norm: null
         rnn_type: &vrnn null
         rnn_units: 64
         use_feature_norm: False
@@ -130,8 +130,7 @@ trainer:
     n_envs: *nenvs
     n_epochs: &nepochs 5
     n_mbs: &nmbs 40
-    n_steps: *nsteps         # BPTT length
-
+    n_steps: *nsteps
     update_scheme: step
 
     popart: *popart

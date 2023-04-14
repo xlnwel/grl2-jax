@@ -214,7 +214,7 @@ def compute_model_loss(
         )
     else:
         raise NotImplementedError(config.model_loss_type)
-    stats.emodel_loss = jnp.mean(loss, SAMPLE_AXIS)
+    stats.emodel_metrics = jnp.mean(loss, SAMPLE_AXIS)
     loss = config.model_coef * jnp.sum(loss, ENSEMBLE_AXIS)
     stats.model_loss = loss
 

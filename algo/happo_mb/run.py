@@ -61,7 +61,10 @@ def branched_rollout(agent, dynamics, routine_config, rng, lka_aids):
     agent_obs_rms, agent_obs_clip, dynamics_obs_rms, dynamics_dim_mask = \
         prepare_rms(agent, dynamics)
 
-    # elite_indices = dynamics.model.elite_indices[:dynamics.model.n_elites]
+    if routine_config.switch_model_at_every_step:
+        elite_indices = dynamics.model.elite_indices[:dynamics.model.n_elites]
+    else:
+        elite_indices = None
     data, env_output, states = rollout(
         agent.model, agent_params, 
         dynamics.model, dynamics_params, 
@@ -71,6 +74,7 @@ def branched_rollout(agent, dynamics, routine_config, rng, lka_aids):
         agent_obs_clip=agent_obs_clip, 
         dynamics_obs_rms=dynamics_obs_rms, 
         dynamics_dim_mask=dynamics_dim_mask, 
+        elite_indices=elite_indices
     )
     add_data_to_buffer(agent, data, env_output, states, 
         routine_config.compute_return_at_once)

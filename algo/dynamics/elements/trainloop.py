@@ -1,3 +1,4 @@
+import collections
 import numpy as np
 
 from core.typing import AttrDict
@@ -8,6 +9,9 @@ from tools.timer import timeit
 
 
 class TrainingLoop(TrainingLoopBase):
+    def post_init(self):
+        self.emodel_metrics = collections.deque(maxlen=self.config.n_epochs)
+
     def _train(self):
         obs_rms = self.buffer.get_obs_rms()
         self.model.update_obs_rms(obs_rms)
@@ -27,8 +31,13 @@ class TrainingLoop(TrainingLoopBase):
                 priority = stats['dynamics/priority']
                 self.buffer.update_priorities(priority, data.idxes)
             n += 1
+            self.emodel_metrics.append(stats.pop('dynamics/emodel_metrics'))
 
         return n, stats
+
+    def _after_train(self, stats):
+        self.model.rank_elites(np.mean(self.emodel_metrics, 0))
+        return stats
 
     @timeit
     def valid_stats(self):

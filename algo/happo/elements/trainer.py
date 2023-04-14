@@ -294,7 +294,7 @@ class Trainer(TrainerBase):
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.theta[aid], 
-                name='train/theta'
+                name='opt/theta'
             )
         else:
             theta.value, opt_state.value, stats = optimizer.optimize(
@@ -307,7 +307,7 @@ class Trainer(TrainerBase):
                     'data': data,
                 }, 
                 opt=self.opts.vs[aid], 
-                name='train/value'
+                name='opt/value'
             )
             theta.policy, opt_state.policy, stats = optimizer.optimize(
                 self.loss.policy_loss, 
@@ -320,7 +320,7 @@ class Trainer(TrainerBase):
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.policies[aid], 
-                name='train/policy'
+                name='opt/policy'
             )
 
         if compute_teammate_log_ratio:
@@ -372,21 +372,29 @@ class Trainer(TrainerBase):
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.theta[aid], 
-                name='train/theta'
+                name='lka_opt/theta'
             )
         else:
-            theta.value, opt_state.value, stats = optimizer.optimize(
-                self.loss.lka_value_loss, 
-                theta.value, 
-                opt_state.value, 
-                kwargs={
-                    'rng': rngs[0], 
-                    'policy_theta': theta.policy, 
-                    'data': data,
-                }, 
-                opt=self.opts.vs[aid], 
-                name='train/value'
-            )
+            if self.config.get('ignore_lka_value_update', False):
+                _, stats = self.loss.lka_value_loss(
+                    theta.value, 
+                    rngs[0], 
+                    theta.policy, 
+                    data
+                )
+            else:
+                theta.value, opt_state.value, stats = optimizer.optimize(
+                    self.loss.lka_value_loss, 
+                    theta.value, 
+                    opt_state.value, 
+                    kwargs={
+                        'rng': rngs[0], 
+                        'policy_theta': theta.policy, 
+                        'data': data,
+                    }, 
+                    opt=self.opts.vs[aid], 
+                    name='lka_opt/value'
+                )
             theta.policy, opt_state.policy, stats = optimizer.optimize(
                 self.loss.lka_policy_loss, 
                 theta.policy, 
@@ -398,7 +406,7 @@ class Trainer(TrainerBase):
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.policies[aid], 
-                name='train/policy'
+                name='lka_opt/policy'
             )
 
         if compute_teammate_log_ratio:
