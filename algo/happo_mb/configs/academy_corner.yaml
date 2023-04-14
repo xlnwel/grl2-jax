@@ -25,7 +25,7 @@ routine:
     size: [256, 256]
 
     n_lka_steps: 1
-    n_simulated_envs: &nse 640
+    n_simulated_envs: &nse 1280
     n_simulated_steps: &nss 10
     model_rollout_type: sim
     compute_return_at_once: True
@@ -33,9 +33,9 @@ routine:
     ignore_ratio_for_lookahead: False
     perm: null
     restore_state: False
-    switch_model_at_every_step: False
+    switch_model_at_every_step: True
     quantify_dynamics_errors: False
-    rollout_type: part
+    rollout_type: full
     concise_mode: True
 
 env:
@@ -53,7 +53,7 @@ env:
     add_role_to_obs: False
     shared_ckpt_reward: False
 
-    max_episode_steps: 200
+    max_episode_steps: 400
     use_action_mask: False
     uid2aid: null
     share_policy: False
@@ -153,6 +153,7 @@ trainer:
     n_simulated_steps: *nss
     n_lka_epochs: *nepochs
     n_lka_mbs: *nmbs
+    ignore_lka_value_update: False
     debug: False
 
     theta_opt:

@@ -53,7 +53,7 @@ env:
     add_role_to_obs: False
     shared_ckpt_reward: False
 
-    max_episode_steps: 200
+    max_episode_steps: 400
     use_action_mask: False
     uid2aid: null
     share_policy: False
@@ -153,7 +153,7 @@ trainer:
     n_simulated_steps: *nss
     n_lka_epochs: *nepochs
     n_lka_mbs: *nmbs
-    ignore_lka_value_update: True
+    ignore_lka_value_update: False
     debug: False
 
     theta_opt:
