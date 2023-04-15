@@ -150,8 +150,9 @@ class Model(ModelBase):
         reward, stats = self.reward(
             params.reward, rngs[1], reward_obs, action, stats)
         
+        discount_obs = self.get_discount_obs(dim_mask, obs)
         discount, stats = self.discount(
-            params.discount, rngs[2], obs, action, stats)
+            params.discount, rngs[2], discount_obs, action, stats)
 
         if self.config.model_norm_obs:
             next_obs = denormalize(
@@ -226,12 +227,17 @@ class Model(ModelBase):
         return action
 
     def get_reward_obs(self, dim_mask, obs, norm_obs):
-        # For agent-specific reward, we keep constant dimensions in that some dimensions represent the agent's identity
-        reward_obs = jnp.where(dim_mask, norm_obs, obs)
+        if self.config.share_reward:
+            # For agent-agnostic reward, we replace constant dimensions with zeros
+            reward_obs = jnp.where(dim_mask, norm_obs, obs)
+        else:
+            # For agent-specific reward, we keep constant dimensions in that some dimensions represent the agent's identity
+            reward_obs = jnp.where(dim_mask, norm_obs, obs)
         return reward_obs
 
-    def get_discount_obs(self, dim_mask, pred_obs):
-        discount_next_obs = jnp.where(dim_mask, pred_obs, 0)
+    def get_discount_obs(self, dim_mask, obs):
+        # For discount prediction, we replace constant dimensions with zeros to remove agent-specific information
+        discount_next_obs = jnp.where(dim_mask, obs, 0)
         return discount_next_obs
         
     def get_obs_rms_dir(self):

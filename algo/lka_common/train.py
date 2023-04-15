@@ -47,8 +47,8 @@ def build_dynamics(config, model_config, env_stats):
 
 
 @timeit
-def dynamics_optimize(dynamics):
-    dynamics.train_record()
+def dynamics_optimize(dynamics, **kwargs):
+    dynamics.train_record(**kwargs)
 
 
 @timeit

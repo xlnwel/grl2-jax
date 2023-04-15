@@ -50,11 +50,14 @@ def train(
 
     while env_step < routine_config.MAX_STEPS:
         rng, run_rng = jax.random.split(rng, 2)
-        errors = AttrDict()
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
         time2record = to_record(env_step)
         
-        dynamics_optimize(dynamics)
+        if dynamics_routine_config.model_warm_up and \
+            env_step < dynamics_routine_config.model_warm_up_steps:
+            dynamics_optimize(dynamics, warm_up_stage=True)
+        else:
+            dynamics_optimize(dynamics)
         dynamics_run(
             agent, dynamics, 
             routine_config, 
@@ -67,7 +70,7 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
         
         if dynamics_routine_config.model_warm_up and \
-            agent.get_env_step() < dynamics_routine_config.model_warm_up_steps:
+            env_step < dynamics_routine_config.model_warm_up_steps:
             ego_optimize(agent, warm_up_stage=True)
         else:
             ego_optimize(agent)
@@ -77,7 +80,7 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_and_log(agent, None, runner, routine_config, 
+            eval_and_log(agent, None, None, routine_config, 
                          agent.training_data, eval_data, eval_lka=False)
 
 

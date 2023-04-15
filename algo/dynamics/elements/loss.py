@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import chex
 
 from core.elements.loss import LossBase
-from core.typing import dict2AttrDict
+from core.typing import AttrDict, dict2AttrDict
 from jax_tools import jax_dist, jax_math, jax_loss
 from tools.rms import normalize, denormalize
 from tools import utils
@@ -21,78 +21,40 @@ def expand_ensemble_dim(x, n_models):
 
 
 class Loss(LossBase):
-    def loss(
+    def model_loss(
         self, 
         theta, 
         rng, 
         data, 
-        name='theta',
     ):
-        rngs = random.split(rng, 3)
-        if data.dim_mask is None:
-            dim_mask = jnp.ones_like(data.obs)
-        else:
-            dim_mask = jnp.zeros_like(data.obs) + data.dim_mask
+        dim_mask = data.dim_mask
 
-        if self.model.config.model_norm_obs:
-            obs = normalize(
-                data.obs, 
-                data.obs_loc, 
-                data.obs_scale, 
-                dim_mask=dim_mask, 
-                np=jnp
-            )
-            next_obs = normalize(
-                data.next_obs, 
-                data.obs_loc, 
-                data.obs_scale, 
-                dim_mask=dim_mask, 
-                np=jnp
-            )
-        else:
-            obs = data.obs
-            next_obs = data.next_obs
-
-        # observation loss
         dist = self.modules.emodels(
-            theta.emodels, rngs[0], obs, data.action, training=True
+            theta, rng, data.norm_obs, data.action, training=True
         )
         stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
-        stats.norm_obs = obs
-        
+
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
-            model_target = expand_ensemble_dim(next_obs - obs, self.config.n_models)
+            model_target = expand_ensemble_dim(
+                data.next_norm_obs - data.norm_obs, self.config.n_models)
         else:
-            next_obs_ensemble = expand_ensemble_dim(next_obs, self.config.n_models)
+            next_obs_ensemble = expand_ensemble_dim(
+                data.next_norm_obs, self.config.n_models)
             model_target = jnp.array(next_obs_ensemble, dtype=jnp.int32)
-        stats.model_target = model_target
-
+        
         edim_mask = jnp.zeros_like(model_target) + dim_mask
-        model_loss, stats = compute_model_loss(
+        loss, stats = compute_model_loss(
             self.config, dist, model_target, stats, 
             edim_mask, scale=data.obs_scale if self.model.config.model_norm_obs else None
         )
 
-        # we use the predicted obs to predict the reward and discount
-        pred_obs = lax.stop_gradient(dist.mode())
-        if isinstance(dist, jax_dist.MultivariateNormalDiag):
-            pred_obs = obs + pred_obs
-
-        # reward loss
-        reward_obs = self.model.get_reward_obs(dim_mask, data.obs, obs)
-        reward_dist = self.modules.reward(
-            theta.reward, rngs[1], reward_obs, data.action)
-        reward_loss, stats = compute_reward_loss(
-            self.config, reward_dist, data.reward, stats)
-
-        # discount loss
-        discount_dist = self.modules.discount(
-            theta.discount, rngs[2], obs, data.action)
-        discount_loss, stats = compute_discount_loss(
-            self.config, discount_dist, data.discount, stats)
+        if data.is_ratio is not None:
+            loss = data.is_ratio * loss
+        loss = jnp.mean(loss)
 
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
+            pred_obs = data.norm_obs + dist.loc
             next_obs = jnp.zeros_like(model_target) + data.next_obs
             if self.model.config.model_norm_obs:
                 pred_obs = denormalize(
@@ -103,21 +65,74 @@ class Loss(LossBase):
                     np=jnp
                 )
             stats.trans_mae = jnp.where(
-                dim_mask, lax.abs(next_obs - pred_obs), 0.)
+                edim_mask, lax.abs(next_obs - pred_obs), 0.)
         else:
-            if self.model.config.model_norm_obs:
-                pred_obs = denormalize(
-                    pred_obs, 
-                    data.obs_loc, 
-                    data.obs_scale, 
-                    dim_mask=dim_mask, 
-                    np=jnp
-                )
-                next_obs = jnp.zeros_like(model_target) + data.next_obs
-                stats.trans_mae = jnp.where(
-                    dim_mask, lax.abs(next_obs - pred_obs), 0.)
-            else:
-                stats.trans_mae = stats.model_mae
+            assert not self.model.config.model_norm_obs
+            stats.trans_mae = stats.model_mae
+
+        stats.model_priority = jax_math.mask_mean(
+            stats.trans_mae, mask=edim_mask, 
+            axis=utils.except_axis(stats.trans_mae, SAMPLE_AXIS))
+
+        return loss, stats
+
+    def reward_loss(
+        self, 
+        theta, 
+        rng, 
+        data, 
+    ):
+        dim_mask = data.dim_mask
+
+        reward_obs = self.model.get_reward_obs(dim_mask, data.obs, data.norm_obs)
+        reward_dist = self.modules.reward(
+            theta, rng, reward_obs, data.action)
+        loss, stats = compute_reward_loss(
+            self.config, reward_dist, data.reward, AttrDict())
+
+        if data.is_ratio is not None:
+            loss = data.is_ratio * loss
+        loss = jnp.mean(loss)
+
+        stats.reward_priority = jnp.mean(stats.reward_mae, axis=[1, 2])
+
+        return loss, stats
+
+    def discount_loss(
+        self, 
+        theta, 
+        rng, 
+        data, 
+    ):
+        dim_mask = data.dim_mask
+
+        discount_obs = self.model.get_discount_obs(dim_mask, data.norm_obs)
+        discount_dist = self.modules.discount(
+            theta, rng, discount_obs, data.action)
+        loss, stats = compute_discount_loss(
+            self.config, discount_dist, data.discount, AttrDict())
+
+        if data.is_ratio is not None:
+            loss = data.is_ratio * loss
+        loss = jnp.mean(loss)
+
+        stats.discount_priority = jnp.mean(stats.discount_mae, axis=[1, 2])
+
+        return loss, stats
+
+    def loss(
+        self, 
+        theta, 
+        rng, 
+        data, 
+        name='theta',
+    ):
+        rngs = random.split(rng, 3)
+
+        model_loss, model_stats = self.model_loss(theta.emodels, rngs[0], data)
+        reward_loss, reward_stats = self.reward_loss(theta.reward, rngs[1], data)
+        discount_loss, discount_stats = self.discount_loss(theta.discount, rngs[2], data)
+        stats = self.combine_stats(model_stats, reward_stats, discount_stats)
 
         loss = model_loss + reward_loss + discount_loss
         if data.is_ratio is not None:
@@ -125,23 +140,18 @@ class Loss(LossBase):
         stats.loss = loss
         loss = jnp.mean(loss)
 
-        model_priority = jax_math.mask_mean(
-            stats.trans_mae, mask=edim_mask, 
-            axis=utils.except_axis(stats.trans_mae, SAMPLE_AXIS))
-        reward_priority = jnp.mean(stats.reward_mae, axis=[1, 2])
-        discount_priority = jnp.mean(stats.discount_mae, axis=[1, 2])
-        chex.assert_rank([model_priority, reward_priority, discount_priority], 1)
-
-        stats.model_priority = model_priority
-        stats.reward_priority = reward_priority
-        stats.discount_priority = discount_priority
-        stats.priority = (
-            self.config.model_prio_coef * model_priority 
-            + self.config.reward_prio_coef * reward_priority 
-            + self.config.discount_prio_coef * discount_priority
-        )
-
         return loss, stats
+    
+    def combine_stats(self, stats, reward_stats, discount_stats):
+        stats.update(reward_stats)
+        stats.update(discount_stats)
+        stats.priority = (
+            self.config.model_prio_coef * stats.model_priority 
+            + self.config.reward_prio_coef * stats.reward_priority 
+            + self.config.discount_prio_coef * stats.discount_priority
+        )
+        return stats
+
 
 
 def create_loss(config, model, name='model'):

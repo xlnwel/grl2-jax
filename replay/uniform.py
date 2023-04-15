@@ -8,6 +8,7 @@ from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict
 from replay.local import NStepBuffer
+from tools.timer import Timer
 from tools.utils import batch_dicts, yield_from_tree
 from replay import replay_registry
 from replay.mixin.rms import TemporaryRMS
@@ -123,7 +124,7 @@ class UniformReplay(Buffer):
     """ Sampling """
     def sample_from_recency(self, batch_size, sample_keys=None, n=None, add_seq_dim=False):
         batch_size = batch_size or self.batch_size
-        n = min(len(self), max(batch_size, n or self.n_recency))
+        n = max(batch_size, n or self.n_recency)
         if n > len(self):
             return None
         idxes = np.arange(len(self)-n, len(self))
