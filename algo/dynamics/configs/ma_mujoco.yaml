@@ -21,7 +21,7 @@ routine:
     n_envs: &nenvs 64
 
     model_warm_up: True
-    model_warm_up_steps: 5e4
+    model_warm_up_steps: 1e6
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -44,7 +44,7 @@ strategy:
         ergodic: False
         training_data_size: &ds 1e5
         valid_data_size: 1e4
-        wp_n_epochs: 1000
+        wp_n_epochs: 500
         n_epochs: &nepochs 500
 
 model:
@@ -55,6 +55,7 @@ model:
     model_norm_obs: &obs_norm True
     deterministic_trans: True
     share_reward: True
+    pred_raw: True
     model_loss_type: &mlt mse
     obs_clip: 10
 
@@ -63,7 +64,7 @@ model:
         n_models: &n 1
         units_list: [200, 200, 200, 200]
         activation: relu
-        norm: layer
+        norm: null
         out_scale: .01
         out_type: continuous
         out_config:
@@ -72,9 +73,9 @@ model:
     reward:
         nn_id: reward
         out_size: 1
-        units_list: [200, 200, 200]
+        units_list: [200, 200, 200, 200]
         activation: relu
-        norm: layer
+        norm: null
         out_scale: .01
         use_next_obs: False
         balance_dimension: False
@@ -85,14 +86,12 @@ model:
         out_size: 1
         units_list: [200, 200, 200]
         activation: relu
-        norm: layer
+        norm: null
         out_scale: 1
 
 loss:
     model_loss_type: *mlt
     n_models: *n
-    model_norm_obs: *obs_norm
-    pred_raw: True
 
     model_coef: 1
     reward_coef: 1
@@ -107,14 +106,13 @@ trainer:
     aid: 0
     trust_threshold: null
     timeout_done: *td
-    model_norm_obs: *obs_norm
 
     model_opt:
         opt_name: adam
-        lr: 5e-4
+        lr: 8e-4
         clip_norm: 10
         eps: 1e-5
-        weight_decay: 0
+        weight_decay: 1e-6
     reward_opt:
         opt_name: adam
         lr: 5e-4
@@ -133,6 +131,10 @@ actor: {}
 
 buffer:
     type: uniform
+
+    alpha: .4
+    beta: 0
+    use_is_ratio: True
 
     model_norm_obs: *obs_norm
     n_runners: *nrunners

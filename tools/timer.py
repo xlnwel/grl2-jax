@@ -43,11 +43,11 @@ def timeit_now(func, *args, name=None, to_print=True,
     return end - start, result if return_duration else result
 
 
-def timeit(func):
+def timeit(func, **timer_kwargs):
     Timer.aggregators[func.__name__]
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        with Timer(func.__name__):
+        with Timer(func.__name__, **timer_kwargs):
             return func(*args, **kwargs)
     return wrapper
 

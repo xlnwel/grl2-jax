@@ -17,7 +17,7 @@ envs=(
 configs=(
     "${suite}"
 )
-shift
+# shift
 args1=(
     # $2
     5e-4
@@ -92,7 +92,7 @@ commands=()
 # done
 # done
 # a="happo"
-kw="1#model_opt:lr=$a1 1#pred_raw=$a2 $@"
+kws=$@
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

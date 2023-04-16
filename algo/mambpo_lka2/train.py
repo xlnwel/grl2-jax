@@ -45,7 +45,7 @@ def train(
     dynamics_routine_config, 
 ):
     MODEL_EVAL_STEPS = runner.env.max_episode_steps
-    print('Model evaluation steps:', MODEL_EVAL_STEPS)
+    do_logging(f'Model evaluation steps: {MODEL_EVAL_STEPS}')
     do_logging('Training starts...')
     env_step = agent.get_env_step()
     to_record = Every(
@@ -65,10 +65,11 @@ def train(
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
         time2record = to_record(env_step)
         
-        dynamics_optimize(dynamics)
-        # if routine_config.quantify_dynamics_errors and time2record:
-        #     errors.train = quantify_dynamics_errors(
-        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
+        if dynamics_routine_config.model_warm_up and \
+            env_step < dynamics_routine_config.model_warm_up_steps:
+            dynamics_optimize(dynamics, warm_up_stage=True)
+        else:
+            dynamics_optimize(dynamics)
 
         if routine_config.lka_test:
             lka_optimize(agent)
@@ -98,18 +99,19 @@ def train(
                 dynamics_routine_config, 
                 rngs[1]
             )
-        
-        # if routine_config.quantify_dynamics_errors and time2record:
-        #     errors.lka = quantify_dynamics_errors(
-        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
 
-        ego_optimize(agent)
+        if dynamics_routine_config.model_warm_up and \
+            env_step < dynamics_routine_config.model_warm_up_steps:
+            ego_optimize(agent, warm_up_stage=True)
+        else:
+            ego_optimize(agent)
+
         # if routine_config.quantify_dynamics_errors and time2record:
         #     errors.ego = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_and_log(agent, None, None, routine_config, 
+            eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, eval_lka=False)
 
 main = partial(main, train=train)

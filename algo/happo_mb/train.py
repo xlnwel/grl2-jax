@@ -145,7 +145,7 @@ def train(
             #     log_dynamics_errors(errors, outdir, env_step)
             stats = dynamics.valid_stats()
             dynamics.store(**stats)
-            eval_and_log(agent, dynamics, runner, routine_config, 
+            eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, errors)
 
 

@@ -6,12 +6,12 @@ suite=$1
 shift
 algos=(
     # $1
-    mambpo
+    # mambpo
     mambpo_lka2
 )
 # shift
 envs=(
-    # Ant_2x4
+    Ant_2x4
     HalfCheetah_2x3
     Walker2d_2x3
 )
@@ -85,16 +85,14 @@ commands=()
 # for a4 in "${args4[@]}"; do
 #     kws="0#n_epochs=$a1"
 kws=$@
-for a in "${algos[@]}"; do
-    for e in "${envs[@]}"; do
-        config="${suite}"
-        env="${suite}-${e}"
-        for s in {0..2}; do
-            py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-            commands+=("$py_script")
-            echo $py_script
-            # eval $py_script
-        done
+for e in "${envs[@]}"; do
+    config="${suite}"
+    env="${suite}-${e}"
+    for s in {0..4}; do
+        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+        # eval $py_script
     done
 done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND

@@ -65,10 +65,7 @@ def train(
             run_rng, 
             lka_aids=[]
         )
-        # if routine_config.quantify_dynamics_errors and time2record:
-        #     errors.train = quantify_dynamics_errors(
-        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
-        
+
         if dynamics_routine_config.model_warm_up and \
             env_step < dynamics_routine_config.model_warm_up_steps:
             ego_optimize(agent, warm_up_stage=True)
@@ -80,7 +77,7 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_and_log(agent, None, None, routine_config, 
+            eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, eval_lka=False)
 
 

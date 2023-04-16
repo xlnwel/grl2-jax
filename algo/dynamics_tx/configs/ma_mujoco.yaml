@@ -21,7 +21,6 @@ routine:
     n_envs: &nenvs 64
 
     model_warm_up: True
-    model_warm_up_train_epochs: 5
     model_warm_up_steps: 5e4
 
 env:
@@ -43,9 +42,10 @@ strategy:
     algorithm: *algo
     train_loop:
         ergodic: False
-        training_data_size: &ds 1e6
+        training_data_size: &ds 1e5
         valid_data_size: 1e4
-        n_epochs: &nepochs 300
+        wp_n_epochs: 5000
+        n_epochs: &nepochs 500
 
 model:
     aid: 0
@@ -54,6 +54,8 @@ model:
     rn_std: .1
     model_norm_obs: &obs_norm True
     deterministic_trans: True
+    share_reward: True
+    pred_raw: True
     model_loss_type: &mlt mse
     obs_clip: 10
 
@@ -69,7 +71,6 @@ model:
                 # attn_dropout: 0
                 # res_dropout: 0
         out_config:
-            type: continuous
             max_logvar: .5
             min_logvar: -10
     reward:
@@ -86,7 +87,7 @@ model:
     discount:
         nn_id: discount
         out_size: 1
-        units_list: [200, 200]
+        units_list: [200, 200, 200]
         activation: relu
         norm: null
         out_scale: 1
@@ -94,8 +95,6 @@ model:
 loss:
     model_loss_type: *mlt
     n_models: *n
-    model_norm_obs: *obs_norm
-    pred_raw: False
 
     model_coef: 1
     reward_coef: 1
@@ -110,9 +109,20 @@ trainer:
     aid: 0
     trust_threshold: null
     timeout_done: *td
-    model_norm_obs: *obs_norm
 
     model_opt:
+        opt_name: adam
+        lr: 5e-4
+        clip_norm: 10
+        eps: 1e-5
+        weight_decay: 1e-6
+    reward_opt:
+        opt_name: adam
+        lr: 5e-4
+        clip_norm: 10
+        eps: 1e-5
+        weight_decay: 1e-6
+    discount_opt:
         opt_name: adam
         lr: 5e-4
         clip_norm: 10
@@ -130,6 +140,7 @@ buffer:
     n_envs: *nenvs
     max_size: *ds
     min_size: 1e3
+    n_recency: 1e3
     batch_size: 256
     sample_size: 1
 

@@ -154,7 +154,7 @@ class Trainer(TrainerBase):
                     'data': data, 
                 }, 
                 opt=self.opts.discount, 
-                name='opt/dynamics'
+                name='opt/discount'
             )
             stats = self.loss.combine_stats(model_stats, reward_stats, discount_stats)
 

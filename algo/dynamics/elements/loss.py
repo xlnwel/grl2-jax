@@ -34,19 +34,22 @@ class Loss(LossBase):
         )
         stats = dict2AttrDict(dist.get_stats('model'), to_copy=True)
 
+
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
-            model_target = expand_ensemble_dim(
-                data.next_norm_obs - data.norm_obs, self.config.n_models)
+            if self.model.config.pred_raw:
+                model_target = data.next_obs - data.obs
+            else:
+                model_target = data.next_norm_obs - data.norm_obs
+            model_target = expand_ensemble_dim(model_target, self.config.n_models)
         else:
-            next_obs_ensemble = expand_ensemble_dim(
-                data.next_norm_obs, self.config.n_models)
+            assert self.config.model_loss_type == 'discrete', self.config.model_loss_type
+            next_obs_ensemble = expand_ensemble_dim(data.next_obs, self.config.n_models)
             model_target = jnp.array(next_obs_ensemble, dtype=jnp.int32)
         
         edim_mask = jnp.zeros_like(model_target) + dim_mask
         loss, stats = compute_model_loss(
-            self.config, dist, model_target, stats, 
-            edim_mask, scale=data.obs_scale if self.model.config.model_norm_obs else None
+            self.config, dist, model_target, stats, edim_mask,
         )
 
         if data.is_ratio is not None:
@@ -54,16 +57,19 @@ class Loss(LossBase):
         loss = jnp.mean(loss)
 
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
-            pred_obs = data.norm_obs + dist.loc
+            if self.model.config.pred_raw:
+                pred_obs = data.obs + dist.loc
+            else:
+                pred_obs = data.norm_obs + dist.loc
+                if self.model.config.model_norm_obs:
+                    pred_obs = denormalize(
+                        pred_obs, 
+                        data.obs_loc, 
+                        data.obs_scale, 
+                        dim_mask=dim_mask, 
+                        np=jnp
+                    )
             next_obs = jnp.zeros_like(model_target) + data.next_obs
-            if self.model.config.model_norm_obs:
-                pred_obs = denormalize(
-                    pred_obs, 
-                    data.obs_loc, 
-                    data.obs_scale, 
-                    dim_mask=dim_mask, 
-                    np=jnp
-                )
             stats.trans_mae = jnp.where(
                 edim_mask, lax.abs(next_obs - pred_obs), 0.)
         else:
@@ -161,11 +167,8 @@ def create_loss(config, model, name='model'):
 
 
 def compute_model_loss(
-    config, dist, model_target, stats, dim_mask, scale=None, 
+    config, dist, model_target, stats, dim_mask, 
 ):
-    n = jax_math.count_masks(
-        dim_mask, axis=utils.except_axis(dim_mask, [ENSEMBLE_AXIS, SAMPLE_AXIS])
-    )
     if config.model_loss_type == 'mbpo':
         mean_loss, var_loss = jax_loss.mbpo_model_loss(
             dist.loc, 
@@ -174,12 +177,12 @@ def compute_model_loss(
         )
         stats.model_mae = jnp.where(
             dim_mask, lax.abs(dist.loc - model_target), 0.)
-        mean_loss = jax_math.mask_mean(
-            mean_loss, mask=dim_mask, n=n, 
+        mean_loss = jnp.mean(
+            mean_loss, 
             axis=utils.except_axis(mean_loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
-        var_loss = jax_math.mask_mean(
-            var_loss, mask=dim_mask, n=n, 
+        var_loss = jnp.mean(
+            var_loss, 
             axis=utils.except_axis(var_loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
         stats.mean_loss = mean_loss
@@ -190,20 +193,15 @@ def compute_model_loss(
         stats.model_mae = jnp.where(
             dim_mask, lax.abs(dist.loc - model_target), 0.)
         loss = jax_math.mask_mean(
-            loss, mask=dim_mask, n=n, 
+            loss, 
             axis=utils.except_axis(loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
     elif config.model_loss_type == 'mse':
         stats.model_mae = jnp.where(
             dim_mask, lax.abs(dist.loc - model_target), 0.)
-        if scale is None or not config.pred_raw:
-            mean = dist.loc
-        else:
-            mean = dist.loc * scale
-            model_target = model_target * scale
-        loss = .5 * (mean - model_target)**2
+        loss = .5 * (dist.loc - model_target)**2
         loss = jax_math.mask_mean(
-            loss, mask=dim_mask, n=n, 
+            loss, mask=dim_mask, 
             axis=utils.except_axis(loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
     elif config.model_loss_type == 'discrete':
@@ -213,13 +211,13 @@ def compute_model_loss(
             pred_next_obs == model_target, axis=-1
         )
         stats.obs_dim_consistency = jax_math.mask_mean(
-            obs_cons, mask=dim_mask, n=n, 
+            obs_cons, mask=dim_mask, 
         )
         stats.obs_consistency = jax_math.mask_mean(
-            obs_cons == 1, mask=dim_mask, n=n, 
+            obs_cons == 1, mask=dim_mask, 
         )
         loss = jax_math.mask_mean(
-            loss, mask=dim_mask, n=n, 
+            loss, mask=dim_mask, 
             axis=utils.except_axis(loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])
         )
     else:
