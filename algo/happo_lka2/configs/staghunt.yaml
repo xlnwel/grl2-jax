@@ -32,7 +32,7 @@ routine:
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
-    rollout_type: part
+    rollout_type: mix
 
 env:
     env_name: &env_name magw-staghunt

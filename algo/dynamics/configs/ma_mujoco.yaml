@@ -21,7 +21,7 @@ routine:
     n_envs: &nenvs 64
 
     model_warm_up: True
-    model_warm_up_steps: 1e6
+    model_warm_up_steps: 5e4
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -44,7 +44,7 @@ strategy:
         ergodic: False
         training_data_size: &ds 1e5
         valid_data_size: 1e4
-        wp_n_epochs: 500
+        wp_n_epochs: 2500
         n_epochs: &nepochs 500
 
 model:
@@ -65,7 +65,6 @@ model:
         units_list: [200, 200, 200, 200]
         activation: relu
         norm: null
-        out_scale: .01
         out_type: continuous
         out_config:
             max_logvar: .5

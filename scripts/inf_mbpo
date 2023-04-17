@@ -2,14 +2,11 @@
 
 export PYTHONPATH=.
 
+algos=(
+    mambpo
+)
 suite=$1
 shift
-algos=(
-    # $1
-    # mambpo
-    mambpo_lka2
-)
-# shift
 envs=(
     Ant_2x4
     HalfCheetah_2x3
@@ -19,28 +16,25 @@ configs=(
     "${suite}"
 )
 args1=(
-    $1
-    200
+    # $1
+    200 400 2000
 )
 args2=(
-    $2
-    True
-    True
-    False
-    False
+    # $2
+    .5 .5 .1
 )
 args3=(
     $3
-    10
-    None
+    1
 )
 args4=(
-    # $4
-    True
-    False
+    200
+    400
 )
 dynamics=(
-    # $4
+    # "dynamics_tx"
+    # "dynamics_tx"
+    # "dynamics_tx"
     "dynamics"
 )
 date=$(date +"%m%d")
@@ -83,17 +77,23 @@ a3=${args3[$idx]}
 
 commands=()
 # for a4 in "${args4[@]}"; do
-#     kws="0#n_epochs=$a1"
 kws=$@
+# kws="0#dynamics_name=$d"
 for e in "${envs[@]}"; do
-    config="${suite}"
+    config=${suite}
+    dyna_config="${suite}_mbpo"
     env="${suite}-${e}"
-    for s in {0..4}; do
-        py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+    for s in {0..3}; do
+        py_script="python run/train.py -a ${a} $d -e $env -c $config $dyna_config -ld $ld -n $n -s $s -kw $kws"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script
     done
 done
+# done
+# echo ${commands[@]}s
+# lc=${#commands[@]}
+# p=$((lc / le))
+# echo $p
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

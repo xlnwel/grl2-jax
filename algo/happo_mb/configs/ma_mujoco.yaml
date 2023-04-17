@@ -36,7 +36,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
-    rollout_type: full
+    rollout_type: mix
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3

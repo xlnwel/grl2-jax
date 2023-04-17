@@ -22,9 +22,9 @@ class Model(ModelBase):
         self.params.emodels, self.modules.emodels = self.build_net(
             data.obs, data.action, True, name='emodels')
         self.params.reward, self.modules.reward = self.build_net(
-            data.obs, data.action, data.obs, name='reward')
+            data.obs, data.action, name='reward')
         self.params.discount, self.modules.discount = self.build_net(
-            data.obs, name='discount')
+            data.obs, data.action, name='discount')
 
 
 def create_model(

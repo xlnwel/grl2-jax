@@ -56,9 +56,9 @@ dynamics_run = partial(dynamics_run, rollout_fn=branched_rollout)
 
 
 def get_lka_aids(rollout_type, n_agents):
-    if rollout_type == 'full':
+    if rollout_type == 'lka':
         lka_aids = list(range(n_agents))
-    elif rollout_type == 'part':
+    elif rollout_type == 'mix':
         n = np.random.choice(n_agents+1)
         lka_aids = np.random.choice(n_agents, n, replace=False)
     else:
@@ -93,8 +93,8 @@ def train(
     eval_data = load_eval_data(filename=env_name)
     rng = dynamics.model.rng
 
-    rollout_type = routine_config.get('rollout_type', 'full')
-    assert rollout_type in ('full', 'part'), rollout_type
+    rollout_type = routine_config.get('rollout_type', 'mix')
+    assert rollout_type in ('lka', 'mix'), rollout_type
     n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)

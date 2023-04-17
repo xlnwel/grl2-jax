@@ -1,7 +1,7 @@
 ---
-algorithm: &algo dynamics_tx
-name: dynamics_tx
-info: dynamics_tx
+algorithm: &algo dynamics
+name: dynamics
+info: dynamics
 
 precision: 32
 
@@ -21,7 +21,7 @@ routine:
     n_envs: &nenvs 64
 
     model_warm_up: True
-    model_warm_up_steps: 1e6
+    model_warm_up_steps: 5e4
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -44,7 +44,7 @@ strategy:
         ergodic: False
         training_data_size: &ds 1e5
         valid_data_size: 1e4
-        wp_n_epochs: 500
+        wp_n_epochs: 2500
         n_epochs: &nepochs 500
 
 model:
@@ -53,24 +53,19 @@ model:
     global_state_type: obs
     rn_std: .1
     model_norm_obs: &obs_norm True
-    deterministic_trans: True
+    deterministic_trans: False
     share_reward: True
-    pred_raw: True
-    model_loss_type: &mlt mse
+    pred_raw: False
+    model_loss_type: &mlt mbpo
     obs_clip: 10
 
     emodels:
         nn_id: emodels
         n_models: &n 1
+        units_list: [200, 200, 200, 200]
+        activation: relu
+        norm: null
         out_type: continuous
-        in_config:
-            out_size: &embed 128
-        tx_config:
-            n_blocks: 4
-            attn_config:
-                n_heads: 4
-                # attn_dropout: 0
-                # res_dropout: 0
         out_config:
             max_logvar: .5
             min_logvar: -10
@@ -113,7 +108,7 @@ trainer:
 
     model_opt:
         opt_name: adam
-        lr: 5e-4
+        lr: 8e-4
         clip_norm: 10
         eps: 1e-5
         weight_decay: 1e-6
@@ -135,6 +130,10 @@ actor: {}
 
 buffer:
     type: uniform
+
+    alpha: .4
+    beta: 0
+    use_is_ratio: True
 
     model_norm_obs: *obs_norm
     n_runners: *nrunners

@@ -179,13 +179,13 @@ class Trainer(TrainerBase):
                 data.obs, 
                 data.obs_loc, 
                 data.obs_scale, 
-                dim_mask=dim_mask, 
+                dim_mask=data.dim_mask, 
             )
             data.next_norm_obs = normalize(
                 data.next_obs, 
                 data.obs_loc, 
                 data.obs_scale, 
-                dim_mask=dim_mask, 
+                dim_mask=data.dim_mask, 
             )
         else:
             data.dim_mask = np.ones_like(data.obs)
