@@ -17,14 +17,18 @@ envs=(
 configs=(
     "${suite}"
 )
-shift
+# shift
 args1=(
     # $2
-    full
-    part
+    5e-4
+    5e-4
+    8e-4
+    8e-4
+    1e-3
+    1e-3
 )
 args2=(
-    False
+    True
     False
 )
 args3=(
@@ -88,8 +92,7 @@ commands=()
 # done
 # done
 # a="happo"
-# for a in "${algos[@]}"; do
-kw=$@
+kws=$@
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

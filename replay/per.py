@@ -57,7 +57,8 @@ class ProportionalPER(Buffer):
         self._top_priority = 1.
         self._data_structure = SumTree(self.max_size)
         self._use_is_ratio = self.config.use_is_ratio
-        self._beta = self.config.get('beta0', .4)
+        self._alpha = self.config.get('alpha', 0)
+        self._beta = self.config.get('beta', .4)
         if self.config.beta_scheduler:
             assert isinstance(self.config.beta_scheduler, list)
             self._beta_scheduler = PiecewiseSchedule(self.config.beta_scheduler)
@@ -131,7 +132,7 @@ class ProportionalPER(Buffer):
         self._update_obs_rms(trajs)
 
         priority = self._top_priority * np.ones(n)
-        self._data_structure.batch_update(idxes, priority)
+        self.update_data_structure(idxes, priority)
         self._idx += n
         if self._idx >= self.max_size:
             self._idx %= self.max_size
@@ -150,7 +151,7 @@ class ProportionalPER(Buffer):
         self._update_obs_rms(trajs)
         
         priority = self._top_priority * np.ones(n)
-        self._data_structure.batch_update(idxes, priority)
+        self.update_data_structure(idxes, priority)
         self._idx += n
         if self._idx >= self.max_size:
             self._idx %= self.max_size
@@ -205,7 +206,7 @@ class ProportionalPER(Buffer):
         assert not np.any(np.isnan(priorities)), priorities
         np.testing.assert_array_less(0, priorities)
         self._top_priority = max(self._top_priority, np.max(priorities))
-        self._data_structure.batch_update(idxes, priorities)
+        self.update_data_structure(idxes, priorities)
 
     """ Retrieval """
     def retrieve_all_data(self):
@@ -228,7 +229,11 @@ class ProportionalPER(Buffer):
     """ Implementation """
     def _update_beta(self):
         self._beta = self._beta_scheduler(self._sample_i)
-        
+    
+    def update_data_structure(self, idxes, priorities):
+        priorities = priorities ** self._alpha
+        self._data_structure.batch_update(idxes, priorities)
+
     def _compute_IS_ratios(self, probabilities):
         """
         w = (N * p)**(-beta)

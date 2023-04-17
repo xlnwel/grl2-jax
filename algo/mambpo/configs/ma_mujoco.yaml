@@ -56,7 +56,6 @@ strategy:
     train_loop:
         wp_n_epochs: 200
         n_epochs: 400
-        n_lka_epochs: 100
 
 model:
     aid: 0

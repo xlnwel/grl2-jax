@@ -9,7 +9,7 @@ suite=$1
 shift
 # envs=(escalation staghunt harvest)
 envs=(
-    Ant_2x4
+    # Ant_2x4
     HalfCheetah_2x3
     Walker2d_2x3
 )

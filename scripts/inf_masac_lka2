@@ -6,7 +6,7 @@ suite=$1
 shift
 algos=(
     # $1
-    mambpo
+    # mambpo
     mambpo_lka2
 )
 # shift
@@ -84,6 +84,7 @@ a3=${args3[$idx]}
 commands=()
 # for a4 in "${args4[@]}"; do
 #     kws="0#n_epochs=$a1"
+kws=$@
 for e in "${envs[@]}"; do
     config="${suite}"
     env="${suite}-${e}"

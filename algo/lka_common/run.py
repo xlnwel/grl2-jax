@@ -2,7 +2,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
-from core.typing import AttrDict, dict2AttrDict
+from core.typing import AttrDict
 from env.typing import EnvOutput
 from env.func import create_env
 from tools.rms import normalize
@@ -14,7 +14,7 @@ from algo.ma_common.run import *
 def initialize_for_dynamics_run(agent, dynamics, routine_config):
     sample_keys = agent.buffer.obs_keys + ['state'] \
         if routine_config.restore_state else agent.buffer.obs_keys
-    sample_keys += ['discount', 'reset']
+    sample_keys = sample_keys + ['discount', 'reset']
     obs = dynamics.buffer.sample_from_recency(
         batch_size=routine_config.n_simulated_envs, 
         sample_keys=sample_keys, 
@@ -68,6 +68,7 @@ def prepare_rms(agent, dynamics):
     return agent_obs_rms, agent_obs_clip, dynamics_obs_rms, dynamics_dim_mask
 
 
+@timeit
 @partial(jax.jit, static_argnums=[0, 2, 7])
 def rollout(
     agent, agent_params, 

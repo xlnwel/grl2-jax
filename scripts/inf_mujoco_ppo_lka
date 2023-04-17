@@ -36,7 +36,7 @@ dynamics=(
     "dynamics"
 )
 date=$(date +"%m%d")
-date="0414"
+# date="0414"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)

@@ -2,7 +2,7 @@ from functools import partial
 
 from replay.dual import PRIMAL_REPLAY, DualReplay
 from algo.ma_common.train import *
-from algo.lka_common.train import eval_ego_and_lka, lka_optimize
+from algo.lka_common.train import load_eval_data, eval_and_log
 
 
 @timeit
@@ -39,17 +39,17 @@ def train(
         final=routine_config.MAX_STEPS
     )
     runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
+    env_name = runner.env_config().env_name
+    eval_data = load_eval_data(filename=env_name)
 
     while env_step < routine_config.MAX_STEPS:
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
-        lka_optimize(agent)
         train_step = ego_optimize(agent)
         time2record = to_record(env_step)
 
         if time2record:
-            eval_ego_and_lka(agent, runner, routine_config)
-            save(agent, None)
-            log(agent, None, env_step, train_step, {})
+            eval_and_log(agent, None, runner, routine_config, 
+                         agent.training_data, eval_data, eval_lka=False)
 
 
 main = partial(main, train=train)

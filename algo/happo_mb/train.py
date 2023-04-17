@@ -101,10 +101,9 @@ def train(
         errors = AttrDict()
         time2record = to_record(env_step)
 
-        if env_step < dynamics_routine_config.model_warm_up_steps:
-            for _ in range(dynamics_routine_config.model_warm_up_train_epochs):
-                dynamics_optimize(dynamics)
-            stats = dynamics.valid_stats()
+        if dynamics_routine_config.model_warm_up and \
+            env_step < dynamics_routine_config.model_warm_up_steps:
+            dynamics_optimize(dynamics, warm_up_stage=True)
         else:
             dynamics_optimize(dynamics)
         # if routine_config.quantify_dynamics_errors and time2record:
@@ -146,7 +145,7 @@ def train(
             #     log_dynamics_errors(errors, outdir, env_step)
             stats = dynamics.valid_stats()
             dynamics.store(**stats)
-            eval_and_log(agent, dynamics, runner, routine_config, 
+            eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, errors)
 
 

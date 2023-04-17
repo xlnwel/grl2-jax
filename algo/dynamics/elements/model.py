@@ -142,7 +142,7 @@ class Model(ModelBase):
             model_params = params.emodels
         stats = AttrDict()
         next_obs, stats = self.next_obs(
-            model, model_params, rngs[0], obs, action, 
+            model, model_params, rngs[0], data.obs, obs, action, 
             dim_mask, elite_indices, stats, evaluation
         )
         
@@ -150,10 +150,11 @@ class Model(ModelBase):
         reward, stats = self.reward(
             params.reward, rngs[1], reward_obs, action, stats)
         
+        discount_obs = self.get_discount_obs(dim_mask, obs)
         discount, stats = self.discount(
-            params.discount, rngs[2], obs, action, stats)
+            params.discount, rngs[2], discount_obs, action, stats)
 
-        if self.config.model_norm_obs:
+        if not self.config.pred_raw and self.config.model_norm_obs:
             next_obs = denormalize(
                 next_obs, 
                 data.obs_loc, 
@@ -187,7 +188,7 @@ class Model(ModelBase):
 
         return env_out, stats, data.state
 
-    def next_obs(self, model, params, rng, obs, action, 
+    def next_obs(self, model, params, rng, raw_obs, obs, action, 
                  dim_mask, elite_indices, stats, evaluation):
         rngs = random.split(rng, 3)
 
@@ -201,8 +202,11 @@ class Model(ModelBase):
             next_obs = next_obs.take(i, axis=0)
         if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
-            next_obs = obs + next_obs
-        next_obs = jnp.where(dim_mask, next_obs, obs)
+            if self.config.pred_raw:
+                next_obs = raw_obs + next_obs
+            else:
+                next_obs = obs + next_obs
+        next_obs = jnp.where(dim_mask, next_obs, raw_obs)
 
         return next_obs, stats
 
@@ -225,13 +229,18 @@ class Model(ModelBase):
             action = nn.one_hot(action, self.env_stats.action_dim[0])
         return action
 
-    def get_reward_obs(self, dim_mask, obs, norm_obs):
-        # For agent-specific reward, we keep constant dimensions in that some dimensions represent the agent's identity
-        reward_obs = jnp.where(dim_mask, norm_obs, obs)
+    def get_reward_obs(self, dim_mask, raw_obs, obs):
+        if self.config.share_reward:
+            # For agent-agnostic reward, we replace constant dimensions with zeros
+            reward_obs = jnp.where(dim_mask, obs, 0)
+        else:
+            # For agent-specific reward, we keep constant dimensions in that some dimensions represent the agent's identity
+            reward_obs = jnp.where(dim_mask, obs, raw_obs)
         return reward_obs
 
-    def get_discount_obs(self, dim_mask, pred_obs):
-        discount_next_obs = jnp.where(dim_mask, pred_obs, 0)
+    def get_discount_obs(self, dim_mask, obs):
+        # For discount prediction, we replace constant dimensions with zeros to remove agent-specific information
+        discount_next_obs = jnp.where(dim_mask, obs, 0)
         return discount_next_obs
         
     def get_obs_rms_dir(self):

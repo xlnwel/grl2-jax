@@ -12,10 +12,11 @@ class TrainingLoop(TrainingLoopBase):
     def post_init(self):
         self.emodel_metrics = collections.deque(maxlen=self.config.n_epochs)
 
-    def _train(self):
+    def _before_train(self, step):
         obs_rms = self.buffer.get_obs_rms()
         self.model.update_obs_rms(obs_rms)
 
+    def _train(self):
         n = 0
         stats = {}
         if self.config.ergodic:
