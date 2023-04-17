@@ -89,6 +89,7 @@ model:
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
+        use_feature_norm: True
     value:
         nn_id: value
         units_list: [64, 64]
@@ -97,6 +98,7 @@ model:
         norm: null
         rnn_type: &vrnn null
         rnn_units: 64
+        use_feature_norm: True
 
 loss:
     # hyperparams for value target and advantage
