@@ -111,6 +111,11 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
+            stats = dynamics.valid_stats()
+            dynamics.store(**stats)
+            if eval_data:
+                stats = dynamics.valid_stats(eval_data, 'eval')
+                dynamics.store(**stats)
             eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, eval_lka=False)
 

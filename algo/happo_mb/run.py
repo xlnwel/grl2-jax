@@ -30,7 +30,7 @@ def add_data_to_buffer(
         if agent.trainer.config.popart:
             poparts = [p.get_rms_stats(with_count=False, return_std=True) 
                        for p in agent.trainer.popart]
-            mean, std = [np.stack(s) for s in zip(*poparts)]
+            mean, std = [np.concatenate(s) for s in zip(*poparts)]
             value = denormalize(data.value, mean, std)
         else:
             value = data.value

@@ -495,8 +495,8 @@ def summarize_adv_ratio(stats, data):
     #     data.sample_mask, data.n)
     stats.adv_ratio_pp = jnp.logical_and(stats.advantage > 0, stats.ratio > 1)
     stats.adv_ratio_pn = jnp.logical_and(stats.advantage > 0, stats.ratio < 1)
-    stats.pp_ratio = jnp.where(stats.adv_ratio_pp, stats.ratio, 1)
-    stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 1)
+    stats.pp_ratio = jnp.where(stats.adv_ratio_pp, stats.ratio, 0)
+    stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 0)
     # stats.adv_ratio_np = jax_math.mask_mean(
     #     jnp.logical_and(stats.advantage < 0, stats.ratio > 1), 
     #     data.sample_mask, data.n)

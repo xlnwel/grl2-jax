@@ -51,8 +51,8 @@ class Loss(LossBase):
             next_norm_obs = data.next_obs
 
         # observation loss
-        model_dist, reward_dist, disc_dist = self.modules.edynamics(
-            theta.edynamics, rngs[0], norm_obs, data.action, training=True
+        model_dist = self.modules.emodels(
+            theta.emodels, rngs[0], norm_obs, data.action, training=True
         )
         stats = dict2AttrDict(model_dist.get_stats('model'), to_copy=True)
         stats.norm_obs = norm_obs
@@ -90,10 +90,19 @@ class Loss(LossBase):
             stats.trans_mae = stats.model_mae
 
         # reward loss
+        reward_obs, reward_next_obs = self.model.get_reward_obs(
+            dim_mask, data.obs, norm_obs, pred_obs
+        )
+        action = jnp.expand_dims(data.action, 0)
+        reward_dist = self.modules.reward(
+            theta.reward, rngs[1], reward_obs, action, reward_next_obs)
         reward_loss, stats = compute_reward_loss(
             self.config, reward_dist, data.reward, stats)
 
         # discount loss
+        disc_next_obs = self.model.get_discount_obs(dim_mask, pred_obs)
+        disc_dist = self.modules.discount(
+            theta.discount, rngs[2], disc_next_obs)
         discount_loss, stats = compute_discount_loss(
             self.config, disc_dist, data.discount, stats)
 
@@ -112,6 +121,7 @@ def create_loss(config, model, name='model'):
 def compute_model_loss(
     config, dist, model_target, stats, dim_mask,
 ):
+    n = jax_math.count_masks(dim_mask)
     if config.model_loss_type == 'mbpo':
         mean_loss, var_loss = jax_loss.mbpo_model_loss(
             dist.loc, 
@@ -134,8 +144,9 @@ def compute_model_loss(
         loss = - dist.log_prob(model_target)
         stats.model_mae = jnp.where(
             dim_mask, lax.abs(dist.loc - model_target), 0.)
-        stats.mean_loss = jnp.mean(
-            loss, axis=utils.except_axis(loss, ENSEMBLE_AXIS)
+        stats.mean_loss = jax_math.mask_mean(
+            loss, mask=dim_mask, n=n, 
+            axis=utils.except_axis(loss, ENSEMBLE_AXIS)
         )
         chex.assert_rank([stats.mean_loss], 1)
         loss = jnp.sum(stats.mean_loss)
@@ -144,7 +155,7 @@ def compute_model_loss(
         stats.model_mae = jnp.where(
             dim_mask, lax.abs(dist.loc - model_target), 0.)
         stats.mean_loss = jax_math.mask_mean(
-            loss, mask=dim_mask, 
+            loss, mask=dim_mask, n=n, 
             axis=utils.except_axis(loss, ENSEMBLE_AXIS)
         )
         chex.assert_rank([stats.mean_loss], 1)
@@ -156,13 +167,13 @@ def compute_model_loss(
             pred_next_obs == model_target, axis=-1
         )
         stats.obs_dim_consistency = jax_math.mask_mean(
-            obs_cons, mask=dim_mask, 
+            obs_cons, mask=dim_mask, n=n, 
         )
         stats.obs_consistency = jax_math.mask_mean(
-            obs_cons == 1, mask=dim_mask, 
+            obs_cons == 1, mask=dim_mask, n=n, 
         )
         stats.mean_loss = jax_math.mask_mean(
-            loss, mask=dim_mask, 
+            loss, mask=dim_mask, n=n, 
             axis=utils.except_axis(loss, ENSEMBLE_AXIS)
         )
         assert len(stats.mean_loss.shape) == 1, stats.mean_loss.shape

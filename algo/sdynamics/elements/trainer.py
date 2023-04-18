@@ -46,7 +46,7 @@ class Trainer(TrainerBase):
         theta = self.model.theta.copy()
         self.opts.theta, self.params.theta = optimizer.build_optimizer(
             params=theta, 
-            **self.config.model_opt, 
+            **self.config.theta_opt, 
             name='theta'
         )
 

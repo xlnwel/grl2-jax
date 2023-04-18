@@ -13,14 +13,17 @@ from core import optimizer
 from core.typing import AttrDict
 from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
-from tools.utils import flatten_dict, prefix_name, batch_dicts, yield_from_tree_with_indices
+from tools.utils import flatten_dict, prefix_name, yield_from_tree_with_indices
 from algo.lka_common.elements.model import LOOKAHEAD, pop_lookahead
 from algo.lka_common.elements.trainer import *
 
 
 class Trainer(TrainerBase):
     def add_attributes(self):
-        self.popart = [RunningMeanStd((0, 1)) for _ in self.model.aid2uids]
+        self.popart = [
+            RunningMeanStd((0, 1), name=f'popart{i}', ndim=1) 
+            for i in self.model.aid2uids
+        ]
         self.indices = np.arange(self.config.n_runners * self.config.n_envs)
         self.n_agents = self.env_stats.n_agents
         self.aid2uids = self.env_stats.aid2uids
@@ -460,7 +463,7 @@ class Trainer(TrainerBase):
         filedir = self.get_popart_dir()
         self.popart = restore(
             filedir=filedir, filename='popart', 
-            default=[RunningMeanStd((0, 1, 2)) for _ in self.model.aid2uids], 
+            default=self.popart, 
             name='popart'
         )
 

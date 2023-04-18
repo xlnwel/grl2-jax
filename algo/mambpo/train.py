@@ -77,6 +77,11 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
+            stats = dynamics.valid_stats()
+            dynamics.store(**stats)
+            if eval_data:
+                stats = dynamics.valid_stats(eval_data, 'eval')
+                dynamics.store(**stats)
             eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, eval_lka=False)
 
@@ -105,7 +110,7 @@ def main(configs, train=train):
     agent = build_agent(config, env_stats)
     # build dynamics
     dynamics = build_dynamics(config, dynamics_config, env_stats)
-    dynamics.change_buffer(agent.buffer)
+    dynamics.change_buffer(agent.buffer.primal_replay)
     save_code_for_seed(config)
 
     routine_config = config.routine.copy()

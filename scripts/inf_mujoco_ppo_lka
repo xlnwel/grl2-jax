@@ -18,10 +18,10 @@ configs=(
     "${suite}"
 )
 args1=(
-    # $1
-    3e-4
-    5e-4
-    1e-4
+    lka
+    lka
+    mix
+    mix
 )
 args2=(
     # $2
@@ -33,10 +33,11 @@ args3=(
     1
 )
 dynamics=(
+    $1
     "dynamics"
 )
 date=$(date +"%m%d")
-date="0417"
+# date="0417"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
@@ -72,8 +73,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-# for a1 in "${args1[@]}"; do
-kws=$@
+# kws="dynamics_name=$@"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

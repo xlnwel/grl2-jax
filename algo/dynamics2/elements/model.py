@@ -33,11 +33,15 @@ def construct_fake_data(env_stats, aid):
     return data
 
 
+def get_ith_model_prefix(i):
+    return f'emodels/model{i}'
+
+
 class Model(ModelBase):
     def add_attributes(self):
-        self.elite_indices = np.arange(self.config.edynamics.n_models)
+        self.elite_indices = np.arange(self.config.emodels.n_models)
         self.elite_idx = None
-        self.n_elites = min(self.config.n_elites, self.config.edynamics.n_models)
+        self.n_elites = min(self.config.n_elites, self.config.emodels.n_models)
         self.n_selected_elites = collections.defaultdict(lambda: 0)
 
         self.obs_rms = RunningMeanStd([0, 1], name='dyna_obs_rms')
@@ -47,14 +51,18 @@ class Model(ModelBase):
         self.is_action_discrete = self.env_stats.is_action_discrete[aid]
         data = construct_fake_data(self.env_stats, aid)
 
-        self.params.dynamics, self.modules.dynamics = self.build_net(
-            data.obs[:, 0, :], data.action[:, 0], name='dynamics')
-        self.params.edynamics, self.modules.edynamics = self.build_net(
-            data.obs, data.action, True, name='edynamics')
+        self.params.model, self.modules.model = self.build_net(
+            data.obs[:, 0, :], data.action[:, 0], name='model')
+        self.params.emodels, self.modules.emodels = self.build_net(
+            data.obs, data.action, True, name='emodels')
+        self.params.reward, self.modules.reward = self.build_net(
+            data.obs, data.action, data.obs, name='reward')
+        self.params.discount, self.modules.discount = self.build_net(
+            data.obs, name='discount')
 
     @property
     def theta(self):
-        return self.params.subdict('edynamics')
+        return self.params.subdict('emodels', 'reward', 'discount')
 
     def rank_elites(self, metrics):
         self.elite_indices = np.argsort(metrics)
@@ -65,38 +73,31 @@ class Model(ModelBase):
             idx = np.random.randint(self.n_elites)
         self.elite_idx = self.elite_indices[idx]
         self.n_selected_elites[f'elite{self.elite_idx}'] += 1
-        dynamics = self.get_ith_dynamics(self.elite_idx)
-        assert set(dynamics) == set(self.params.dynamics), (set(self.params.dynamics) - set(dynamics))
-        self.params.dynamics = dynamics
+        model = self.get_ith_model(self.elite_idx)
+        assert set(model) == set(self.params.model), (set(self.params.model) - set(model))
+        self.params.model = model
         return self.elite_idx
     
     def evolve_model(self, score):
         indices = np.argsort(score)
-        # replace the worst dynamics with the best one
-        dynamics = self.get_ith_dynamics(indices[-1], indices[0])
-        # perturb the dynamics with Gaussian noise
-        for k, v in dynamics.items():
+        # replace the worst model with the best one
+        model = self.get_ith_model(indices[-1], f'model/model{indices[0]}')
+        # perturb the model with Gaussian noise
+        for k, v in model.items():
             init = nn.initializers.normal(self.config.rn_std, dtype=jnp.float32)
             self.act_rng, rng = random.split(self.act_rng)
-            dynamics[k] = v + init(rng, v.shape)
-        keys = set(self.params.edynamics)
-        self.params.edynamics.update(dynamics)
-        assert keys == set(self.params.edynamics), (keys, set(self.params.edynamics))
+            model[k] = v + init(rng, v.shape)
+        keys = set(self.params.emodels)
+        self.params.emodels.update(model)
+        assert keys == set(self.params.emodels), (keys, set(self.params.emodels))
 
-    def get_ith_dynamics(self, i, new_idx=None, eparams=None):
+    def get_ith_model(self, i, new_prefix='model/model', eparams=None):
         if eparams is None:
-            eparams = self.params.edynamics
-        dynamics = {}
-        for k in self.params.dynamics.keys():
-            k = k.split('/')
-            old_key = k.copy()
-            old_key[0] = f'e{old_key[0]}'
-            old_key[1] = f'{old_key[1]}{i}'
-            old_key = '/'.join(old_key)
-            k[1] = k[1] if new_idx is None else f'{k[1]}{new_idx}'
-            new_key = '/'.join(k)
-            dynamics[new_key] = eparams[old_key]
-        return dynamics
+            eparams = self.params.emodels
+        model = {k.replace(get_ith_model_prefix(i), new_prefix): v 
+            for k, v in eparams.items() if k.startswith(get_ith_model_prefix(i))
+        }
+        return model
 
     def action(self, data, evaluation):
         self.act_rng, act_rng = jax.random.split(self.act_rng)
@@ -133,18 +134,20 @@ class Model(ModelBase):
         else:
             obs = data.obs
 
-        if elite_indices is None:
-            dynamics = self.modules.dynamics
-            dynamics_params = params.dynamics
-        else:
-            dynamics = self.modules.edynamics
-            dynamics_params = params.edynamics
-
+        model = params.model
         stats = AttrDict()
-        next_obs, reward, discount, stats = self.forward_dynamics(
-            dynamics, dynamics_params, rngs[0], obs, action, 
-            dim_mask, elite_indices, stats, evaluation)
+        next_obs, stats = self.next_obs(
+            model, rngs[0], obs, action, dim_mask, stats, evaluation)
         
+        reward_obs, reward_next_obs = self.get_reward_obs(
+            dim_mask, data.obs, obs, next_obs)
+        reward, stats = self.reward(
+            params.reward, rngs[1], reward_obs, action, reward_next_obs, stats)
+        
+        discount_next_obs = self.get_discount_obs(dim_mask, next_obs)
+        discount, stats = self.discount(
+            params.discount, rngs[2], discount_next_obs, stats)
+
         if self.config.model_norm_obs:
             next_obs = denormalize(
                 next_obs, 
@@ -179,33 +182,54 @@ class Model(ModelBase):
 
         return env_out, stats, data.state
 
-    def forward_dynamics(self, dynamics, params, rng, obs, action, 
-                         dim_mask, elite_indices, stats, evaluation):
-        rngs = random.split(rng, 3)
+    def next_obs(self, params, rng, obs, action, dim_mask, stats, evaluation):
+        rngs = random.split(rng, 2)
 
-        model_dist, reward_dist, disc_dist = dynamics(params, rngs[0], obs, action)
+        dist = self.modules.model(params, rngs[0], obs, action)
         if evaluation or self.config.deterministic_trans:
-            next_obs = model_dist.mode()
+            next_obs = dist.mode()
         else:
-            next_obs = model_dist.sample(seed=rngs[1])
-        if elite_indices is not None:
-            i = random.choice(rngs[2], elite_indices)
-            next_obs = next_obs.take(i, axis=0)
-        if isinstance(model_dist, jax_dist.MultivariateNormalDiag):
+            next_obs = dist.sample(seed=rngs[1])
+        if isinstance(dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
             next_obs = obs + next_obs
         next_obs = jnp.where(dim_mask, next_obs, obs)
-        reward = reward_dist.mode()
-        if isinstance(reward_dist, jax_dist.Categorical):
-            rewards = self.env_stats.reward_map[rewards]
-        discount = disc_dist.mode()
 
-        return next_obs, reward, discount, stats
+        return next_obs, stats
+
+    def reward(self, params, rng, obs, action, next_obs, stats):
+        dist = self.modules.reward(params, rng, obs, action, next_obs)
+        rewards = dist.mode()
+        if isinstance(dist, jax_dist.Categorical):
+            rewards = self.env_stats.reward_map[rewards]
+
+        return rewards, stats
+
+    def discount(self, params, rng, obs, stats):
+        dist = self.modules.discount(params, rng, obs)
+        discount = dist.mode()
+
+        return discount, stats
 
     def process_action(self, action):
         if self.env_stats.is_action_discrete[0]:
             action = nn.one_hot(action, self.env_stats.action_dim[0])
         return action
+
+    def get_reward_obs(self, dim_mask, obs, norm_obs, pred_obs):
+        if self.config.get('share_reward', True):
+            # NOTE: we replace constant dimensions with zeros to minimize their influence
+            reward_obs = jnp.where(dim_mask, norm_obs, 0)
+            reward_next_obs = jnp.where(dim_mask, pred_obs, 0)
+        else:
+            # For agent-specific reward, we keep constant dimensions in that some dimensions represent the agent's identity
+            reward_obs = jnp.where(dim_mask, norm_obs, obs)
+            reward_next_obs = jnp.where(dim_mask, pred_obs, obs)
+        return reward_obs, reward_next_obs
+
+    def get_discount_obs(self, dim_mask, pred_obs):
+        discount_next_obs = jnp.where(dim_mask, pred_obs, 0)
+        return discount_next_obs
         
     def get_obs_rms_dir(self):
         path = '/'.join([self.config.root_dir, self.config.model_name])
@@ -238,19 +262,20 @@ class Model(ModelBase):
     def restore_obs_rms(self):
         filedir = self.get_obs_rms_dir()
         self.obs_rms = restore(
-            filedir=filedir, filename='obs_rms', default=self.obs_rms
+            filedir=filedir, filename='obs_rms', 
+            default=RunningMeanStd((0, 1), name='dyna_obs_rms')
         )
 
 
 def setup_config_from_envstats(config, env_stats):
     if 'aid' in config:
         aid = config['aid']
-        config.edynamics.model_out_size = env_stats.obs_shape[aid]['obs'][0]
+        config.emodels.out_size = env_stats.obs_shape[aid]['obs'][0]
     else:
-        config.edynamics.model_out_size = env_stats.obs_shape['obs'][0]
-    config.dynamics = config.edynamics.copy()
-    config.dynamics.nn_id = 'dynamics'
-    config.dynamics.pop('n_models')
+        config.emodels.out_size = env_stats.obs_shape['obs'][0]
+    config.model = config.emodels.copy()
+    config.model.nn_id = 'model'
+    config.model.pop('n_models')
     if config.model_loss_type == 'mse':
         # for MSE loss, we only consider deterministic transitions since the variance is unconstrained.
         config.deterministic_trans = True

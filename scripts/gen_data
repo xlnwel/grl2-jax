@@ -8,26 +8,27 @@
 
 
 algos=(
-    happo 
-    happo_lka1 
-    happo_lka2 
-    happo_mb
+    # happo 
+    # happo_lka1 
+    # happo_lka2 
+    mambpo
+    # happo_mb
 )
 envs=(
-    Ant_2x4
+    # Ant_2x4
     HalfCheetah_2x3
-    Walker2d_2x3
+    # Walker2d_2x3
 )
-for a in "${algos[@]}"; do
-    for e in "${envs[@]}"; do
-        for s in {0..3}; do
-            python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-$e/$a/0325/baseline/seed=$s/a0 -ne 10 -ns 1000 $@
-        done
-    done
-done
+# for a in "${algos[@]}"; do
+#     for e in "${envs[@]}"; do
+#         for s in {0..3}; do
+#             python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-$e/$a/0412/baseline/seed=$s/a0 -ne 10 -ns 1000 $@
+#         done
+#     done
+# done
 
 
-# python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-Ant_2x4/happo_lka1/0325/baseline/seed=1/a0 -ne 10 -ns 1000
+# python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-Ant_2x4/happo_lka2/0325/baseline/seed=1/a0 -ne 10 -ns 1000
 # python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-Ant_2x4/happo_lka1/0325/baseline/seed=1/a0 -ne 10 -ns 1000
 # python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-Ant_2x4/happo_lka1/0325/baseline/seed=2/a0 -ne 10 -ns 1000
 # python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-Ant_2x4/happo_lka1/0325/baseline/seed=3/a0 -ne 10 -ns 1000
@@ -41,6 +42,6 @@ done
 # python run/gen_data.py /System/Volumes/Data/mnt/公共区/cxw/ma_mujoco-logs/ma_mujoco-Walker2d_2x3/happo_lka1/0325/baseline/seed=3/a0 -ne 10 -ns 1000
 
 # python run/gen_data_from_expert.py
-# rsync -avz data /System/Volumes/Data/mnt/公共区/cxw
+rsync -avz data /System/Volumes/Data/mnt/公共区/cxw
 
 # ./scripts/run_inf

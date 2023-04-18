@@ -1,7 +1,7 @@
 ---
-algorithm: &algo dynamics
-name: dynamics
-info: dynamics
+algorithm: &algo dynamics2
+name: dynamics2
+info: dynamics2
 
 precision: 32
 
@@ -19,6 +19,9 @@ routine:
     LOG_PERIOD: 2e5
 
     n_envs: &nenvs 64
+
+    model_warm_up: True
+    model_warm_up_steps: 5e4
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -39,16 +42,21 @@ strategy:
     algorithm: *algo
     train_loop:
         ergodic: False
-        n_epochs: &nepochs 5
+        training_data_size: &ds 1e5
+        valid_data_size: 1e4
+        wp_n_epochs: 1000
+        n_epochs: &nepochs 1000
 
 model:
     aid: 0
-    n_elites: 1
+    n_elites: 5
     global_state_type: obs
     rn_std: .1
     model_norm_obs: &obs_norm True
-    deterministic_trans: True
-    model_loss_type: &mlt mse
+    deterministic_trans: False
+    share_reward: True
+    pred_raw: False
+    model_loss_type: &mlt mbpo
     obs_clip: 10
 
     emodels:
@@ -56,7 +64,7 @@ model:
         n_models: &n 1
         units_list: [200, 200, 200, 200]
         activation: relu
-        norm: layer
+        norm: null
         out_type: continuous
         out_config:
             max_logvar: .5
@@ -66,33 +74,56 @@ model:
         out_size: 1
         units_list: [200, 200, 200, 200]
         activation: relu
-        norm: layer
+        norm: null
         out_scale: .01
+        use_next_obs: False
+        balance_dimension: False
+        obs_embed: 128
+        action_embed: 64
     discount:
         nn_id: discount
         out_size: 1
-        units_list: [200, 200]
+        units_list: [200, 200, 200]
         activation: relu
-        norm: layer
+        norm: null
+        out_scale: 1
 
 loss:
-    model_loss_type: ce
+    model_loss_type: *mlt
     n_models: *n
 
     model_coef: 1
     reward_coef: 1
     discount_coef: 1
 
+    model_prio_coef: 1
+    reward_prio_coef: 1
+    discount_prio_coef: 1
+
 trainer:
     algorithm: *algo
     aid: 0
+    trust_threshold: null
     timeout_done: *td
 
     theta_opt:
         opt_name: adam
-        lr: 3e-4
+        lr: 8e-4
         clip_norm: 10
         eps: 1e-5
+        weight_decay: 1e-6
+    reward_opt:
+        opt_name: adam
+        lr: 5e-4
+        clip_norm: 10
+        eps: 1e-5
+        weight_decay: 0
+    discount_opt:
+        opt_name: adam
+        lr: 5e-4
+        clip_norm: 10
+        eps: 1e-5
+        weight_decay: 0
 
 actor: {}
 
@@ -100,10 +131,16 @@ actor: {}
 buffer:
     type: uniform
 
+    alpha: .4
+    beta: 0
+    use_is_ratio: True
+
+    model_norm_obs: *obs_norm
     n_runners: *nrunners
     n_envs: *nenvs
-    max_size: 1e5
+    max_size: *ds
     min_size: 1e3
+    n_recency: 1e3
     batch_size: 256
     sample_size: 1
 

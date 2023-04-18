@@ -61,7 +61,8 @@ def main(args):
             restore(filedir=dataset_dir, filename=f)
             for f in elite_stats_keys
         ], np.concatenate)
-        save_data(data, filename, filedir=elite_filedir)
+        data_filename = '-'.join(filename.split('-')[:2])
+        save_data(data, data_filename, filedir=elite_filedir)
         save_stats(elite_stats, elite_stats_path)
 
 

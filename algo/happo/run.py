@@ -22,13 +22,14 @@ def prepare_buffer(
     data = agent.actor.normalize_obs(data, is_next=False)
     data = agent.actor.normalize_obs(data, is_next=True)
     agent.actor.update_obs_rms(obs)
-    data.sample_mask = np.ones_like(data.reward, np.float32)
+    if 'sample_mask' not in data:
+        data.sample_mask = np.ones_like(data.reward, np.float32)
     
     if compute_return:
         if agent.trainer.config.popart:
             poparts = [p.get_rms_stats(with_count=False, return_std=True) 
                        for p in agent.trainer.popart]
-            mean, std = [np.stack(s) for s in zip(*poparts)]
+            mean, std = [np.concatenate(s) for s in zip(*poparts)]
             value = denormalize(data.value, mean, std)
         else:
             value = data.value

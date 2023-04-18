@@ -274,6 +274,7 @@ if __name__ == '__main__':
         strs = f'{root_dir}/{model_name}'.split('/')
         for s in strs[::-1]:
             if s.endswith('logs'):
+                directory = directory.removesuffix(f'/{s}')
                 break
             if directory.endswith(s):
                 directory = directory.removesuffix(f'/{s}')

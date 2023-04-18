@@ -2,13 +2,16 @@
 
 export PYTHONPATH=.
 
-algos=(
-    mambpo
-)
 suite=$1
 shift
+algos=(
+    mambpo
+    # mambpo
+    # mambpo_lka2
+    mambpo_lka2
+)
 envs=(
-    Ant_2x4
+    # Ant_2x4
     HalfCheetah_2x3
     Walker2d_2x3
 )
@@ -17,15 +20,21 @@ configs=(
 )
 args1=(
     # $1
-    200 400 2000
+    # 200
+    400
+    800
+    # 1000
 )
 args2=(
     # $2
-    .5 .5 .1
+    .1
+    .3
+    .5
 )
 args3=(
-    $3
-    1
+    300
+    500
+    # 800
 )
 args4=(
     200
@@ -36,6 +45,7 @@ dynamics=(
     # "dynamics_tx"
     # "dynamics_tx"
     "dynamics"
+    # "dynamics2"
 )
 date=$(date +"%m%d")
 info=""
@@ -78,7 +88,7 @@ a3=${args3[$idx]}
 commands=()
 # for a4 in "${args4[@]}"; do
 kws=$@
-# kws="0#dynamics_name=$d"
+kws="0#n_epochs=$a1 0#primal_percentage=$a2 1#n_epochs=$a3"
 for e in "${envs[@]}"; do
     config=${suite}
     dyna_config="${suite}_mbpo"
@@ -90,7 +100,6 @@ for e in "${envs[@]}"; do
         # eval $py_script
     done
 done
-# done
 # echo ${commands[@]}s
 # lc=${#commands[@]}
 # p=$((lc / le))

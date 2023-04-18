@@ -206,7 +206,7 @@ class ObsRunningMeanStd:
             for k in self._obs_names:
                 self.rms[k] = RunningMeanStd(
                     self._obs_normalized_axis, 
-                    clip=config.setdefault('obs_clip', 5), 
+                    clip=config.setdefault('obs_clip', 10), 
                     name=f'{k}_rms', 
                     ndim=config.setdefault("obs_normalized_ndim", 1)
                 )
@@ -228,21 +228,25 @@ class ObsRunningMeanStd:
                     name = 'obs'
                 if name not in self._masked_names:
                     mask = None
+                assert name in self.rms, (name, list(self.rms))
                 self.rms[name].update(obs, mask=mask, axis=axis)
             else:
                 if name is None:
                     for k in self._obs_names:
                         assert not obs[k].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
                         rms_mask = mask if name in self._masked_names else None
+                        assert k in self.rms, (k, list(self.rms))
                         self.rms[k].update(obs[k], mask=rms_mask, axis=axis)
                 else:
                     assert not obs[name].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
                     if name not in self._masked_names:
                         mask = None
+                    assert name in self.rms, (name, list(self.rms))
                     self.rms[name].update(obs[name], mask=mask, axis=axis)
 
     def update_from_stats(self, rms: dict):
         for k, v in rms.items():
+            assert k in self.rms, (k, list(self.rms))
             self.rms[k].update_from_moments(
                 batch_mean=v.mean,
                 batch_var=v.var,
@@ -254,6 +258,7 @@ class ObsRunningMeanStd:
         if isinstance(obs, dict):
             obs = obs[name]
         if self._normalize_obs:
+            assert name in self.rms, (name, list(self.rms))
             return self.rms[name].normalize(obs, mask=mask)
         else:
             return obs

@@ -111,7 +111,7 @@ trainer:
     trust_threshold: null
     timeout_done: *td
 
-    model_opt:
+    theta_opt:
         opt_name: adam
         lr: 5e-4
         clip_norm: 10

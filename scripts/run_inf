@@ -85,15 +85,30 @@
 # ./scripts/inf magw 1 inf_magw_mb 400 
 
 # mujoco
-./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=200 1#wp_n_epochs=1000
-./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=200 1#wp_n_epochs=2000
-./scripts/inf ma_mujoco 1 inf_mbpo_lka 0#n_epochs=200 1#wp_n_epochs=1000
-./scripts/inf ma_mujoco 1 inf_mbpo_lka 0#n_epochs=200 1#wp_n_epochs=2000
+./scripts/inf ma_mujoco 12 inf_mbpo
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=200 0#primal_percentage=.1 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=200 0#primal_percentage=.3 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=200 0#primal_percentage=.5 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=400 0#primal_percentage=.1 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=400 0#primal_percentage=.3 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=400 0#primal_percentage=.5 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=800 0#primal_percentage=.1 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=800 0#primal_percentage=.3 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=800 0#primal_percentage=.5 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=1000 0#primal_percentage=.1 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=1000 0#primal_percentage=.3 1#n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mbpo 0#n_epochs=1000 0#primal_percentage=.5 1#n_epochs=500
 
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#rollout_type=mix 1#pred_raw=True 1#model_warm_up_steps=5e4 1#wp_n_epochs=2500
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#rollout_type=mix 1#pred_raw=True 1#model_warm_up_steps=1e6 1#wp_n_epochs=500
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#rollout_type=mix 1#pred_raw=False 1#model_warm_up_steps=5e4 1#wp_n_epochs=2500
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#rollout_type=mix 1#pred_raw=False 1#model_warm_up_steps=1e6 1#wp_n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka dynamics
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka dynamics2 1#lr=5e-4
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka dynamics2 1#lr=8e-4
+# ./scripts/inf ma_mujoco 4 inf_mujoco_ppo_lka 1#model_warm_up_steps=1e6 1#wp_n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_warm_up_steps=5e4 1#wp_n_epochs=2500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_warm_up_steps=1e6 1#wp_n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_warm_up_steps=5e4 1#wp_n_epochs=2500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_warm_up_steps=1e6 1#wp_n_epochs=500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_warm_up_steps=5e4 1#wp_n_epochs=2500
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_warm_up_steps=1e6 1#wp_n_epochs=500
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#rollout_type=lka 1#pred_raw=True 1#model_warm_up_steps=5e4 1#wp_n_epochs=2500
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#rollout_type=lka 1#pred_raw=True 1#model_warm_up_steps=1e6 1#wp_n_epochs=500
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#rollout_type=lka 1#pred_raw=False 1#model_warm_up_steps=5e4 1#wp_n_epochs=2500
