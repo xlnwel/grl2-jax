@@ -207,15 +207,15 @@ def compute_model_loss(
     elif config.model_loss_type == 'discrete':
         loss = - dist.log_prob(model_target)
         pred_next_obs = dist.mode()
-        obs_cons = jax_math.mask_mean(
-            pred_next_obs == model_target, axis=-1
-        )
-        stats.obs_dim_consistency = jax_math.mask_mean(
-            obs_cons, mask=dim_mask, 
-        )
-        stats.obs_consistency = jax_math.mask_mean(
-            obs_cons == 1, mask=dim_mask, 
-        )
+        # obs_cons = jax_math.mask_mean(
+        #     pred_next_obs == model_target, axis=-1
+        # )
+        # stats.obs_dim_consistency = jax_math.mask_mean(
+        #     obs_cons, mask=dim_mask, 
+        # )
+        # stats.obs_consistency = jax_math.mask_mean(
+        #     obs_cons == 1, mask=dim_mask, 
+        # )
         loss = jax_math.mask_mean(
             loss, mask=dim_mask, 
             axis=utils.except_axis(loss, [ENSEMBLE_AXIS, SAMPLE_AXIS])

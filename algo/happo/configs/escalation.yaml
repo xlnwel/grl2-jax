@@ -45,7 +45,7 @@ env:
     population_size: 1
     timeout_done: &td False
 
-    uid2aid: [0, 1]
+    uid2aid: [0, 0]
 
 agent: {}
 
