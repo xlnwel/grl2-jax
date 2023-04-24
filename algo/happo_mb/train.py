@@ -16,10 +16,14 @@ from algo.happo_mb.run import branched_rollout, Runner
 
 def update_config(config, dynamics_config):
     if config.routine.compute_return_at_once:
-        config.buffer.sample_keys += ['advantage', 'v_target']
+        config.buffer.sample_keys = config.buffer.sample_keys + ['advantage', 'v_target']
         config.dynamics_name = dynamics_config.dynamics_name
-        if dynamics_config.model.emodels.n_models == 1:
-            config.routine.switch_model_at_every_step = False
+        if 'edynamics' in dynamics_config.model:
+            if dynamics_config.model.edynamics.n_models == 1:
+                config.routine.switch_model_at_every_step = False
+        else:
+            if dynamics_config.model.emodels.n_models == 1:
+                config.routine.switch_model_at_every_step = False
 
 
 @timeit
@@ -56,13 +60,17 @@ dynamics_run = partial(dynamics_run, rollout_fn=branched_rollout)
 
 
 def get_lka_aids(rollout_type, n_agents):
-    if rollout_type == 'full':
+    if rollout_type == 'lka':
         lka_aids = list(range(n_agents))
-    elif rollout_type == 'part':
+    elif rollout_type == 'mix':
         n = np.random.choice(n_agents+1)
         lka_aids = np.random.choice(n_agents, n, replace=False)
+    elif rollout_type == 'one':
+        i = np.random.choice(n_agents)
+        lka_aids = [id for id in range(n_agents) if id != i]
     else:
         raise NotImplementedError(rollout_type)
+
     return lka_aids
     
 
@@ -93,13 +101,17 @@ def train(
     eval_data = load_eval_data(filename=env_name)
     rng = dynamics.model.rng
 
-    rollout_type = routine_config.get('rollout_type', 'full')
-    assert rollout_type in ('full', 'part'), rollout_type
+    rollout_type = routine_config.get('rollout_type', 'mix')
+    assert rollout_type in ('lka', 'mix', 'one'), rollout_type
     n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)
         errors = AttrDict()
         time2record = to_record(env_step)
+
+        if time2record:
+            stats = dynamics.valid_stats()
+            dynamics.store(**stats)
 
         if dynamics_routine_config.model_warm_up and \
             env_step < dynamics_routine_config.model_warm_up_steps:
@@ -140,11 +152,9 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            # if routine_config.quantify_dynamics_errors:
-            #     outdir = modelpath2outdir(agent.get_model_path())
-            #     log_dynamics_errors(errors, outdir, env_step)
-            # stats = dynamics.valid_stats()
-            # dynamics.store(**stats)
+            if routine_config.quantify_dynamics_errors:
+                outdir = modelpath2outdir(agent.get_model_path())
+                log_dynamics_errors(errors, outdir, env_step)
             eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, errors)
 

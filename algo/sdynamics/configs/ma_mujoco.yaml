@@ -100,7 +100,7 @@ trainer:
     timeout_done: *td
     model_norm_obs: *obs_norm
 
-    model_opt:
+    theta_opt:
         opt_name: adam
         lr: 5e-4
         clip_norm: 10

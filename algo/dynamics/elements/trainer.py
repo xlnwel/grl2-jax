@@ -10,7 +10,6 @@ from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.feature import one_hot
-from tools.rms import normalize
 from tools.utils import flatten_dict, prefix_name
 
 
@@ -45,32 +44,15 @@ class Trainer(TrainerBase):
 
     def build_optimizers(self):
         theta = self.model.theta.copy()
-        if self.config.get('theta_opt'):
-            self.opts.theta, self.params.theta = optimizer.build_optimizer(
-                params=theta, 
-                **self.config.theta_opt, 
-                name='theta'
-            )
-        else:
-            self.params.theta = AttrDict()
-            self.opts.model, self.params.theta.model = optimizer.build_optimizer(
-                params=theta.emodels, 
-                **self.config.model_opt, 
-                name='model'
-            )
-            self.opts.reward, self.params.theta.reward = optimizer.build_optimizer(
-                params=theta.reward, 
-                **self.config.reward_opt, 
-                name='reward'
-            )
-            self.opts.discount, self.params.theta.discount = optimizer.build_optimizer(
-                params=theta.discount, 
-                **self.config.discount_opt, 
-                name='discount'
-            )
+        self.opts.theta, self.params.theta = optimizer.build_optimizer(
+            params=theta, 
+            **self.config.theta_opt, 
+            name='theta'
+        )
 
     def train(self, data):
         data = self.process_data(data)
+        print_dict_info(data)
         theta = self.model.theta.copy()
         theta, self.params.theta, stats = \
             self.jit_train(
@@ -110,53 +92,17 @@ class Trainer(TrainerBase):
         return_stats=False
     ):
         do_logging('dynamics train is traced', backtrack=4)
-        if self.config.get('theta_opt'):
-            theta, opt_state, stats = optimizer.optimize(
-                self.loss.loss, 
-                theta, 
-                opt_state, 
-                kwargs={
-                    'rng': rng, 
-                    'data': data, 
-                }, 
-                opt=self.opts.theta, 
-                name='opt/dynamics'
-            )
-        else:
-            theta.emodels, opt_state.model, model_stats = optimizer.optimize(
-                self.loss.model_loss, 
-                theta.emodels, 
-                opt_state.model, 
-                kwargs={
-                    'rng': rng, 
-                    'data': data, 
-                }, 
-                opt=self.opts.model, 
-                name='opt/model'
-            )
-            theta.reward, opt_state.reward, reward_stats = optimizer.optimize(
-                self.loss.reward_loss, 
-                theta.reward, 
-                opt_state.reward, 
-                kwargs={
-                    'rng': rng, 
-                    'data': data, 
-                }, 
-                opt=self.opts.reward, 
-                name='opt/reward'
-            )
-            theta.discount, opt_state.discount, discount_stats = optimizer.optimize(
-                self.loss.discount_loss, 
-                theta.discount, 
-                opt_state.discount, 
-                kwargs={
-                    'rng': rng, 
-                    'data': data, 
-                }, 
-                opt=self.opts.discount, 
-                name='opt/discount'
-            )
-            stats = self.loss.combine_stats(model_stats, reward_stats, discount_stats)
+        theta, opt_state, stats = optimizer.optimize(
+            self.loss.loss, 
+            theta, 
+            opt_state, 
+            kwargs={
+                'rng': rng, 
+                'data': data, 
+            }, 
+            opt=self.opts.theta, 
+            name='opt/dynamics'
+        )
 
         if not return_stats:
             stats = AttrDict(
@@ -169,28 +115,13 @@ class Trainer(TrainerBase):
         return theta, opt_state, stats
 
     def process_data(self, data):
+        data = data.copy()
         if self.env_stats.is_action_discrete[0]:
             data.action = one_hot(data.action, self.env_stats.action_dim[0])
         if self.model.config.model_norm_obs:
             data.obs_loc, data.obs_scale = self.model.get_obs_rms()
             dim_mask = self.model.get_const_dim_mask()
-            data.dim_mask = np.zeros_like(data.obs) + dim_mask
-            data.norm_obs = normalize(
-                data.obs, 
-                data.obs_loc, 
-                data.obs_scale, 
-                dim_mask=dim_mask, 
-            )
-            data.next_norm_obs = normalize(
-                data.next_obs, 
-                data.obs_loc, 
-                data.obs_scale, 
-                dim_mask=dim_mask, 
-            )
-        else:
-            data.dim_mask = np.ones_like(data.obs)
-            data.norm_obs = data.obs
-            data.next_norm_obs = data.next_obs
+            data.dim_mask = jnp.zeros_like(data.obs) + dim_mask
 
         return data
 

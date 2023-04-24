@@ -142,7 +142,7 @@ def eval_policy_distances(agent, data, name=None, n=None, eval_lka=True):
         bs = data.obs.shape[0]
         if n < bs:
             indices = np.random.permutation(bs)[:n]
-            data = data.slice(indices)
+            data = tree_slice(data, indices)
     stats = agent.model.compute_policy_distances(data, eval_lka=eval_lka)
     stats = prefix_name(stats, name)
     agent.store(**stats)
@@ -188,7 +188,7 @@ def eval_and_log(agent, dynamics, runner, routine_config,
     if train_data:
         seqlen = train_data.obs.shape[1]
         if eval_data:
-            train_data = {k: train_data[k] for k in eval_data}
+            train_data = {k: train_data[k] for k in eval_data if k in train_data}
         train_data = dict2AttrDict(train_data)
         train_data = jax.tree_util.tree_map(
             lambda x: x[:, :seqlen].reshape(-1, 1, *x.shape[2:]), train_data)

@@ -75,6 +75,7 @@ def change_config_with_kw_string(kw, config, config_idx=None):
     if kw:
         for s in kw:
             key, value = s.split('=', 1)
+            config[key] = value
             if '#' in key:
                 i, key = key.split('#')
                 modify_config = False

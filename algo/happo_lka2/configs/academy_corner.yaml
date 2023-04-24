@@ -35,7 +35,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
-    rollout_type: part
+    rollout_type: mix
     concise_mode: True
 
 env:
@@ -148,7 +148,7 @@ trainer:
     n_epochs: &nepochs 15
     n_mbs: &nmbs 1
     n_steps: *nsteps
-    update_scheme: step
+    update_scheme: whole
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss

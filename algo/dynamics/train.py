@@ -47,7 +47,7 @@ def split_env_output(env_output):
 def run_model(model, buffer, routine_config):
     sample_keys = buffer.obs_keys + ['state'] \
         if routine_config.restore_state else buffer.obs_keys 
-    sample_keys += ['discount', 'reset']
+    sample_keys = sample_keys + ['discount', 'reset']
     obs = buffer.sample_from_recency(
         batch_size=routine_config.n_envs, 
         sample_keys=sample_keys, 

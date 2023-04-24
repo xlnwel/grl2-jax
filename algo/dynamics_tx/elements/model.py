@@ -17,14 +17,10 @@ class Model(ModelBase):
         self.is_action_discrete = self.env_stats.is_action_discrete[aid]
         data = construct_fake_data(self.env_stats, aid)
 
-        self.params.model, self.modules.model = self.build_net(
-            data.obs[:, 0, :], data.action[:, 0], name='model')
-        self.params.emodels, self.modules.emodels = self.build_net(
-            data.obs, data.action, True, name='emodels')
-        self.params.reward, self.modules.reward = self.build_net(
-            data.obs, data.action, data.obs, name='reward')
-        self.params.discount, self.modules.discount = self.build_net(
-            data.obs, name='discount')
+        self.params.dynamics, self.modules.dynamics = self.build_net(
+            data.obs[:, 0, :], data.action[:, 0], name='dynamics')
+        self.params.edynamics, self.modules.edynamics = self.build_net(
+            data.obs, data.action, True, name='edynamics')
 
 
 def create_model(

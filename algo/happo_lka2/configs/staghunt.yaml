@@ -32,7 +32,7 @@ routine:
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
-    rollout_type: part
+    rollout_type: mix
 
 env:
     env_name: &env_name magw-staghunt
@@ -121,7 +121,7 @@ trainer:
     n_epochs: &nepochs 10
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
-    update_scheme: step
+    update_scheme: whole
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss

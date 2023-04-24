@@ -170,7 +170,7 @@ trainer:
         clip_norm: null
         eps: 1e-5
 
-    model_opt:
+    theta_opt:
         opt_name: adam
         lr: 5e-4
         clip_norm: null

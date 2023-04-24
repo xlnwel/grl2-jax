@@ -1,4 +1,3 @@
-import jax
 import haiku as hk
 
 from core.typing import AttrDict

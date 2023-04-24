@@ -19,13 +19,21 @@ commands=()
 # commands+=("$py_script")
 # py_script="python run/train.py -a happo -e magw-escalation -c escalation -ld magw-logs -n 0328 -kw 0#norm_adv=False 0#n_epochs=20 0#n_envs=256 0#reward_scale=1 -s 1"
 # commands+=("$py_script")
-py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=15 rnn_type=lstm"
+# py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=15 rnn_type=lstm"
+# commands+=("$py_script")
+# py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=15 rnn_type=lstm"
+# commands+=("$py_script")
+# py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=10 rnn_type=lstm"
+# commands+=("$py_script")
+# py_script="python run/train.py -a happo_mb dynamics -e ma_mujoco-HalfCheetah_2x3 -c ma_mujoco -ld ma_mujoco-logs -n 0417 -kw 0#rollout_type=part 1#pred_raw=False 1#lr=5e-4 1#weight_decay=0 -s 0"
+# commands+=("$py_script")
+py_script="python run/train.py -a happo_mb dynamics -e grf-academy_corner -c academy_corner -ld grf-logs -te train_grf -s 1 -kw normalize_reward=False"
 commands+=("$py_script")
-py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=15 rnn_type=lstm"
+py_script="python run/train.py -a happo_mb dynamics -e grf-academy_corner -c academy_corner -ld grf-logs -te train_grf -s 2 -kw normalize_reward=True"
 commands+=("$py_script")
-py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=10 rnn_type=lstm"
+py_script="python run/train.py -a happo_mb dynamics -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw normalize_reward=False"
 commands+=("$py_script")
-py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=10 rnn_type=lstm"
+py_script="python run/train.py -a happo_mb dynamics -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 2 -kw normalize_reward=True"
 commands+=("$py_script")
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

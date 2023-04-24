@@ -1,75 +1,70 @@
 import os
 import logging
 import jax
-from jax import lax, nn, random
+from jax import random
 import jax.numpy as jnp
 import haiku as hk
 
-from core.elements.model import Model as ModelBase
 from core.typing import AttrDict, dict2AttrDict
-from tools.file import source_file
 from jax_tools import jax_dist
-from tools.display import print_dict_info
+from tools.file import source_file
+from algo.lka_common.elements.model import *
+
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 logger = logging.getLogger(__name__)
 
 
-def construct_fake_data(env_stats, aid, batch_size=1):
-    basic_shape = (batch_size, 1, len(env_stats.aid2uids[aid]))
-    shapes = env_stats.obs_shape[aid]
-    dtypes = env_stats.obs_dtype[aid]
-    action_dim = env_stats.action_dim[aid]
-    data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
-        for k, v in shapes.items()}
-    data = dict2AttrDict(data)
-    data.setdefault('global_state', data.obs)
-    data.setdefault('hidden_state', data.obs)
-    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
-    data.state_reset = jnp.zeros(basic_shape, jnp.float32)
+def construct_fake_data(env_stats, batch_size=1, aid=None):
+    if aid is None:
+        all_data = []
+        for i, uids in enumerate(env_stats.aid2uids):
+            shapes = env_stats.obs_shape[i]
+            dtypes = env_stats.obs_dtype[i]
+            action_dim = env_stats.action_dim[i]
+            action_dtype = env_stats.action_dtype[i]
+            basic_shape = (batch_size, 1, len(env_stats.aid2uids[i]))
+            data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
+                for k, v in shapes.items()}
+            data = dict2AttrDict(data)
+            data.setdefault('global_state', data.obs)
+            data.action = jnp.zeros((*basic_shape, action_dim), action_dtype)
+            data.joint_action = jnp.zeros((*basic_shape, env_stats.n_units*action_dim), action_dtype)
+            data.state_reset = jnp.zeros(basic_shape, jnp.float32)
+            all_data.append(data)
 
-    # print_dict_info(data)
+        return all_data
+    else:
+        shapes = env_stats.obs_shape[0]
+        dtypes = env_stats.obs_dtype[0]
+        action_dim = env_stats.action_dim[0]
+        action_dtype = env_stats.action_dtype[0]
+        basic_shape = (batch_size, 1, len(env_stats.aid2uids[0]))
+        data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
+            for k, v in shapes.items()}
+        data = dict2AttrDict(data)
+        data.setdefault('global_state', data.obs)
+        data.action = jnp.zeros((*basic_shape, action_dim), action_dtype)
+        data.joint_action = jnp.zeros((*basic_shape[:2], 1, env_stats.n_units*action_dim), action_dtype)
+        data.state_reset = jnp.zeros(basic_shape, jnp.float32)
 
-    return data
+        return data
 
-class Model(ModelBase):
-    def add_attributes(self):
-        self.lookahead_params = dict2AttrDict({'lookahead': True})
-        self.params.lookahead = False
 
-        self._initial_state = None
-
+class Model(MAModelBase):
     def build_nets(self):
         aid = self.config.get('aid', 0)
-        self.is_action_discrete = self.env_stats.is_action_discrete[aid]
         data = construct_fake_data(self.env_stats, aid)
 
         self.params.policy, self.modules.policy = self.build_net(
             data.obs, data.state_reset, data.state, data.action_mask, name='policy')
         self.params.value, self.modules.value = self.build_net(
             data.global_state, data.state_reset, data.state, name='value')
-        self.sync_lookahead_params()
 
     def compile_model(self):
-        self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
-
-    @property
-    def theta(self):
-        return self.params
-
-    def switch_params(self, lookahead):
-        self.params, self.lookahead_params = self.lookahead_params, self.params
-        self.check_params(lookahead)
-
-    def check_params(self, lookahead):
-        assert self.params.lookahead == lookahead, (self.params.lookahead, lookahead)
-        assert self.lookahead_params.lookahead == 1-lookahead, (self.params.lookahead, lookahead)
-
-    def sync_lookahead_params(self):
-        for k, v in self.params.items():
-            if k != 'lookahead':
-                self.lookahead_params[k] = v
+        self.jit_action = jax.jit(
+            self.raw_action, static_argnames=('evaluation'))
 
     def raw_action(
         self, 
@@ -139,11 +134,13 @@ class Model(ModelBase):
         return dist
 
     """ RNN Operators """
-    def get_initial_state(self, batch_size):
-        if self._initial_state is not None:
-            return self._initial_state
-        aid = self.config.get('aid', 0)
-        data = construct_fake_data(self.env_stats, aid, batch_size)
+    def get_initial_state(self, batch_size, name='default'):
+        name = f'{name}_{batch_size}'
+        if name in self._initial_states:
+            return self._initial_states[name]
+        if not self.has_rnn:
+            return None
+        data = construct_fake_data(self.env_stats, batch_size)
         _, policy_state = self.modules.policy(
             self.params.policy, 
             self.act_rng, 
@@ -161,46 +158,6 @@ class Model(ModelBase):
             value=jax.tree_util.tree_map(jnp.zeros_like, value_state), 
         )
         return self._initial_state
-    
-    @property
-    def state_size(self):
-        if self.config.policy.rnn_type is None and self.config.value.rnn_type is None:
-            return None
-        state_size = AttrDict(
-            policy=self.config.policy.rnn_units, 
-            value=self.config.value.rnn_units, 
-        )
-        return state_size
-    
-    @property
-    def state_keys(self):
-        if self.config.policy.rnn_type is None and self.config.value.rnn_type is None:
-            return None
-        key_map = {
-            'lstm': hk.LSTMState._fields, 
-            'gru': None, 
-            None: None
-        }
-        state_keys = AttrDict(
-            policy=key_map[self.config.policy.rnn_type], 
-            value=key_map[self.config.value.rnn_type], 
-        )
-        return state_keys
-
-    @property
-    def state_type(self):
-        if self.config.policy.rnn_type is None and self.config.value.rnn_type is None:
-            return None
-        type_map = {
-            'lstm': hk.LSTMState, 
-            'gru': None, 
-            None: None
-        }
-        state_type = AttrDict(
-            policy=type_map[self.config.policy.rnn_type], 
-            value=type_map[self.config.value.rnn_type], 
-        )
-        return state_type
 
 
 def setup_config_from_envstats(config, env_stats):

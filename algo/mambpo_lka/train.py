@@ -29,7 +29,9 @@ def train(
         init_next=env_step != 0, 
         final=routine_config.MAX_STEPS
     )
-    runner.run(MODEL_EVAL_STEPS, agent, [], collect_data=False)
+    runner.run(agent, n_steps=MODEL_EVAL_STEPS, lka_aids=[], collect_data=False)
+    env_name = runner.env_config().env_name
+    eval_data = load_eval_data(filename=env_name)
     rng = agent.model.rng
 
     while env_step < routine_config.MAX_STEPS:
@@ -51,7 +53,11 @@ def train(
         env_step = env_run(agent, runner, routine_config, lka_aids=None)
         time2record = to_record(env_step)
         
-        dynamics_optimize(dynamics)
+        if dynamics_routine_config.model_warm_up and \
+            env_step < dynamics_routine_config.model_warm_up_steps:
+            dynamics_optimize(dynamics, warm_up_stage=True)
+        else:
+            dynamics_optimize(dynamics)
         if routine_config.quantify_dynamics_errors and time2record:
             errors.train = quantify_dynamics_errors(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
@@ -66,23 +72,30 @@ def train(
         else:
             rng, run_rng = jax.random.split(rng, 2)
             dynamics_run(
-                agent, dynamics, 
+                agent, 
+                dynamics, 
                 routine_config, 
                 dynamics_routine_config, 
                 run_rng, 
                 lka_aids=None)
 
-        train_step = ego_optimize(agent)
+        if dynamics_routine_config.model_warm_up and \
+            env_step < dynamics_routine_config.model_warm_up_steps:
+            ego_optimize(agent, warm_up_stage=True)
+        else:
+            ego_optimize(agent)
+
         if routine_config.quantify_dynamics_errors and time2record:
             errors.ego = quantify_dynamics_errors(
                 agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            eval_ego_and_lka(agent, runner, routine_config)
-            save(agent, dynamics)
-            if routine_config.quantify_dynamics_errors:
-                outdir = modelpath2outdir(agent.get_model_path())
-                log_dynamics_errors(errors, outdir, env_step)
-            log(agent, dynamics, env_step, train_step, errors)
+            stats = dynamics.valid_stats()
+            dynamics.store(**stats)
+            # if eval_data:
+            #     stats = dynamics.valid_stats(eval_data, 'eval')
+            #     dynamics.store(**stats)
+            eval_and_log(agent, dynamics, None, routine_config, 
+                         agent.training_data, eval_data, eval_lka=False)
 
 main = partial(main, train=train)

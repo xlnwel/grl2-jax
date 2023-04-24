@@ -4,9 +4,11 @@ import jax.numpy as jnp
 
 from core.typing import AttrDict
 from tools.rms import normalize
-from tools.utils import expand_shape_match
-from jax_tools import jax_assert, jax_math, jax_loss, jax_utils
+from tools.utils import expand_shape_match, except_axis
+from jax_tools import jax_assert, jax_div, jax_math, jax_loss, jax_utils
 
+
+UNIT_DIM = 2
 
 def get_initial_state(state, i):
     return jax.tree_util.tree_map(lambda x: x[:, i], state)
@@ -143,6 +145,7 @@ def norm_adv(
             zero_center=config.get('zero_center', True), 
             mask=sample_mask, 
             n=n, 
+            axis=except_axis(raw_adv, UNIT_DIM), 
             epsilon=epsilon, 
         )
     else:
@@ -166,6 +169,11 @@ def compute_actor_loss(
         raw_pg_loss = jax_loss.pg_loss(
             advantage=stats.advantage, 
             logprob=stats.pi_logprob, 
+        )
+    elif config.pg_type == 'is':
+        raw_pg_loss = jax_loss.sample_pg_loss(
+            advantage=stats.advantage, 
+            ratio=stats.ratio, 
         )
     elif config.pg_type == 'ppo':
         ppo_pg_loss, ppo_clip_loss, raw_pg_loss = \
@@ -297,4 +305,146 @@ def record_policy_stats(data, stats, act_dist):
     # stats.approx_kl_max = jnp.max(.5 * (stats.log_ratio)**2)
     stats.update(act_dist.get_stats(prefix='pi'))
 
+    return stats
+
+
+def summarize_adv_ratio(stats, data):
+    stats.raw_adv_ratio_pp = jnp.logical_and(stats.norm_adv > 0, stats.ratio > 1)
+    stats.raw_adv_ratio_pn = jnp.logical_and(stats.norm_adv > 0, stats.ratio < 1)
+    # stats.raw_adv_ratio_np = jax_math.mask_mean(
+    #     jnp.logical_and(stats.raw_adv < 0, stats.ratio > 1), 
+    #     data.sample_mask, data.n)
+    # stats.raw_adv_ratio_nn = jax_math.mask_mean(
+    #     jnp.logical_and(stats.raw_adv < 0, stats.ratio < 1), 
+    #     data.sample_mask, data.n)
+    stats.adv_ratio_pp = jnp.logical_and(stats.advantage > 0, stats.ratio > 1)
+    stats.adv_ratio_pn = jnp.logical_and(stats.advantage > 0, stats.ratio < 1)
+    stats.pp_ratio = jnp.where(stats.adv_ratio_pp, stats.ratio, 0)
+    stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 0)
+    # stats.adv_ratio_np = jax_math.mask_mean(
+    #     jnp.logical_and(stats.advantage < 0, stats.ratio > 1), 
+    #     data.sample_mask, data.n)
+    # stats.adv_ratio_nn = jax_math.mask_mean(
+    #     jnp.logical_and(stats.advantage < 0, stats.ratio < 1), 
+    #     data.sample_mask, data.n)
+    return stats
+
+
+def compute_regularization(
+    stats, 
+    data, 
+    reg_type, 
+    reg_coef, 
+):
+    if data.sample_mask is not None:
+        data.sample_mask = expand_shape_match(data.sample_mask, stats.ratio, np=jnp)
+    if reg_type is None:
+        return stats
+    if reg_type == 'wasserstein':
+        stats.raw_reg = jax_div.wasserstein(
+            stats.pi_loc, stats.pi_scale, data.mu_loc, data.mu_scale)
+        stats.raw_reg_loss, stats.reg_loss = jax_loss.to_loss(
+            stats.raw_reg, 
+            reg_coef, 
+            mask=data.sample_mask, 
+            n=data.n
+        )
+    elif reg_type.startswith('kl'):
+        reg_type = reg_type.split('_')[-1]
+        stats.raw_reg = jax_div.kl_divergence(
+            reg_type=reg_type, 
+            logp=stats.pi_logprob, 
+            logq=data.mu_logprob, 
+            # sample_prob=data.mu_logprob, 
+            p_logits=stats.pi_logits, 
+            q_logits=data.mu_logits, 
+            p_loc=stats.pi_loc, 
+            p_scale=stats.pi_scale, 
+            q_loc=data.mu_loc, 
+            q_scale=data.mu_scale, 
+            logits_mask=data.action_mask, 
+        )
+        stats.raw_reg_loss, stats.reg_loss = jax_loss.to_loss(
+            stats.raw_reg, 
+            reg_coef, 
+            mask=data.sample_mask, 
+            n=data.n
+        )
+    else:
+        raise NotImplementedError(reg_type)
+
+    return stats
+
+
+def compute_sample_regularization(
+    stats, 
+    data, 
+    reg_type, 
+    pos_reg_coef, 
+    reg_coef, 
+    rescaled_by_adv=False, 
+    lower_threshold=-2., 
+    upper_threshold=2., 
+):
+    stats.delta = lax.exp(stats.pi_logprob) - lax.exp(data.mu_logprob)
+    if data.sample_mask is not None:
+        data.sample_mask = expand_shape_match(data.sample_mask, stats.ratio, np=jnp)
+    if reg_type is None:
+        return stats
+    elif reg_type == 'log':
+        prob = lax.exp(stats.pi_logprob)
+        signed_reg_grads = (stats.pi_logprob - data.mu_logprob) * jnp.sign(stats.advantage)
+        stats.reg_below_threshold = signed_reg_grads < lower_threshold
+        stats.reg_above_threshold = signed_reg_grads > upper_threshold
+        stats.raw_sample_reg_grads = lax.stop_gradient(jnp.clip(
+            signed_reg_grads, lower_threshold, upper_threshold
+        ))
+        stats.raw_sample_reg = prob * stats.raw_sample_reg_grads
+        stats.pos_sample_reg = jnp.where(stats.norm_adv > 0, stats.raw_sample_reg, 0)
+        if rescaled_by_adv:
+            stats.pos_sample_reg = stats.advantage * stats.pos_sample_reg
+            stats.sample_reg = jnp.abs(stats.advantage) * stats.raw_sample_reg
+        stats.raw_pos_sample_reg_loss, stats.pos_sample_reg_loss = jax_loss.to_loss(
+            stats.pos_sample_reg, 
+            pos_reg_coef, 
+            mask=data.sample_mask, 
+            n=data.n
+        )
+        stats.raw_sample_reg_loss, stats.sample_reg_loss = jax_loss.to_loss(
+            stats.sample_reg, 
+            reg_coef, 
+            mask=data.sample_mask, 
+            n=data.n
+        )
+    elif reg_type == 'exp':
+        ratio = lax.exp(stats.pi_logprob - data.mu_logprob)
+        pos_ratio = jnp.maximum(ratio, 1)
+        neg_ratio = jnp.maximum(1/ratio, 1)
+        pos_reg = lax.exp(pos_ratio - 1) - 1
+        neg_reg = 1 - lax.exp(neg_ratio - 1)
+        signed_reg_grads = jnp.where(ratio > 1, pos_reg, neg_reg) * jnp.sign(stats.advantage)
+        prob = lax.exp(stats.pi_logprob)
+        stats.raw_sample_reg_grads = lax.stop_gradient(jnp.clip(
+            signed_reg_grads, lower_threshold, upper_threshold
+        ))
+        stats.raw_sample_reg = prob * stats.raw_sample_reg_grads
+        stats.pos_sample_reg = jnp.where(stats.norm_adv > 0, stats.raw_sample_reg, 0)
+        if rescaled_by_adv:
+            stats.pos_sample_reg = stats.advantage * stats.pos_sample_reg
+            stats.sample_reg = jnp.abs(stats.advantage) * stats.raw_sample_reg
+        stats.raw_pos_sample_reg_loss, stats.pos_sample_reg_loss = jax_loss.to_loss(
+            stats.pos_sample_reg, 
+            pos_reg_coef, 
+            mask=data.sample_mask, 
+            n=data.n
+        )
+        stats.raw_sample_reg_loss, stats.sample_reg_loss = jax_loss.to_loss(
+            stats.sample_reg, 
+            reg_coef, 
+            mask=data.sample_mask, 
+            n=data.n
+        )
+    else:
+        raise NotImplementedError(reg_type)
+    
     return stats

@@ -376,6 +376,16 @@ def pg_loss(
     return pg
 
 
+def is_pg_loss(
+    *, 
+    advantage, 
+    ratio
+):
+    jax_assert.assert_shape_compatibility([advantage, ratio])
+    loss = - advantage * ratio
+    return loss
+
+
 def entropy_loss(
     *, 
     entropy_coef, 

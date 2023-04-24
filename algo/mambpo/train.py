@@ -52,6 +52,9 @@ def train(
         rng, run_rng = jax.random.split(rng, 2)
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
         time2record = to_record(env_step)
+        if time2record:
+            stats = dynamics.valid_stats()
+            dynamics.store(**stats)
         
         if dynamics_routine_config.model_warm_up and \
             env_step < dynamics_routine_config.model_warm_up_steps:
@@ -59,7 +62,8 @@ def train(
         else:
             dynamics_optimize(dynamics)
         dynamics_run(
-            agent, dynamics, 
+            agent, 
+            dynamics, 
             routine_config, 
             dynamics_routine_config, 
             run_rng, 
@@ -105,7 +109,7 @@ def main(configs, train=train):
     agent = build_agent(config, env_stats)
     # build dynamics
     dynamics = build_dynamics(config, dynamics_config, env_stats)
-    dynamics.change_buffer(agent.buffer)
+    dynamics.change_buffer(agent.buffer.primal_replay)
     save_code_for_seed(config)
 
     routine_config = config.routine.copy()

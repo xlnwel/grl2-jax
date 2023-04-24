@@ -6,7 +6,7 @@ from tools.rms import RunningMeanStd
 class TemporaryRMS:
     def __init__(self, key, axis):
         self.key = key
-        self.rms = RunningMeanStd(axis)
+        self.rms = RunningMeanStd(axis, name=f'{key}_rms')
     
     def retrieve_rms(self):
         rms = self.rms.get_rms_stats() \

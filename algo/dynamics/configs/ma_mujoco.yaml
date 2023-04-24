@@ -21,7 +21,7 @@ routine:
     n_envs: &nenvs 64
 
     model_warm_up: True
-    model_warm_up_steps: 1e6
+    model_warm_up_steps: 5e4
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -43,8 +43,8 @@ strategy:
     train_loop:
         ergodic: False
         training_data_size: &ds 1e5
-        valid_data_size: 1e4
-        wp_n_epochs: 500
+        valid_data_size: 4000
+        wp_n_epochs: 2500
         n_epochs: &nepochs 500
 
 model:
@@ -54,40 +54,26 @@ model:
     rn_std: .1
     model_norm_obs: &obs_norm True
     deterministic_trans: True
-    share_reward: True
-    pred_raw: True
     model_loss_type: &mlt mse
     obs_clip: 10
 
-    emodels:
-        nn_id: emodels
+    edynamics:
+        nn_id: edynamics
         n_models: &n 1
-        units_list: [200, 200, 200, 200]
-        activation: relu
-        norm: null
-        out_scale: .01
-        out_type: continuous
-        out_config:
+        repr_config:
+            units_list: [256, 256, 256, 256]
+            activation: relu
+            norm: null
+        model_out_config:
+            model_type: continuous
             max_logvar: .5
             min_logvar: -10
-    reward:
-        nn_id: reward
-        out_size: 1
-        units_list: [200, 200, 200, 200]
-        activation: relu
-        norm: null
-        out_scale: .01
-        use_next_obs: False
-        balance_dimension: False
-        obs_embed: 128
-        action_embed: 64
-    discount:
-        nn_id: discount
-        out_size: 1
-        units_list: [200, 200, 200]
-        activation: relu
-        norm: null
-        out_scale: 1
+        model_config:
+            units_list: [128]
+            activation: relu
+        reward_config:
+            units_list: [128]
+            activation: relu
 
 loss:
     model_loss_type: *mlt
@@ -97,44 +83,24 @@ loss:
     reward_coef: 1
     discount_coef: 1
 
-    model_prio_coef: 1
-    reward_prio_coef: 1
-    discount_prio_coef: 1
-
 trainer:
     algorithm: *algo
     aid: 0
     trust_threshold: null
     timeout_done: *td
 
-    model_opt:
-        opt_name: adam
-        lr: 8e-4
-        clip_norm: 10
-        eps: 1e-5
-        weight_decay: 1e-6
-    reward_opt:
+    theta_opt:
         opt_name: adam
         lr: 5e-4
         clip_norm: 10
         eps: 1e-5
-        weight_decay: 0
-    discount_opt:
-        opt_name: adam
-        lr: 5e-4
-        clip_norm: 10
-        eps: 1e-5
-        weight_decay: 0
+        weight_decay: 1e-5
 
 actor: {}
 
 
 buffer:
     type: uniform
-
-    alpha: .4
-    beta: 0
-    use_is_ratio: True
 
     model_norm_obs: *obs_norm
     n_runners: *nrunners

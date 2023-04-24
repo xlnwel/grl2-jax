@@ -22,8 +22,8 @@ def train(
     env_name = runner.env_config().env_name
     eval_data = load_eval_data(filename=env_name)
 
-    rollout_type = routine_config.get('rollout_type', 'full')
-    assert rollout_type in ('full', 'part'), rollout_type
+    rollout_type = routine_config.get('rollout_type', 'mix')
+    assert rollout_type in ('lka', 'mix'), rollout_type
     n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
         lka_env_run(agent, runner, routine_config, lka_aids=[], store_info=True)

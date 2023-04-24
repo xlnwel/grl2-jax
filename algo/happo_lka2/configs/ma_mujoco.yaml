@@ -36,7 +36,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: True
-    rollout_type: part
+    rollout_type: mix
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3
@@ -67,7 +67,7 @@ model:
         units_list: [64, 64]
         w_init: orthogonal
         activation: tanh
-        norm: layer
+        norm: null
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
@@ -82,7 +82,7 @@ model:
         units_list: [64, 64]
         w_init: orthogonal
         activation: tanh
-        norm: layer
+        norm: null
         rnn_type: &vrnn null
         rnn_units: 64
         use_feature_norm: False
@@ -142,7 +142,7 @@ trainer:
     n_mbs: &nmbs 40
     n_steps: *nsteps         # BPTT length
 
-    update_scheme: step
+    update_scheme: whole
     n_simulated_envs: *nse
     n_simulated_steps: *nss
     n_lka_epochs: 5

@@ -18,10 +18,9 @@ configs=(
     "${suite}"
 )
 args1=(
-    # $1
-    3e-4
-    5e-4
-    1e-4
+    lka
+    mix
+    one
 )
 args2=(
     # $2
@@ -36,7 +35,6 @@ dynamics=(
     "dynamics"
 )
 date=$(date +"%m%d")
-# date="0414"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
@@ -72,7 +70,6 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-# for a1 in "${args1[@]}"; do
 kws=$@
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
@@ -82,13 +79,5 @@ for e in "${envs[@]}"; do
         echo $py_script
     done
 done
-# a="happo_lka2"
-# kws="1#n_epochs=$a1"
-# env="${suite}-${e}"
-# for s in {0..7}; do
-#     py_script="python run/train.py -a ${a} $d -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-#     commands+=("$py_script")
-#     echo $py_script
-# done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

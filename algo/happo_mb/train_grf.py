@@ -40,8 +40,8 @@ def train(
     eval_data = load_eval_data(filename=env_name)
     rng = dynamics.model.rng
 
-    rollout_type = routine_config.get('rollout_type', 'full')
-    assert rollout_type in ('full', 'part'), rollout_type
+    rollout_type = routine_config.get('rollout_type', 'mix')
+    assert rollout_type in ('lka', 'mix'), rollout_type
     n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)

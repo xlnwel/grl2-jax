@@ -118,7 +118,7 @@ trainer:
     n_epochs: &nepochs 20
     n_mbs: &nmbs 1
     n_steps: *nsteps         # BPTT length
-    update_scheme: step
+    update_scheme: whole
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss

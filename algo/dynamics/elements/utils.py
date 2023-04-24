@@ -1,7 +1,11 @@
+import collections
 from jax import nn
 import jax.numpy as jnp
 
 from core.typing import AttrDict, dict2AttrDict
+
+
+DynamicsOutput = collections.namedtuple('dynamics', 'model reward discount')
 
 
 def prefix_name(terms, name):

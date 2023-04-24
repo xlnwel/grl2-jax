@@ -79,6 +79,8 @@ class RunningMeanStd:
             ndim: expected number of dimensions for the stats, useful for debugging
         """
         self.name = name
+        # assertion to avoid any unexpected construction
+        assert name is not None, name
 
         if isinstance(axis, int):
             axis = (axis, )
@@ -98,11 +100,11 @@ class RunningMeanStd:
         if self._axis is not None:
             self._shape_slice = np.s_[: max(self._axis)+1]
         self._epsilon = epsilon
-        self.reset_rms_stats()
         self._clip = clip
         self._ndim = ndim # expected number of dimensions
         self._const_threshold = const_threshold
         assert self._const_threshold > np.sqrt(self._epsilon), (self._const_threshold, self._epsilon)
+        self.reset_rms_stats()
 
     @property
     def axis(self):
@@ -132,9 +134,16 @@ class RunningMeanStd:
         return self._count > 0
 
     def reset_rms_stats(self):
-        self._mean = 0
-        self._var = 1
-        self._std = 1
+        if self._ndim:
+            shape = [1 for _ in range(self._ndim)]
+            self._mean = np.zeros(shape)
+            self._var = np.ones(shape)
+            self._std = np.ones(shape)
+        else:
+            self._mean = 0
+            self._var = 1
+            self._std = 1
+
         self._count = 0
 
     def set_rms_stats(self, mean, var, count):

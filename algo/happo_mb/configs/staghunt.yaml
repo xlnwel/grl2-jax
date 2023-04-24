@@ -33,7 +33,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
-    rollout_type: part
+    rollout_type: lka
 
 env:
     env_name: &env_name magw-staghunt
@@ -84,7 +84,7 @@ loss:
     c_clip: 1
     rho_clip: 1
     adv_type: gae
-    norm_adv: True
+    norm_adv: False
 
     prnn_bptt: 10
     vrnn_bptt: 10
@@ -93,12 +93,15 @@ loss:
     pg_type: ppo
     opt_pg: False
     ppo_clip_range: .2
-    rescaled_by_adv: False
-    lower_threshold: -2
+    teammate_ratio_clip: null
+    rescaled_by_adv: True
+    lower_threshold: -4.
+    upper_threshold: 4.
     reg_type: kl_reverse
+    sample_reg_type: exp
     reg_coef: 0
-    pos_reg_coef: 0
-    neg_reg_coef: 0
+    sample_reg_coef: 0
+    sample_pos_reg_coef: 0
     policy_sample_mask: True
 
     # hyperparams for value learning
@@ -109,7 +112,9 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    pos_lka_reg_coef: 0
+    lka_reg_coef: 0
+    lka_sample_reg_coef: 0
+    lka_sample_pos_reg_coef: 0
 
     stats:
         gamma: *gamma
@@ -126,12 +131,13 @@ trainer:
     n_epochs: &nepochs 10
     n_mbs: &nmbs 1
     n_steps: *nsteps
-    update_scheme: step
+    update_scheme: whole
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss
     n_lka_epochs: *nepochs
     n_lka_mbs: *nmbs
+    debug: False
 
     theta_opt:
         opt_name: adam

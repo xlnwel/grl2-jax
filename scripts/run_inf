@@ -1,33 +1,4 @@
 
-# ./scripts/inf ma_mujoco 2 inf_ppo_lka
-# ./scripts/inf ma_mujoco 4 inf_sac_lka
-# ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb
-# ./scripts/inf ma_mujoco 1 inf_masac
-# ./scripts/inf ma_mujoco 3 inf_mambpo
-# ./scripts/inf ma_mujoco 1 inf_mambpo 400
-# ./scripts/inf ma_mujoco 2 inf_masac_lka2
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 200 True
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 200 False
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 True
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 False
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 400 True
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 400 False
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 400 True
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 400 False
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 200 False 1
-# ./scripts/inf ma_mujoco 1 inf_masac_lka 200 False 7
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 False 1
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 200 False 7
-# ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka 400 10000 100 dynamics
-# ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka2 400 10000 50 dynamics
-# ./scripts/inf ma_mujoco 1 inf_masac_lka masac_lka2 400 10000 100 dynamics
-# ./scripts/inf ma_mujoco 4 inf_mujoco_ppo_mb
-# ./scripts/inf ma_mujoco 1 inf_mambpo 1000 20000 .5 dynamics
-# ./scripts/inf ma_mujoco 1 inf_mambpo 1000 50000 .5 dynamics
-# ./scripts/inf ma_mujoco 1 inf_mambpo 400 10000 .5 dynamics_tx
-# ./scripts/inf ma_mujoco 1 inf_mambpo 1000 20000 .5 dynamics_tx
-# ./scripts/inf ma_mujoco 1 inf_mambpo 1000 50000 .5 dynamics_tx
-
 # ./scripts/inf magw 2 inf_magw_mb
 # ./scripts/inf magw 1 inf_ppo_lka happo_lka1
 # ./scripts/inf magw 6 inf_ppo_lka
@@ -45,80 +16,47 @@
 # ./scripts/inf magw 1 inf_ppo_lka 1 False
 # ./scripts/inf magw 1 inf_ppo_lka .5 True
 # ./scripts/inf magw 1 inf_ppo_lka .5 False
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo
-# ./scripts/inf ma_mujoco 1 inf_mambpo 0#n_epochs=200 1#model_loss_type=mbpo 1#deterministic_trans=False
-# ./scripts/inf ma_mujoco 1 inf_mambpo 0#n_epochs=400 1#model_loss_type=mbpo 1#deterministic_trans=False
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 0#n_epochs=200 1#model_loss_type=mbpo 1#deterministic_trans=False
-# ./scripts/inf ma_mujoco 1 inf_masac_lka2 0#n_epochs=400 1#model_loss_type=mbpo 1#deterministic_trans=False
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka True 400 per
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka True 800 uniform
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka True 800 per
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 50
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 100
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 150
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb 200
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo happo
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo happo_lka2
-
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo Ant_2x4 wasserstein 1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo Ant_2x4 simple 1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo HalfCheetah_2x3 wasserstein 1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo HalfCheetah_2x3 simple 1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo Walker2d_2x3 wasserstein 1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo Walker2d_2x3 simple 1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Ant_2x4 300
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Ant_2x4 500
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Ant_2x4 800
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb HalfCheetah_2x3 300
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb HalfCheetah_2x3 500
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb HalfCheetah_2x3 800
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Walker2d_2x3 300
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Walker2d_2x3 500
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_mb Walker2d_2x3 800
-# ./scripts/inf magw 1 inf_magw_mb 300 escalation
-# ./scripts/inf magw 1 inf_magw_mb 500 escalation
-# ./scripts/inf magw 1 inf_magw_mb 300 staghunt
-# ./scripts/inf magw 1 inf_magw_mb 300 staghunt
-# ./scripts/inf magw 1 inf_magw_mb 500 staghunt
-# ./scripts/inf magw 1 inf_magw_mb 1000 staghunt
-# ./scripts/inf magw 1 inf_magw_mb 300 
-# ./scripts/inf magw 1 inf_magw_mb 400 
 
 # mujoco
-./scripts/inf ma_mujoco 1 inf_mambpo 0#n_epochs=200 
-./scripts/inf ma_mujoco 1 inf_mambpo 0#n_epochs=400 
-./scripts/inf ma_mujoco 1 inf_masac_lka2 0#n_epochs=200 
-./scripts/inf ma_mujoco 1 inf_masac_lka2 0#n_epochs=400 
+# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo 0#n_epochs=400
+# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo 0#n_epochs=800
+# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=400 0#rollout_type=mix
+# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=800 0#rollout_type=mix
+# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=400 0#rollout_type=lka
+# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=800 0#rollout_type=lka
 
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo 0#normalize_reward=False 0#norm_adv=False
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo 0#normalize_reward=False 0#norm_adv=True
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo 0#normalize_reward=True 0#norm_adv=False
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo 0#normalize_reward=True 0#norm_adv=True
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#n_simulated_envs=800 1#n_simulated_steps=10
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#n_simulated_envs=800 1#n_simulated_steps=15
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#n_simulated_envs=1000 1#n_simulated_steps=10
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#n_simulated_envs=1000 1#n_simulated_steps=15
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#n_lka_epochs=3
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#n_lka_epochs=5
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo 0#norm=layer
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#norm=layer
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=5e-4 1#pred_raw=False
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=5e-4 1#pred_raw=False 1#n_epochs=1000
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=5e-4 0#reg_type=wasserstein 0#pos_reg_coef=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=8e-4 1#pred_raw=True
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=8e-4 1#pred_raw=False
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=8e-4 0#reg_type=simple 0#pos_reg_coef=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=8e-4 0#reg_type=wasserstein 0#pos_reg_coef=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=1e-3 1#pred_raw=True
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=1e-3 1#pred_raw=False
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=1e-3 0#reg_type=simple 0#pos_reg_coef=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#model_opt:lr=1e-3 0#reg_type=wasserstein 0#pos_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=log reg_coef=1 lower_threshold=-2 upper_threshold=2
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=exp reg_coef=1 lower_threshold=-2 upper_threshold=2
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka reg_type=log reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka reg_type=exp reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=log pos_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=exp pos_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=log reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=log pos_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=exp reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=exp pos_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=simple
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=simple reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=simple pos_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=simple reg_coef=.5
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo reg_type=simple pos_reg_coef=.5
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo norm_adv=True reg_type=simple pos_reg_coef=1
 
-# ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb True
-# ./scripts/inf ma_mujoco 2 inf_mujoco_ppo_mb False
-
-# ./scripts/inf magw 4 inf_ppo_lka
-# ./scripts/inf grf 2 inf_grf 10
+# ./scripts/inf grf 1 inf_grf
+# ./scripts/inf grf 3 inf_grf_lka dynamics 1#n_epochs=500
+# ./scripts/inf grf 3 inf_grf_lka dynamics 1#n_epochs=800
+./scripts/inf grf 3 inf_grf_lka dynamics_tx 1#n_epochs=500
+./scripts/inf grf 3 inf_grf_lka dynamics_tx 1#n_epochs=800
+# ./scripts/inf grf 1 inf_grf_lka 0#shared_reward=False 1#n_epochs=800
+# ./scripts/inf grf 1 inf_grf_lka 0#shared_reward=False 1#n_epochs=1000
+# ./scripts/inf grf 1 inf_grf_lka 1#lr=8e-4
+# ./scripts/inf grf 1 inf_grf_lka 1#lr=1e-3
+# ./scripts/inf grf 1 inf_grf_lka 0#shared_reward=False
+# ./scripts/inf grf 1 inf_grf_lka reg_type=log reg_coef=1
 # ./scripts/inf grf 3 inf_grf 5
 # ./scripts/inf grf 3 inf_grf 10
 # ./scripts/inf grf 3 inf_grf 15

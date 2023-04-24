@@ -13,14 +13,17 @@ from core import optimizer
 from core.typing import AttrDict
 from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
-from tools.utils import flatten_dict, prefix_name, batch_dicts, yield_from_tree_with_indices
+from tools.utils import flatten_dict, prefix_name, yield_from_tree_with_indices
 from algo.lka_common.elements.model import LOOKAHEAD, pop_lookahead
 from algo.lka_common.elements.trainer import *
 
 
 class Trainer(TrainerBase):
     def add_attributes(self):
-        self.popart = [RunningMeanStd((0, 1)) for _ in self.model.aid2uids]
+        self.popart = [
+            RunningMeanStd((0, 1), name=f'popart{i}', ndim=1) 
+            for i, _ in enumerate(self.model.aid2uids)
+        ]
         self.indices = np.arange(self.config.n_runners * self.config.n_envs)
         self.n_agents = self.env_stats.n_agents
         self.aid2uids = self.env_stats.aid2uids
@@ -101,7 +104,7 @@ class Trainer(TrainerBase):
                     self.jit_train, self.perm_rng, 
                     return_stats=True
                 )
-        else:
+        elif self.config.update_scheme == 'whole':
             theta, opt_state, stats, self.perm_rng = \
                 self.sequential_opt(
                     theta, opt_state, data, self.n_epochs, 
@@ -109,6 +112,8 @@ class Trainer(TrainerBase):
                     self.jit_train, self.perm_rng, 
                     return_stats=True
                 )
+        else:
+            raise NotImplementedError(self.config.update_scheme)
 
         for p in theta.policies:
             p[LOOKAHEAD] = False
@@ -215,7 +220,7 @@ class Trainer(TrainerBase):
         # rngs = rngs[n_epochs:-1]
         period = 10 if n_epochs > 10 else 2
         all_stats = AttrDict()
-            
+
         for e in range(n_epochs):
             # indices = random.shuffle(shuffle_rng[e], indices)
             np.random.shuffle(indices)
@@ -281,7 +286,7 @@ class Trainer(TrainerBase):
         compute_teammate_log_ratio=True, 
         return_stats=True
     ):
-        do_logging('train is traced', backtrack=4)            
+        do_logging('train is traced', backtrack=4)
         rngs = random.split(rng, 3)
         if self.config.get('theta_opt'):
             theta, opt_state, stats = optimizer.optimize(
@@ -294,20 +299,22 @@ class Trainer(TrainerBase):
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.theta[aid], 
-                name='opt/theta'
+                name='opt/theta', 
+                debug=return_stats
             )
         else:
             theta.value, opt_state.value, stats = optimizer.optimize(
                 self.loss.value_loss, 
-                theta.value,
+                theta.value, 
                 opt_state.value, 
                 kwargs={
                     'rng': rngs[0], 
                     'policy_theta': theta.policy, 
-                    'data': data,
+                    'data': data, 
                 }, 
                 opt=self.opts.vs[aid], 
-                name='opt/value'
+                name='opt/value', 
+                debug=return_stats
             )
             theta.policy, opt_state.policy, stats = optimizer.optimize(
                 self.loss.policy_loss, 
@@ -320,15 +327,16 @@ class Trainer(TrainerBase):
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.policies[aid], 
-                name='opt/policy'
+                name='opt/policy', 
+                debug=return_stats
             )
 
         if compute_teammate_log_ratio:
             stats.teammate_log_ratio = self.compute_teammate_log_ratio(
                 theta.policy, rngs[2], teammate_log_ratio, data)
 
+        inverse_mu = 1 / jnp.exp(data.mu_logprob)
         if not return_stats:
-            inverse_mu = 1 / jnp.exp(data.mu_logprob)
             stats = AttrDict(
                 ratio=stats.ratio, 
                 log_ratio=stats.log_ratio, 
@@ -346,6 +354,8 @@ class Trainer(TrainerBase):
                 pp_ratio=stats.pp_ratio, 
                 pn_ratio=stats.pn_ratio,
             )
+        else:
+            stats.inverse_mu = inverse_mu
         return theta, opt_state, stats
 
     def lka_train(
@@ -372,7 +382,8 @@ class Trainer(TrainerBase):
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.theta[aid], 
-                name='lka_opt/theta'
+                name='lka_opt/theta', 
+                debug=return_stats
             )
         else:
             if self.config.get('ignore_lka_value_update', False):
@@ -393,7 +404,8 @@ class Trainer(TrainerBase):
                         'data': data,
                     }, 
                     opt=self.opts.vs[aid], 
-                    name='lka_opt/value'
+                    name='lka_opt/value', 
+                    debug=return_stats
                 )
             theta.policy, opt_state.policy, stats = optimizer.optimize(
                 self.loss.lka_policy_loss, 
@@ -406,7 +418,8 @@ class Trainer(TrainerBase):
                     'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.policies[aid], 
-                name='lka_opt/policy'
+                name='lka_opt/policy', 
+                debug=return_stats
             )
 
         if compute_teammate_log_ratio:
@@ -415,6 +428,7 @@ class Trainer(TrainerBase):
 
         if not return_stats:
             stats = AttrDict(
+                v_target=stats.v_target, 
                 teammate_log_ratio=stats.teammate_log_ratio
             )
         return theta, opt_state, stats
@@ -460,7 +474,7 @@ class Trainer(TrainerBase):
         filedir = self.get_popart_dir()
         self.popart = restore(
             filedir=filedir, filename='popart', 
-            default=[RunningMeanStd((0, 1, 2)) for _ in self.model.aid2uids], 
+            default=self.popart, 
             name='popart'
         )
 

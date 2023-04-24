@@ -20,7 +20,7 @@ routine:
     EVAL_PERIOD: null
 
     n_eval_envs: 100
-    RECORD_VIDEO: True
+    RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
@@ -35,7 +35,7 @@ routine:
     restore_state: False
     switch_model_at_every_step: True
     quantify_dynamics_errors: False
-    rollout_type: full
+    rollout_type: lka
     concise_mode: True
 
 env:
@@ -48,15 +48,16 @@ env:
     dump_frequency: 1000
     logdir: results/grf
     extra_players: null
-    number_of_left_players_agent_controls: 3
+    number_of_left_players_agent_controls: 4
     number_of_right_players_agent_controls: 0
     add_role_to_obs: False
     shared_ckpt_reward: False
+    shared_reward: True
 
-    max_episode_steps: 400
+    max_episode_steps: 200
     use_action_mask: False
     uid2aid: null
-    share_policy: False
+    shared_policy: False
 
     n_runners: &nrunners 8
     n_envs: &nenvs 8
@@ -90,6 +91,7 @@ model:
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
+        use_feature_norm: False
     value:
         nn_id: value
         units_list: [64, 64]
@@ -98,6 +100,7 @@ model:
         norm: null
         rnn_type: &vrnn null
         rnn_units: 64
+        use_feature_norm: False
 
 loss:
     # hyperparams for value target and advantage
@@ -114,12 +117,15 @@ loss:
     pg_type: ppo
     opt_pg: False
     ppo_clip_range: .2
-    rescaled_by_adv: False
-    lower_threshold: -2
+    teammate_ratio_clip: .2
+    rescaled_by_adv: True
+    lower_threshold: -4.
+    upper_threshold: 2.
     reg_type: kl_reverse
+    sample_reg_type: log
     reg_coef: 0
-    pos_reg_coef: 0
-    neg_reg_coef: 0
+    sample_reg_coef: 0
+    sample_pos_reg_coef: 0
     policy_sample_mask: True
 
     # hyperparams for value learning
@@ -130,7 +136,9 @@ loss:
     # hyperparams for lka
     lka_prnn_bptt: 10
     lka_vrnn_bptt: 10
-    pos_lka_reg_coef: 0
+    lka_reg_coef: 0
+    lka_sample_reg_coef: 0
+    lka_sample_pos_reg_coef: 0
 
     stats:
         gamma: *gamma
@@ -147,14 +155,14 @@ trainer:
     n_epochs: &nepochs 15
     n_mbs: &nmbs 1
     n_steps: *nsteps
-    update_scheme: step
+    update_scheme: whole
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss
     n_lka_epochs: *nepochs
     n_lka_mbs: *nmbs
     ignore_lka_value_update: False
-    debug: False
+    debug: True
 
     theta_opt:
         opt_name: adam

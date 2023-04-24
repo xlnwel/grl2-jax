@@ -10,15 +10,15 @@ algos=(
 envs=(
     # $1
     academy_3_vs_1_with_keeper
-    # academy_corner
+    academy_corner
     academy_counterattack_hard
 )
 # shift
 configs=$envs
 args1=(
-    1e-3
-    8e-4
-    5e-4
+    1
+    .5
+    .1
 )
 args2=(
     True
@@ -34,7 +34,6 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-date="0414"
 info=""
 ld="${suite}-logs"
 
@@ -64,25 +63,18 @@ la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 # kws=$@
-
+dynamics=$1
+shift
 commands=()
-# config="${e}"
-# kws="1#type=uniform 1#batch_size=512 1#lr=1e-3"
-# for s in {0..3}; do
-#     py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-#     commands+=("$py_script")
-#     echo $py_script
-#     # eval $py_script
-# done
 kws=$@
 # for e in "${envs[@]}"; do
 env="${suite}-${e}"
 config="${e}"
 for s in {0..4}; do
-    py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+    py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
     commands+=("$py_script")
     echo $py_script
-    # eval $py_script
 done
+# done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 5 -L 1 bash -c COMMAND 
 echo "Script completed"

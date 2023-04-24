@@ -23,7 +23,7 @@ def get_discrete_dist(x):
     return dist
 
 
-def get_dist(x, out_type, out_config):
+def get_model_dist(x, out_type, out_config):
     if out_type == DISCRETE_MODEL:
         dist = get_discrete_dist(x)
     else:
@@ -33,183 +33,163 @@ def get_dist(x, out_type, out_config):
     return dist
 
 
+def get_reward_dist(x):
+    if x.shape[-1] == 1:
+        x = jnp.squeeze(x, -1)
+        dist = jax_dist.MultivariateNormalDiag(x, jnp.ones_like(x))
+    else:
+        dist = jax_dist.Categorical(x)
+    return dist
+
 CONTINUOUS_MODEL = 'continuous'
 DISCRETE_MODEL = 'discrete'
 
 
-def get_out_kwargs(out_type, out_config, out_size):
-    kwargs = AttrDict(out_layer_type='elinear')
-    if out_type == DISCRETE_MODEL:
-        kwargs.out_size = out_config.n_classes
-        kwargs.out_kwargs = {'ensemble_size': out_size, 'expand_edim': True}
+def get_model_kwargs(model_config, out_config, out_size):
+    model_config = model_config.copy()
+    model_config.out_layer_type = 'elinear'
+    kwargs = AttrDict()
+    if out_config.model_type == DISCRETE_MODEL:
+        kwargs.ensemble_size = out_size
+        kwargs.expand_edim = True
     else:
-        kwargs.out_size = out_size
-        kwargs.out_kwargs = {'ensemble_size': 2, 'expand_edim': True}
-    return kwargs
+        kwargs.ensemble_size = 2
+        kwargs.expand_edim = True
+    model_config.out_kwargs = kwargs
+    model_config.out_size = out_config.n_classes
+
+    return model_config
 
 
-@nn_registry.register('model')
-class Model(hk.Module):
+@nn_registry.register('dynamics')
+class Dynamics(hk.Module):
     def __init__(
         self, 
-        out_size, 
-        out_type, 
-        out_config, 
-        name='model', 
-        **config, 
+        model_out_size, 
+        repr_config, 
+        model_out_config, 
+        model_config={}, 
+        reward_config={}, 
+        discount_config={}, 
+        name='dynamics', 
     ):
         super().__init__(name=name)
-        self.config = dict2AttrDict(config, to_copy=True)
-        self.out_size = out_size
-
-        self.out_config = dict2AttrDict(out_config, to_copy=True)
-        self.out_type = out_type
-        assert self.out_type in (DISCRETE_MODEL, CONTINUOUS_MODEL)
+        self.model_out_size = model_out_size
+        self.model_out_config = model_out_config
+        self.repr_config = dict2AttrDict(repr_config, to_copy=True)
+        self.model_config = dict2AttrDict(model_config, to_copy=True)
+        self.reward_config = dict2AttrDict(reward_config, to_copy=True)
+        self.discount_config = dict2AttrDict(discount_config, to_copy=True)
+        self.model_out_type = self.model_out_config.model_type
+        assert self.model_out_type in (DISCRETE_MODEL, CONTINUOUS_MODEL)
 
     def __call__(self, x, action, training=False):
-        net = self.build_net()
+        net, ml, rl, dl = self.build_net()
         x = combine_sa(x, action)
-        x = self.call_net(net, x)
-        dist = get_dist(x, self.out_type, self.out_config)
-        return dist
+        model_out, reward_out, disc_out = self.call_net(x, net, ml, rl, dl)
+        model_dist = get_model_dist(
+            model_out, self.model_out_type, self.model_out_config)
+        reward_dist = get_reward_dist(reward_out)
+        disc_dist = jax_dist.Bernoulli(disc_out)
+
+        return DynamicsOutput(model_dist, reward_dist, disc_dist)
 
     @hk.transparent
     def build_net(self):
-        out_kwargs = get_out_kwargs(
-            self.out_type, self.out_config, self.out_size)
-        net = mlp(
-            **self.config, 
-            **out_kwargs, 
-            name='model_mlp', 
+        net = mlp(**self.repr_config, name='repr')
+        model_config = get_model_kwargs(
+            self.model_config, 
+            self.model_out_config, 
+            self.model_out_size
         )
-        return net
+        model_layer = mlp(
+            **model_config, 
+            name='model'
+        )
+        reward_layer = mlp(
+            **self.reward_config, 
+            out_size=1, 
+            name='reward'
+        )
+        discount_layer = mlp(
+            **self.discount_config, 
+            out_size=1, 
+            name='discount'
+        )
 
-    def call_net(self, net, x):
+        return net, model_layer, reward_layer, discount_layer
+
+    @hk.transparent
+    def call_net(self, x, net, ml, rl, dl):
         x = net(x)
-        x = jnp.swapaxes(x, -3, -2)
-        return x
-    
+        model_out = ml(x)
+        model_out = jnp.swapaxes(model_out, -3, -2)
+        reward_out = rl(x)
+        disc_out = jnp.squeeze(dl(x), -1)
+        return model_out, reward_out, disc_out
 
-@nn_registry.register('emodels')
-class EnsembleModels(Model):
+
+@nn_registry.register('edynamics')
+class EnsembleDynamics(Dynamics):
     def __init__(
         self, 
         n_models, 
-        out_size, 
-        out_type, 
-        out_config, 
-        name='emodels', 
-        **config, 
+        model_out_size, 
+        repr_config, 
+        model_out_config, 
+        model_config={}, 
+        reward_config={}, 
+        discount_config={}, 
+        name='edynamics', 
     ):
         self.n_models = n_models
-        super().__init__(out_size, out_type, out_config, name=name, **config)
+        super().__init__(
+            model_out_size, 
+            repr_config=repr_config, 
+            model_out_config=model_out_config, 
+            model_config=model_config, 
+            reward_config=reward_config, 
+            discount_config=discount_config, 
+            name=name, 
+        )
 
     @hk.transparent
     def build_net(self):
-        out_kwargs = get_out_kwargs(
-            self.out_type, self.out_config, self.out_size)
-        nets = [mlp(
-            **self.config,
-            **out_kwargs, 
-            name=f'model{i}_mlp', 
+        nets = [
+            mlp(**self.repr_config, name=f'repr{i}') for i in range(self.n_models)
+        ]
+        model_config = get_model_kwargs(
+            self.model_config, 
+            self.model_out_config, 
+            self.model_out_size
+        )
+        model_layers = [mlp(
+            **model_config, 
+            name=f'model{i}'
         ) for i in range(self.n_models)]
-        return nets
+        reward_layers = [mlp(
+            **self.reward_config, 
+            out_size=1, 
+            name=f'reward{i}'
+        ) for i in range(self.n_models)]
+        discount_layers = [mlp(
+            **self.discount_config, 
+            out_size=1, 
+            name=f'discount{i}'
+        ) for i in range(self.n_models)]
 
-    def call_net(self, nets, x):
-        x = jnp.stack([net(x) for net in nets], ENSEMBLE_AXIS)
-        x = jnp.swapaxes(x, -3, -2)
-        return x
-
-
-@nn_registry.register('reward')
-class Reward(hk.Module):
-    def __init__(
-        self, 
-        use_next_obs=False, 
-        balance_dimension=False, 
-        obs_embed=None, 
-        action_embed=None, 
-        out_size=1, 
-        name='reward', 
-        **config
-    ):
-        super().__init__(name=name)
-
-        self.use_next_obs = use_next_obs
-        self.balance_dimension = balance_dimension
-        self.obs_embed = obs_embed
-        self.action_embed = action_embed
-        self.out_size = out_size
-        self.config = dict2AttrDict(config, to_copy=True)
-
-    def __call__(self, x, action, next_x=None):
-        if self.balance_dimension:
-            obs_transform, action_transform, net = self.build_net()
-            obs_embed = obs_transform(x)
-            actions = joint_actions(action)
-            action_embed = action_transform(actions)
-            if self.use_next_obs:
-                next_obs_embed = obs_transform(next_x)
-                x = jnp.concatenate([obs_embed, action_embed, next_obs_embed], -1)
-            else:
-                x = jnp.concatenate([obs_embed, action_embed], -1)
-        else:
-            net = self.build_net()
-            action = joint_actions(action)
-            if self.use_next_obs:
-                x = jnp.concatenate([x, action, next_x], -1)
-            else:
-                x = jnp.concatenate([x, action], -1)
-            x = combine_sa(x, action)
-        x = net(x)
-        if self.out_size == 1:
-            x = jnp.squeeze(x, -1)
-            dist = jax_dist.MultivariateNormalDiag(x, jnp.ones_like(x))
-        else:
-            dist = jax_dist.Categorical(x)
-
-        return dist
+        return nets, model_layers, reward_layers, discount_layers
 
     @hk.transparent
-    def build_net(self):
-        if self.balance_dimension:
-            obs_transform = mlp(out_size=self.obs_embed)
-            action_transform = mlp(out_size=self.action_embed)
-            net = mlp(**self.config, out_size=self.out_size)
-            return obs_transform, action_transform, net
-        else:
-            net = mlp(**self.config, out_size=self.out_size)
-            return net
+    def call_net(self, x, nets, mls, rls, dls):
+        xs = [net(x) for net in nets]
+        model_out = jnp.stack([ml(x) for ml, x in zip(mls, xs)], ENSEMBLE_AXIS)
+        model_out = jnp.swapaxes(model_out, -3, -2)
+        reward_out = jnp.stack([rl(x) for rl, x in zip(rls, xs)], ENSEMBLE_AXIS)
+        disc_out = jnp.squeeze(
+            jnp.stack([dl(x) for dl, x in zip(dls, xs)], ENSEMBLE_AXIS), -1)
 
-
-@nn_registry.register('discount')
-class Discount(hk.Module):
-    def __init__(
-        self, 
-        out_size=1, 
-        name='discount', 
-        **config
-    ):
-        super().__init__(name=name)
-
-        self.out_size = out_size
-        self.config = dict2AttrDict(config, to_copy=True)
-
-    def __call__(self, x, action):
-        action = joint_actions(action)
-        x = jnp.concatenate([x, action], -1)
-        net = self.build_net()
-        x = net(x)
-        x = jnp.squeeze(x, -1)
-        dist = jax_dist.Bernoulli(x)
-
-        return dist
-
-    @hk.transparent
-    def build_net(self):
-        net = mlp(**self.config, out_size=self.out_size)
-
-        return net
+        return model_out, reward_out, disc_out
 
 
 if __name__ == '__main__':
@@ -243,7 +223,7 @@ if __name__ == '__main__':
         'out_scale': .01,
     }
     def layer_fn(x, *args):
-        layer = EnsembleModels(5, 3, **config)
+        layer = EnsembleDynamics(5, 3, **config)
         return layer(x, *args)
     import jax
     rng = jax.random.PRNGKey(42)

@@ -34,7 +34,9 @@ class GRF:
         number_of_left_players_agent_controls=1,
         number_of_right_players_agent_controls=0,
         # custom grf configs
-        shared_ckpt_reward=False,  
+        shared_ckpt_reward=False, 
+        shared_reward=False, 
+        shared_policy=False, 
         # required configs for grl
         max_episode_steps=3000,
         use_action_mask=False,
@@ -50,8 +52,7 @@ class GRF:
         self.name = env_name
         self.representation = representation
         self.to_render = render
-        self.share_reward = kwargs.get('share_reward', False)
-        self.share_reward = True
+        self.shared_reward = shared_reward
 
         # assert number_of_left_players_agent_controls in (1, 11), \
         #     number_of_left_players_agent_controls
@@ -59,7 +60,7 @@ class GRF:
         #     number_of_right_players_agent_controls
 
         if uid2aid is None:
-            if kwargs.get('share_policy', False):
+            if shared_policy:
                 if number_of_left_players_agent_controls > 0:
                     uid2aid = tuple(np.zeros(number_of_left_players_agent_controls, dtype=np.int32)) \
                         + tuple(np.ones(number_of_right_players_agent_controls, dtype=np.int32))
@@ -259,8 +260,15 @@ class GRF:
             self._ckpt_score[self.number_of_left_players_agent_controls:] += \
                 reward[self.number_of_left_players_agent_controls:] + info['score_reward']
 
-        if self.share_reward:
-            rewards = np.ones(self.n_units, dtype=np.float32) * np.sum(reward)
+        if self.shared_reward:
+            if self.number_of_right_players_agent_controls == 0:
+                rewards = np.ones(self.n_units, dtype=np.float32) * np.sum(reward)
+            else:
+                rewards = np.zeros(self.n_units, dtype=np.float32)
+                rewards[:self.number_of_left_players_agent_controls] = \
+                    np.sum(reward[:self.number_of_left_players_agent_controls])
+                rewards[self.number_of_left_players_agent_controls:] = \
+                    np.sum(reward[self.number_of_left_players_agent_controls:])
         else:
             rewards = np.reshape(reward, -1)
 
@@ -417,7 +425,7 @@ class GRF:
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--left', '-l', type=int, default=11)
+    parser.add_argument('--left', '-l', type=int, default=4)
     parser.add_argument('--right', '-r', type=int, default=0)
     parser.add_argument('--step', '-s', type=int, default=10)
     parser.add_argument('--unit', '-u', action='store_true')
@@ -428,8 +436,8 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     config = {
-        'env_name': 'academy_3_vs_1_with_keeper',
-        'representation': 'custom',
+        'env_name': 'academy_counterattack_hard',
+        'representation': 'simple115v2',
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,
         'number_of_right_players_agent_controls': args.right,
@@ -452,19 +460,18 @@ if __name__ == '__main__':
     obs = env.reset()
     obs_left.append(obs[0])
     obs_right.append(obs[1])
+    obs = env._raw_obs()
+    ids = np.array([o['active'] for o in obs])
     for _ in range(3000):
         a = env.random_action()
         obs, rew, done, info = env.step(a)
-        obs_left.append(obs[0])
-        obs_right.append(obs[1])
-        if np.all(np.concatenate(done)):
-            obs = env.reset()
-            obs_left.append(obs[0])
-            obs_right.append(obs[1])
-    obs_left = batch_dicts(obs_left)
-    obs_right = batch_dicts(obs_right)
-    print_dict_info(obs_left)
-    print_dict_info(obs_right)
+        new_ids = np.array([o['active'] for o in env._raw_obs()])
+        # print(new_ids)
+        np.testing.assert_equal(ids, new_ids)
+        if np.all(done):
+            env.reset()
+            new_ids = np.array([o['active'] for o in env._raw_obs()])
+            np.testing.assert_equal(ids, new_ids)
     # o = []
     # o.extend(do_flatten(env._raw_obs()[0]['left_team']))
     # for k, v in env._raw_obs()[0].items():

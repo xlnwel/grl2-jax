@@ -49,6 +49,7 @@ def load_config_from_filedir(filedir, from_algo=False):
     assert filedir.split('/')[-1].startswith('a'), filedir
     
     names = filedir.split('/')
+    algo = names[-5]
     if from_algo:
         algo = names[-5]
         env = names[-6]
@@ -66,9 +67,9 @@ def load_config_from_filedir(filedir, from_algo=False):
         root_dir=root_dir, 
         model_name=model_name, 
         name=algo, 
-        seed=names[-2]
+        seed=int(names[-2][-1])
     )
-    print_dict(config)
+    # print_dict(config)
     # yaml_path = f'{filedir}/config'
     # yaml_op.save_config(config, path=yaml_path)
 
@@ -87,7 +88,7 @@ def collect_data(config, n_runners, n_envs, n_steps):
         n_runners=n_runners, 
         n_envs=n_envs, 
         n_steps=n_steps, 
-        sample_keys=[], 
+        sample_keys=config.buffer.sample_keys, 
     )
     agent = m.build_agent(
         config, 
