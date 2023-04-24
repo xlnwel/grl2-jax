@@ -16,9 +16,11 @@ def prepare_buffer(
         'value': value, 
         'state_reset': concat_along_unit_dim(env_output.reset)
     })
+    data.raw_reward = data.reward
     data.reward = agent.actor.process_reward_with_rms(
         data.reward, data.discount, update_rms=True)
     obs = {k: data[k] for k in agent.actor.get_obs_names()}
+    data.update({f'raw_{k}': v for k, v in obs.items()})
     data = agent.actor.normalize_obs(data, is_next=False)
     data = agent.actor.normalize_obs(data, is_next=True)
     agent.actor.update_obs_rms(obs)

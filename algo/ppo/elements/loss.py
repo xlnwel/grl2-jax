@@ -61,7 +61,8 @@ class Loss(LossBase):
             if self.config.popart:
                 value = lax.stop_gradient(denormalize(
                     stats.value, data.popart_mean, data.popart_std))
-                next_value = denormalize(next_value, data.popart_mean, data.popart_std)
+                next_value = denormalize(
+                    next_value, data.popart_mean, data.popart_std)
             else:
                 value = lax.stop_gradient(stats.value)
 
@@ -95,31 +96,24 @@ class Loss(LossBase):
             act_dist=act_dist, 
         )
 
-        kl_stats = dict(
-            logp=stats.pi_logprob, 
-            logq=data.mu_logprob, 
-            sample_prob=data.mu_logprob, 
-            p_logits=stats.pi_logits, 
-            q_logits=data.mu_logits, 
-            p_loc=stats.pi_loc,  
-            p_scale=stats.pi_scale, 
-            q_loc=data.mu_loc,  
-            q_scale=data.mu_scale, 
-            logits_mask=data.action_mask, 
-            sample_mask=data.sample_mask, 
-            n=data.n
-        )
-        stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
-            reg_type=self.config.reg_type, 
-            kl_coef=self.config.kl_coef, 
-            **kl_stats
+        stats = compute_regularization(
+            stats, 
+            data, 
+            self.config.reg_type, 
+            self.config.pos_reg_coef, 
+            self.config.reg_coef, 
+            self.config.rescaled_by_adv, 
+            self.config.rescaled_by_abs_adv, 
+            self.config.lower_threshold, 
+            self.config.upper_threshold, 
         )
         value_loss, stats = compute_vf_loss(
             self.config, 
             data, 
             stats, 
         )
-        loss = actor_loss + value_loss + stats.kl_loss
+        stats = summarize_adv_ratio(stats, data)
+        loss = actor_loss + value_loss + stats.pos_reg_loss + stats.reg_loss
         stats.loss = loss
 
         return loss, stats
@@ -175,7 +169,8 @@ class Loss(LossBase):
             if self.config.popart:
                 value = lax.stop_gradient(denormalize(
                     stats.value, data.popart_mean, data.popart_std))
-                next_value = denormalize(next_value, data.popart_mean, data.popart_std)
+                next_value = denormalize(
+                    next_value, data.popart_mean, data.popart_std)
             else:
                 value = lax.stop_gradient(stats.value)
 
@@ -245,26 +240,19 @@ class Loss(LossBase):
             act_dist=act_dist, 
         )
 
-        kl_stats = dict(
-            logp=stats.pi_logprob, 
-            logq=data.mu_logprob, 
-            sample_prob=data.mu_logprob, 
-            p_logits=stats.pi_logits, 
-            q_logits=data.mu_logits, 
-            p_loc=stats.pi_loc,  
-            p_scale=stats.pi_scale, 
-            q_loc=data.mu_loc,  
-            q_scale=data.mu_scale, 
-            logits_mask=data.action_mask, 
-            sample_mask=data.sample_mask, 
-            n=data.n
+        stats = compute_regularization(
+            stats, 
+            data, 
+            self.config.reg_type, 
+            self.config.pos_reg_coef, 
+            self.config.reg_coef, 
+            self.config.rescaled_by_adv, 
+            self.config.rescaled_by_abs_adv, 
+            self.config.lower_threshold, 
+            self.config.upper_threshold, 
         )
-        stats.kl, stats.raw_kl_loss, stats.kl_loss = jax_loss.compute_kl(
-            reg_type=self.config.reg_type, 
-            kl_coef=self.config.kl_coef, 
-            **kl_stats
-        )
-        loss = actor_loss + stats.kl_loss
+        stats = summarize_adv_ratio(stats, data)
+        loss = actor_loss + stats.pos_reg_loss + stats.reg_loss
 
         return loss, stats
 

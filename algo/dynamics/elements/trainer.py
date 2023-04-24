@@ -10,7 +10,6 @@ from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.feature import one_hot
-from tools.timer import Timer
 from tools.utils import flatten_dict, prefix_name
 
 
@@ -53,6 +52,7 @@ class Trainer(TrainerBase):
 
     def train(self, data):
         data = self.process_data(data)
+        print_dict_info(data)
         theta = self.model.theta.copy()
         theta, self.params.theta, stats = \
             self.jit_train(

@@ -43,7 +43,7 @@ strategy:
     train_loop:
         ergodic: False
         training_data_size: &ds 1e5
-        valid_data_size: 1e4
+        valid_data_size: 400
         wp_n_epochs: 1000
         n_epochs: &nepochs 1000
 
@@ -62,13 +62,17 @@ model:
     edynamics:
         nn_id: edynamics
         n_models: &n 1
-        units_list: [200, 200, 200, 200]
-        activation: relu
-        norm: null
-        model_out_type: continuous
+        repr_config:
+            units_list: [256, 256, 256, 256]
+            activation: relu
+            norm: null
         model_out_config:
+            model_type: continuous
             max_logvar: .5
             min_logvar: -10
+        reward_config:
+            units_list: [128]
+            activation: relu
 
 loss:
     model_loss_type: *mlt

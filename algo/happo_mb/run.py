@@ -22,7 +22,9 @@ def add_data_to_buffer(
     data.value = np.concatenate([data.value, np.expand_dims(value, 1)], 1)
     reset = env_output.reset
     data.state_reset = np.concatenate([data.state_reset, np.expand_dims(reset, 1)], 1)
+    data.raw_reward = data.reward
     data.reward = agent.actor.normalize_reward(data.reward)
+    data.update({f'raw_{k}': data[k] for k in agent.actor.get_obs_names()})
     data = agent.actor.normalize_obs(data, is_next=False)
     data = agent.actor.normalize_obs(data, is_next=True)
 

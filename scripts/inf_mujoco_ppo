@@ -20,16 +20,16 @@ configs=(
 # shift
 args1=(
     # $2
-    5e-4
-    5e-4
-    8e-4
-    8e-4
-    1e-3
-    1e-3
+    15
+    15
+    10
+    10
 )
 args2=(
-    True
-    False
+    1
+    5
+    1
+    5
 )
 args3=(
     True
@@ -41,7 +41,6 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-# date="0331"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
@@ -74,24 +73,6 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-# for a1 in "${args1[@]}"; do
-# for a2 in "${args2[@]}"; do
-#     for a3 in "${args3[@]}"; do
-#         for a4 in "${args4[@]}"; do
-#         # for e in "${envs[@]}"; do
-#             kws="0#norm_adv=$a1 0#reg_type=$a2 0#rescaled_by_adv=$a3 0#pos_reg_coef=$a4"
-#             env="${suite}-${e}"
-#             for s in {0..4}; do
-#                 py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-#                 commands+=("$py_script")
-#                 echo $py_script
-#                 # eval $py_script
-#             done
-#         done
-#     done
-# done
-# done
-# a="happo"
 kws=$@
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
@@ -99,23 +80,7 @@ for e in "${envs[@]}"; do
         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
         commands+=("$py_script")
         echo $py_script
-        # eval $py_script
     done
 done
-# a="happo_lka2"
-# kws="lka_reg_type=$1 pos_lka_reg_coef=$2"
-# env="${suite}-${e}"
-# for a in "${algos[@]}"; do
-# for e in "${envs[@]}"; do
-#     env="${suite}-${e}"
-#     kws="rollout_type=part"
-#     for s in {0..4}; do
-#         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-#         commands+=("$py_script")
-#         echo $py_script
-#         # eval $py_script
-#     done
-# done
-# done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

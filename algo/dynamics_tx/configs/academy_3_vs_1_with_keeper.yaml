@@ -21,7 +21,6 @@ routine:
     n_envs: 64
 
     model_warm_up: True
-    model_warm_up_train_epochs: 1
     model_warm_up_steps: 5e4
 
 env:
@@ -38,15 +37,17 @@ env:
     number_of_right_players_agent_controls: 0
     add_role_to_obs: False
     shared_ckpt_reward: False
+    shared_reward: True
 
-    max_episode_steps: 200
+    max_episode_steps: 400
     use_action_mask: False
     uid2aid: null
-    share_policy: False
+    shared_policy: False
 
     n_runners: &nrunners 8
     n_envs: &nenvs 8
 
+    use_sample_mask: True
     use_idx: False
     use_hidden: False
     use_event: False
@@ -62,9 +63,10 @@ strategy:
     algorithm: *algo
     train_loop:
         ergodic: False
-        training_data_size: &ds 1e6
-        valid_data_size: 1e4
-        n_epochs: &nepochs 800
+        training_data_size: &ds 1e5
+        valid_data_size: 6400
+        wp_n_epochs: 2000
+        n_epochs: &nepochs 500
 
 model:
     aid: 0
@@ -73,12 +75,11 @@ model:
     rn_std: .1
     model_norm_obs: &obs_norm True
     deterministic_trans: True
-    share_reward: True
     model_loss_type: &mlt mse
     obs_clip: 10
 
-    emodels:
-        nn_id: emodels
+    edynamics:
+        nn_id: edynamics
         n_models: &n 1
         in_config:
             out_size: &embed 128
@@ -86,33 +87,20 @@ model:
             n_blocks: 4
             attn_config:
                 n_heads: 4
-        out_config:
+        model_out_config:
+            model_type: continuous
             max_logvar: .5
             min_logvar: -10
-    reward:
-        nn_id: reward
-        out_size: 1
-        units_list: [256, 256]
-        activation: relu
-        norm: null
-        out_scale: .01
-        use_next_obs: False
-        balance_dimension: False
-        obs_embed: 128
-        action_embed: 64
-    discount:
-        nn_id: discount
-        out_size: 1
-        units_list: [256, 256]
-        activation: relu
-        norm: null
-        out_scale: 1
+        model_config:
+            units_list: [128]
+            activation: relu
+        reward_config:
+            units_list: [128]
+            activation: relu
 
 loss:
     model_loss_type: *mlt
     n_models: *n
-    model_norm_obs: *obs_norm
-    pred_raw: True
 
     model_coef: 1
     reward_coef: 1
@@ -127,14 +115,13 @@ trainer:
     aid: 0
     trust_threshold: null
     timeout_done: *td
-    model_norm_obs: *obs_norm
 
     theta_opt:
         opt_name: adam
         lr: 5e-4
         clip_norm: 10
         eps: 1e-5
-        weight_decay: 1e-6
+        weight_decay: 1e-5
 
 actor: {}
 
@@ -143,11 +130,11 @@ buffer:
     type: uniform
 
     model_norm_obs: *obs_norm
-    use_is_ratio: False
     n_runners: *nrunners
     n_envs: *nenvs
     max_size: *ds
     min_size: 1e3
+    n_recency: 1e3
     batch_size: 256
     sample_size: 1
 

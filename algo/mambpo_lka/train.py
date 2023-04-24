@@ -72,7 +72,8 @@ def train(
         else:
             rng, run_rng = jax.random.split(rng, 2)
             dynamics_run(
-                agent, dynamics, 
+                agent, 
+                dynamics, 
                 routine_config, 
                 dynamics_routine_config, 
                 run_rng, 

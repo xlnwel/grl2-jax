@@ -59,12 +59,16 @@ def train(
     eval_data = load_eval_data(filename=env_name)
     rng = agent.model.rng
 
+    assert routine_config.rollout_type in ('lka', 'mix'), routine_config.rollout_type
     while env_step < routine_config.MAX_STEPS:
         rng, run_rng = jax.random.split(rng, 2)
         # errors = AttrDict()
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
         time2record = to_record(env_step)
-        
+        if time2record:
+            stats = dynamics.valid_stats()
+            dynamics.store(**stats)
+
         if dynamics_routine_config.model_warm_up and \
             env_step < dynamics_routine_config.model_warm_up_steps:
             dynamics_optimize(dynamics, warm_up_stage=True)
@@ -73,13 +77,25 @@ def train(
 
         if routine_config.lka_test:
             lka_optimize(agent)
-            mix_run(
-                agent, 
-                dynamics, 
-                routine_config, 
-                dynamics_routine_config, 
-                run_rng
-            )
+            if routine_config.rollout_type == 'mix':
+                mix_run(
+                    agent, 
+                    dynamics, 
+                    routine_config, 
+                    dynamics_routine_config, 
+                    run_rng
+                )
+            elif routine_config.rollout_type == 'lka':
+                dynamics_run(
+                    agent, 
+                    dynamics, 
+                    routine_config, 
+                    dynamics_routine_config, 
+                    run_rng, 
+                    lka_aids=None
+                )
+            else:
+                raise NotImplementedError()
         else:
             rngs = jax.random.split(run_rng, 2)
             lka_train(
@@ -111,11 +127,6 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            stats = dynamics.valid_stats()
-            dynamics.store(**stats)
-            if eval_data:
-                stats = dynamics.valid_stats(eval_data, 'eval')
-                dynamics.store(**stats)
             eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, eval_lka=False)
 

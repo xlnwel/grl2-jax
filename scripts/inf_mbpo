@@ -5,14 +5,16 @@ export PYTHONPATH=.
 suite=$1
 shift
 algos=(
-    mambpo
+    # mambpo
     # mambpo
     # mambpo_lka2
-    mambpo_lka2
+    # mambpo_lka2
+    $1
 )
+shift
 envs=(
-    # Ant_2x4
-    HalfCheetah_2x3
+    Ant_2x4
+    # HalfCheetah_2x3
     Walker2d_2x3
 )
 configs=(
@@ -21,24 +23,32 @@ configs=(
 args1=(
     # $1
     # 200
-    400
-    800
+    500
+    500
+    500
+    500
+    1000
+    1000
+    1000
+    1000
     # 1000
 )
 args2=(
     # $2
-    .1
+    # .1
     .3
+    .3
+    .5
     .5
 )
 args3=(
-    300
     500
+    1000
     # 800
 )
 args4=(
-    200
-    400
+    500
+    800
 )
 dynamics=(
     # "dynamics_tx"
@@ -48,6 +58,7 @@ dynamics=(
     # "dynamics2"
 )
 date=$(date +"%m%d")
+# date="0419"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
@@ -88,16 +99,18 @@ a3=${args3[$idx]}
 commands=()
 # for a4 in "${args4[@]}"; do
 kws=$@
-kws="0#n_epochs=$a1 0#primal_percentage=$a2 1#n_epochs=$a3"
-for e in "${envs[@]}"; do
-    config=${suite}
-    dyna_config="${suite}_mbpo"
-    env="${suite}-${e}"
-    for s in {0..3}; do
-        py_script="python run/train.py -a ${a} $d -e $env -c $config $dyna_config -ld $ld -n $n -s $s -kw $kws"
-        commands+=("$py_script")
-        echo $py_script
-        # eval $py_script
+# kws="0#n_epochs=$a1 0#primal_percentage=$a2 1#n_epochs=$a3"
+for a in "${algos[@]}"; do
+    for e in "${envs[@]}"; do
+        config=${suite}
+        dyna_config="${suite}_mbpo"
+        env="${suite}-${e}"
+        for s in {0..4}; do
+            py_script="python run/train.py -a ${a} $d -e $env -c $config $dyna_config -ld $ld -n $n -s $s -kw $kws"
+            commands+=("$py_script")
+            echo $py_script
+            # eval $py_script
+        done
     done
 done
 # echo ${commands[@]}s

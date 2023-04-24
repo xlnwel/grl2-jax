@@ -52,6 +52,9 @@ def train(
         rng, run_rng = jax.random.split(rng, 2)
         env_step = env_run(agent, runner, routine_config, lka_aids=[])
         time2record = to_record(env_step)
+        if time2record:
+            stats = dynamics.valid_stats()
+            dynamics.store(**stats)
         
         if dynamics_routine_config.model_warm_up and \
             env_step < dynamics_routine_config.model_warm_up_steps:
@@ -59,7 +62,8 @@ def train(
         else:
             dynamics_optimize(dynamics)
         dynamics_run(
-            agent, dynamics, 
+            agent, 
+            dynamics, 
             routine_config, 
             dynamics_routine_config, 
             run_rng, 
@@ -77,11 +81,6 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            stats = dynamics.valid_stats()
-            dynamics.store(**stats)
-            if eval_data:
-                stats = dynamics.valid_stats(eval_data, 'eval')
-                dynamics.store(**stats)
             eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, eval_lka=False)
 

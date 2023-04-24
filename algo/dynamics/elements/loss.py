@@ -152,18 +152,11 @@ def compute_model_loss(
     elif config.model_loss_type == 'discrete':
         loss = - dist.log_prob(model_target)
         pred_next_obs = dist.mode()
-        obs_cons = jax_math.mask_mean(
-            pred_next_obs == model_target, axis=-1
-        )
-        stats.obs_dim_consistency = jax_math.mask_mean(
-            obs_cons, mask=dim_mask, 
-        )
-        stats.obs_consistency = jax_math.mask_mean(
-            obs_cons == 1, mask=dim_mask, 
-        )
-        stats.mean_loss = jax_math.mask_mean(
-            loss, mask=dim_mask, 
-            axis=utils.except_axis(loss, ENSEMBLE_AXIS)
+        obs_cons = jnp.mean(pred_next_obs == model_target, axis=-1)
+        stats.obs_dim_consistency = jnp.mean(obs_cons)
+        stats.obs_consistency = jnp.mean(obs_cons == 1)
+        stats.mean_loss = jnp.mean(
+            loss, axis=utils.except_axis(loss, ENSEMBLE_AXIS)
         )
         assert len(stats.mean_loss.shape) == 1, stats.mean_loss.shape
         loss = jnp.sum(stats.mean_loss)

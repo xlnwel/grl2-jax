@@ -1,17 +1,14 @@
-import collections
 from jax import lax
 import jax.numpy as jnp
 import haiku as hk
 
 from core.typing import dict2AttrDict
 from nn.func import mlp, nn_registry
-from nn.layers import Layer, ELinear
 from jax_tools import jax_dist
 from algo.dynamics.elements.utils import *
 """ Source this file to register Networks """
 
 
-DynamicsOutput = collections.namedtuple('dynamics', 'model reward discount')
 ENSEMBLE_AXIS = 0
 
 def get_normal_dist(loc, logvar, max_logvar, min_logvar):
@@ -48,17 +45,20 @@ CONTINUOUS_MODEL = 'continuous'
 DISCRETE_MODEL = 'discrete'
 
 
-def get_model_kwargs(out_type, out_config, out_size):
+def get_model_kwargs(model_config, out_config, out_size):
+    model_config = model_config.copy()
+    model_config.out_layer_type = 'elinear'
     kwargs = AttrDict()
-    if out_type == DISCRETE_MODEL:
-        out_size = out_config.n_classes
+    if out_config.model_type == DISCRETE_MODEL:
         kwargs.ensemble_size = out_size
         kwargs.expand_edim = True
     else:
         kwargs.ensemble_size = 2
         kwargs.expand_edim = True
+    model_config.out_kwargs = kwargs
+    model_config.out_size = out_config.n_classes
 
-    return out_size, kwargs
+    return model_config
 
 
 @nn_registry.register('dynamics')
@@ -66,17 +66,21 @@ class Dynamics(hk.Module):
     def __init__(
         self, 
         model_out_size, 
-        model_out_type, 
+        repr_config, 
         model_out_config, 
+        model_config={}, 
+        reward_config={}, 
+        discount_config={}, 
         name='dynamics', 
-        **config, 
     ):
         super().__init__(name=name)
-        self.config = dict2AttrDict(config, to_copy=True)
         self.model_out_size = model_out_size
-
-        self.model_out_config = dict2AttrDict(model_out_config, to_copy=True)
-        self.model_out_type = model_out_type
+        self.model_out_config = model_out_config
+        self.repr_config = dict2AttrDict(repr_config, to_copy=True)
+        self.model_config = dict2AttrDict(model_config, to_copy=True)
+        self.reward_config = dict2AttrDict(reward_config, to_copy=True)
+        self.discount_config = dict2AttrDict(discount_config, to_copy=True)
+        self.model_out_type = self.model_out_config.model_type
         assert self.model_out_type in (DISCRETE_MODEL, CONTINUOUS_MODEL)
 
     def __call__(self, x, action, training=False):
@@ -92,37 +96,24 @@ class Dynamics(hk.Module):
 
     @hk.transparent
     def build_net(self):
-        net = mlp(
-            **self.config, 
-            name='mlp', 
-        )
-        out_size, model_out_kwargs = get_model_kwargs(
-            self.model_out_type, 
+        net = mlp(**self.repr_config, name='repr')
+        model_config = get_model_kwargs(
+            self.model_config, 
             self.model_out_config, 
             self.model_out_size
         )
-        w_init = self.config.get('w_init', 'glorot_uniform')
-        b_init = self.config.get('b_init', 'zeros')
-        model_layer = ELinear(
-            out_size, 
-            w_init=w_init, 
-            b_init=b_init, 
-            scale=self.config.get('out_scale', 1), 
-            **model_out_kwargs, 
+        model_layer = mlp(
+            **model_config, 
             name='model'
         )
-        reward_layer = Layer(
-            1, 
-            w_init=w_init, 
-            b_init=b_init, 
-            scale=.01, 
+        reward_layer = mlp(
+            **self.reward_config, 
+            out_size=1, 
             name='reward'
         )
-        discount_layer = Layer(
-            1, 
-            w_init=w_init, 
-            b_init=b_init, 
-            scale=1,
+        discount_layer = mlp(
+            **self.discount_config, 
+            out_size=1, 
             name='discount'
         )
 
@@ -136,7 +127,7 @@ class Dynamics(hk.Module):
         reward_out = rl(x)
         disc_out = jnp.squeeze(dl(x), -1)
         return model_out, reward_out, disc_out
-    
+
 
 @nn_registry.register('edynamics')
 class EnsembleDynamics(Dynamics):
@@ -144,51 +135,46 @@ class EnsembleDynamics(Dynamics):
         self, 
         n_models, 
         model_out_size, 
-        model_out_type, 
+        repr_config, 
         model_out_config, 
+        model_config={}, 
+        reward_config={}, 
+        discount_config={}, 
         name='edynamics', 
-        **config, 
     ):
         self.n_models = n_models
         super().__init__(
             model_out_size, 
-            model_out_type, 
-            model_out_config, 
+            repr_config=repr_config, 
+            model_out_config=model_out_config, 
+            model_config=model_config, 
+            reward_config=reward_config, 
+            discount_config=discount_config, 
             name=name, 
-            **config
         )
 
     @hk.transparent
     def build_net(self):
-        nets = [mlp(
-            **self.config,
-            name=f'mlp{i}', 
-        ) for i in range(self.n_models)]
-        out_size, model_out_kwargs = get_model_kwargs(
-            self.model_out_type, 
+        nets = [
+            mlp(**self.repr_config, name=f'repr{i}') for i in range(self.n_models)
+        ]
+        model_config = get_model_kwargs(
+            self.model_config, 
             self.model_out_config, 
             self.model_out_size
         )
-        w_init = self.config.get('w_init', 'glorot_uniform')
-        b_init = self.config.get('b_init', 'zeros')
-        model_layers = [ELinear(
-            out_size, 
-            w_init=w_init, 
-            b_init=b_init, 
-            scale=self.config.get('out_scale', 1), 
-            **model_out_kwargs, 
+        model_layers = [mlp(
+            **model_config, 
             name=f'model{i}'
         ) for i in range(self.n_models)]
-        reward_layers = [Layer(
-            1, 
-            w_init=w_init, 
-            b_init=b_init, 
+        reward_layers = [mlp(
+            **self.reward_config, 
+            out_size=1, 
             name=f'reward{i}'
         ) for i in range(self.n_models)]
-        discount_layers = [Layer(
-            1, 
-            w_init=w_init, 
-            b_init=b_init, 
+        discount_layers = [mlp(
+            **self.discount_config, 
+            out_size=1, 
             name=f'discount{i}'
         ) for i in range(self.n_models)]
 
@@ -202,6 +188,7 @@ class EnsembleDynamics(Dynamics):
         reward_out = jnp.stack([rl(x) for rl, x in zip(rls, xs)], ENSEMBLE_AXIS)
         disc_out = jnp.squeeze(
             jnp.stack([dl(x) for dl, x in zip(dls, xs)], ENSEMBLE_AXIS), -1)
+
         return model_out, reward_out, disc_out
 
 
@@ -236,7 +223,7 @@ if __name__ == '__main__':
         'out_scale': .01,
     }
     def layer_fn(x, *args):
-        layer = EnsembleModels(5, 3, **config)
+        layer = EnsembleDynamics(5, 3, **config)
         return layer(x, *args)
     import jax
     rng = jax.random.PRNGKey(42)

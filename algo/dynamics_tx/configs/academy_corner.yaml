@@ -18,20 +18,41 @@ routine:
     n_steps: &nsteps 10
     LOG_PERIOD: 2e5
 
-    n_envs: &nenvs 64
+    n_envs: 64
 
     model_warm_up: True
     model_warm_up_steps: 5e4
 
 env:
-    env_name: &env_name ma_mujoco-HalfCheetah_2x3
-    n_runners: &nrunners 1
-    n_envs: *nenvs
-    max_episode_steps: 1000
-    population_size: 1
-    timeout_done: &td False
+    env_name: &env_name grf-academy_corner
+    representation: simple115v2
+    rewards: scoring,checkpoints
+    render: False
+    write_full_episode_dumps: False
+    write_video: False
+    dump_frequency: 1000
+    logdir: results/grf
+    extra_players: null
+    number_of_left_players_agent_controls: 3
+    number_of_right_players_agent_controls: 0
+    add_role_to_obs: False
+    shared_ckpt_reward: False
+    shared_reward: True
 
-    uid2aid: [0, 1]
+    max_episode_steps: 400
+    use_action_mask: False
+    uid2aid: null
+    shared_policy: False
+
+    n_runners: &nrunners 8
+    n_envs: &nenvs 8
+
+    use_sample_mask: True
+    use_idx: False
+    use_hidden: False
+    use_event: False
+    agentwise_global_state: False
+    timeout_done: &td False
 
 agent: {}
 
@@ -43,8 +64,8 @@ strategy:
     train_loop:
         ergodic: False
         training_data_size: &ds 1e5
-        valid_data_size: 4000
-        wp_n_epochs: 2500
+        valid_data_size: 6400
+        wp_n_epochs: 2000
         n_epochs: &nepochs 500
 
 model:
@@ -60,10 +81,12 @@ model:
     edynamics:
         nn_id: edynamics
         n_models: &n 1
-        repr_config:
-            units_list: [256, 256, 256, 256]
-            activation: relu
-            norm: null
+        in_config:
+            out_size: &embed 128
+        tx_config:
+            n_blocks: 4
+            attn_config:
+                n_heads: 4
         model_out_config:
             model_type: continuous
             max_logvar: .5

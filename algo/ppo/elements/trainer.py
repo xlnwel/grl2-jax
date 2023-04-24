@@ -1,7 +1,7 @@
 from functools import partial
 import numpy as np
 import jax
-from jax import lax
+from jax import random
 import jax.numpy as jnp
 import haiku as hk
 
@@ -46,7 +46,7 @@ def construct_fake_data(env_stats, aid):
 class Trainer(TrainerBase):
     def add_attributes(self):
         self.lookahead_theta = self.model.theta
-        self.popart = RunningMeanStd((0, 1, 2))
+        self.popart = RunningMeanStd((0, 1), 'popart')
         self.indices = np.arange(self.config.n_runners * self.config.n_envs)
 
     def build_optimizers(self):
@@ -75,7 +75,7 @@ class Trainer(TrainerBase):
     def compile_train(self):
         _jit_train = jax.jit(self.theta_train)
         def jit_train(*args, **kwargs):
-            self.rng, rng = jax.random.split(self.rng)
+            self.rng, rng = random.split(self.rng)
             return _jit_train(*args, rng=rng, **kwargs)
         self.jit_train = jit_train
         self.jit_lka_train = jit_train
@@ -114,17 +114,11 @@ class Trainer(TrainerBase):
             v_target = np.concatenate(v_target)
             self.popart.update(v_target)
 
-        data = flatten_dict({f'data/{k}': v 
-            for k, v in data.items() if v is not None})
-        stats = prefix_name(stats, 'theta_train')
+        data = flatten_dict({k: v 
+            for k, v in data.items() if v is not None}, prefix='data')
         stats.update(data)
-        stats['popart/mean'] = self.popart.mean
-        stats['popart/std'] = self.popart.std
-        with Timer('stats_subsampling'):
-            stats = sample_stats(
-                stats, 
-                max_record_size=100, 
-            )
+        stats['theta/popart/mean'] = self.popart.mean
+        stats['theta/popart/std'] = self.popart.std
         for v in theta.values():
             stats.update(flatten_dict(
                 jax.tree_util.tree_map(np.linalg.norm, v)))
@@ -177,19 +171,22 @@ class Trainer(TrainerBase):
         rng, 
         opt_state, 
         data, 
+        return_stats=True
     ):
         do_logging('train is traced', backtrack=4)
+        rngs = random.split(rng, 3)
         if self.config.get('theta_opt'):
             theta, opt_state, stats = optimizer.optimize(
                 self.loss.loss, 
                 theta, 
                 opt_state, 
                 kwargs={
-                    'rng': rng, 
+                    'rng': rngs[0], 
                     'data': data, 
                 }, 
                 opt=self.opts.theta, 
-                name='train/theta'
+                name='opt/theta', 
+                debug=return_stats
             )
         else:
             theta.value, opt_state.value, stats = optimizer.optimize(
@@ -197,24 +194,26 @@ class Trainer(TrainerBase):
                 theta.value, 
                 opt_state.value, 
                 kwargs={
-                    'rng': rng, 
+                    'rng': rngs[0], 
                     'policy_theta': theta.policy, 
                     'data': data, 
                 }, 
                 opt=self.opts.value, 
-                name='train/value'
+                name='opt/value', 
+                debug=return_stats
             )
             theta.policy, opt_state.policy, stats = optimizer.optimize(
                 self.loss.policy_loss, 
                 theta.policy, 
                 opt_state.policy, 
                 kwargs={
-                    'rng': rng, 
+                    'rng': rngs[1], 
                     'data': data, 
                     'stats': stats
                 }, 
                 opt=self.opts.policy, 
-                name='train/policy'
+                name='opt/policy', 
+                debug=return_stats
             )
 
         return theta, opt_state, stats
@@ -241,11 +240,15 @@ class Trainer(TrainerBase):
 
     def save_popart(self):
         filedir = self.get_popart_dir()
-        save(self.popart, filedir=filedir, filename='popart')
+        save(self.popart, filedir=filedir, filename='popart', name='popart')
 
     def restore_popart(self):
         filedir = self.get_popart_dir()
-        self.popart = restore(filedir=filedir, filename='popart', default=RunningMeanStd((0, 1, 2)))
+        self.popart = restore(
+            filedir=filedir, filename='popart', 
+            default=self.popart, 
+            name='popart'
+        )
 
     # def haiku_tabulate(self, data=None):
     #     rng = jax.random.PRNGKey(0)

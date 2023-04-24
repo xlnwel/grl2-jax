@@ -33,6 +33,7 @@ routine:
     use_latest_model: False
     switch_model_at_every_step: False
     lka_test: True
+    rollout_type: mix
 
 env:
     env_name: &env_name ma_mujoco-HalfCheetah_2x3

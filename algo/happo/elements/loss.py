@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict
-from jax_tools import jax_div, jax_loss
+from jax_tools import jax_loss
 from tools.rms import denormalize
 from .utils import *
 
@@ -85,6 +85,7 @@ class Loss(LossBase):
             self.config, 
             stats.raw_adv, 
             teammate_log_ratio, 
+            teammate_ratio_clip=self.config.teammate_ratio_clip, 
             sample_mask=data.sample_mask, 
             n=data.n, 
             epsilon=self.config.get('epsilon', 1e-5)
@@ -98,15 +99,29 @@ class Loss(LossBase):
         )
 
         stats = compute_regularization(
-            stats, data, self.config.reg_type, self.config.pos_reg_coef, 
-            self.config.rescaled_by_adv, self.config.lower_threshold)
+            stats, 
+            data, 
+            self.config.reg_type, 
+            self.config.reg_coef, 
+        )
+        stats = compute_sample_regularization(
+            stats, 
+            data, 
+            self.config.sample_reg_type, 
+            self.config.sample_pos_reg_coef, 
+            self.config.sample_reg_coef, 
+            self.config.rescaled_by_adv, 
+            self.config.lower_threshold, 
+            self.config.upper_threshold, 
+        )
+
         value_loss, stats = compute_vf_loss(
             self.config, 
             data, 
             stats, 
         )
         stats = summarize_adv_ratio(stats, data)
-        loss = actor_loss + value_loss + stats.pos_reg_loss
+        loss = actor_loss + value_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
         stats.loss = loss
 
         return loss, stats
@@ -236,10 +251,23 @@ class Loss(LossBase):
         )
 
         stats = compute_regularization(
-            stats, data, self.config.reg_type, self.config.pos_reg_coef,
-            self.config.rescaled_by_adv, self.config.lower_threshold)
+            stats, 
+            data, 
+            self.config.reg_type, 
+            self.config.reg_coef, 
+        )
+        stats = compute_sample_regularization(
+            stats, 
+            data, 
+            self.config.sample_reg_type, 
+            self.config.sample_pos_reg_coef, 
+            self.config.sample_reg_coef, 
+            self.config.rescaled_by_adv, 
+            self.config.lower_threshold, 
+            self.config.upper_threshold, 
+        )
         stats = summarize_adv_ratio(stats, data)
-        loss = actor_loss + stats.pos_reg_loss
+        loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
 
         return loss, stats
 
@@ -333,14 +361,27 @@ class Loss(LossBase):
         )
 
         stats = compute_regularization(
-            stats, data, self.config.reg_type, self.config.pos_lka_reg_coef,
-            self.config.rescaled_by_adv, self.config.lower_threshold)
+            stats, 
+            data, 
+            self.config.reg_type, 
+            self.config.lka_reg_coef, 
+        )
+        stats = compute_sample_regularization(
+            stats, 
+            data, 
+            self.config.sample_reg_type, 
+            self.config.lka_sample_pos_reg_coef, 
+            self.config.lka_sample_reg_coef, 
+            self.config.rescaled_by_adv, 
+            self.config.lower_threshold, 
+            self.config.upper_threshold, 
+        )
         value_loss, stats = compute_vf_loss(
             self.config, 
             data, 
             stats, 
         )
-        loss = actor_loss + value_loss + stats.pos_reg_loss
+        loss = actor_loss + value_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
         stats.loss = loss
 
         return loss, stats
@@ -470,10 +511,22 @@ class Loss(LossBase):
         )
 
         stats = compute_regularization(
-            stats, data, self.config.reg_type, self.config.pos_lka_reg_coef,
-            self.config.rescaled_by_adv, self.config.lower_threshold)
-
-        loss = actor_loss + stats.pos_reg_loss
+            stats, 
+            data, 
+            self.config.reg_type, 
+            self.config.lka_reg_coef, 
+        )
+        stats = compute_sample_regularization(
+            stats, 
+            data, 
+            self.config.sample_reg_type, 
+            self.config.lka_sample_pos_reg_coef, 
+            self.config.lka_sample_reg_coef, 
+            self.config.rescaled_by_adv, 
+            self.config.lower_threshold, 
+            self.config.upper_threshold, 
+        )
+        loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
 
         return loss, stats
 
@@ -482,80 +535,3 @@ def create_loss(config, model, name='happo'):
     loss = Loss(config=config, model=model, name=name)
 
     return loss
-
-
-def summarize_adv_ratio(stats, data):
-    stats.raw_adv_ratio_pp = jnp.logical_and(stats.raw_adv > 0, stats.ratio > 1)
-    stats.raw_adv_ratio_pn = jnp.logical_and(stats.raw_adv > 0, stats.ratio < 1)
-    # stats.raw_adv_ratio_np = jax_math.mask_mean(
-    #     jnp.logical_and(stats.raw_adv < 0, stats.ratio > 1), 
-    #     data.sample_mask, data.n)
-    # stats.raw_adv_ratio_nn = jax_math.mask_mean(
-    #     jnp.logical_and(stats.raw_adv < 0, stats.ratio < 1), 
-    #     data.sample_mask, data.n)
-    stats.adv_ratio_pp = jnp.logical_and(stats.advantage > 0, stats.ratio > 1)
-    stats.adv_ratio_pn = jnp.logical_and(stats.advantage > 0, stats.ratio < 1)
-    stats.pp_ratio = jnp.where(stats.adv_ratio_pp, stats.ratio, 0)
-    stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 0)
-    # stats.adv_ratio_np = jax_math.mask_mean(
-    #     jnp.logical_and(stats.advantage < 0, stats.ratio > 1), 
-    #     data.sample_mask, data.n)
-    # stats.adv_ratio_nn = jax_math.mask_mean(
-    #     jnp.logical_and(stats.advantage < 0, stats.ratio < 1), 
-    #     data.sample_mask, data.n)
-    return stats
-
-
-def compute_regularization(
-    stats, 
-    data, 
-    reg_type, 
-    pos_reg_coef, 
-    rescaled_by_adv=False, 
-    lower_threshold=-2., 
-):
-    if reg_type is None:
-        return stats
-    elif reg_type == 'simple':
-        prob = lax.exp(stats.pi_logprob)
-        stats.reg_below_threshold = stats.pi_logprob - data.mu_logprob < float(lower_threshold)
-        stats.reg_above_threshold = stats.pi_logprob - data.mu_logprob > lax.log(1.2)
-        stats.reg = lax.min(prob * lax.stop_gradient(
-            lax.max(stats.pi_logprob - data.mu_logprob, float(lower_threshold))), 
-            lax.stop_gradient(prob) * lax.log(1.2))
-    elif reg_type == 'wasserstein':
-        stats.reg = jax_div.wasserstein(
-            stats.pi_loc, stats.pi_scale, data.mu_loc, data.mu_scale)
-    elif reg_type.startswith('kl'):
-        kl_stats = dict(
-            logp=stats.pi_logprob, 
-            logq=data.mu_logprob, 
-            # sample_prob=data.mu_logprob, 
-            p_logits=stats.pi_logits, 
-            q_logits=data.mu_logits, 
-            p_loc=stats.pi_loc,  
-            p_scale=stats.pi_scale, 
-            q_loc=data.mu_loc, 
-            q_scale=data.mu_scale, 
-            logits_mask=data.action_mask, 
-        )
-        reg_type = reg_type.split('_')[-1]
-        stats.reg = jax_div.kl_divergence(
-            reg_type=reg_type, 
-            **kl_stats
-        )
-    else:
-        raise NotImplementedError(reg_type)
-    stats.pos_reg = jnp.where(stats.advantage > 0, stats.reg, 0)
-    if rescaled_by_adv:
-        stats.pos_reg = stats.advantage * stats.pos_reg
-    if data.sample_mask is not None:
-        data.sample_mask = expand_shape_match(data.sample_mask, stats.ratio, np=jnp)
-    stats.raw_pos_reg_loss, stats.pos_reg_loss = jax_loss.to_loss(
-        stats.pos_reg, 
-        pos_reg_coef, 
-        mask=data.sample_mask, 
-        n=data.n
-    )
-
-    return stats

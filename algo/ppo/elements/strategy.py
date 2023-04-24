@@ -3,15 +3,11 @@ import jax
 import jax.numpy as jnp
 
 from core.elements.strategy import Strategy as StrategyBase, create_strategy
-from core.mixin.strategy import Memory
 from core.typing import AttrDict
+from algo.ma_common.elements.strategy import Strategy as StrategyBase, create_strategy
 
 
 class Strategy(StrategyBase):
-    def _post_init(self):
-        if self.actor is not None:
-            self._memory = Memory(self.model)
-
     def _prepare_input_to_actor(self, env_output):
         inp = super()._prepare_input_to_actor(env_output)
         inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
