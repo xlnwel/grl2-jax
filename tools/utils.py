@@ -521,6 +521,8 @@ def batch_dicts(x, func=np.stack, keys=None):
     if keys is None:
         keys = x[0].keys()
     for k in keys:
+        if k not in x[0]:
+            continue
         v = x[0][k]
         if isinstance(v, dict):
             v = batch_dicts([xx[k] for xx in x], func=func)
@@ -588,10 +590,8 @@ def prefix_name(terms, name, filter=[]):
         for k, v in terms.items():
             if k in filter:
                 new_terms[k] = v
-            elif '/' not in k:
-                new_terms[f'{name}/{k}'] = v
             else:
-                new_terms[k] = v
+                new_terms[f'{name}/{k}'] = v
         return new_terms
     return terms
 

@@ -140,18 +140,18 @@ class Trainer(TrainerBase):
         opt_state = self.lookahead_opt_state
 
         if self.config.update_scheme == 'step':
-            theta, opt_state, self.perm_lka_rng = self.stepwise_sequential_opt(
+            theta, opt_state, stats, self.perm_lka_rng = self.stepwise_sequential_opt(
                 theta, opt_state, data, self.n_lka_epochs, 
                 self.n_lka_mbs, self.lka_indices, 
                 self.jit_lka_train, self.perm_lka_rng, 
-                return_stats=False
+                return_stats=True
             )
         elif self.config.update_scheme == 'whole':
-            theta, opt_state, self.perm_lka_rng = self.sequential_opt(
+            theta, opt_state, stats, self.perm_lka_rng = self.sequential_opt(
                 theta, opt_state, data, self.n_lka_epochs, 
                 self.n_lka_mbs, self.lka_indices, 
                 self.jit_lka_train, self.perm_lka_rng, 
-                return_stats=False
+                return_stats=True
             )
         else:
             raise NotImplementedError(self.config.update_scheme)
@@ -161,9 +161,12 @@ class Trainer(TrainerBase):
         self.model.set_lka_params(theta)
         self.lookahead_opt_state = opt_state
 
+        stats = prefix_name(stats, name='lka')
         data = flatten_dict({k: v 
             for k, v in data.items() if v is not None}, prefix='lka/data')
-        return data
+        stats.update(data)
+
+        return stats
     
     def sequential_opt(self, theta, opt_state, data, 
             n_epochs, n_mbs, indices, train_fn, rng, return_stats=True):
@@ -193,10 +196,14 @@ class Trainer(TrainerBase):
                             data=d, 
                             teammate_log_ratio=tlr, 
                             aid=aid, 
-                            compute_teammate_log_ratio=False
+                            compute_teammate_log_ratio=False, 
+                            return_stats=self.config.get('debug', False)
                         )
                     vts.append(stats.pop('v_target'))
-                all_stats.update(**prefix_name(stats, name=f'agent{aid}_epoch{e}'))
+                if e == n_epochs-1:
+                    all_stats.update(**prefix_name(stats, name=f'agent{aid}_last_epoch'))
+                elif e == 0:
+                    all_stats.update(**prefix_name(stats, name=f'agent{aid}_first_epoch'))
             teammate_log_ratio = self.compute_teammate_log_ratio(
                 agent_theta.policy, self.rng, teammate_log_ratio, agent_data
             )
@@ -341,6 +348,7 @@ class Trainer(TrainerBase):
                 ratio=stats.ratio, 
                 log_ratio=stats.log_ratio, 
                 reg=stats.reg, 
+                reg_loss=stats.reg_loss, 
                 pos_reg=stats.pos_reg, 
                 reg_below_threshold=stats.reg_below_threshold, 
                 reg_above_threshold=stats.reg_above_threshold, 
@@ -429,7 +437,8 @@ class Trainer(TrainerBase):
         if not return_stats:
             stats = AttrDict(
                 v_target=stats.v_target, 
-                teammate_log_ratio=stats.teammate_log_ratio
+                teammate_log_ratio=stats.teammate_log_ratio, 
+                reg_loss=stats.reg_loss, 
             )
         return theta, opt_state, stats
 

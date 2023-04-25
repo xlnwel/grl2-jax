@@ -118,7 +118,8 @@ loss:
     ppo_clip_range: .2
     teammate_ratio_clip: .2
     rescaled_by_adv: True
-    lower_threshold: -4.
+    rescaled_by_mu: True
+    lower_threshold: -2.
     upper_threshold: 2.
     reg_type: kl_reverse
     sample_reg_type: log
@@ -144,6 +145,7 @@ loss:
         lam: &lam .95
         pg_coef: 1
         entropy_coef: 5e-3
+        lka_entropy_coef: 5e-3
         value_coef: 1
 
 trainer:
@@ -160,7 +162,7 @@ trainer:
     n_simulated_steps: *nss
     n_lka_epochs: *nepochs
     n_lka_mbs: *nmbs
-    debug: True
+    debug: False
 
     theta_opt:
         opt_name: adam

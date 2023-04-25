@@ -14,7 +14,7 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 5e6
+    MAX_STEPS: 1e7
     n_steps: &nsteps 100
     LOG_PERIOD: 1e5
     EVAL_PERIOD: null
@@ -25,8 +25,8 @@ routine:
     size: [256, 256]
 
     n_lka_steps: 1
-    n_simulated_envs: &nse 1280
-    n_simulated_steps: &nss 10
+    n_simulated_envs: &nse 640
+    n_simulated_steps: &nss 15
     model_rollout_type: sim
     compute_return_at_once: True
     ignore_ratio_for_ego: False
@@ -119,7 +119,8 @@ loss:
     ppo_clip_range: .2
     teammate_ratio_clip: .2
     rescaled_by_adv: True
-    lower_threshold: -4.
+    rescaled_by_mu: True
+    lower_threshold: -2.
     upper_threshold: 2.
     reg_type: kl_reverse
     sample_reg_type: log
@@ -145,6 +146,7 @@ loss:
         lam: &lam .95
         pg_coef: 1
         entropy_coef: 5e-3
+        lka_entropy_coef: 0
         value_coef: 1
 
 trainer:
@@ -162,7 +164,7 @@ trainer:
     n_lka_epochs: *nepochs
     n_lka_mbs: *nmbs
     ignore_lka_value_update: False
-    debug: True
+    debug: False
 
     theta_opt:
         opt_name: adam

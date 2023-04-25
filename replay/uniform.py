@@ -8,7 +8,7 @@ from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict
 from replay.local import NStepBuffer
-from tools.timer import Timer
+from tools.timer import Timer, timeit
 from tools.utils import batch_dicts, yield_from_tree
 from replay import replay_registry
 from replay.mixin.rms import TemporaryRMS
@@ -122,6 +122,7 @@ class UniformReplay(Buffer):
         return popped_data
 
     """ Sampling """
+    @timeit
     def sample_from_recency(self, batch_size, sample_keys=None, n=None, add_seq_dim=False):
         batch_size = batch_size or self.batch_size
         n = max(batch_size, n or self.n_recency)
@@ -194,12 +195,14 @@ class UniformReplay(Buffer):
         return samples
 
     def _get_samples(self, idxes, memory, sample_keys=None, add_seq_dim=True):
+        if sample_keys is None:
+            sample_keys = self.sample_keys
         if add_seq_dim:
             fn = lambda x: np.expand_dims(np.stack(x), 1)
         else:
             fn = np.stack
-        samples = batch_dicts(
-            [memory[i] for i in idxes], func=fn, keys=sample_keys)
+        samples = [memory[i] for i in idxes]
+        samples = batch_dicts(samples, func=fn, keys=sample_keys)
 
         return samples
 

@@ -2,19 +2,13 @@
 
 export PYTHONPATH=.
 
+suite=$1
+shift
 algos=(
     happo_mb
 )
-suite=$1
-shift
 envs=(
-    # $1
-    # escalation
-    # escalation
-    $2
     escalation
-    # escalation
-    # staghunt
     # staghunt
 )
 configs=(
@@ -64,10 +58,6 @@ date=$(date +"%m%d")
 # date="0403"
 info=""
 ld="${suite}-logs"
-gpus=$(nvidia-smi -L | wc -l)
-# for x in $(seq 1 1); do
-#     shift
-# done
 
 if [ -z "$info" ]; then
     n=$date
@@ -100,7 +90,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws="1#n_epochs=$a1"
+kws=$@
 config="${e}"
 env="${suite}-${e}"
 for s in {0..15}; do

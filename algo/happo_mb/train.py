@@ -122,7 +122,6 @@ def train(
         #     errors.train = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
-        lka_aids = get_lka_aids(rollout_type, n_agents)
         lka_train(
             agent, 
             dynamics, 
@@ -130,7 +129,7 @@ def train(
             dynamics_routine_config, 
             n_runs=routine_config.n_lka_steps, 
             rng=lka_rng, 
-            lka_aids=lka_aids, 
+            lka_aids=None, 
             run_fn=dynamics_run, 
             opt_fn=lka_optimize, 
         )
@@ -138,12 +137,13 @@ def train(
         #     errors.lka = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
 
+        lka_aids = get_lka_aids(rollout_type, n_agents)
         env_step, _ = ego_train(
             agent, 
             runner, 
             dynamics, 
             routine_config, 
-            lka_aids=None, 
+            lka_aids=lka_aids, 
             run_fn=env_run, 
             opt_fn=ego_optimize
         )
