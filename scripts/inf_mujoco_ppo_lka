@@ -32,7 +32,7 @@ args3=(
     1
 )
 dynamics=(
-    "dynamics"
+    "dynamics_tx"
 )
 date=$(date +"%m%d")
 info=""

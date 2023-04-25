@@ -65,9 +65,9 @@ class Trainer(TrainerBase):
         data = flatten_dict(data, prefix='data')
         stats = prefix_name(stats, f'dynamics')
         stats.update(data)
-        for v in theta.values():
-            stats.update(flatten_dict(
-                jax.tree_util.tree_map(np.linalg.norm, v), prefix='dynamics'))
+        # for v in theta.values():
+        #     stats.update(flatten_dict(
+        #         jax.tree_util.tree_map(np.linalg.norm, v), prefix='dynamics'))
 
         return stats
 

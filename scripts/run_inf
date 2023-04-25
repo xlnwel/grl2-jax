@@ -14,11 +14,11 @@
 # ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=400 0#rollout_type=lka
 # ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=800 0#rollout_type=lka
 
-./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#norm=layer
-./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#n_epochs=800
-./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#lr=3e-4
-./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#lr=8e-4
-./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#max_size=3e5
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#dynamics_name=dynamics_tx
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#n_epochs=800
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#lr=3e-4
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#lr=8e-4
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#max_size=3e5
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=True lower_threshold=-1 upper_threshold=1
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=True lower_threshold=-2 upper_threshold=2
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=False lower_threshold=-1 upper_threshold=1
@@ -30,8 +30,9 @@
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#n_simulated_envs=400 0#n_simulated_steps=15
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#n_simulated_envs=400 0#n_simulated_steps=20
 
-# ./scripts/inf grf 2 inf_grf_lka 0#lka_reg_coef=0
+# ./scripts/inf grf 3 inf_grf_lka 0#dynamics_name=dynamics
+# ./scripts/inf grf 3 inf_grf_lka 0#n_lka_steps=3
 # ./scripts/inf grf 2 inf_grf_lka 0#lka_reg_coef=1
 # ./scripts/inf grf 2 inf_grf_lka 0#lka_reg_coef=0 0#n_simulated_steps=20
 # ./scripts/inf grf 2 inf_grf_lka 0#lka_reg_coef=1 0#n_simulated_steps=20
-# ./scripts/inf grf 1 inf_grf
+./scripts/inf grf 3 inf_grf

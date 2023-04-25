@@ -39,7 +39,7 @@ routine:
     concise_mode: True
 
 env:
-    env_name: &env_name grf-corner
+    env_name: &env_name grf-academy-corner
     representation: simple115v2
     rewards: scoring,checkpoints
     render: False
@@ -52,6 +52,8 @@ env:
     number_of_right_players_agent_controls: 0
     add_role_to_obs: False
     shared_ckpt_reward: False
+    shared_reward: True
+    selected_agents: True
 
     max_episode_steps: 200
     use_action_mask: False

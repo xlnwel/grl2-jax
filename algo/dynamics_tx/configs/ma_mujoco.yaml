@@ -43,9 +43,9 @@ strategy:
     train_loop:
         ergodic: False
         training_data_size: &ds 1e5
-        valid_data_size: 6400
-        wp_n_epochs: 2500
-        n_epochs: &nepochs 500
+        valid_data_size: 4000
+        wp_n_epochs: 2000
+        n_epochs: &nepochs 1000
 
 model:
     aid: 0
@@ -68,10 +68,16 @@ model:
                 n_heads: 4
                 # attn_dropout: 0
                 # res_dropout: 0
-        model_out_type: continuous
         model_out_config:
+            model_type: continuous
             max_logvar: .5
             min_logvar: -10
+        model_config:
+            units_list: []
+            activation: relu
+        reward_config:
+            units_list: []
+            activation: relu
 
 loss:
     model_loss_type: *mlt
@@ -80,10 +86,6 @@ loss:
     model_coef: 1
     reward_coef: 1
     discount_coef: 1
-
-    model_prio_coef: 1
-    reward_prio_coef: 1
-    discount_prio_coef: 1
 
 trainer:
     algorithm: *algo

@@ -1,6 +1,7 @@
 ---
 algorithm: &algo happo_mb
 name: happo_mb
+dynamics_name: dynamics
 info: happo_mb
 
 precision: 32
@@ -26,7 +27,7 @@ routine:
 
     n_lka_steps: 1
     n_simulated_envs: &nse 640
-    n_simulated_steps: &nss 15
+    n_simulated_steps: &nss 20
     model_rollout_type: sim
     compute_return_at_once: True
     ignore_ratio_for_ego: False
@@ -53,6 +54,7 @@ env:
     add_role_to_obs: False
     shared_ckpt_reward: False
     shared_reward: True
+    selected_agents: True
 
     max_episode_steps: 200
     use_action_mask: False
