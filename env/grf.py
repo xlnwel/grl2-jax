@@ -436,7 +436,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     config = {
-        'env_name': 'academy_counterattack_hard',
+        'env_name': 'academy_3_vs_1_with_keeper',
         'representation': 'simple115v2',
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,

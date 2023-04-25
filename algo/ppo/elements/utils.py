@@ -159,6 +159,7 @@ def compute_actor_loss(
     data, 
     stats, 
     act_dist, 
+    entropy_coef, 
 ):
     if config.get('policy_sample_mask', True):
         sample_mask = data.sample_mask
@@ -211,7 +212,7 @@ def compute_actor_loss(
 
     entropy = act_dist.entropy()
     scaled_entropy_loss, entropy_loss = jax_loss.entropy_loss(
-        entropy_coef=stats.entropy_coef, 
+        entropy_coef=entropy_coef, 
         entropy=entropy, 
         mask=sample_mask, 
         n=data.n
@@ -383,27 +384,32 @@ def compute_sample_regularization(
     pos_reg_coef, 
     reg_coef, 
     rescaled_by_adv=False, 
+    rescaled_by_mu=False, 
     lower_threshold=-2., 
     upper_threshold=2., 
 ):
-    stats.delta = lax.exp(stats.pi_logprob) - lax.exp(data.mu_logprob)
+    stats.mu = lax.exp(data.mu_logprob)
+    stats.pi = lax.exp(stats.pi_logprob)
+    stats.delta = stats.pi - stats.mu
     if data.sample_mask is not None:
         data.sample_mask = expand_shape_match(data.sample_mask, stats.ratio, np=jnp)
     if reg_type is None:
         return stats
     elif reg_type == 'log':
-        prob = lax.exp(stats.pi_logprob)
-        signed_reg_grads = (stats.pi_logprob - data.mu_logprob) * jnp.sign(stats.advantage)
-        stats.reg_below_threshold = signed_reg_grads < lower_threshold
-        stats.reg_above_threshold = signed_reg_grads > upper_threshold
+        reg_grads = stats.pi_logprob - data.mu_logprob
+        stats.reg_below_threshold = reg_grads < lower_threshold
+        stats.reg_above_threshold = reg_grads > upper_threshold
         stats.raw_sample_reg_grads = lax.stop_gradient(jnp.clip(
-            signed_reg_grads, lower_threshold, upper_threshold
+            reg_grads, lower_threshold, upper_threshold
         ))
-        stats.raw_sample_reg = prob * stats.raw_sample_reg_grads
-        stats.pos_sample_reg = jnp.where(stats.norm_adv > 0, stats.raw_sample_reg, 0)
+        abs_adv = lax.abs(stats.advantage)
+        stats.raw_sample_reg_grads = lax.sign(stats.advantage) * stats.raw_sample_reg_grads
+        stats.sample_reg = stats.pi * stats.raw_sample_reg_grads
         if rescaled_by_adv:
-            stats.pos_sample_reg = stats.advantage * stats.pos_sample_reg
-            stats.sample_reg = jnp.abs(stats.advantage) * stats.raw_sample_reg
+            stats.sample_reg = abs_adv * stats.sample_reg
+        if rescaled_by_mu:
+            stats.sample_reg = stats.sample_reg / stats.mu
+        stats.pos_sample_reg = jnp.where(stats.raw_sample_reg_grads < 0, stats.sample_reg, 0)
         stats.raw_pos_sample_reg_loss, stats.pos_sample_reg_loss = jax_loss.to_loss(
             stats.pos_sample_reg, 
             pos_reg_coef, 
@@ -422,16 +428,20 @@ def compute_sample_regularization(
         neg_ratio = jnp.maximum(1/ratio, 1)
         pos_reg = lax.exp(pos_ratio - 1) - 1
         neg_reg = 1 - lax.exp(neg_ratio - 1)
-        signed_reg_grads = jnp.where(ratio > 1, pos_reg, neg_reg) * jnp.sign(stats.advantage)
-        prob = lax.exp(stats.pi_logprob)
+        reg_grads = jnp.where(ratio > 1, pos_reg, neg_reg)
+        stats.reg_below_threshold = reg_grads < lower_threshold
+        stats.reg_above_threshold = reg_grads > upper_threshold
         stats.raw_sample_reg_grads = lax.stop_gradient(jnp.clip(
-            signed_reg_grads, lower_threshold, upper_threshold
+            reg_grads, lower_threshold, upper_threshold
         ))
-        stats.raw_sample_reg = prob * stats.raw_sample_reg_grads
-        stats.pos_sample_reg = jnp.where(stats.norm_adv > 0, stats.raw_sample_reg, 0)
+        abs_adv = lax.abs(stats.advantage)
+        stats.raw_sample_reg_grads = lax.sign(stats.advantage) * stats.raw_sample_reg_grads
+        stats.sample_reg = stats.pi * stats.raw_sample_reg_grads
         if rescaled_by_adv:
-            stats.pos_sample_reg = stats.advantage * stats.pos_sample_reg
-            stats.sample_reg = jnp.abs(stats.advantage) * stats.raw_sample_reg
+            stats.sample_reg = abs_adv * stats.sample_reg
+        if rescaled_by_mu:
+            stats.sample_reg = stats.sample_reg / stats.mu
+        stats.pos_sample_reg = jnp.where(stats.raw_sample_reg_grads < 0, stats.sample_reg, 0)
         stats.raw_pos_sample_reg_loss, stats.pos_sample_reg_loss = jax_loss.to_loss(
             stats.pos_sample_reg, 
             pos_reg_coef, 

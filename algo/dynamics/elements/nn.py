@@ -52,11 +52,12 @@ def get_model_kwargs(model_config, out_config, out_size):
     if out_config.model_type == DISCRETE_MODEL:
         kwargs.ensemble_size = out_size
         kwargs.expand_edim = True
+        model_config.out_size = out_config.n_classes
     else:
         kwargs.ensemble_size = 2
         kwargs.expand_edim = True
+        model_config.out_size = out_size
     model_config.out_kwargs = kwargs
-    model_config.out_size = out_config.n_classes
 
     return model_config
 

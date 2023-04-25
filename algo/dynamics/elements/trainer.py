@@ -52,7 +52,6 @@ class Trainer(TrainerBase):
 
     def train(self, data):
         data = self.process_data(data)
-        print_dict_info(data)
         theta = self.model.theta.copy()
         theta, self.params.theta, stats = \
             self.jit_train(

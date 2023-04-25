@@ -29,7 +29,7 @@ env:
     n_runners: &nrunners 1
     n_envs: *nenvs
     max_episode_steps: 50
-    reward_scale: .1
+    reward_scale: 1
     population_size: 1
     timeout_done: &td False
 
@@ -46,8 +46,8 @@ strategy:
         ergodic: False
         training_data_size: &ds 1e5
         valid_data_size: 1280
-        wp_n_epochs: 2000
-        n_epochs: &nepochs 500
+        wp_n_epochs: 1000
+        n_epochs: &nepochs 1000
 
 model:
     aid: 0

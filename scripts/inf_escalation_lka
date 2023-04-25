@@ -5,7 +5,7 @@ export PYTHONPATH=.
 algos=(
     # happo_lka4
     # happo_lka4
-    happo
+    happo_hm
     # happo_mb
     # happo_lka2
     # happo_lka2
@@ -88,7 +88,7 @@ for e in "${envs[@]}"; do
     config=$e
     env="${suite}-${e}"
     for s in {0..7}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+        py_script="python run/train.py -a ${a} dynamics -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
         commands+=("$py_script")
         echo $py_script
         # eval $py_script

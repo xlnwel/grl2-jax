@@ -96,6 +96,7 @@ class Loss(LossBase):
             data, 
             stats, 
             act_dist=act_dist, 
+            entropy_coef=stats.entropy_coef
         )
 
         stats = compute_regularization(
@@ -107,12 +108,13 @@ class Loss(LossBase):
         stats = compute_sample_regularization(
             stats, 
             data, 
-            self.config.sample_reg_type, 
-            self.config.sample_pos_reg_coef, 
-            self.config.sample_reg_coef, 
-            self.config.rescaled_by_adv, 
-            self.config.lower_threshold, 
-            self.config.upper_threshold, 
+            reg_type=self.config.sample_reg_type, 
+            pos_reg_coef=self.config.sample_pos_reg_coef, 
+            reg_coef=self.config.sample_reg_coef, 
+            rescaled_by_adv=self.config.rescaled_by_adv, 
+            rescaled_by_mu=self.config.rescaled_by_mu, 
+            lower_threshold=self.config.lower_threshold, 
+            upper_threshold=self.config.upper_threshold, 
         )
 
         value_loss, stats = compute_vf_loss(
@@ -248,6 +250,7 @@ class Loss(LossBase):
             data, 
             stats, 
             act_dist=act_dist, 
+            entropy_coef=stats.entropy_coef
         )
 
         stats = compute_regularization(
@@ -259,12 +262,13 @@ class Loss(LossBase):
         stats = compute_sample_regularization(
             stats, 
             data, 
-            self.config.sample_reg_type, 
-            self.config.sample_pos_reg_coef, 
-            self.config.sample_reg_coef, 
-            self.config.rescaled_by_adv, 
-            self.config.lower_threshold, 
-            self.config.upper_threshold, 
+            reg_type=self.config.sample_reg_type, 
+            pos_reg_coef=self.config.sample_pos_reg_coef, 
+            reg_coef=self.config.sample_reg_coef, 
+            rescaled_by_adv=self.config.rescaled_by_adv, 
+            rescaled_by_mu=self.config.rescaled_by_mu, 
+            lower_threshold=self.config.lower_threshold, 
+            upper_threshold=self.config.upper_threshold, 
         )
         stats = summarize_adv_ratio(stats, data)
         loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
@@ -358,6 +362,7 @@ class Loss(LossBase):
             data, 
             stats, 
             act_dist=act_dist, 
+            entropy_coef=stats.lka_entropy_coef or stats.entropy_coef
         )
 
         stats = compute_regularization(
@@ -369,12 +374,13 @@ class Loss(LossBase):
         stats = compute_sample_regularization(
             stats, 
             data, 
-            self.config.sample_reg_type, 
-            self.config.lka_sample_pos_reg_coef, 
-            self.config.lka_sample_reg_coef, 
-            self.config.rescaled_by_adv, 
-            self.config.lower_threshold, 
-            self.config.upper_threshold, 
+            reg_type=self.config.sample_reg_type, 
+            pos_reg_coef=self.config.lka_sample_pos_reg_coef, 
+            reg_coef=self.config.lka_sample_reg_coef, 
+            rescaled_by_adv=self.config.rescaled_by_adv, 
+            rescaled_by_mu=self.config.rescaled_by_mu, 
+            lower_threshold=self.config.lower_threshold, 
+            upper_threshold=self.config.upper_threshold, 
         )
         value_loss, stats = compute_vf_loss(
             self.config, 
@@ -508,6 +514,7 @@ class Loss(LossBase):
             data, 
             stats, 
             act_dist=act_dist, 
+            entropy_coef=stats.lka_entropy_coef or stats.entropy_coef
         )
 
         stats = compute_regularization(
@@ -519,12 +526,13 @@ class Loss(LossBase):
         stats = compute_sample_regularization(
             stats, 
             data, 
-            self.config.sample_reg_type, 
-            self.config.lka_sample_pos_reg_coef, 
-            self.config.lka_sample_reg_coef, 
-            self.config.rescaled_by_adv, 
-            self.config.lower_threshold, 
-            self.config.upper_threshold, 
+            reg_type=self.config.sample_reg_type, 
+            pos_reg_coef=self.config.lka_sample_pos_reg_coef, 
+            reg_coef=self.config.lka_sample_reg_coef, 
+            rescaled_by_adv=self.config.rescaled_by_adv, 
+            rescaled_by_mu=self.config.rescaled_by_mu, 
+            lower_threshold=self.config.lower_threshold, 
+            upper_threshold=self.config.upper_threshold, 
         )
         loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
 
