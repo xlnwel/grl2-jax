@@ -10,8 +10,8 @@ algos=(
 envs=(
     # $1
     # academy_3_vs_1_with_keeper
-    # academy_corner
-    academy_counterattack_hard
+    academy_corner
+    # academy_counterattack_hard
 )
 # shift
 configs=$envs

@@ -164,7 +164,7 @@ trainer:
     n_simulated_steps: *nss
     n_lka_epochs: *nepochs
     n_lka_mbs: *nmbs
-    ignore_lka_value_update: False
+    ignore_lka_value_update: True
     debug: False
 
     theta_opt:

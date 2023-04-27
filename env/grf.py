@@ -1,6 +1,6 @@
 import numpy as np
 import gym
-import gfootball.env as football_env
+import env.football.gfootball.env as football_env
 
 from env.grf_env.selected_agents import SelectedAgents
 from env.utils import *

@@ -1,6 +1,6 @@
 import numpy as np
 import gym
-import gfootball.env as football_env
+import env.football.gfootball.env as football_env
 
 
 class Representation:
