@@ -41,9 +41,21 @@ def parse_args():
     parser.add_argument('--target', '-t', 
                         type=str, 
                         default='~/Documents/html-logs')
+    parser.add_argument('--env', '-e', 
+                        type=str, 
+                        default=None, 
+                        nargs='*')
+    parser.add_argument('--algo', '-a', 
+                        type=str, 
+                        default=None, 
+                        nargs='*')
     parser.add_argument('--date', '-d', 
                         type=str, 
-                        default=[], 
+                        default=None, 
+                        nargs='*')
+    parser.add_argument('--model', '-m', 
+                        type=str, 
+                        default=None, 
                         nargs='*')
     parser.add_argument('--n_processes', '-np', 
                         type=int, 
@@ -185,28 +197,41 @@ def get_level(search_dir, last_prefix):
     return DirLevel.FINAL
 
 
-def fixed_pattern_search(search_dir, level=DirLevel.LOGS, matches=[], ignores=[]):
-    if level != DirLevel.FINAL:
-        if not os.path.isdir(search_dir):
-            return []
+def fixed_pattern_search(
+    search_dir, 
+    level=DirLevel.LOGS, 
+    env=None, 
+    algo=None, 
+    date=None, 
+    model=None
+):
+    if not os.path.isdir(search_dir):
+        return []
+    elif level == DirLevel.FINAL:
+        yield search_dir
+    else:
+        if level == DirLevel.MODEL and model is not None:
+            if all([m not in search_dir for m in model]):
+                return []
+        elif level == DirLevel.DATE and date is not None:
+            if all([d not in search_dir for d in date]):
+                return []
+        elif level == DirLevel.ALGO and algo is not None:
+            if all([a not in search_dir for a in algo]):
+                return []
+        elif level == DirLevel.ENV and env is not None:
+            if all([e not in search_dir for e in env]):
+                return []
         for d in os.listdir(search_dir):
             for f in fixed_pattern_search(
                 join_dir_name(search_dir, d), 
                 level=level.next(), 
-                matches=matches, 
-                ignores=ignores
+                env=env, 
+                algo=algo, 
+                date=date, 
+                model=model
             ):
                 yield f
-        return []
-    if matches:
-        for m in matches:
-            if m in search_dir:
-                yield search_dir
-        return []
-    for i in ignores:
-        if i in search_dir:
-            return []
-    yield search_dir
 
 
 if __name__ == '__main__':
@@ -218,8 +243,7 @@ if __name__ == '__main__':
     record_name = 'record'
     process_name = 'progress.csv'
     name = args.name
-    date = args.date
-    do_logging(f'Loading logs on date: {date}')
+    do_logging(f'Loading logs on date: {args.date}')
 
     directory = os.path.abspath(args.directory)
     target = os.path.expanduser(args.target)
@@ -252,7 +276,14 @@ if __name__ == '__main__':
     matches = args.name + args.date
     ignores = args.ignore
 
-    for d in fixed_pattern_search(search_dir, level=level, matches=matches, ignores=ignores):
+    for d in fixed_pattern_search(
+        search_dir, 
+        level=level, 
+        env=args.env, 
+        algo=args.algo, 
+        date=args.date, 
+        model=args.model
+    ):
         last_name = d.split('/')[-1]
         if not any([last_name.startswith(p) for p in args.prefix]):
             continue

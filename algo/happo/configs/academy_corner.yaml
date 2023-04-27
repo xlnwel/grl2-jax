@@ -52,6 +52,7 @@ env:
     add_role_to_obs: False
     shared_ckpt_reward: False
     shared_reward: True
+    selected_agents: True
 
     max_episode_steps: 200
     use_action_mask: False
@@ -118,8 +119,7 @@ loss:
     teammate_ratio_clip: .2
     rescaled_by_adv: True
     rescaled_by_mu: True
-    lower_threshold: -2.
-    upper_threshold: 2.
+    threshold: 2.
     reg_type: kl_reverse
     sample_reg_type: log
     reg_coef: 0

@@ -1,7 +1,8 @@
 import numpy as np
 import gym
-import gfootball.env as football_env
+import env.football.gfootball.env as football_env
 
+from env.grf_env.selected_agents import SelectedAgents
 from env.utils import *
 
 def do_flatten(obj):
@@ -47,12 +48,14 @@ class GRF:
         use_hidden=False, 
         use_event=False, 
         agentwise_global_state=False, 
+        selected_agents=False, 
         **kwargs,
     ):
         self.name = env_name
         self.representation = representation
         self.to_render = render
         self.shared_reward = shared_reward
+        self.selected_agents = selected_agents
 
         # assert number_of_left_players_agent_controls in (1, 11), \
         #     number_of_left_players_agent_controls
@@ -112,21 +115,37 @@ class GRF:
             rewards = 'scoring'
         other_config_options = {} if seed is None else {'seed': seed}
         # print('other config options', other_config_options)
-        self.env = football_env.create_environment(
-            self.name, 
-            representation=representation,
-            rewards=rewards,
-            write_goal_dumps=write_goal_dumps,
-            write_full_episode_dumps=write_full_episode_dumps,
-            render=render,
-            write_video=write_video,
-            dump_frequency=dump_frequency,
-            logdir=logdir,
-            extra_players=extra_players,
-            number_of_left_players_agent_controls=number_of_left_players_agent_controls,
-            number_of_right_players_agent_controls=number_of_right_players_agent_controls,
-            other_config_options=other_config_options
-        )
+        if selected_agents:
+            self.env = SelectedAgents(
+                self.name, 
+                representation=representation,
+                rewards=rewards,
+                write_goal_dumps=write_goal_dumps,
+                write_full_episode_dumps=write_full_episode_dumps,
+                render=render,
+                write_video=write_video,
+                dump_frequency=dump_frequency,
+                logdir=logdir,
+                extra_players=extra_players,
+                number_of_left_players_agent_controls=number_of_left_players_agent_controls,
+                number_of_right_players_agent_controls=number_of_right_players_agent_controls,
+            )
+        else:
+            self.env = football_env.create_environment(
+                self.name, 
+                representation=representation,
+                rewards=rewards,
+                write_goal_dumps=write_goal_dumps,
+                write_full_episode_dumps=write_full_episode_dumps,
+                render=render,
+                write_video=write_video,
+                dump_frequency=dump_frequency,
+                logdir=logdir,
+                extra_players=extra_players,
+                number_of_left_players_agent_controls=number_of_left_players_agent_controls,
+                number_of_right_players_agent_controls=number_of_right_players_agent_controls,
+                other_config_options=other_config_options, 
+            )
 
         self.max_episode_steps = max_episode_steps
 
@@ -142,7 +161,7 @@ class GRF:
             else self.env.action_space 
             for _ in range(self.n_agents)]
         self.action_shape = [() for _ in self.action_space]
-        self.action_dim = [int(a) for a in self.env.action_space.nvec]
+        self.action_dim = [19 for a in self.env.action_space.nvec]
         self.action_dtype = [np.int32 for _ in self.action_space]
         self.is_action_discrete = [True for _ in self.action_space]
 
@@ -248,7 +267,6 @@ class GRF:
             for uids, a in zip(self.aid2uids, self.action_dim)]
         for uids, a, oh in zip(self.aid2uids, action, action_oh):
             oh[np.arange(len(uids)), a] = 1
-        # action = np.concatenate(action)
         obs, reward, done, info = self.env.step(action)
 
         reward = self._get_reward(reward, info)
@@ -417,7 +435,10 @@ class GRF:
         return reward
 
     def _raw_obs(self):
-        return self.env.unwrapped.observation()
+        obs = self.env.unwrapped.observation()
+        if self.selected_agents:
+            obs = [obs[i] for i in self.env.controlled_players]
+        return obs
 
     def seed(self, seed):
         return seed
@@ -436,7 +457,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     config = {
-        'env_name': 'academy_3_vs_1_with_keeper',
+        'env_name': 'academy_counterattack_hard',
         'representation': 'simple115v2',
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,
@@ -448,6 +469,7 @@ if __name__ == '__main__':
         'use_hidden': False, 
         'agentwise_global_state': False, 
         'render': False, 
+        'selected_agents': True, 
         'seed': 1
     }
 
@@ -460,17 +482,18 @@ if __name__ == '__main__':
     obs = env.reset()
     obs_left.append(obs[0])
     obs_right.append(obs[1])
-    obs = env._raw_obs()
-    ids = np.array([o['active'] for o in obs])
-    for _ in range(3000):
+    ids = np.array([o['active'] for o in env._raw_obs()])
+    ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
+    for i in range(args.step):
         a = env.random_action()
         obs, rew, done, info = env.step(a)
         new_ids = np.array([o['active'] for o in env._raw_obs()])
-        # print(new_ids)
+        new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
         np.testing.assert_equal(ids, new_ids)
         if np.all(done):
             env.reset()
             new_ids = np.array([o['active'] for o in env._raw_obs()])
+            new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
             np.testing.assert_equal(ids, new_ids)
     # o = []
     # o.extend(do_flatten(env._raw_obs()[0]['left_team']))

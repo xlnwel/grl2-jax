@@ -3,42 +3,32 @@
 export PYTHONPATH=.
 
 commands=()
-# py_script="python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#emodels:units_list=256,256 1#reward:units_list=64,64"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#emodels:units_list=128,128 1#reward:units_list=64,64"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#emodels:units_list=256,256 1#reward:units_list=128,128"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo_mb dynamics -e magw-escalation -c escalation -ld magw-logs -s 1 -kw 1#emodels:units_list=128,128 1#reward:units_list=128,128"
-# commands+=("$py_script")
 envs=(
-    Ant_2x4
-    HalfCheetah_2x3
-    Walker2d_2x3
+    escalation
 )
 for e in "${envs[@]}"; do
-    kws="sample_reg_type=log sample_reg_coef=1"
-    for s in {0..4}; do
-        py_script="python run/train.py -a happo -e ma_mujoco-$e -c ma_mujoco -ld ma_mujoco-logs -kw $kws -s $s"
+    kws=""
+    for s in {0..8}; do
+        py_script="python run/train.py -a happo -e magw-$e -c escalation -ld magw-logs -kw $kws -s $s"
         commands+=("$py_script")
         echo $py_script
     done
 done
-# py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=15 rnn_type=lstm"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=15 rnn_type=lstm"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw n_epochs=10 rnn_type=lstm"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo_mb dynamics -e ma_mujoco-HalfCheetah_2x3 -c ma_mujoco -ld ma_mujoco-logs -n 0417 -kw 0#rollout_type=part 1#pred_raw=False 1#lr=5e-4 1#weight_decay=0 -s 0"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo_mb dynamics -e grf-academy_corner -c academy_corner -ld grf-logs -te train_grf -s 1 -kw normalize_reward=False"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo_mb dynamics -e grf-academy_corner -c academy_corner -ld grf-logs -te train_grf -s 2 -kw normalize_reward=True"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo_mb dynamics -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 1 -kw normalize_reward=False"
-# commands+=("$py_script")
-# py_script="python run/train.py -a happo_mb dynamics -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -te train_grf -s 2 -kw normalize_reward=True"
-# commands+=("$py_script")
+for e in "${envs[@]}"; do
+    kws="0#rescaled_by_adv=True 0#rescaled_by_mu=False 0#sample_pos_reg_coef=1"
+    for s in {0..8}; do
+        py_script="python run/train.py -a happo -e magw-$e -c escalation -ld magw-logs -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+    done
+done
+for e in "${envs[@]}"; do
+    kws="0#rescaled_by_adv=True 0#rescaled_by_mu=False 0#sample_reg_coef=1"
+    for s in {0..8}; do
+        py_script="python run/train.py -a happo -e magw-$e -c escalation -ld magw-logs -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+    done
+done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"

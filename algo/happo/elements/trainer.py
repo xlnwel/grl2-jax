@@ -28,10 +28,7 @@ class Trainer(TrainerBase):
         self.n_agents = self.env_stats.n_agents
         self.aid2uids = self.env_stats.aid2uids
 
-        self.rng, perm_rng = random.split(self.rng, 2)
         self.lka_rng = self.rng
-        self.perm_lka_rng = perm_rng
-        self.perm_rng = perm_rng
 
         if self.config.n_simulated_envs:
             self.lka_indices = np.arange(self.config.n_simulated_envs)
@@ -85,7 +82,7 @@ class Trainer(TrainerBase):
         
         self.haiku_tabulate()
 
-    def train(self, data: AttrDict):
+    def train(self, data: AttrDict, aids=None):
         if self.config.n_runners * self.config.n_envs < self.config.n_mbs:
             self.indices = np.arange(self.config.n_mbs)
             data = jax.tree_util.tree_map(
@@ -97,19 +94,19 @@ class Trainer(TrainerBase):
         opt_state = self.params.theta
 
         if self.config.update_scheme == 'step':
-            theta, opt_state, stats, self.perm_rng = \
+            theta, opt_state, stats = \
                 self.stepwise_sequential_opt(
                     theta, opt_state, data, self.n_epochs, 
                     self.n_mbs, self.indices, 
-                    self.jit_train, self.perm_rng, 
+                    self.jit_train, aids=aids, 
                     return_stats=True
                 )
         elif self.config.update_scheme == 'whole':
-            theta, opt_state, stats, self.perm_rng = \
+            theta, opt_state, stats = \
                 self.sequential_opt(
                     theta, opt_state, data, self.n_epochs, 
                     self.n_mbs, self.indices, 
-                    self.jit_train, self.perm_rng, 
+                    self.jit_train, aids=aids, 
                     return_stats=True
                 )
         else:
@@ -133,24 +130,24 @@ class Trainer(TrainerBase):
 
         return stats
 
-    def lookahead_train(self, data: AttrDict):
+    def lookahead_train(self, data: AttrDict, aids=None):
         theta = self.model.lookahead_params.copy()
         theta.policies, is_lookahead = pop_lookahead(theta.policies)
         assert all([lka == True for lka in is_lookahead]), is_lookahead
         opt_state = self.lookahead_opt_state
 
         if self.config.update_scheme == 'step':
-            theta, opt_state, stats, self.perm_lka_rng = self.stepwise_sequential_opt(
+            theta, opt_state, stats = self.stepwise_sequential_opt(
                 theta, opt_state, data, self.n_lka_epochs, 
                 self.n_lka_mbs, self.lka_indices, 
-                self.jit_lka_train, self.perm_lka_rng, 
+                self.jit_lka_train, aids=aids, 
                 return_stats=True
             )
         elif self.config.update_scheme == 'whole':
-            theta, opt_state, stats, self.perm_lka_rng = self.sequential_opt(
+            theta, opt_state, stats = self.sequential_opt(
                 theta, opt_state, data, self.n_lka_epochs, 
                 self.n_lka_mbs, self.lka_indices, 
-                self.jit_lka_train, self.perm_lka_rng, 
+                self.jit_lka_train, aids=aids, 
                 return_stats=True
             )
         else:
@@ -169,13 +166,14 @@ class Trainer(TrainerBase):
         return stats
     
     def sequential_opt(self, theta, opt_state, data, 
-            n_epochs, n_mbs, indices, train_fn, rng, return_stats=True):
+            n_epochs, n_mbs, indices, train_fn, aids=None, return_stats=True):
         teammate_log_ratio = jnp.zeros_like(data.mu_logprob[:, :, :1])
 
         v_target = [None for _ in self.aid2uids]
         all_stats = AttrDict()
-        ret_rng, rng = random.split(rng)
-        for aid in random.permutation(rng, self.n_agents):
+        if aids is None:
+            aids = np.random.permutation(self.n_agents)
+        for aid in aids:
             aid = int(aid)
             uids = self.aid2uids[aid]
             agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, aid)
@@ -216,15 +214,11 @@ class Trainer(TrainerBase):
         if return_stats:
             all_stats.v_target = np.concatenate(v_target, 2)
             assert all_stats.v_target.shape == data.reward.shape, (all_stats.v_target.shape, data.reward.shape)
-            return theta, opt_state, all_stats, ret_rng
-        return theta, opt_state, ret_rng
+            return theta, opt_state, all_stats
+        return theta, opt_state
 
     def stepwise_sequential_opt(self, theta, opt_state, data, 
-            n_epochs, n_mbs, indices, train_fn, rng, return_stats=True):
-        # rngs = random.split(rng, n_epochs+n_epochs*n_mbs+1)
-        # shuffle_rng = rngs[:n_epochs]
-        # ret_rng = rngs[-1]
-        # rngs = rngs[n_epochs:-1]
+            n_epochs, n_mbs, indices, train_fn, aids=None, return_stats=True):
         period = 10 if n_epochs > 10 else 2
         all_stats = AttrDict()
 
@@ -236,9 +230,8 @@ class Trainer(TrainerBase):
             for i, data_slice in enumerate(yield_from_tree_with_indices(data, _indices, axis=0)):
                 vts = [None for _ in self.aid2uids]
                 teammate_log_ratio = jnp.zeros_like(data_slice.mu_logprob[:, :, :1])
-                # rng = rngs[e*n_mbs + i]
-                # for aid in random.permutation(rng, self.n_agents):
-                aids = np.random.permutation(self.n_agents)
+                if aids is None:
+                    aids = np.random.permutation(self.n_agents)
                 uids = [self.aid2uids[aid] for aid in aids]
                 for aid, agent_data in zip(aids, 
                         yield_from_tree_with_indices(data_slice, uids, axis=2)):
@@ -275,8 +268,8 @@ class Trainer(TrainerBase):
             v_target = [np.concatenate(v, 2) for v in v_target]
             all_stats.v_target = np.concatenate(v_target)
             assert all_stats.v_target.shape == data.reward.shape, (all_stats.v_target.shape, data.reward.shape)
-            return theta, opt_state, all_stats, rng
-        return theta, opt_state, rng
+            return theta, opt_state, all_stats
+        return theta, opt_state
 
     def sync_lookahead_params(self):
         self.model.sync_lookahead_params()
@@ -349,7 +342,8 @@ class Trainer(TrainerBase):
                 log_ratio=stats.log_ratio, 
                 reg=stats.reg, 
                 reg_loss=stats.reg_loss, 
-                pos_reg=stats.pos_reg, 
+                pos_sample_reg_loss=stats.pos_sample_reg_loss, 
+                sample_reg_loss=stats.sample_reg_loss, 
                 reg_below_threshold=stats.reg_below_threshold, 
                 reg_above_threshold=stats.reg_above_threshold, 
                 inverse_mu=inverse_mu, 

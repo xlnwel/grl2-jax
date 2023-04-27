@@ -35,9 +35,9 @@ def ego_optimize(agent, **kwargs):
 
 
 @timeit
-def ego_train(agent, runner, routine_config, lka_aids, run_fn, opt_fn):
+def ego_train(agent, runner, routine_config, train_aids, lka_aids, run_fn, opt_fn):
     env_step = run_fn(agent, runner, routine_config, lka_aids)
-    train_step = opt_fn(agent)
+    train_step = opt_fn(agent, aids=train_aids)
 
     return env_step, train_step
 

@@ -2,7 +2,7 @@ import argparse
 import os, sys
 from enum import Enum
 import collections
-import jax
+import shutil
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -23,6 +23,9 @@ def parse_args():
                         type=str, 
                         nargs='*', 
                         default=[])
+    parser.add_argument('--new_root', '-nr', 
+                        type=str, 
+                        default=None)
     parser.add_argument('--new_date', '-nd', 
                         type=str, 
                         default=None)
@@ -31,7 +34,7 @@ def parse_args():
                         default=None)
     parser.add_argument('--prefix', '-p', 
                         type=str, 
-                        default=['seed'], 
+                        default=['a0', 'dynamics'], 
                         nargs='*')
     parser.add_argument('--name', '-n', 
                         type=str, 
@@ -44,6 +47,8 @@ def parse_args():
     parser.add_argument('--ignore', '-i',
                         type=str, 
                         default=[])
+    parser.add_argument('--copy', '-cp', 
+                        action='store_true')
     args = parser.parse_args()
 
     return args
@@ -204,8 +209,17 @@ if __name__ == '__main__':
             )
             do_logging(f'Rewriting config at "{yaml_path}"')
             yaml_op.save_config(config, path=yaml_path)
+        root = root if args.new_root is None else args.new_root
+        prev_dir = '/'.join([root, env, algo, date])
         new_dir = '/'.join([root, env, algo, date, model])
         do_logging(f'Moving directory from {d} to {new_dir}')
-        os.rename(d, new_dir)
+        if not os.path.isdir(prev_dir):
+            os.mkdir(prev_dir)
+        if os.path.isdir(new_dir):
+            shutil.rmtree(new_dir)
+        if args.copy:
+            shutil.copytree(d, new_dir, ignore=shutil.ignore_patterns('src'), dirs_exist_ok=True)
+        else:
+            os.rename(d, new_dir)
 
     do_logging('Move completed')

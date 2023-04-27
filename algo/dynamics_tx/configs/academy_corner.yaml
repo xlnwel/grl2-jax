@@ -38,6 +38,7 @@ env:
     add_role_to_obs: False
     shared_ckpt_reward: False
     shared_reward: True
+    selected_agents: True
 
     max_episode_steps: 400
     use_action_mask: False
@@ -66,7 +67,7 @@ strategy:
         training_data_size: &ds 1e5
         valid_data_size: 6400
         wp_n_epochs: 2000
-        n_epochs: &nepochs 500
+        n_epochs: &nepochs 1000
 
 model:
     aid: 0
