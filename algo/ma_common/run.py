@@ -14,9 +14,11 @@ def concat_along_unit_dim(x):
     return x
 
 
-def state_constructor(agent, runner):
+def state_constructor(agent, runner: RunnerWithState, env_kwargs={}):
+    env_config = runner.env_config()
+    env_config.update(env_kwargs)
     agent_states = agent.build_memory()
-    runner_states = runner.build_env()
+    runner_states = runner.build_env(env_config)
     return State(agent_states, runner_states)
 
 
@@ -33,12 +35,14 @@ class Runner(RunnerWithState):
         agent, 
         *, 
         name=None, 
+        env_kwargs={}, 
         **kwargs, 
     ):
         if name is None:
             return self._run(agent, **kwargs)
         else:
-            constructor = partial(state_constructor, agent=agent, runner=self)
+            constructor = partial(
+                state_constructor, agent=agent, runner=self, env_kwargs=env_kwargs)
             set_fn = partial(set_states, agent=agent, runner=self)
             with StateStore(name, constructor, set_fn):
                 return self._run(agent, **kwargs)

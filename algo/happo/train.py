@@ -8,7 +8,7 @@ from algo.happo.run import prepare_buffer
 def lka_env_run(agent, runner: Runner, routine_config, name='lka', **kwargs):
     env_output = runner.run(
         agent, 
-        n_steps=routine_config.n_steps, 
+        n_steps=routine_config.n_simulated_steps, 
         name=name, 
         **kwargs
     )
@@ -72,7 +72,7 @@ def train(
 
     while env_step < routine_config.MAX_STEPS:
         env_step = env_run(agent, runner, routine_config, lka_aids=[], store_info=True)
-        if not getattr(routine_config, "concise_mode", False):
+        if not routine_config.get("concise_mode", True):
             lka_optimize(agent)
         ego_optimize(agent)
         time2record = to_record(env_step)

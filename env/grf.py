@@ -435,7 +435,10 @@ class GRF:
         return reward
 
     def _raw_obs(self):
-        return self.env.unwrapped.observation()
+        obs = self.env.unwrapped.observation()
+        if self.selected_agents:
+            obs = [obs[i] for i in self.env.controlled_players]
+        return obs
 
     def seed(self, seed):
         return seed
@@ -454,7 +457,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     config = {
-        'env_name': 'academy_corner',
+        'env_name': 'academy_counterattack_hard',
         'representation': 'simple115v2',
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,
@@ -479,18 +482,18 @@ if __name__ == '__main__':
     obs = env.reset()
     obs_left.append(obs[0])
     obs_right.append(obs[1])
-    obs = env._raw_obs()
-    ids = np.array([o['active'] for o in obs])
-    print('ids', ids)
-    for i in range(3000):
+    ids = np.array([o['active'] for o in env._raw_obs()])
+    ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
+    for i in range(args.step):
         a = env.random_action()
         obs, rew, done, info = env.step(a)
         new_ids = np.array([o['active'] for o in env._raw_obs()])
-        # print(new_ids)
+        new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
         np.testing.assert_equal(ids, new_ids)
         if np.all(done):
             env.reset()
             new_ids = np.array([o['active'] for o in env._raw_obs()])
+            new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
             np.testing.assert_equal(ids, new_ids)
     # o = []
     # o.extend(do_flatten(env._raw_obs()[0]['left_team']))

@@ -49,9 +49,9 @@ def env_run(agent, runner: Runner, dynamics, routine_config, name='real', **kwar
 
 @timeit
 def ego_train(agent, runner, dynamics, routine_config, 
-        run_fn, opt_fn, **kwargs):
+        run_fn, opt_fn, train_aids, **kwargs):
     env_step = run_fn(agent, runner, dynamics, routine_config, **kwargs)
-    train_step = opt_fn(agent)
+    train_step = opt_fn(agent, aids=train_aids)
 
     return env_step, train_step
 
@@ -106,6 +106,8 @@ def train(
     n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)
+        lka_aids = get_lka_aids(rollout_type, n_agents)
+        aids = np.random.permutation(n_agents)
         errors = AttrDict()
         time2record = to_record(env_step)
 
@@ -129,6 +131,7 @@ def train(
             dynamics_routine_config, 
             n_runs=routine_config.n_lka_steps, 
             rng=lka_rng, 
+            train_aids=aids, 
             lka_aids=None, 
             run_fn=dynamics_run, 
             opt_fn=lka_optimize, 
@@ -137,12 +140,12 @@ def train(
         #     errors.lka = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
 
-        lka_aids = get_lka_aids(rollout_type, n_agents)
         env_step, _ = ego_train(
             agent, 
             runner, 
             dynamics, 
             routine_config, 
+            train_aids=aids, 
             lka_aids=lka_aids, 
             run_fn=env_run, 
             opt_fn=ego_optimize

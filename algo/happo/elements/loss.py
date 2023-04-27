@@ -113,8 +113,8 @@ class Loss(LossBase):
             reg_coef=self.config.sample_reg_coef, 
             rescaled_by_adv=self.config.rescaled_by_adv, 
             rescaled_by_mu=self.config.rescaled_by_mu, 
-            lower_threshold=self.config.lower_threshold, 
-            upper_threshold=self.config.upper_threshold, 
+            threshold=self.config.threshold, 
+            clip_range=self.config.ppo_clip_range, 
         )
 
         value_loss, stats = compute_vf_loss(
@@ -267,8 +267,8 @@ class Loss(LossBase):
             reg_coef=self.config.sample_reg_coef, 
             rescaled_by_adv=self.config.rescaled_by_adv, 
             rescaled_by_mu=self.config.rescaled_by_mu, 
-            lower_threshold=self.config.lower_threshold, 
-            upper_threshold=self.config.upper_threshold, 
+            threshold=self.config.threshold, 
+            clip_range=self.config.ppo_clip_range, 
         )
         stats = summarize_adv_ratio(stats, data)
         loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
@@ -379,8 +379,8 @@ class Loss(LossBase):
             reg_coef=self.config.lka_sample_reg_coef, 
             rescaled_by_adv=self.config.rescaled_by_adv, 
             rescaled_by_mu=self.config.rescaled_by_mu, 
-            lower_threshold=self.config.lower_threshold, 
-            upper_threshold=self.config.upper_threshold, 
+            threshold=self.config.threshold, 
+            clip_range=self.config.ppo_clip_range, 
         )
         value_loss, stats = compute_vf_loss(
             self.config, 
@@ -531,8 +531,8 @@ class Loss(LossBase):
             reg_coef=self.config.lka_sample_reg_coef, 
             rescaled_by_adv=self.config.rescaled_by_adv, 
             rescaled_by_mu=self.config.rescaled_by_mu, 
-            lower_threshold=self.config.lower_threshold, 
-            upper_threshold=self.config.upper_threshold, 
+            threshold=self.config.threshold, 
+            clip_range=self.config.ppo_clip_range, 
         )
         loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
 

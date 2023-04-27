@@ -385,8 +385,8 @@ def compute_sample_regularization(
     reg_coef, 
     rescaled_by_adv=False, 
     rescaled_by_mu=False, 
-    lower_threshold=-2., 
-    upper_threshold=2., 
+    threshold=2., 
+    clip_range=.2, 
 ):
     stats.mu = lax.exp(data.mu_logprob)
     stats.pi = lax.exp(stats.pi_logprob)
@@ -397,31 +397,17 @@ def compute_sample_regularization(
         return stats
     elif reg_type == 'log':
         reg_grads = stats.pi_logprob - data.mu_logprob
-        stats.reg_below_threshold = reg_grads < lower_threshold
-        stats.reg_above_threshold = reg_grads > upper_threshold
-        stats.raw_sample_reg_grads = lax.stop_gradient(jnp.clip(
-            reg_grads, lower_threshold, upper_threshold
+        stats.reg_below_threshold = reg_grads < -threshold
+        stats.reg_above_threshold = reg_grads > threshold
+        stats.pos_sample_reg_grads = jnp.clip(
+            reg_grads, -threshold, jnp.log(1+clip_range)
+        )
+        stats.neg_sample_reg_grads = jnp.clip(
+            reg_grads, jnp.log(1-clip_range), threshold
+        )
+        stats.raw_sample_reg_grads = lax.stop_gradient(jnp.where(
+            stats.advantage > 0, stats.pos_sample_reg_grads, -stats.neg_sample_reg_grads
         ))
-        abs_adv = lax.abs(stats.advantage)
-        stats.raw_sample_reg_grads = lax.sign(stats.advantage) * stats.raw_sample_reg_grads
-        stats.sample_reg = stats.pi * stats.raw_sample_reg_grads
-        if rescaled_by_adv:
-            stats.sample_reg = abs_adv * stats.sample_reg
-        if rescaled_by_mu:
-            stats.sample_reg = stats.sample_reg / stats.mu
-        stats.pos_sample_reg = jnp.where(stats.raw_sample_reg_grads < 0, stats.sample_reg, 0)
-        stats.raw_pos_sample_reg_loss, stats.pos_sample_reg_loss = jax_loss.to_loss(
-            stats.pos_sample_reg, 
-            pos_reg_coef, 
-            mask=data.sample_mask, 
-            n=data.n
-        )
-        stats.raw_sample_reg_loss, stats.sample_reg_loss = jax_loss.to_loss(
-            stats.sample_reg, 
-            reg_coef, 
-            mask=data.sample_mask, 
-            n=data.n
-        )
     elif reg_type == 'exp':
         ratio = lax.exp(stats.pi_logprob - data.mu_logprob)
         pos_ratio = jnp.maximum(ratio, 1)
@@ -429,32 +415,37 @@ def compute_sample_regularization(
         pos_reg = lax.exp(pos_ratio - 1) - 1
         neg_reg = 1 - lax.exp(neg_ratio - 1)
         reg_grads = jnp.where(ratio > 1, pos_reg, neg_reg)
-        stats.reg_below_threshold = reg_grads < lower_threshold
-        stats.reg_above_threshold = reg_grads > upper_threshold
-        stats.raw_sample_reg_grads = lax.stop_gradient(jnp.clip(
-            reg_grads, lower_threshold, upper_threshold
+        stats.reg_below_threshold = reg_grads < -threshold
+        stats.reg_above_threshold = reg_grads > threshold
+        stats.pos_sample_reg_grads = jnp.clip(
+            reg_grads, -threshold, lax.exp(clip_range) - 1
+        )
+        stats.neg_sample_reg_grads = jnp.clip(
+            reg_grads, 1 - lax.exp(1/(1-clip_range) - 1), threshold
+        )
+        stats.raw_sample_reg_grads = lax.stop_gradient(jnp.where(
+            stats.advantage > 0, stats.pos_sample_reg_grads, -stats.neg_sample_reg_grads
         ))
-        abs_adv = lax.abs(stats.advantage)
-        stats.raw_sample_reg_grads = lax.sign(stats.advantage) * stats.raw_sample_reg_grads
-        stats.sample_reg = stats.pi * stats.raw_sample_reg_grads
-        if rescaled_by_adv:
-            stats.sample_reg = abs_adv * stats.sample_reg
-        if rescaled_by_mu:
-            stats.sample_reg = stats.sample_reg / stats.mu
-        stats.pos_sample_reg = jnp.where(stats.raw_sample_reg_grads < 0, stats.sample_reg, 0)
-        stats.raw_pos_sample_reg_loss, stats.pos_sample_reg_loss = jax_loss.to_loss(
-            stats.pos_sample_reg, 
-            pos_reg_coef, 
-            mask=data.sample_mask, 
-            n=data.n
-        )
-        stats.raw_sample_reg_loss, stats.sample_reg_loss = jax_loss.to_loss(
-            stats.sample_reg, 
-            reg_coef, 
-            mask=data.sample_mask, 
-            n=data.n
-        )
     else:
         raise NotImplementedError(reg_type)
-    
+
+    stats.sample_reg = stats.pi * stats.raw_sample_reg_grads
+    if rescaled_by_adv:
+        stats.sample_reg = lax.abs(stats.advantage) * stats.sample_reg
+    if rescaled_by_mu:
+        stats.sample_reg = stats.sample_reg / stats.mu
+    stats.pos_sample_reg = jnp.where(stats.advantage > 0, stats.sample_reg, 0)
+    stats.raw_pos_sample_reg_loss, stats.pos_sample_reg_loss = jax_loss.to_loss(
+        stats.pos_sample_reg, 
+        pos_reg_coef, 
+        mask=data.sample_mask, 
+        n=data.n
+    )
+    stats.raw_sample_reg_loss, stats.sample_reg_loss = jax_loss.to_loss(
+        stats.sample_reg, 
+        reg_coef, 
+        mask=data.sample_mask, 
+        n=data.n
+    )
+
     return stats

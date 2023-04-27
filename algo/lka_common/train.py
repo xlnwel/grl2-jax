@@ -81,8 +81,8 @@ def dynamics_run(agent, dynamics, routine_config, dynamics_routine_config,
 
 
 @timeit
-def lka_optimize(agent):
-    agent.lookahead_train()
+def lka_optimize(agent, **kwargs):
+    agent.lookahead_train(**kwargs)
 
 
 @timeit
@@ -94,13 +94,13 @@ def real_lka_train(agent, runner, routine_config, n_runs, run_fn, opt_fn, **kwar
 
 @timeit
 def lka_train(agent, dynamics, routine_config, dynamics_routine_config, 
-        n_runs, rng, lka_aids, run_fn=dynamics_run, opt_fn=lka_optimize):
+        n_runs, rng, train_aids, lka_aids, run_fn=dynamics_run, opt_fn=lka_optimize):
     assert n_runs >= 0, n_runs
     for _ in range(n_runs):
         succ = run_fn(agent, dynamics, routine_config, dynamics_routine_config, 
             rng, lka_aids)
         if succ:
-            opt_fn(agent)
+            opt_fn(agent, aids=train_aids)
 
 
 @timeit
