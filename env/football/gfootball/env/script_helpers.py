@@ -19,10 +19,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from gfootball.env import config
-from gfootball.env import football_action_set
-from gfootball.env import football_env
-from gfootball.env import observation_processor
+from  env.football.gfootball.env import config
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.env import football_env
+from  env.football.gfootball.env import observation_processor
 
 import copy
 import six.moves.cPickle

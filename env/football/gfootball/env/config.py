@@ -157,5 +157,5 @@ class Config(object):
       self._values['episode_number'] = 0
     self._values['episode_number'] += inc
     self._scenario_values = {}
-    from gfootball.env import scenario_builder
+    from  env.football.gfootball.env import scenario_builder
     self._scenario_cfg = scenario_builder.Scenario(self).ScenarioConfig()

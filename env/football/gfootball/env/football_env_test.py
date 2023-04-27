@@ -32,11 +32,11 @@ import atexit
 import zlib
 from absl.testing import absltest
 
-from gfootball.env import config
-from gfootball.env import football_action_set
-from gfootball.env import football_env
-from gfootball.env import wrappers
-from gfootball.env import scenario_builder
+from  env.football.gfootball.env import config
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.env import football_env
+from  env.football.gfootball.env import wrappers
+from  env.football.gfootball.env import scenario_builder
 import numpy as np
 import psutil
 from six.moves import range

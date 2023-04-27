@@ -23,11 +23,11 @@ import copy
 import importlib
 from absl import logging
 
-from gfootball.env import config as cfg
-from gfootball.env import constants
-from gfootball.env import football_action_set
-from gfootball.env import football_env_core
-from gfootball.env import observation_rotation
+from  env.football.gfootball.env import config as cfg
+from  env.football.gfootball.env import constants
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.env import football_env_core
+from  env.football.gfootball.env import observation_rotation
 import gym
 import numpy as np
 

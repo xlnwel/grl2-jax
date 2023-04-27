@@ -25,7 +25,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from gfootball.env import football_action_set
+from  env.football.gfootball.env import football_action_set
 
 import numpy as np
 

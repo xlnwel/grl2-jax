@@ -21,8 +21,8 @@ from __future__ import print_function
 
 import collections
 import cv2
-from gfootball.env import football_action_set
-from gfootball.env import observation_preprocessing
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.env import observation_preprocessing
 import gym
 import numpy as np
 

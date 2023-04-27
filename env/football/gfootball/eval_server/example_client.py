@@ -23,7 +23,7 @@ from absl import app
 from absl import flags
 from absl import logging
 import gfootball.env as football_env
-from gfootball.env import football_action_set
+from  env.football.gfootball.env import football_action_set
 import grpc
 import numpy as np
 import tensorflow.compat.v2 as tf

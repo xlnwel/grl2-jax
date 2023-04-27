@@ -20,7 +20,7 @@ from __future__ import print_function
 
 import copy
 
-from gfootball.env import player_base
+from  env.football.gfootball.env import player_base
 
 
 class Player(player_base.PlayerBase):

@@ -18,13 +18,13 @@ import pickle
 import time
 from absl import logging
 import cv2
-from gfootball.env import football_action_set
-from gfootball.eval_server import config
-from gfootball.eval_server import utils
-from gfootball.eval_server.proto import game_server_pb2
-from gfootball.eval_server.proto import game_server_pb2_grpc
-from gfootball.eval_server.proto import master_pb2
-from gfootball.eval_server.proto import master_pb2_grpc
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.eval_server import config
+from  env.football.gfootball.eval_server import utils
+from  env.football.gfootball.eval_server.proto import game_server_pb2
+from  env.football.gfootball.eval_server.proto import game_server_pb2_grpc
+from  env.football.gfootball.eval_server.proto import master_pb2
+from  env.football.gfootball.eval_server.proto import master_pb2_grpc
 import grpc
 import gym
 import numpy as np

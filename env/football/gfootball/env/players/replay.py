@@ -14,8 +14,8 @@
 
 """Player with actions coming from specific game replay."""
 
-from gfootball.env import player_base
-from gfootball.env import script_helpers
+from  env.football.gfootball.env import player_base
+from  env.football.gfootball.env import script_helpers
 
 
 class Player(player_base.PlayerBase):

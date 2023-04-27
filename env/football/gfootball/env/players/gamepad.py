@@ -18,9 +18,9 @@
 from absl import logging
 import pygame
 
-from gfootball.env import controller_base
-from gfootball.env import football_action_set
-from gfootball.env import event_queue
+from  env.football.gfootball.env import controller_base
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.env import event_queue
 
 BUTTON_TO_ACTIONS = {
     0: [football_action_set.action_short_pass,
