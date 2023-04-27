@@ -41,10 +41,12 @@ def train(
     rng = dynamics.model.rng
 
     rollout_type = routine_config.get('rollout_type', 'mix')
-    assert rollout_type in ('lka', 'mix'), rollout_type
+    assert rollout_type in ('lka', 'mix', 'one'), rollout_type
     n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)
+        lka_aids = get_lka_aids(rollout_type, n_agents)
+        aids = np.random.permutation(n_agents)
         errors = AttrDict()
         time2record = to_record(env_step)
 
@@ -57,7 +59,6 @@ def train(
         #     errors.train = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [], 10)
 
-        lka_aids = get_lka_aids(rollout_type, n_agents)
         lka_train(
             agent, 
             dynamics, 
@@ -65,7 +66,8 @@ def train(
             dynamics_routine_config, 
             n_runs=routine_config.n_lka_steps, 
             rng=lka_rng, 
-            lka_aids=lka_aids, 
+            train_aids=aids, 
+            lka_aids=None, 
             run_fn=dynamics_run, 
             opt_fn=lka_optimize, 
         )
@@ -78,7 +80,8 @@ def train(
             runner, 
             dynamics, 
             routine_config, 
-            lka_aids=None, 
+            train_aids=aids, 
+            lka_aids=lka_aids, 
             run_fn=env_run, 
             opt_fn=ego_optimize
         )
