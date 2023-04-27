@@ -32,8 +32,8 @@ class SelectedAgents(gym.Wrapper):
             self.controlled_players = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             n_left_agents = 11
         elif env_name == 'academy_counterattack_hard':
-            self.controlled_players = [5, 6, 7, 8]
-            n_left_agents = 11
+            self.controlled_players = [1, 2, 3, 4]
+            n_left_agents = 5
         else:
             self.controlled_players = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             n_left_agents = 11
