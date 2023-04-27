@@ -104,10 +104,10 @@ if __name__ == '__main__':
     config = configs[0]
 
     # get the main function
-    try:
-        main = pkg.import_main('eval', config=config)
-    except Exception as e:
-        do_logging(f'Default evaluation is used due to error: {e}', color='red')
+    # try:
+    #     main = pkg.import_main('eval', config=config)
+    # except Exception as e:
+    #     do_logging(f'Default evaluation is used due to error: {e}', color='red')
 
     configure_gpu()
 
