@@ -14,7 +14,7 @@
 
 """Google Research Football."""
 
-from gfootball.env import scenario_builder
+from  env.football.gfootball.env import scenario_builder
 
 import gym
 from gym.envs.registration import register

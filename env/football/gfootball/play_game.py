@@ -24,8 +24,8 @@ from absl import flags
 from absl import logging
 
 
-from gfootball.env import config
-from gfootball.env import football_env
+from  env.football.gfootball.env import config
+from  env.football.gfootball.env import football_env
 
 FLAGS = flags.FLAGS
 

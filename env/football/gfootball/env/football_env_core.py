@@ -28,10 +28,10 @@ try:
   from gfootball_engine import GameState
 except ImportError:
   print('Cannot import gfootball_engine. Package was not installed properly.')
-from gfootball.env import config as cfg
-from gfootball.env import constants
-from gfootball.env import football_action_set
-from gfootball.env import observation_processor
+from  env.football.gfootball.env import config as cfg
+from  env.football.gfootball.env import constants
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.env import observation_processor
 import numpy as np
 import six.moves.cPickle
 from six.moves import range

@@ -21,9 +21,9 @@ from __future__ import print_function
 
 from absl.testing import absltest
 
-from gfootball.env import config
-from gfootball.env import football_action_set
-from gfootball.env import observation_rotation
+from  env.football.gfootball.env import config
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.env import observation_rotation
 import numpy as np
 
 

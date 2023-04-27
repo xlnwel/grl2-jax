@@ -55,7 +55,7 @@ class Scenario(object):
     self._active_team = Team.e_Left
     scenario = None
     try:
-      scenario = importlib.import_module('gfootball.scenarios.{}'.format(config['level']))
+      scenario = importlib.import_module('env.football.gfootball.scenarios.{}'.format(config['level']))
     except ImportError as e:
       logging.error('Loading scenario "%s" failed' % config['level'])
       logging.error(e)
@@ -72,7 +72,7 @@ class Scenario(object):
       self.AddPlayer(-1.000000, 0.420000, libgame.e_PlayerRole.e_PlayerRole_GK, True)
 
   def _BuildScenarioConfig(self):
-    """Builds scenario config from gfootball.environment config."""
+    """Builds scenario config from  env.football.gfootball.environment config."""
     self._scenario_cfg.real_time = self._config['real_time']
     self._scenario_cfg.left_agents = self._config.number_of_left_players()
     self._scenario_cfg.right_agents = self._config.number_of_right_players()

@@ -18,10 +18,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from gfootball.env import config
-from gfootball.env import football_env
-from gfootball.env import observation_preprocessing
-from gfootball.env import wrappers
+from  env.football.gfootball.env import config
+from  env.football.gfootball.env import football_env
+from  env.football.gfootball.env import observation_preprocessing
+from  env.football.gfootball.env import wrappers
 
 
 def _process_reward_wrappers(env, rewards):
@@ -259,7 +259,7 @@ def create_remote_environment(
   Returns:
     Google Research Football environment.
   """
-  from gfootball.env import remote_football_env
+  from  env.football.gfootball.env import remote_football_env
   env = remote_football_env.RemoteFootballEnv(
       username, token, model_name=model_name, track=track,
       include_rendering=include_rendering)

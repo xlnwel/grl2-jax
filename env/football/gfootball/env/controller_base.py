@@ -15,8 +15,8 @@
 
 """Base controller class."""
 
-from gfootball.env import football_action_set
-from gfootball.env import player_base
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.env import player_base
 
 
 class Controller(player_base.PlayerBase):

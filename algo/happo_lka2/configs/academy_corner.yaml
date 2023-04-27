@@ -55,7 +55,7 @@ env:
     shared_reward: True
     selected_agents: True
 
-    max_episode_steps: 200
+    max_episode_steps: 400
     use_action_mask: False
     uid2aid: null
     shared_policy: False
@@ -91,6 +91,7 @@ model:
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
+        use_feature_norm: False
     value:
         nn_id: value
         units_list: [64, 64]
@@ -99,6 +100,7 @@ model:
         norm: null
         rnn_type: &vrnn null
         rnn_units: 64
+        use_feature_norm: False
 
 loss:
     # hyperparams for value target and advantage

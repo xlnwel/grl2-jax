@@ -19,7 +19,7 @@ import random
 import string
 import time
 import urllib.request
-from gfootball.eval_server import config
+from  env.football.gfootball.eval_server import config
 import grpc
 
 

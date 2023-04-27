@@ -16,7 +16,7 @@
 
 from absl import app
 from absl import flags
-from gfootball.env import script_helpers
+from  env.football.gfootball.env import script_helpers
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('trace_file', None, 'Trace file to render')

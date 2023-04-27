@@ -16,7 +16,7 @@
 """Football action set tests."""
 
 from absl.testing import absltest
-from gfootball.env import football_action_set
+from  env.football.gfootball.env import football_action_set
 import numpy as np
 
 named_action_from_action_set = football_action_set.named_action_from_action_set

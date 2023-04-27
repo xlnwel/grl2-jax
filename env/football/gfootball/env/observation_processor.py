@@ -28,9 +28,9 @@ import timeit
 import traceback
 
 from absl import logging
-from gfootball.env import constants as const
-from gfootball.env import football_action_set
-from gfootball.scenarios import e_PlayerRole_GK
+from  env.football.gfootball.env import constants as const
+from  env.football.gfootball.env import football_action_set
+from  env.football.gfootball.scenarios import e_PlayerRole_GK
 import numpy as np
 from six.moves import range
 from six.moves import zip
