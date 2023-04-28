@@ -110,7 +110,7 @@ def main(configs, train=train):
     use_ray = config.env.get('n_runners', 1) > 1
     if use_ray:
         from tools.ray_setup import sigint_shutdown_ray
-        ray.init(num_cpus=config.env.n_runners, _temp_dir="/home/ubuntu/zhanglichao/chenfeng/tmp")
+        ray.init(num_cpus=config.env.n_runners)
         sigint_shutdown_ray()
 
     runner = Runner(config.env)

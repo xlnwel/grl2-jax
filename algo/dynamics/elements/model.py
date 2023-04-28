@@ -216,6 +216,7 @@ class Model(ModelBase):
 
     def get_const_dim_mask(self):
         dim_mask = self.obs_rms.const_dim_mask()
+        # we make prediction for a dimension if any unit changes that dimension 
         return np.any(dim_mask, 0)
 
     def update_obs_rms(self, rms):

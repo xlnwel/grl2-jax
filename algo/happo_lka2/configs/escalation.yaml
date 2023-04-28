@@ -34,7 +34,7 @@ routine:
     perm: null
     restore_state: False
     switch_model_at_every_step: False
-    rollout_type: mix
+    rollout_type: lka
 
 env:
     env_name: &env_name magw-escalation

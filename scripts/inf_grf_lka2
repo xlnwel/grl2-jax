@@ -5,7 +5,7 @@ export PYTHONPATH=.
 suite=$1
 shift
 algos=(
-    happo
+    happo_mb
 )
 envs=(
     $1
@@ -16,20 +16,13 @@ envs=(
 shift
 configs=$envs
 args1=(
-    100
-    100
-    100
-    100
-    200
-    200
-    200
-    200
+    1
+    .5
+    .1
 )
 args2=(
-    15
-    15
-    20
-    20
+    True
+    False
 )
 args3=(
     True
@@ -71,17 +64,20 @@ la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 # kws=$@
-
+# dynamics=$1
+dynamics=$1
+# e=$1
+shift
 commands=()
 kws=$@
-for e in "${envs[@]}"; do
-    env="${suite}-${e}"
-    config="${e}"
-    for s in {0..4}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-    done
+# for e in "${envs[@]}"; do
+env="${suite}-${e}"
+config="${e}"
+for s in {5..9}; do
+    py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+    commands+=("$py_script")
+    echo $py_script
 done
+# done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 5 -L 1 bash -c COMMAND 
 echo "Script completed"

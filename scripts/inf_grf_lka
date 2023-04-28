@@ -8,12 +8,12 @@ algos=(
     happo_mb
 )
 envs=(
-    # $1
+    $1
     # academy_3_vs_1_with_keeper
-    academy_corner
-    # academy_counterattack_hard
+    # academy_corner
+    academy_counterattack_hard
 )
-# shift
+shift
 configs=$envs
 args1=(
     1
@@ -34,6 +34,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
+# date="0428"
 info=""
 ld="${suite}-logs"
 
@@ -64,9 +65,9 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 # kws=$@
 # dynamics=$1
-dynamics=dynamics
+dynamics=$1
 # e=$1
-# shift
+shift
 commands=()
 kws=$@
 # for e in "${envs[@]}"; do

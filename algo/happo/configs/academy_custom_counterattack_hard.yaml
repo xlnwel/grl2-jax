@@ -55,7 +55,7 @@ env:
     shared_reward: True
     selected_agents: True
 
-    max_episode_steps: 200
+    max_episode_steps: 400
     use_action_mask: False
     uid2aid: null
     shared_policy: False
@@ -145,7 +145,7 @@ loss:
         lam: &lam .95
         pg_coef: 1
         entropy_coef: 5e-3
-        lka_entropy_coef: 5e-3
+        lka_entropy_coef: 0
         value_coef: 1
 
 trainer:
