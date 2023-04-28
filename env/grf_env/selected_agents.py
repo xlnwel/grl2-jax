@@ -40,6 +40,7 @@ class SelectedAgents(gym.Wrapper):
         else:
             self.controlled_players = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             n_left_agents = 11
+        self.env_name = env_name
 
         other_config_options = {'action_set':'v2'}
         self.env = football_env.create_environment(
@@ -90,7 +91,11 @@ class SelectedAgents(gym.Wrapper):
         obs, reward, done, info = super().step(actions)
         obs = self.get_controlled_players_data(obs)
         reward = self.get_controlled_players_data(reward)
-
+        if self.env_name == 'academy_custom_counterattack_hard':
+            raw_obs = self.env.unwrapped.observation()[0]
+            if raw_obs['ball_owned_team'] == 1:
+                done = True
+        
         return obs, reward, done, info
 
     def get_controlled_players_data(self, data):

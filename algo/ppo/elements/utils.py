@@ -172,7 +172,7 @@ def compute_actor_loss(
             logprob=stats.pi_logprob, 
         )
     elif config.pg_type == 'is':
-        raw_pg_loss = jax_loss.sample_pg_loss(
+        raw_pg_loss = jax_loss.is_pg_loss(
             advantage=stats.advantage, 
             ratio=stats.ratio, 
         )

@@ -2,10 +2,9 @@
 
 export PYTHONPATH=.
 
-suite=$1
-shift
+suite=magw
 algos=(
-    happo_mb
+    happo_mb2
 )
 envs=(
     escalation

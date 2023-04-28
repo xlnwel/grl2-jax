@@ -1,4 +1,3 @@
-from functools import partial
 import jax
 import ray
 
@@ -6,72 +5,11 @@ from core.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from core.typing import AttrDict, modelpath2outdir
 from tools.display import print_dict
-from tools.timer import Every, timeit
-from algo.lka_common.run import quantify_dynamics_errors
+from tools.timer import Every
 from algo.lka_common.train import *
-from algo.happo.run import prepare_buffer
 from algo.happo.train import init_running_stats
-from algo.happo_mb.run import branched_rollout, Runner
-
-
-def update_config(config, dynamics_config):
-    if config.routine.compute_return_at_once:
-        config.buffer.sample_keys = config.buffer.sample_keys + ['advantage', 'v_target']
-        config.dynamics_name = dynamics_config.dynamics_name
-        if 'edynamics' in dynamics_config.model:
-            if dynamics_config.model.edynamics.n_models == 1:
-                config.routine.switch_model_at_every_step = False
-        else:
-            if dynamics_config.model.emodels.n_models == 1:
-                config.routine.switch_model_at_every_step = False
-
-
-@timeit
-def env_run(agent, runner: Runner, dynamics, routine_config, name='real', **kwargs):
-    env_output = runner.run(
-        agent, 
-        n_steps=routine_config.n_steps, 
-        dynamics=dynamics, 
-        name=name, 
-        **kwargs
-    )
-    prepare_buffer(
-        agent, 
-        env_output, 
-        routine_config.compute_return_at_once, 
-    )
-
-    env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
-    agent.add_env_step(env_steps_per_run)
-
-    return agent.get_env_step()
-
-
-@timeit
-def ego_train(agent, runner, dynamics, routine_config, 
-        run_fn, opt_fn, train_aids, **kwargs):
-    env_step = run_fn(agent, runner, dynamics, routine_config, **kwargs)
-    train_step = opt_fn(agent, aids=train_aids)
-
-    return env_step, train_step
-
-
-dynamics_run = partial(dynamics_run, rollout_fn=branched_rollout)
-
-
-def get_lka_aids(rollout_type, n_agents):
-    if rollout_type == 'lka':
-        lka_aids = list(range(n_agents))
-    elif rollout_type == 'mix':
-        n = np.random.choice(n_agents+1)
-        lka_aids = np.random.choice(n_agents, n, replace=False)
-    elif rollout_type == 'one':
-        i = np.random.choice(n_agents)
-        lka_aids = [id for id in range(n_agents) if id != i]
-    else:
-        raise NotImplementedError(rollout_type)
-
-    return lka_aids
+from algo.happo_mb.run import Runner
+from algo.happo_mb.train import update_config, env_run, ego_train, dynamics_run, get_lka_aids
 
 
 def train(
@@ -116,9 +54,6 @@ def train(
             dynamics_optimize(dynamics, warm_up_stage=True)
         else:
             dynamics_optimize(dynamics)
-        # if routine_config.quantify_dynamics_errors and time2record:
-        #     errors.train = quantify_dynamics_errors(
-        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         lka_train(
             agent, 
@@ -128,9 +63,9 @@ def train(
             n_runs=routine_config.n_lka_steps, 
             rng=lka_rng, 
             train_aids=aids, 
-            lka_aids=None, 
+            lka_aids=[], 
             run_fn=dynamics_run, 
-            opt_fn=lka_optimize, 
+            opt_fn=ego_optimize, 
         )
         # if routine_config.quantify_dynamics_errors and time2record:
         #     errors.lka = quantify_dynamics_errors(
@@ -151,9 +86,9 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            if routine_config.quantify_dynamics_errors:
-                outdir = modelpath2outdir(agent.get_model_path())
-                log_dynamics_errors(errors, outdir, env_step)
+            # if routine_config.quantify_dynamics_errors:
+            #     outdir = modelpath2outdir(agent.get_model_path())
+            #     log_dynamics_errors(errors, outdir, env_step)
             stats = dynamics.valid_stats()
             dynamics.store(**stats)
             eval_and_log(agent, dynamics, None, routine_config, 

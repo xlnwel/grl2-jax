@@ -1,4 +1,4 @@
-# ./scripts/inf magw 1 inf_magw n_simulated_envs=400
+./scripts/inf magw 1 inf_magw
 # ./scripts/inf magw 1 inf_magw n_simulated_envs=400 lka_entropy_coef=0
 # ./scripts/inf magw 1 inf_magw n_steps=10 reward_scale=1
 # ./scripts/inf magw 2 inf_magw sample_pos_reg_coef=1
@@ -33,14 +33,14 @@
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#n_simulated_envs=400 0#n_simulated_steps=20
 
 
-./scripts/inf grf 1 inf_grf academy_corner
-./scripts/inf grf 1 inf_grf2 academy_corner
+# ./scripts/inf grf 1 inf_grf academy_corner
+# ./scripts/inf grf 1 inf_grf2 academy_corner
 # ./scripts/inf grf 1 inf_grf_lka academy_corner dynamics 0#n_simulated_envs=640 0#n_simulated_steps=20
 # ./scripts/inf grf 1 inf_grf_lka2 academy_corner dynamics 0#n_simulated_envs=640 0#n_simulated_steps=20
 # ./scripts/inf grf 1 inf_grf_lka academy_corner dynamics 0#n_simulated_envs=320 0#n_simulated_steps=20
 # ./scripts/inf grf 1 inf_grf_lka2 academy_corner dynamics 0#n_simulated_envs=320 0#n_simulated_steps=20
-./scripts/inf grf 1 inf_grf academy_custom_counterattack_hard
-./scripts/inf grf 1 inf_grf2 academy_custom_counterattack_hard
+./scripts/inf grf 1 inf_grf academy_custom_counterattack_hard 0#max_episode_steps=200
+# ./scripts/inf grf 1 inf_grf2 academy_custom_counterattack_hard
 # ./scripts/inf grf 1 inf_grf_lka academy_custom_counterattack_hard dynamics 0#n_simulated_envs=640 0#n_simulated_steps=20
 # ./scripts/inf grf 1 inf_grf_lka2 academy_custom_counterattack_hard dynamics 0#n_simulated_envs=640 0#n_simulated_steps=20
 # ./scripts/inf grf 1 inf_grf_lka academy_custom_counterattack_hard dynamics 0#n_simulated_envs=320 0#n_simulated_steps=20

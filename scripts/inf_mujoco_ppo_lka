@@ -2,8 +2,7 @@
 
 export PYTHONPATH=.
 
-suite=$1
-shift
+suite=ma_mujoco
 algos=(
     happo_mb
 )

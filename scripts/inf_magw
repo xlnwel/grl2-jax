@@ -2,8 +2,7 @@
 
 export PYTHONPATH=.
 
-suite=$1
-shift
+suite=magw
 algos=(
     happo
 )

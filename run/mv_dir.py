@@ -1,6 +1,7 @@
 import argparse
 import os, sys
 from enum import Enum
+from pathlib import Path
 import collections
 import shutil
 
@@ -214,7 +215,7 @@ if __name__ == '__main__':
         new_dir = '/'.join([root, env, algo, date, model])
         do_logging(f'Moving directory from {d} to {new_dir}')
         if not os.path.isdir(prev_dir):
-            os.mkdir(prev_dir)
+            Path(prev_dir).mkdir(parents=True)
         if os.path.isdir(new_dir):
             shutil.rmtree(new_dir)
         if args.copy:
