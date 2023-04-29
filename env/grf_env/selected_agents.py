@@ -91,6 +91,9 @@ class SelectedAgents(gym.Wrapper):
                 cid += 1
             else:
                 actions.append(19)
+        if self.env_name == 'academy_custom_counterattack_hard':
+            # we do not expect the keeper to perform any action at all
+            actions[0] = 0
         obs, reward, done, info = super().step(actions)
         obs = self.get_controlled_players_data(obs)
         reward = self.get_controlled_players_data(reward)
