@@ -107,7 +107,10 @@ def train(
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)
         lka_aids = get_lka_aids(rollout_type, n_agents)
-        aids = np.random.permutation(n_agents)
+        if routine_config.same_order:
+            aids = np.random.permutation(n_agents)
+        else:
+            aids = None
         errors = AttrDict()
         time2record = to_record(env_step)
 

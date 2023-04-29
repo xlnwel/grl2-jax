@@ -40,7 +40,7 @@ env:
     shared_reward: True
     selected_agents: False
 
-    max_episode_steps: 400
+    max_episode_steps: 200
     use_action_mask: False
     uid2aid: null
     shared_policy: False

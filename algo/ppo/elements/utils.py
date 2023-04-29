@@ -405,9 +405,6 @@ def compute_sample_regularization(
         stats.neg_sample_reg_grads = jnp.clip(
             reg_grads, jnp.log(1-clip_range), threshold
         )
-        stats.raw_sample_reg_grads = lax.stop_gradient(jnp.where(
-            stats.advantage > 0, stats.pos_sample_reg_grads, -stats.neg_sample_reg_grads
-        ))
     elif reg_type == 'exp':
         ratio = lax.exp(stats.pi_logprob - data.mu_logprob)
         pos_ratio = jnp.maximum(ratio, 1)
@@ -423,12 +420,12 @@ def compute_sample_regularization(
         stats.neg_sample_reg_grads = jnp.clip(
             reg_grads, 1 - lax.exp(1/(1-clip_range) - 1), threshold
         )
-        stats.raw_sample_reg_grads = lax.stop_gradient(jnp.where(
-            stats.advantage > 0, stats.pos_sample_reg_grads, -stats.neg_sample_reg_grads
-        ))
     else:
         raise NotImplementedError(reg_type)
 
+    stats.raw_sample_reg_grads = lax.stop_gradient(jnp.where(
+        stats.advantage > 0, stats.pos_sample_reg_grads, -stats.neg_sample_reg_grads
+    ))
     stats.sample_reg = stats.pi * stats.raw_sample_reg_grads
     if rescaled_by_adv:
         stats.sample_reg = lax.abs(stats.advantage) * stats.sample_reg

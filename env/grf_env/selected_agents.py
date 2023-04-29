@@ -71,6 +71,9 @@ class SelectedAgents(gym.Wrapper):
                 actions.append(np.random.randint(self.action_dim))
             else:
                 actions.append(19)
+        if self.env_name == 'academy_custom_counterattack_hard':
+            # we do not expect the keeper to perform any action at all
+            actions[0] = 0
         return actions
 
     def reset(self):
@@ -91,10 +94,10 @@ class SelectedAgents(gym.Wrapper):
         obs, reward, done, info = super().step(actions)
         obs = self.get_controlled_players_data(obs)
         reward = self.get_controlled_players_data(reward)
-        if self.env_name == 'academy_custom_counterattack_hard':
-            raw_obs = self.env.unwrapped.observation()[0]
-            if raw_obs['ball_owned_team'] == 1:
-                done = True
+        # if self.env_name == 'academy_custom_counterattack_hard':
+        #     raw_obs = self.env.unwrapped.observation()[0]
+        #     if raw_obs['ball_owned_team'] == 1:
+        #         done = True
         
         return obs, reward, done, info
 

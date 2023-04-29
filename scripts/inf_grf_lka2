@@ -7,12 +7,13 @@ algos=(
     happo_mb
 )
 envs=(
-    $1
+    # $1
     # academy_3_vs_1_with_keeper
-    # academy_corner
+    academy_corner
     # academy_counterattack_hard
+    # academy_custom_counterattack_hard
 )
-shift
+# shift
 configs=$envs
 args1=(
     1
@@ -64,9 +65,9 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 # kws=$@
 # dynamics=$1
-dynamics=$1
+dynamics=dynamics
 # e=$1
-shift
+# shift
 commands=()
 kws=$@
 # for e in "${envs[@]}"; do

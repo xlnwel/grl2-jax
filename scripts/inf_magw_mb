@@ -4,7 +4,7 @@ export PYTHONPATH=.
 
 suite=magw
 algos=(
-    happo_mb2
+    happo_mb
 )
 envs=(
     escalation

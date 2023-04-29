@@ -457,7 +457,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     config = {
-        'env_name': 'academy_custom_counterattack_hard',
+        'env_name': 'academy_counterattack_hard',
         'representation': 'simple115v2',
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,
@@ -480,22 +480,28 @@ if __name__ == '__main__':
     obs_left = []
     obs_right = []
     obs = env.reset()
-    obs_left.append(obs[0])
-    obs_right.append(obs[1])
-    ids = np.array([o['active'] for o in env._raw_obs()])
-    print(obs[0]['obs'].reshape(-1, 5))
-    ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
+    # obs_left.append(obs[0])
+    # obs_right.append(obs[1])
+    obs = env._raw_obs()
+    ids = np.array([o['active'] for o in obs])
+    # print(obs[0]['obs'].reshape(-1, 5))
+    print(ids)
+    print('ball_owned_team', [o['ball_owned_team'] for o in obs])
+    # ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
     for i in range(args.step):
         a = env.random_action()
         obs, rew, done, info = env.step(a)
-        new_ids = np.array([o['active'] for o in env._raw_obs()])
-        new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
+        obs = env._raw_obs()
+        new_ids = np.array([o['active'] for o in obs])
+        # new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
         np.testing.assert_equal(ids, new_ids)
-        print(obs[0]['obs'].reshape(-1, 5))
+        print('ball_owned_team', [o['ball_owned_team'] for o in obs])
+        # print(obs[0]['obs'].reshape(-1, 5))
         if np.all(done):
+            print('Done ball_owned_team', [o['ball_owned_team'] for o in obs])
             env.reset()
             new_ids = np.array([o['active'] for o in env._raw_obs()])
-            new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
+            # new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
             np.testing.assert_equal(ids, new_ids)
     # o = []
     # o.extend(do_flatten(env._raw_obs()[0]['left_team']))

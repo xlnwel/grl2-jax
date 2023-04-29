@@ -55,7 +55,7 @@ env:
     shared_reward: True
     selected_agents: True
 
-    max_episode_steps: 400
+    max_episode_steps: 200
     use_action_mask: False
     uid2aid: null
     shared_policy: False
@@ -119,6 +119,7 @@ loss:
     rescaled_by_adv: True
     rescaled_by_mu: True
     threshold: 2.
+    reg_clip: .2
     reg_type: kl_reverse
     sample_reg_type: log
     reg_coef: 0

@@ -114,7 +114,7 @@ class Loss(LossBase):
             rescaled_by_adv=self.config.rescaled_by_adv, 
             rescaled_by_mu=self.config.rescaled_by_mu, 
             threshold=self.config.threshold, 
-            clip_range=self.config.ppo_clip_range, 
+            clip_range=self.config.reg_clip, 
         )
 
         value_loss, stats = compute_vf_loss(
@@ -268,7 +268,7 @@ class Loss(LossBase):
             rescaled_by_adv=self.config.rescaled_by_adv, 
             rescaled_by_mu=self.config.rescaled_by_mu, 
             threshold=self.config.threshold, 
-            clip_range=self.config.ppo_clip_range, 
+            clip_range=self.config.reg_clip, 
         )
         stats = summarize_adv_ratio(stats, data)
         loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
@@ -380,7 +380,7 @@ class Loss(LossBase):
             rescaled_by_adv=self.config.rescaled_by_adv, 
             rescaled_by_mu=self.config.rescaled_by_mu, 
             threshold=self.config.threshold, 
-            clip_range=self.config.ppo_clip_range, 
+            clip_range=self.config.reg_clip, 
         )
         value_loss, stats = compute_vf_loss(
             self.config, 
@@ -532,7 +532,7 @@ class Loss(LossBase):
             rescaled_by_adv=self.config.rescaled_by_adv, 
             rescaled_by_mu=self.config.rescaled_by_mu, 
             threshold=self.config.threshold, 
-            clip_range=self.config.ppo_clip_range, 
+            clip_range=self.config.reg_clip, 
         )
         loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
 

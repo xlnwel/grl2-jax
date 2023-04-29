@@ -47,7 +47,7 @@ runner:
 
 env:
     env_name: &env_name overcooked-asymmetric_advantages
-    max_episode_steps: 400
+    max_episode_steps: 200
     n_envs: &nenvs 4
     dense_reward: False
     featurize: True

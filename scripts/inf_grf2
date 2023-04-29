@@ -7,12 +7,13 @@ algos=(
     happo
 )
 envs=(
-    $1
+    # $1
     # academy_3_vs_1_with_keeper
-    # academy_corner
+    academy_corner
     # academy_counterattack_hard
+    # academy_custom_counterattack_hard
 )
-shift
+# shift
 configs=$envs
 args1=(
     100
@@ -73,14 +74,14 @@ a3=${args3[$idx]}
 
 commands=()
 kws=$@
-for e in "${envs[@]}"; do
-    env="${suite}-${e}"
-    config="${e}"
-    for s in {4..9}; do
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-    done
+# for e in "${envs[@]}"; do
+env="${suite}-${e}"
+config="${e}"
+for s in {5..9}; do
+    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+    commands+=("$py_script")
+    echo $py_script
 done
+# done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 5 -L 1 bash -c COMMAND 
 echo "Script completed"

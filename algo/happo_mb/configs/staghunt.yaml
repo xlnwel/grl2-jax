@@ -97,6 +97,7 @@ loss:
     rescaled_by_adv: True
     rescaled_by_mu: True
     threshold: 2.
+    reg_clip: .2
     reg_type: kl_reverse
     sample_reg_type: log
     reg_coef: 0
