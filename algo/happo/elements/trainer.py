@@ -157,6 +157,7 @@ class Trainer(TrainerBase):
             p[LOOKAHEAD] = True
         self.model.set_lka_params(theta)
         self.lookahead_opt_state = opt_state
+        print_dict_info(stats)
 
         stats = prefix_name(stats, name='lka')
         data = flatten_dict({k: v 

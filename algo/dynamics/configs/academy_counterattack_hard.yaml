@@ -66,8 +66,8 @@ strategy:
         ergodic: False
         training_data_size: &ds 1e5
         valid_data_size: 6400
-        wp_n_epochs: 2000
-        n_epochs: &nepochs 1000
+        n_wp_epochs: 10
+        n_epochs: &nepochs 1200
 
 model:
     aid: 0
@@ -83,7 +83,7 @@ model:
         nn_id: edynamics
         n_models: &n 1
         repr_config:
-            units_list: [256, 256, 256, 256]
+            units_list: [512, 512, 512, 512]
             activation: relu
             norm: null
         model_out_config:
@@ -91,10 +91,10 @@ model:
             max_logvar: .5
             min_logvar: -10
         model_config:
-            units_list: [128]
+            units_list: [256]
             activation: relu
         reward_config:
-            units_list: [128]
+            units_list: [256]
             activation: relu
 
 loss:

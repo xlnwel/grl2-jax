@@ -79,6 +79,9 @@ class Loss(LossBase):
                 lam=stats.lam, 
                 axis=1
             )
+            if self.config.popart:
+                v_target = normalize(
+                    v_target, data.popart_mean, data.popart_std)
             stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
         stats.norm_adv, stats.advantage = norm_adv(
@@ -122,8 +125,21 @@ class Loss(LossBase):
             data, 
             stats, 
         )
+
+        actor_sil_loss, stats = compute_actor_sil_loss(
+            stats, 
+            data, 
+            self.config.actor_sil_coef
+        )
+        value_sil_loss, stats = compute_value_sil_loss(
+            stats, 
+            data, 
+            self.config.value_sil_coef
+        )
         stats = summarize_adv_ratio(stats, data)
-        loss = actor_loss + value_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
+        loss = actor_loss + value_loss + stats.reg_loss \
+            + stats.pos_sample_reg_loss + stats.sample_reg_loss \
+                + actor_sil_loss + value_sil_loss
         stats.loss = loss
 
         return loss, stats
@@ -196,6 +212,9 @@ class Loss(LossBase):
                 lam=stats.lam, 
                 axis=1
             )
+            if self.config.popart:
+                v_target = normalize(
+                    v_target, data.popart_mean, data.popart_std)
             stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
 
@@ -204,7 +223,12 @@ class Loss(LossBase):
             data, 
             stats, 
         )
-        loss = value_loss
+        value_sil_loss, stats = compute_value_sil_loss(
+            stats, 
+            data, 
+            self.config.value_sil_coef
+        )
+        loss = value_loss + value_sil_loss
 
         return loss, stats
 
@@ -270,8 +294,15 @@ class Loss(LossBase):
             threshold=self.config.threshold, 
             clip_range=self.config.reg_clip, 
         )
+        actor_sil_loss, stats = compute_actor_sil_loss(
+            stats, 
+            data, 
+            self.config.actor_sil_coef
+        )
         stats = summarize_adv_ratio(stats, data)
-        loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
+        loss = actor_loss + stats.reg_loss \
+            + stats.pos_sample_reg_loss + stats.sample_reg_loss \
+            + actor_sil_loss
 
         return loss, stats
 
@@ -345,6 +376,9 @@ class Loss(LossBase):
                 lam=stats.lam, 
                 axis=1
             )
+            if self.config.popart:
+                v_target = normalize(
+                    v_target, data.popart_mean, data.popart_std)
             stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
 
@@ -387,7 +421,19 @@ class Loss(LossBase):
             data, 
             stats, 
         )
-        loss = actor_loss + value_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
+        actor_sil_loss, stats = compute_actor_sil_loss(
+            stats, 
+            data, 
+            self.config.lka_actor_sil_coef
+        )
+        value_sil_loss, stats = compute_value_sil_loss(
+            stats, 
+            data, 
+            self.config.lka_value_sil_coef
+        )
+        loss = actor_loss + value_loss + stats.reg_loss \
+            + stats.pos_sample_reg_loss + stats.sample_reg_loss \
+            + actor_sil_loss + value_sil_loss
         stats.loss = loss
 
         return loss, stats
@@ -460,6 +506,9 @@ class Loss(LossBase):
                 lam=stats.lam, 
                 axis=1
             )
+            if self.config.popart:
+                v_target = normalize(
+                    v_target, data.popart_mean, data.popart_std)
             stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
 
@@ -468,7 +517,12 @@ class Loss(LossBase):
             data, 
             stats, 
         )
-        loss = value_loss
+        value_sil_loss, stats = compute_value_sil_loss(
+            stats, 
+            data, 
+            self.config.lka_value_sil_coef
+        )
+        loss = value_loss + value_sil_loss
 
         return loss, stats
 
@@ -534,7 +588,14 @@ class Loss(LossBase):
             threshold=self.config.threshold, 
             clip_range=self.config.reg_clip, 
         )
-        loss = actor_loss + stats.reg_loss + stats.pos_sample_reg_loss + stats.sample_reg_loss
+        actor_sil_loss, stats = compute_actor_sil_loss(
+            stats, 
+            data, 
+            self.config.lka_actor_sil_coef
+        )
+        loss = actor_loss + stats.reg_loss \
+            + stats.pos_sample_reg_loss + stats.sample_reg_loss \
+            + actor_sil_loss
 
         return loss, stats
 

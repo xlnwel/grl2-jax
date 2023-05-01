@@ -73,11 +73,19 @@ kws=$@
 # for e in "${envs[@]}"; do
 env="${suite}-${e}"
 config="${e}"
-for s in {0..4}; do
-    py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-    commands+=("$py_script")
-    echo $py_script
-done
+if [ "$INF_MAC_NODE_RANK" -eq 0 ]; then
+    for s in {0..4}; do
+        py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+    done
+else
+    for s in {5..9}; do
+        py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+    done
+fi
 # done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 5 -L 1 bash -c COMMAND 
 echo "Script completed"

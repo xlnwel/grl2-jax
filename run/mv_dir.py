@@ -167,7 +167,19 @@ if __name__ == '__main__':
 
     for d in fixed_pattern_search(search_dir, level=level, matches=matches, ignores=ignores, target_level=DirLevel.MODEL):
         root, env, algo, date, model = d.rsplit('/', 4)
-        for d2 in fixed_pattern_search(d, level=DirLevel.MODEL, matches=matches, ignores=ignores, target_level=DirLevel.FINAL):
+        root = root if args.new_root is None else args.new_root
+        prev_dir = '/'.join([root, env, algo, date])
+        new_dir = '/'.join([root, env, algo, date, model])
+        do_logging(f'Moving directory from {d} to {new_dir}')
+        if not os.path.isdir(prev_dir):
+            Path(prev_dir).mkdir(parents=True)
+        if os.path.isdir(new_dir):
+            shutil.rmtree(new_dir)
+        if args.copy:
+            shutil.copytree(d, new_dir, ignore=shutil.ignore_patterns('src'), dirs_exist_ok=True)
+        else:
+            os.rename(d, new_dir)
+        for d2 in fixed_pattern_search(new_dir, level=DirLevel.MODEL, matches=matches, ignores=ignores, target_level=DirLevel.FINAL):
             last_name = d2.split('/')[-1]
             if not any([last_name.startswith(p) for p in args.prefix]):
                 continue

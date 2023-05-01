@@ -10,7 +10,8 @@ from algo.lka_common.run import quantify_dynamics_errors
 from algo.lka_common.train import *
 from algo.happo.train import init_running_stats
 from algo.happo_mb.run import Runner
-from algo.happo_mb.train import update_config, env_run, ego_train, dynamics_run, get_lka_aids
+from algo.happo_mb.train import update_config, env_run, ego_train, \
+    dynamics_run, get_aids, get_lka_aids
 
 
 def train(
@@ -46,7 +47,8 @@ def train(
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)
         lka_aids = get_lka_aids(rollout_type, n_agents)
-        aids = np.random.permutation(n_agents)
+        aids = get_aids(routine_config, n_agents)
+
         errors = AttrDict()
         time2record = to_record(env_step)
 

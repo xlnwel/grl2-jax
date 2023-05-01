@@ -66,14 +66,8 @@ class SelectedAgents(gym.Wrapper):
 
     def random_action(self):
         actions = []
-        for i in range(self.n_left_agents):
-            if i in self.controlled_players:
-                actions.append(np.random.randint(self.action_dim))
-            else:
-                actions.append(19)
-        if self.env_name == 'academy_custom_counterattack_hard':
-            # we do not expect the keeper to perform any action at all
-            actions[0] = 0
+        for i in self.controlled_players:
+            actions.append(np.random.randint(self.action_dim))
         return actions
 
     def reset(self):
@@ -91,9 +85,9 @@ class SelectedAgents(gym.Wrapper):
                 cid += 1
             else:
                 actions.append(19)
-        if self.env_name == 'academy_custom_counterattack_hard':
-            # we do not expect the keeper to perform any action at all
-            actions[0] = 0
+        # if self.env_name == 'academy_custom_counterattack_hard':
+        #     # we do not expect the keeper to perform any action at all
+        #     actions[0] = 0
         obs, reward, done, info = super().step(actions)
         obs = self.get_controlled_players_data(obs)
         reward = self.get_controlled_players_data(reward)
@@ -105,5 +99,6 @@ class SelectedAgents(gym.Wrapper):
         return obs, reward, done, info
 
     def get_controlled_players_data(self, data):
-        data = np.array([d for i, d in enumerate(data) if i in self.controlled_players])
+        assert len(data) == self.n_left_agents, (len(data), self.n_left_agents)
+        data = np.array([data[i] for i in self.controlled_players])
         return data

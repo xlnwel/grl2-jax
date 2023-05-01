@@ -117,8 +117,8 @@ loss:
     opt_pg: False
     ppo_clip_range: .2
     teammate_ratio_clip: .2
-    rescaled_by_adv: True
-    rescaled_by_mu: True
+    rescaled_by_adv: False
+    rescaled_by_mu: False
     threshold: 2.
     reg_clip: .2
     reg_type: kl_reverse
@@ -126,6 +126,8 @@ loss:
     reg_coef: 0
     sample_reg_coef: 0
     sample_pos_reg_coef: 0
+    actor_sil_coef: 0
+    value_sil_coef: 0
     policy_sample_mask: True
 
     # hyperparams for value learning
@@ -139,6 +141,8 @@ loss:
     lka_reg_coef: 0
     lka_sample_reg_coef: 0
     lka_sample_pos_reg_coef: 0
+    lka_actor_sil_coef: 0
+    lka_value_sil_coef: 0
 
     stats:
         gamma: *gamma

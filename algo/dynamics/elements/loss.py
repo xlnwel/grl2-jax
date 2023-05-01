@@ -190,6 +190,7 @@ def compute_discount_loss(
     config, discount_dist, discount, stats
 ):
     raw_discount_loss = - discount_dist.log_prob(discount)
+    stats.raw_discount_loss = raw_discount_loss
     pred_discount = discount_dist.mode()
     stats.pred_discount = pred_discount
     stats.discount_mae = lax.abs(pred_discount - discount)

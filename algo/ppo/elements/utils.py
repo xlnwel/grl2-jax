@@ -244,12 +244,7 @@ def compute_vf_loss(
     else:
         sample_mask = None
     
-    if config.popart:
-        v_target = normalize(
-            stats.v_target, data.popart_mean, data.popart_std)
-    else:
-        v_target = stats.v_target
-    stats.norm_v_target = v_target
+    v_target = stats.v_target
 
     value_loss_type = config.value_loss
     if value_loss_type == 'huber':
@@ -446,3 +441,50 @@ def compute_sample_regularization(
     )
 
     return stats
+
+
+def compute_actor_sil_loss(
+    stats, 
+    data,  
+    coef
+):
+    if coef is None:
+        coef = 0
+    raw_actor_sil_loss = jax_loss.is_pg_loss(
+        advantage=jnp.maximum(stats.advantage, 0),
+        ratio=stats.ratio
+    )
+    scaled_actor_sil_loss, actor_sil_loss = jax_loss.to_loss(
+        raw_actor_sil_loss, 
+        coef, 
+        mask=data.sample_mask, 
+        n=data.n
+    )
+    stats.raw_actor_sil_loss = raw_actor_sil_loss
+    stats.scaled_actor_sil_loss = scaled_actor_sil_loss
+    stats.actor_sil_loss = actor_sil_loss
+
+    return actor_sil_loss, stats
+
+
+def compute_value_sil_loss(
+    stats, 
+    data,  
+    coef
+):
+    if coef is None:
+        coef = 0
+    raw_value_loss = .5 * (stats.value - stats.v_target)**2
+    raw_value_sil_loss = raw_value_loss * stats.advantage > 0
+
+    scaled_value_sil_loss, value_sil_loss = jax_loss.to_loss(
+        raw_value_sil_loss, 
+        coef=coef, 
+        mask=data.sample_mask, 
+        n=data.n
+    )
+    stats.raw_value_sil_loss = raw_value_sil_loss
+    stats.scaled_value_sil_loss = scaled_value_sil_loss
+    stats.value_sil_loss = value_sil_loss
+
+    return value_sil_loss, stats

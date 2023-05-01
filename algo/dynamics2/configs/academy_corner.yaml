@@ -60,7 +60,7 @@ model:
     emodels:
         nn_id: emodels
         n_models: &n 1
-        units_list: [256, 256, 256, 256]
+        units_list: [512, 512, 512, 512]
         activation: relu
         norm: null
         out_type: continuous

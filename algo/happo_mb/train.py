@@ -59,6 +59,14 @@ def ego_train(agent, runner, dynamics, routine_config,
 dynamics_run = partial(dynamics_run, rollout_fn=branched_rollout)
 
 
+def get_aids(routine_config, n_agents):
+    if routine_config.same_order:
+        aids = np.random.permutation(n_agents)
+    else:
+        aids = None
+    return aids
+
+
 def get_lka_aids(rollout_type, n_agents):
     if rollout_type == 'lka':
         lka_aids = list(range(n_agents))
@@ -107,10 +115,8 @@ def train(
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)
         lka_aids = get_lka_aids(rollout_type, n_agents)
-        if routine_config.same_order:
-            aids = np.random.permutation(n_agents)
-        else:
-            aids = None
+        aids = get_aids(routine_config, n_agents)
+
         errors = AttrDict()
         time2record = to_record(env_step)
 
@@ -154,9 +160,9 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            if routine_config.quantify_dynamics_errors:
-                outdir = modelpath2outdir(agent.get_model_path())
-                log_dynamics_errors(errors, outdir, env_step)
+            # if routine_config.quantify_dynamics_errors:
+            #     outdir = modelpath2outdir(agent.get_model_path())
+            #     log_dynamics_errors(errors, outdir, env_step)
             stats = dynamics.valid_stats()
             dynamics.store(**stats)
             eval_and_log(agent, dynamics, None, routine_config, 

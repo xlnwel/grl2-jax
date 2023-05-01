@@ -78,6 +78,9 @@ class Loss(LossBase):
                 lam=stats.lam, 
                 axis=1
             )
+            if self.config.popart:
+                v_target = normalize(
+                    v_target, data.popart_mean, data.popart_std)
             stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
 

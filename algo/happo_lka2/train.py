@@ -2,7 +2,7 @@ from functools import partial
 
 from algo.lka_common.train import *
 from algo.happo.train import init_running_stats, lka_env_run, env_run
-from algo.happo_mb.train import get_lka_aids
+from algo.happo_mb.train import get_aids, get_lka_aids
 
 
 def train(
@@ -25,17 +25,17 @@ def train(
     eval_data = load_eval_data(filename=env_name)
 
     rollout_type = routine_config.get('rollout_type', 'mix')
-    assert rollout_type in ('lka', 'mix'), rollout_type
+    assert rollout_type in ('lka', 'mix', 'one'), rollout_type
     n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
-        aids = np.random.permutation(n_agents)
-        for _ in range(routine_config.n_lka_steps):
-            lka_env_run(agent, runner, routine_config, lka_aids=[], 
-                        env_kwargs={'n_envs': routine_config.n_simulated_envs}, store_info=True)
-            lka_optimize(agent, aids=aids)
         lka_aids = get_lka_aids(rollout_type, n_agents)
+        aids = get_aids(routine_config, n_agents)
+
+        for _ in range(routine_config.n_lka_steps):
+            lka_env_run(agent, runner, routine_config, lka_aids=None, store_info=False)
+            lka_optimize(agent, aids=aids)
         env_step = env_run(agent, runner, routine_config, 
-                           lka_aids=lka_aids, store_info=False)
+                           lka_aids=lka_aids, store_info=True)
         ego_optimize(agent, aids=aids)
         time2record = to_record(env_step)
 
