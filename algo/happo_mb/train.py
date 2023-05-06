@@ -17,7 +17,7 @@ from algo.happo_mb.run import branched_rollout, Runner
 def update_config(config, dynamics_config):
     if config.routine.compute_return_at_once:
         config.buffer.sample_keys = config.buffer.sample_keys + ['advantage', 'v_target']
-        config.dynamics_name = dynamics_config.dynamics_name
+        config.dynamics_name = dynamics_config.algorithm
         if 'edynamics' in dynamics_config.model:
             if dynamics_config.model.edynamics.n_models == 1:
                 config.routine.switch_model_at_every_step = False
@@ -125,22 +125,19 @@ def train(
             dynamics_optimize(dynamics, warm_up_stage=True)
         else:
             dynamics_optimize(dynamics)
-        # if routine_config.quantify_dynamics_errors and time2record:
-        #     errors.train = quantify_dynamics_errors(
-        #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
-        lka_train(
-            agent, 
-            dynamics, 
-            routine_config, 
-            dynamics_routine_config, 
-            n_runs=routine_config.n_lka_steps, 
-            rng=lka_rng, 
-            train_aids=aids, 
-            lka_aids=None, 
-            run_fn=dynamics_run, 
-            opt_fn=lka_optimize, 
-        )
+            lka_train(
+                agent, 
+                dynamics, 
+                routine_config, 
+                dynamics_routine_config, 
+                n_runs=routine_config.n_lka_steps, 
+                rng=lka_rng, 
+                train_aids=aids, 
+                lka_aids=None, 
+                run_fn=dynamics_run, 
+                opt_fn=lka_optimize, 
+            )
         # if routine_config.quantify_dynamics_errors and time2record:
         #     errors.lka = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)

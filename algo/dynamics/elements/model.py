@@ -142,10 +142,10 @@ class Model(ModelBase):
 
         stats = AttrDict()
         next_obs, reward, discount, stats = self.forward_dynamics(
-            dynamics, dynamics_params, rngs[0], obs, action, 
+            dynamics, dynamics_params, rngs[0], data.obs, obs, action, 
             dim_mask, elite_indices, stats, evaluation)
         
-        if self.config.model_norm_obs:
+        if self.config.model_norm_obs and not self.config.pred_raw:
             next_obs = denormalize(
                 next_obs, 
                 data.obs_loc, 
@@ -179,7 +179,7 @@ class Model(ModelBase):
 
         return env_out, stats, data.state
 
-    def forward_dynamics(self, dynamics, params, rng, obs, action, 
+    def forward_dynamics(self, dynamics, params, rng, raw_obs, obs, action, 
                          dim_mask, elite_indices, stats, evaluation):
         rngs = random.split(rng, 3)
 
@@ -193,7 +193,10 @@ class Model(ModelBase):
             next_obs = next_obs.take(i, axis=0)
         if isinstance(model_dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
-            next_obs = obs + next_obs
+            if self.config.pred_raw:
+                next_obs = raw_obs + next_obs
+            else:
+                next_obs = obs + next_obs
         next_obs = jnp.where(dim_mask, next_obs, obs)
         reward = reward_dist.mode()
         if isinstance(reward_dist, jax_dist.Categorical):
@@ -221,7 +224,6 @@ class Model(ModelBase):
 
     def update_obs_rms(self, rms):
         if rms is not None:
-            assert self.config.model_norm_obs, self.config.model_norm_obs
             self.obs_rms.update_from_moments(*rms)
 
     def save(self):

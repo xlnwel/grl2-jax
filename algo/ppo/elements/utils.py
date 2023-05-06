@@ -305,18 +305,19 @@ def record_policy_stats(data, stats, act_dist):
 
 
 def summarize_adv_ratio(stats, data):
-    stats.raw_adv_ratio_pp = jnp.logical_and(stats.norm_adv > 0, stats.ratio > 1)
-    stats.raw_adv_ratio_pn = jnp.logical_and(stats.norm_adv > 0, stats.ratio < 1)
-    # stats.raw_adv_ratio_np = jax_math.mask_mean(
-    #     jnp.logical_and(stats.raw_adv < 0, stats.ratio > 1), 
-    #     data.sample_mask, data.n)
+    stats.raw_adv_ratio_pp = jnp.mean(jnp.logical_and(stats.norm_adv > 0, stats.ratio > 1))
+    stats.raw_adv_ratio_pn = jnp.mean(jnp.logical_and(stats.norm_adv > 0, stats.ratio < 1))
+    stats.raw_adv_ratio_np = jnp.mean(jnp.logical_and(stats.norm_adv < 0, stats.ratio > 1))
+    stats.raw_adv_ratio_nn = jnp.mean(jnp.logical_and(stats.norm_adv < 0, stats.ratio < 1))
     # stats.raw_adv_ratio_nn = jax_math.mask_mean(
     #     jnp.logical_and(stats.raw_adv < 0, stats.ratio < 1), 
     #     data.sample_mask, data.n)
-    stats.adv_ratio_pp = jnp.logical_and(stats.advantage > 0, stats.ratio > 1)
-    stats.adv_ratio_pn = jnp.logical_and(stats.advantage > 0, stats.ratio < 1)
-    stats.pp_ratio = jnp.where(stats.adv_ratio_pp, stats.ratio, 0)
+    stats.adv_ratio_pp = jnp.mean(jnp.logical_and(stats.advantage > 0, stats.ratio > 1))
+    stats.adv_ratio_pn = jnp.mean(jnp.logical_and(stats.advantage > 0, stats.ratio < 1))
+    stats.adv_ratio_np = jnp.mean(jnp.logical_and(stats.advantage < 0, stats.ratio > 1))
+    stats.adv_ratio_nn = jnp.mean(jnp.logical_and(stats.advantage < 0, stats.ratio < 1))
     stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 0)
+    stats.np_ratio = jnp.where(stats.adv_ratio_np, stats.ratio, 0)
     # stats.adv_ratio_np = jax_math.mask_mean(
     #     jnp.logical_and(stats.advantage < 0, stats.ratio > 1), 
     #     data.sample_mask, data.n)
@@ -419,7 +420,7 @@ def compute_sample_regularization(
         raise NotImplementedError(reg_type)
 
     stats.raw_sample_reg_grads = lax.stop_gradient(jnp.where(
-        stats.advantage > 0, stats.pos_sample_reg_grads, -stats.neg_sample_reg_grads
+        stats.advantage > 0, stats.pos_sample_reg_grads, stats.neg_sample_reg_grads
     ))
     stats.sample_reg = stats.pi * stats.raw_sample_reg_grads
     if rescaled_by_adv:
@@ -446,13 +447,15 @@ def compute_sample_regularization(
 def compute_actor_sil_loss(
     stats, 
     data,  
-    coef
+    coef, 
+    clip_range
 ):
     if coef is None:
         coef = 0
-    raw_actor_sil_loss = jax_loss.is_pg_loss(
+    _, _, raw_actor_sil_loss = jax_loss.ppo_loss(
         advantage=jnp.maximum(stats.advantage, 0),
-        ratio=stats.ratio
+        ratio=stats.ratio, 
+        clip_range=clip_range, 
     )
     scaled_actor_sil_loss, actor_sil_loss = jax_loss.to_loss(
         raw_actor_sil_loss, 
@@ -475,7 +478,7 @@ def compute_value_sil_loss(
     if coef is None:
         coef = 0
     raw_value_loss = .5 * (stats.value - stats.v_target)**2
-    raw_value_sil_loss = raw_value_loss * stats.advantage > 0
+    raw_value_sil_loss = raw_value_loss * (stats.advantage > 0)
 
     scaled_value_sil_loss, value_sil_loss = jax_loss.to_loss(
         raw_value_sil_loss, 

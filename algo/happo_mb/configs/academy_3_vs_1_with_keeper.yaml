@@ -26,7 +26,7 @@ routine:
     size: [256, 256]
 
     n_lka_steps: 1
-    n_simulated_envs: &nse 640
+    n_simulated_envs: &nse 2000
     n_simulated_steps: &nss 20
     model_rollout_type: sim
     compute_return_at_once: True
@@ -61,8 +61,8 @@ env:
     uid2aid: null
     shared_policy: False
 
-    n_runners: &nrunners 8
-    n_envs: &nenvs 8
+    n_runners: &nrunners 10
+    n_envs: &nenvs 10
 
     use_sample_mask: True
     use_idx: False
@@ -160,14 +160,14 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 15
+    n_epochs: &nepochs 50
     n_mbs: &nmbs 1
     n_steps: *nsteps
     update_scheme: whole
 
     n_simulated_envs: *nse
     n_simulated_steps: *nss
-    n_lka_epochs: *nepochs
+    n_lka_epochs: 30
     n_lka_mbs: *nmbs
     ignore_lka_value_update: False
     debug: False
@@ -190,7 +190,7 @@ actor:
     reward_rms:
         reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
         reward_normalized_ndim: 1
-        normalize_reward: True
+        normalize_reward: False
         update_reward_rms_in_time: False
         gamma: *gamma
 

@@ -1,14 +1,23 @@
 import sys
 import copy
 import collections
+from typing import Any
 from jax import tree_util
 
 
 """ Attribute Dictionary """
 @tree_util.register_pytree_node_class
-class AttrDict(dict):
-    __getattr__ = dict.__getitem__
-    __setattr__ = dict.__setitem__
+class AttrDict(collections.defaultdict):
+    def __init__(self, default=None, *args, dict=None, **kwargs):
+        self._default = default
+        if default is None and dict is None:
+            super().__init__(*args, **kwargs)
+        elif default is None and dict is not None:
+            super().__init__(default, dict, **kwargs)
+        else:
+            if not callable(default) and default is not None:
+                default = lambda: default
+            super().__init__(default, *args, dict, **kwargs)
 
     def asdict(self, shallow=False):
         if shallow:
@@ -16,26 +25,53 @@ class AttrDict(dict):
         res = {}
         for k, v in self.items():
             if isinstance(v, AttrDict):
-                res[k] = v.asdict()
+                res[k] = v.asdict(shallow=False)
             else:
                 res[k] = copy.deepcopy(v)
 
         return res
-    
+
+    def copy(self, shallow=True):
+        if shallow:
+            return AttrDict(self._default, dict=self)
+        res = AttrDict(self._default)
+        for k, v in self.items():
+            if isinstance(v, AttrDict):
+                res[k] = v.asdict(shallow=False)
+            else:
+                res[k] = copy.deepcopy(v)
+
+        return res
+
     def __getattr__(self, name):
-        return self[name] if name in list(self) else None
+        if name.startswith('_'):
+            return super().__getattr__(name)
+        else:
+            if name not in list(self):
+                if self._default is None:
+                    return None
+                if callable(self._default):
+                    self[name] = self._default()
+                else:
+                    self[name] = self._default
+            return self[name]
+
+    def __setattr__(self, name: str, value: Any):
+        if name.startswith('_'):
+            super().__setattr__(name, value)
+        else:
+            self.__setitem__(name, value)
 
     def __new__(cls, *args, **kwargs):
-        d = super().__new__(cls, *args, **kwargs)
-        return dict2AttrDict(d)
-    
+        return super().__new__(cls, *args, **kwargs)
+
     def __getnewargs__(self):
         return (AttrDict.asdict(self),)
 
     """ The following three methods enable pickling """
     def __getstate__(self):
         return (self.asdict(),)
-        
+
     def __setstate__(self, state):
         self.update(state[0])
 
@@ -46,23 +82,17 @@ class AttrDict(dict):
         children = tuple(self.values())
         aux_data = tuple(self.keys())
         return children, aux_data
-    
+
     @classmethod
     def tree_unflatten(cls, aux_data, children):
         t = cls()
         for k, v in zip(aux_data, children):
             t[k] = v
         return t
-    
-    def copy(self):
-        res = AttrDict()
-        for k, v in self.items():
-            res[k] = v
-        return res
-    
+
     def subdict(self, *args):
         return subdict(self, *args)
-    
+
     def exclude_subdict(self, *args):
         return exclude_subdict(self, *args)
 

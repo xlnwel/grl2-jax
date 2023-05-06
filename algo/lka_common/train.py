@@ -54,10 +54,6 @@ def dynamics_optimize(dynamics, **kwargs):
 @timeit
 def dynamics_run(agent, dynamics, routine_config, dynamics_routine_config, 
         rng, lka_aids, rollout_fn, name='dynamics'):
-    if dynamics_routine_config.model_warm_up and \
-        agent.get_env_step() < dynamics_routine_config.model_warm_up_steps:
-        return False
-
     def constructor():
         return agent.build_memory()
     

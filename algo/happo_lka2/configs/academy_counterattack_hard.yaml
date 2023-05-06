@@ -25,7 +25,7 @@ routine:
     size: [256, 256]
 
     n_lka_steps: 1
-    n_simulated_envs: &nse 64
+    n_simulated_envs: &nse 100
     n_simulated_steps: &nss 100
     model_rollout_type: sim
     compute_return_at_once: True
@@ -148,7 +148,7 @@ loss:
         lam: &lam .95
         pg_coef: 1
         entropy_coef: 5e-3
-        lka_entropy_coef: 0
+        lka_entropy_coef: 5e-3
         value_coef: 1
 
 trainer:

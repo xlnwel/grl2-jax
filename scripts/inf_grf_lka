@@ -8,17 +8,16 @@ algos=(
 )
 envs=(
     # $1
-    # academy_3_vs_1_with_keeper
-    academy_corner
+    academy_3_vs_1_with_keeper
+    # academy_corner
     # academy_counterattack_hard
     # academy_custom_counterattack_hard
 )
 # shift
 configs=$envs
 args1=(
-    1
-    .5
-    .1
+    5e-4
+    8e-4
 )
 args2=(
     True
@@ -34,7 +33,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-# date="0428"
+date="0505"
 info=""
 ld="${suite}-logs"
 
@@ -71,21 +70,29 @@ dynamics=dynamics
 commands=()
 kws=$@
 # for e in "${envs[@]}"; do
-env="${suite}-${e}"
-config="${e}"
-if [ "$INF_MAC_NODE_RANK" -eq 0 ]; then
-    for s in {0..4}; do
-        py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-    done
-else
-    for s in {5..9}; do
-        py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-    done
-fi
+for a1 in "${args1[@]}"; do
+    env="${suite}-${e}"
+    config="${e}"
+    kws="$@ 1#lr=$a1"
+    if [ "$INF_MAC_NODE_RANK" -eq 0 ]; then
+        for s in {0..4}; do
+            py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+            commands+=("$py_script")
+            echo $py_script
+        done
+    else
+        for s in {5..9}; do
+            py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+            commands+=("$py_script")
+            echo $py_script
+        done
+    fi
+done
+# for s in {0..4}; do
+#     py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+#     commands+=("$py_script")
+#     echo $py_script
 # done
+
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 5 -L 1 bash -c COMMAND 
 echo "Script completed"

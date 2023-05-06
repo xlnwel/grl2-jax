@@ -14,13 +14,6 @@ configs=(
     "${suite}"
 )
 args1=(
-    $1
-    200
-    200
-    150
-    150
-    100
-    100
     50
     50
     # 640
@@ -29,15 +22,10 @@ args1=(
     # 1280
 )
 args2=(
-    $2
     True
     False
 )
 args3=(
-    discrete
-    continuous
-    discrete
-    continuous
     discrete
     continuous
 )

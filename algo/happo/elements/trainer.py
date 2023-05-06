@@ -351,10 +351,10 @@ class Trainer(TrainerBase):
                 entropy=stats.entropy, 
                 v_target=stats.v_target, 
                 teammate_log_ratio=stats.teammate_log_ratio, 
-                raw_adv_ratio_pp=stats.raw_adv_ratio_pp, 
                 raw_adv_ratio_pn=stats.raw_adv_ratio_pn, 
-                pp_ratio=stats.pp_ratio, 
-                pn_ratio=stats.pn_ratio,
+                raw_adv_ratio_np=stats.raw_adv_ratio_np, 
+                pn_ratio=stats.pn_ratio, 
+                np_ratio=stats.np_ratio,
             )
         else:
             stats.inverse_mu = inverse_mu

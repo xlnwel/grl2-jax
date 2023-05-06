@@ -129,7 +129,8 @@ class Loss(LossBase):
         actor_sil_loss, stats = compute_actor_sil_loss(
             stats, 
             data, 
-            self.config.actor_sil_coef
+            self.config.actor_sil_coef, 
+            clip_range=self.config.ppo_clip_range
         )
         value_sil_loss, stats = compute_value_sil_loss(
             stats, 
@@ -297,7 +298,8 @@ class Loss(LossBase):
         actor_sil_loss, stats = compute_actor_sil_loss(
             stats, 
             data, 
-            self.config.actor_sil_coef
+            self.config.actor_sil_coef, 
+            clip_range=self.config.ppo_clip_range
         )
         stats = summarize_adv_ratio(stats, data)
         loss = actor_loss + stats.reg_loss \
@@ -424,7 +426,8 @@ class Loss(LossBase):
         actor_sil_loss, stats = compute_actor_sil_loss(
             stats, 
             data, 
-            self.config.lka_actor_sil_coef
+            self.config.lka_actor_sil_coef, 
+            clip_range=self.config.ppo_clip_range
         )
         value_sil_loss, stats = compute_value_sil_loss(
             stats, 
@@ -591,7 +594,8 @@ class Loss(LossBase):
         actor_sil_loss, stats = compute_actor_sil_loss(
             stats, 
             data, 
-            self.config.lka_actor_sil_coef
+            self.config.lka_actor_sil_coef, 
+            clip_range=self.config.ppo_clip_range
         )
         loss = actor_loss + stats.reg_loss \
             + stats.pos_sample_reg_loss + stats.sample_reg_loss \

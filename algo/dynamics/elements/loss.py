@@ -59,8 +59,12 @@ class Loss(LossBase):
         
         if isinstance(model_dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
-            model_target = expand_ensemble_dim(
-                next_norm_obs - norm_obs, self.config.n_models)
+            if self.model.config.pred_raw:
+                model_target = expand_ensemble_dim(
+                    data.next_obs - data.obs, self.config.n_models)
+            else:
+                model_target = expand_ensemble_dim(
+                    next_norm_obs - norm_obs, self.config.n_models)
         else:
             next_obs_ensemble = expand_ensemble_dim(
                 next_norm_obs, self.config.n_models)
@@ -71,12 +75,14 @@ class Loss(LossBase):
         model_loss, stats = compute_model_loss(
             self.config, model_dist, model_target, stats, dim_mask)
 
-        # we use the predicted obs to predict the reward and discount
         pred_obs = lax.stop_gradient(model_dist.mode())
         if isinstance(model_dist, jax_dist.MultivariateNormalDiag):
-            pred_obs = norm_obs + pred_obs
+            if self.model.config.pred_raw:
+                pred_obs = data.obs + pred_obs
+            else:
+                pred_obs = norm_obs + pred_obs
             next_obs = jnp.zeros_like(model_target) + data.next_obs
-            if self.model.config.model_norm_obs:
+            if self.model.config.model_norm_obs and not self.model.config.pred_raw:
                 pred_obs = denormalize(
                     pred_obs, 
                     data.obs_loc, 

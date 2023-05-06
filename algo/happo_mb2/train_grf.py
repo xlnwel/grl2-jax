@@ -55,18 +55,18 @@ def train(
         else:
             dynamics_optimize(dynamics)
 
-        lka_train(
-            agent, 
-            dynamics, 
-            routine_config, 
-            dynamics_routine_config, 
-            n_runs=routine_config.n_lka_steps, 
-            rng=lka_rng, 
-            train_aids=aids, 
-            lka_aids=[], 
-            run_fn=dynamics_run, 
-            opt_fn=ego_optimize, 
-        )
+            lka_train(
+                agent, 
+                dynamics, 
+                routine_config, 
+                dynamics_routine_config, 
+                n_runs=routine_config.n_lka_steps, 
+                rng=lka_rng, 
+                train_aids=aids, 
+                lka_aids=[], 
+                run_fn=dynamics_run, 
+                opt_fn=ego_optimize, 
+            )
         # if routine_config.quantify_dynamics_errors and time2record:
         #     errors.lka = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
