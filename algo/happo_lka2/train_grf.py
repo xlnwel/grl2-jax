@@ -30,7 +30,7 @@ def train(
         aids = get_aids(routine_config, n_agents)
 
         for _ in range(routine_config.n_lka_steps):
-            lka_env_run(agent, runner, routine_config, lka_aids=None, store_info=False)
+            lka_env_run(agent, runner, routine_config, name='real', lka_aids=None, store_info=False)
             lka_optimize(agent, aids=aids)
         env_step = env_run(agent, runner, routine_config, 
                            lka_aids=lka_aids, store_info=True)

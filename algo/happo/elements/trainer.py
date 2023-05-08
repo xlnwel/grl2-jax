@@ -167,7 +167,7 @@ class Trainer(TrainerBase):
     
     def sequential_opt(self, theta, opt_state, data, 
             n_epochs, n_mbs, indices, train_fn, aids=None, return_stats=True):
-        teammate_log_ratio = jnp.zeros_like(data.mu_logprob[:, :, :1])
+        teammate_log_ratio = jnp.zeros((*data.mu_logprob.shape[:2], 1))
 
         v_target = [None for _ in self.aid2uids]
         all_stats = AttrDict()
@@ -229,7 +229,7 @@ class Trainer(TrainerBase):
             v_target = []
             for i, data_slice in enumerate(yield_from_tree_with_indices(data, _indices, axis=0)):
                 vts = [None for _ in self.aid2uids]
-                teammate_log_ratio = jnp.zeros_like(data_slice.mu_logprob[:, :, :1])
+                teammate_log_ratio = jnp.zeros((*data_slice.mu_logprob.shape[:2], 1))
                 if aids is None:
                     aids = np.random.permutation(self.n_agents)
                 uids = [self.aid2uids[aid] for aid in aids]
@@ -311,6 +311,7 @@ class Trainer(TrainerBase):
                     'rng': rngs[0], 
                     'policy_theta': theta.policy, 
                     'data': data, 
+                    'teammate_log_ratio': teammate_log_ratio
                 }, 
                 opt=self.opts.vs[aid], 
                 name='opt/value', 
@@ -324,7 +325,6 @@ class Trainer(TrainerBase):
                     'rng': rngs[1], 
                     'data': data, 
                     'stats': stats,
-                    'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.policies[aid], 
                 name='opt/policy', 
@@ -351,10 +351,12 @@ class Trainer(TrainerBase):
                 entropy=stats.entropy, 
                 v_target=stats.v_target, 
                 teammate_log_ratio=stats.teammate_log_ratio, 
-                raw_adv_ratio_pn=stats.raw_adv_ratio_pn, 
-                raw_adv_ratio_np=stats.raw_adv_ratio_np, 
+                adv_ratio_pp=stats.adv_ratio_pp, 
+                adv_ratio_pn=stats.adv_ratio_pn, 
+                adv_ratio_np=stats.adv_ratio_np, 
+                adv_ratio_nn=stats.adv_ratio_nn, 
                 pn_ratio=stats.pn_ratio, 
-                np_ratio=stats.np_ratio,
+                np_ratio=stats.np_ratio, 
             )
         else:
             stats.inverse_mu = inverse_mu
@@ -404,6 +406,7 @@ class Trainer(TrainerBase):
                         'rng': rngs[0], 
                         'policy_theta': theta.policy, 
                         'data': data,
+                        'teammate_log_ratio': teammate_log_ratio,
                     }, 
                     opt=self.opts.vs[aid], 
                     name='lka_opt/value', 
@@ -417,7 +420,6 @@ class Trainer(TrainerBase):
                     'rng': rngs[1], 
                     'data': data, 
                     'stats': stats,
-                    'teammate_log_ratio': teammate_log_ratio,
                 }, 
                 opt=self.opts.policies[aid], 
                 name='lka_opt/policy', 
@@ -433,6 +435,12 @@ class Trainer(TrainerBase):
                 v_target=stats.v_target, 
                 teammate_log_ratio=stats.teammate_log_ratio, 
                 reg_loss=stats.reg_loss, 
+                adv_ratio_pp=stats.adv_ratio_pp, 
+                adv_ratio_pn=stats.adv_ratio_pn, 
+                adv_ratio_np=stats.adv_ratio_np, 
+                adv_ratio_nn=stats.adv_ratio_nn, 
+                pn_ratio=stats.pn_ratio, 
+                np_ratio=stats.np_ratio, 
             )
         return theta, opt_state, stats
 
@@ -443,6 +451,8 @@ class Trainer(TrainerBase):
             data.pop('popart_std')
         pi_logprob = self.model.action_logprob(policy_params, rng, data)
         log_ratio = pi_logprob - data.mu_logprob
+        if log_ratio.ndim > 3:
+            log_ratio = jnp.sum(log_ratio, axis=3)
         if log_ratio.shape[2] > 1:
             log_ratio = jnp.sum(log_ratio, axis=2, keepdims=True)
         teammate_log_ratio += log_ratio

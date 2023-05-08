@@ -92,8 +92,9 @@ def train(
             # if routine_config.quantify_dynamics_errors:
             #     outdir = modelpath2outdir(agent.get_model_path())
             #     log_dynamics_errors(errors, outdir, env_step)
-            stats = dynamics.valid_stats()
-            dynamics.store(**stats)
+            if dynamics.get_train_step() > 0:
+                stats = dynamics.valid_stats()
+                dynamics.store(**stats)
             eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, errors)
 

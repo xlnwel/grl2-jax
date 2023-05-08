@@ -318,8 +318,8 @@ class GRF:
             'right_score': self._right_score,
             'diff_score': diff_score,
             'win_score': diff_score > 0,
-            'non_loss_score': diff_score >= 0,
-            'consecutive_action': self._consecutive_action, 
+            # 'non_loss_score': diff_score >= 0,
+            # 'consecutive_action': self._consecutive_action, 
             'checkpoint_score': self._ckpt_score, 
             'epslen': self._epslen,
             'game_over': done

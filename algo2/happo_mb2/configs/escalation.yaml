@@ -30,7 +30,7 @@ routine:
     model_rollout_type: sim
     restore_state: False
     switch_model_at_every_step: False
-    compute_return_at_once: True
+    compute_return_at_once: False
     ignore_ratio_for_ego: False
 
 env:
@@ -77,7 +77,7 @@ model:
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
     adv_type: gae

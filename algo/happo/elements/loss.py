@@ -151,6 +151,7 @@ class Loss(LossBase):
         rng, 
         policy_theta, 
         data, 
+        teammate_log_ratio, 
         name='train/value', 
     ):
         rngs = random.split(rng, 2)
@@ -224,6 +225,14 @@ class Loss(LossBase):
             data, 
             stats, 
         )
+        stats.norm_adv, stats.advantage = norm_adv(
+            self.config, 
+            stats.raw_adv, 
+            teammate_log_ratio, 
+            sample_mask=data.sample_mask, 
+            n=data.n, 
+            epsilon=self.config.get('epsilon', 1e-5)
+        )
         value_sil_loss, stats = compute_value_sil_loss(
             stats, 
             data, 
@@ -239,18 +248,9 @@ class Loss(LossBase):
         rng, 
         data, 
         stats, 
-        teammate_log_ratio, 
         name='train/policy', 
     ):
         rngs = random.split(rng, 2)
-        stats.norm_adv, stats.advantage = norm_adv(
-            self.config, 
-            stats.raw_adv, 
-            teammate_log_ratio, 
-            sample_mask=data.sample_mask, 
-            n=data.n, 
-            epsilon=self.config.get('epsilon', 1e-5)
-        )
 
         act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
             compute_policy(
@@ -447,6 +447,7 @@ class Loss(LossBase):
         rng, 
         policy_theta, 
         data, 
+        teammate_log_ratio, 
         name='train/value', 
     ):
         rngs = random.split(rng, 2)
@@ -520,6 +521,14 @@ class Loss(LossBase):
             data, 
             stats, 
         )
+        stats.norm_adv, stats.advantage = norm_adv(
+            self.config, 
+            stats.raw_adv, 
+            teammate_log_ratio, 
+            sample_mask=data.sample_mask, 
+            n=data.n, 
+            epsilon=self.config.get('epsilon', 1e-5)
+        )
         value_sil_loss, stats = compute_value_sil_loss(
             stats, 
             data, 
@@ -535,18 +544,9 @@ class Loss(LossBase):
         rng, 
         data, 
         stats,
-        teammate_log_ratio,
         name='train/policy', 
     ):
         rngs = random.split(rng, 2)
-        stats.norm_adv, stats.advantage = norm_adv(
-            self.config, 
-            stats.raw_adv, 
-            teammate_log_ratio, 
-            sample_mask=data.sample_mask, 
-            n=data.n, 
-            epsilon=self.config.get('epsilon', 1e-5)
-        )
 
         act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
             compute_policy(

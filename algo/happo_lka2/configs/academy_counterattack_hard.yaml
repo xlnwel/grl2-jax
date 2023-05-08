@@ -14,7 +14,7 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 1e7
+    MAX_STEPS: 5e6
     n_steps: &nsteps 100
     LOG_PERIOD: 1e5
     EVAL_PERIOD: null
@@ -28,7 +28,7 @@ routine:
     n_simulated_envs: &nse 100
     n_simulated_steps: &nss 100
     model_rollout_type: sim
-    compute_return_at_once: True
+    compute_return_at_once: False
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
@@ -37,6 +37,7 @@ routine:
     quantify_dynamics_errors: False
     rollout_type: lka
     concise_mode: True
+    same_order: True
 
 env:
     env_name: &env_name grf-academy_counterattack_hard
@@ -60,8 +61,8 @@ env:
     uid2aid: null
     shared_policy: False
 
-    n_runners: &nrunners 8
-    n_envs: &nenvs 8
+    n_runners: &nrunners 10
+    n_envs: &nenvs 10
 
     use_idx: False
     use_hidden: False
@@ -102,7 +103,7 @@ model:
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
     adv_type: gae
@@ -156,7 +157,7 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 15
+    n_epochs: &nepochs 30
     n_mbs: &nmbs 1
     n_steps: *nsteps
     update_scheme: whole
@@ -186,7 +187,7 @@ actor:
     reward_rms:
         reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
         reward_normalized_ndim: 1
-        normalize_reward: True
+        normalize_reward: False
         update_reward_rms_in_time: False
         gamma: *gamma
 

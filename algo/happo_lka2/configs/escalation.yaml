@@ -28,7 +28,7 @@ routine:
     n_simulated_envs: &nse 256
     n_simulated_steps: &nss 10
     model_rollout_type: sim
-    compute_return_at_once: True
+    compute_return_at_once: False
     restore_state: False
     switch_model_at_every_step: False
     rollout_type: lka
@@ -78,7 +78,7 @@ model:
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
     adv_type: gae

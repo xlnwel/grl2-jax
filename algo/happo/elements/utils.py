@@ -22,8 +22,6 @@ def norm_adv(
         )
     else:
         norm_adv = raw_adv
-    if norm_adv.ndim < teammate_log_ratio.ndim:
-        norm_adv = jnp.expand_dims(norm_adv, -1)
     jax_assert.assert_rank_compatibility(
         [norm_adv, teammate_log_ratio])
     tm_ratio = lax.exp(teammate_log_ratio)

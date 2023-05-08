@@ -106,8 +106,8 @@ class LKAModelBase(MAModelBase):
         )
         kl_mu_pi = mu_dist.kl_divergence(pi_dist)
         stats.kl_mu_pi = kl_mu_pi
-        js_mu_pi = dist_js(mu_dist, pi_dist)
-        stats.js_mu_pi = js_mu_pi
+        # js_mu_pi = dist_js(mu_dist, pi_dist)
+        # stats.js_mu_pi = js_mu_pi
 
         if eval_lka:
             lka_dist = self.joint_policy(
@@ -117,9 +117,9 @@ class LKAModelBase(MAModelBase):
             stats.kl_lka_pi = kl_lka_pi
             stats.kl_mu_lka_diff = kl_mu_pi - kl_lka_pi
 
-            js_lka_pi = dist_js(lka_dist, pi_dist)
-            stats.js_lka_pi = js_lka_pi
-            stats.js_mu_lka_diff = js_mu_pi - js_lka_pi
+            # js_lka_pi = dist_js(lka_dist, pi_dist)
+            # stats.js_lka_pi = js_lka_pi
+            # stats.js_mu_lka_diff = js_mu_pi - js_lka_pi
 
         if isinstance(pi_dist, jax_dist.Categorical):
             stats.cos_mu_pi = dist_cos(mu_dist, pi_dist)

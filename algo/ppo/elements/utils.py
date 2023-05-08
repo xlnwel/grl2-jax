@@ -4,7 +4,7 @@ import jax.numpy as jnp
 
 from core.typing import AttrDict
 from tools.rms import normalize
-from tools.utils import expand_shape_match, except_axis
+from tools.utils import expand_dims_match, expand_shape_match, except_axis
 from jax_tools import jax_assert, jax_div, jax_math, jax_loss, jax_utils
 
 
@@ -165,6 +165,8 @@ def compute_actor_loss(
         sample_mask = data.sample_mask
     else:
         sample_mask = None
+    if stats.advantage.ndim < stats.ratio.ndim:
+        stats.advantage = expand_shape_match(stats.advantage, stats.ratio, np=jnp)
 
     if config.pg_type == 'pg':
         raw_pg_loss = jax_loss.pg_loss(
@@ -305,25 +307,21 @@ def record_policy_stats(data, stats, act_dist):
 
 
 def summarize_adv_ratio(stats, data):
-    stats.raw_adv_ratio_pp = jnp.mean(jnp.logical_and(stats.norm_adv > 0, stats.ratio > 1))
-    stats.raw_adv_ratio_pn = jnp.mean(jnp.logical_and(stats.norm_adv > 0, stats.ratio < 1))
-    stats.raw_adv_ratio_np = jnp.mean(jnp.logical_and(stats.norm_adv < 0, stats.ratio > 1))
-    stats.raw_adv_ratio_nn = jnp.mean(jnp.logical_and(stats.norm_adv < 0, stats.ratio < 1))
-    # stats.raw_adv_ratio_nn = jax_math.mask_mean(
-    #     jnp.logical_and(stats.raw_adv < 0, stats.ratio < 1), 
-    #     data.sample_mask, data.n)
+    if stats.raw_adv.ndim < stats.ratio.ndim:
+        raw_adv = expand_dims_match(stats.raw_adv, stats.ratio)
+    else:
+        raw_adv = stats.raw_adv
+    stats.raw_adv_ratio_pp = jnp.mean(jnp.logical_and(raw_adv > 0, stats.ratio > 1))
+    stats.raw_adv_ratio_pn = jnp.mean(jnp.logical_and(raw_adv > 0, stats.ratio < 1))
+    stats.raw_adv_ratio_np = jnp.mean(jnp.logical_and(raw_adv < 0, stats.ratio > 1))
+    stats.raw_adv_ratio_nn = jnp.mean(jnp.logical_and(raw_adv < 0, stats.ratio < 1))
     stats.adv_ratio_pp = jnp.mean(jnp.logical_and(stats.advantage > 0, stats.ratio > 1))
     stats.adv_ratio_pn = jnp.mean(jnp.logical_and(stats.advantage > 0, stats.ratio < 1))
     stats.adv_ratio_np = jnp.mean(jnp.logical_and(stats.advantage < 0, stats.ratio > 1))
     stats.adv_ratio_nn = jnp.mean(jnp.logical_and(stats.advantage < 0, stats.ratio < 1))
     stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 0)
     stats.np_ratio = jnp.where(stats.adv_ratio_np, stats.ratio, 0)
-    # stats.adv_ratio_np = jax_math.mask_mean(
-    #     jnp.logical_and(stats.advantage < 0, stats.ratio > 1), 
-    #     data.sample_mask, data.n)
-    # stats.adv_ratio_nn = jax_math.mask_mean(
-    #     jnp.logical_and(stats.advantage < 0, stats.ratio < 1), 
-    #     data.sample_mask, data.n)
+
     return stats
 
 
@@ -472,7 +470,7 @@ def compute_actor_sil_loss(
 
 def compute_value_sil_loss(
     stats, 
-    data,  
+    data, 
     coef
 ):
     if coef is None:

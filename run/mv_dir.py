@@ -143,7 +143,7 @@ if __name__ == '__main__':
     player0_config_name = 'config_p0.yaml' 
     name = args.name
     date = args.date
-    do_logging(f'Loading logs on date: {date}')
+    do_logging(f'Loading logs on date: {args.date}')
 
     directory = os.path.abspath(args.directory)
     do_logging(f'Directory: {directory}')
@@ -168,13 +168,13 @@ if __name__ == '__main__':
     for d in fixed_pattern_search(search_dir, level=level, matches=matches, ignores=ignores, target_level=DirLevel.MODEL):
         root, env, algo, date, model = d.rsplit('/', 4)
         root = root if args.new_root is None else args.new_root
-        prev_dir = '/'.join([root, env, algo, date])
-        new_dir = '/'.join([root, env, algo, date, model])
+        prev_dir = '/'.join([root, env, algo, args.date])
+        new_dir = '/'.join([root, env, algo, args.date, model])
         do_logging(f'Moving directory from {d} to {new_dir}')
         if not os.path.isdir(prev_dir):
             Path(prev_dir).mkdir(parents=True)
-        if os.path.isdir(new_dir):
-            shutil.rmtree(new_dir)
+        # if os.path.isdir(new_dir):
+        #     shutil.rmtree(new_dir)
         if args.copy:
             shutil.copytree(d, new_dir, ignore=shutil.ignore_patterns('src'), dirs_exist_ok=True)
         else:

@@ -9,7 +9,7 @@ from tools.timer import Every
 from algo.lka_common.train import *
 from algo.happo.train import init_running_stats
 from algo.happo_mb.run import Runner
-from algo.happo_mb.train import update_config, env_run, ego_train, dynamics_run, get_lka_aids
+from algo.happo_mb.train import update_config, env_run, ego_train, dynamics_run, get_aids, get_lka_aids
 
 
 def train(
@@ -45,7 +45,8 @@ def train(
     while env_step < routine_config.MAX_STEPS:
         rng, lka_rng = jax.random.split(rng, 2)
         lka_aids = get_lka_aids(rollout_type, n_agents)
-        aids = np.random.permutation(n_agents)
+        aids = get_aids(routine_config, n_agents)
+
         errors = AttrDict()
         time2record = to_record(env_step)
 
@@ -55,18 +56,18 @@ def train(
         else:
             dynamics_optimize(dynamics)
 
-        lka_train(
-            agent, 
-            dynamics, 
-            routine_config, 
-            dynamics_routine_config, 
-            n_runs=routine_config.n_lka_steps, 
-            rng=lka_rng, 
-            train_aids=aids, 
-            lka_aids=[], 
-            run_fn=dynamics_run, 
-            opt_fn=ego_optimize, 
-        )
+            lka_train(
+                agent, 
+                dynamics, 
+                routine_config, 
+                dynamics_routine_config, 
+                n_runs=routine_config.n_lka_steps, 
+                rng=lka_rng, 
+                train_aids=aids, 
+                lka_aids=[], 
+                run_fn=dynamics_run, 
+                opt_fn=ego_optimize, 
+            )
         # if routine_config.quantify_dynamics_errors and time2record:
         #     errors.lka = quantify_dynamics_errors(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, None)
@@ -86,11 +87,12 @@ def train(
         #         agent, dynamics, runner.env_config(), MODEL_EVAL_STEPS, [])
 
         if time2record:
-            if routine_config.quantify_dynamics_errors:
-                outdir = modelpath2outdir(agent.get_model_path())
-                log_dynamics_errors(errors, outdir, env_step)
-            stats = dynamics.valid_stats()
-            dynamics.store(**stats)
+            # if routine_config.quantify_dynamics_errors:
+            #     outdir = modelpath2outdir(agent.get_model_path())
+            #     log_dynamics_errors(errors, outdir, env_step)
+            if dynamics.get_train_step() > 0:
+                stats = dynamics.valid_stats()
+                dynamics.store(**stats)
             eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, errors)
 

@@ -62,7 +62,7 @@ class TrainingLoop(TrainingLoopBase):
     def valid_stats(self, data=None, name='valid'):
         if data is None:
             data = self.buffer.sample_from_recency(
-                self.config.valid_data_size, add_seq_dim=True)
+                batch_size=self.config.valid_data_size, add_seq_dim=True)
         if data is None:
             return {}
         data = self.trainer.process_data(data)

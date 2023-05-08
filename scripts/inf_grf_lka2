@@ -4,25 +4,32 @@ export PYTHONPATH=.
 
 suite=grf
 algos=(
-    happo_mb
+    happo_lka2
 )
 envs=(
     # $1
     # academy_3_vs_1_with_keeper
     academy_corner
-    # academy_counterattack_hard
+    academy_counterattack_hard
     # academy_custom_counterattack_hard
 )
 # shift
 configs=$envs
 args1=(
-    1
-    .5
-    .1
+    100
+    100
+    100
+    100
+    200
+    200
+    200
+    200
 )
 args2=(
-    True
-    False
+    15
+    15
+    20
+    20
 )
 args3=(
     True
@@ -34,7 +41,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-# date="0428"
+date="0509"
 info=""
 ld="${suite}-logs"
 
@@ -64,17 +71,27 @@ la3=${#args3[@]}
 idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 # kws=$@
-# dynamics=$1
-dynamics=dynamics
-# e=$1
-# shift
+
 commands=()
 kws=$@
 # for e in "${envs[@]}"; do
 env="${suite}-${e}"
 config="${e}"
-for s in {5..9}; do
-    py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+# if [ "$INF_MAC_NODE_RANK" -eq 0 ]; then
+#     for s in {0..4}; do
+#         py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+#         commands+=("$py_script")
+#         echo $py_script
+#     done
+# else
+#     for s in {5..9}; do
+#         py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+#         commands+=("$py_script")
+#         echo $py_script
+#     done
+# fi
+for s in {0..4}; do
+    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
     commands+=("$py_script")
     echo $py_script
 done

@@ -21,7 +21,7 @@ routine:
     n_envs: 64
 
     model_warm_up: True
-    model_warm_up_steps: 5e4
+    model_warm_up_steps: 1e5
 
 env:
     env_name: &env_name grf-academy_counterattack_hard
@@ -65,8 +65,8 @@ strategy:
     train_loop:
         ergodic: False
         training_data_size: &ds 1e5
-        valid_data_size: 6400
-        n_wp_epochs: 10
+        valid_data_size: 1000
+        n_wp_epochs: 5
         n_epochs: &nepochs 1000
 
 model:
@@ -123,22 +123,49 @@ actor: {}
 
 
 buffer:
-    type: uniform
+    type: dual
+
+    recent_primal_replay: False
+    detached: False
 
     model_norm_obs: *obs_norm
     n_runners: *nrunners
     n_envs: *nenvs
     max_size: *ds
     min_size: 1e3
-    n_recency: 1e3
     batch_size: 256
     sample_size: 1
-
     max_steps: 1
 
-    sample_keys: 
+    primal_percentage: .5
+    sample_keys: &sk
         - obs
         - action
         - reward
         - discount
         - reset
+
+    primal_replay:
+        type: uniform
+
+        n_runners: *nrunners
+        n_envs: *nenvs
+        n_recency: &nr 1e4
+        max_size: *nr
+        min_size: 1e3
+        sample_size: 1
+        max_steps: 1
+
+        sample_keys: *sk
+
+    secondary_replay:
+        type: uniform
+
+        n_runners: *nrunners
+        n_envs: *nenvs
+        max_size: *ds
+        min_size: 1e3
+        sample_size: 1
+        max_steps: 1
+
+        sample_keys: *sk

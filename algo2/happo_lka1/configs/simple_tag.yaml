@@ -25,7 +25,7 @@ routine:
 
     n_lka_steps: 0
     model_rollout_type: sim
-    compute_return_at_once: True
+    compute_return_at_once: False
     perm: null
 
 env:
@@ -76,7 +76,7 @@ model:
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
     adv_type: gae

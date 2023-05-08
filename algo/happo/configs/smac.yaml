@@ -25,7 +25,7 @@ routine:
 
     n_lka_steps: 0
     lookahead_rollout: sim
-    compute_return_at_once: True
+    compute_return_at_once: False
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
@@ -100,7 +100,7 @@ model:
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
     adv_type: gae

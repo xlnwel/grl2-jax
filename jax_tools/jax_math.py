@@ -8,6 +8,9 @@ from . import jax_assert
 def safe_ratio(pi, mu, eps=1e-8):
     return pi / (mu + eps)
 
+def center_clip(x, threshold):
+    return x if threshold is None else jnp.clip(x, 1-threshold, 1+threshold)
+
 def upper_clip(x, threshold):
     return x if threshold is None else jnp.minimum(threshold, x)
 

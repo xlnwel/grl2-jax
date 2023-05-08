@@ -36,14 +36,14 @@ def init_running_stats(agent, runner: Runner, dynamics=None, n_steps=None):
         n_steps = runner.env.max_episode_steps
     do_logging(f'Pre-training running steps: {n_steps}')
 
-    runner.run(
-        agent, 
-        n_steps=n_steps, 
-        lka_aids=[], 
-        dynamics=dynamics, 
-        collect_data=agent.actor.is_obs_or_reward_normalized
-    )
     if agent.actor.is_obs_or_reward_normalized:
+        runner.run(
+            agent, 
+            n_steps=n_steps, 
+            lka_aids=[], 
+            dynamics=dynamics, 
+            collect_data=agent.actor.is_obs_or_reward_normalized
+        )
         data = agent.buffer.get_data()
         agent.actor.update_reward_rms(data.reward, data.discount)
         agent.actor.update_obs_rms(data)

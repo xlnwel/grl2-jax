@@ -28,7 +28,7 @@ routine:
     n_simulated_envs: &nse 100
     n_simulated_steps: &nss 100
     model_rollout_type: sim
-    compute_return_at_once: True
+    compute_return_at_once: False
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
@@ -37,6 +37,7 @@ routine:
     quantify_dynamics_errors: False
     rollout_type: lka
     concise_mode: True
+    same_order: True
 
 env:
     env_name: &env_name grf-academy_3_vs_1_with_keeper
@@ -102,7 +103,7 @@ model:
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
     adv_type: gae
@@ -148,7 +149,7 @@ loss:
         lam: &lam .95
         pg_coef: 1
         entropy_coef: 5e-3
-        lka_entropy_coef: 5e-3
+        lka_entropy_coef: 0
         value_coef: 1
 
 trainer:
@@ -156,7 +157,7 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 50
+    n_epochs: &nepochs 30
     n_mbs: &nmbs 1
     n_steps: *nsteps
     update_scheme: whole
@@ -181,7 +182,7 @@ actor:
         obs_names: [obs, global_state]
         obs_normalized_axis: [0, 1]    # obs is normalized at once with the sequential dimension
         obs_normalized_ndim: 2
-        normalize_obs: False
+        normalize_obs: True
         obs_clip: 10
     reward_rms:
         reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension

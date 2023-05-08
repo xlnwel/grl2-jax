@@ -174,7 +174,7 @@ model:
 loss:
     rl:
         # hyperparams for value target and advantage
-        target_type: gae
+        target_type: vtrace
         c_clip: 1
         rho_clip: 1
         adv_type: vtrace
@@ -195,7 +195,7 @@ loss:
         sample_mask: False
     meta:
         # hyperparams for value target and advantage
-        target_type: gae
+        target_type: vtrace
         c_clip: 1
         rho_clip: 1
         adv_type: vtrace

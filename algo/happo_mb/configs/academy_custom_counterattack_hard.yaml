@@ -26,10 +26,10 @@ routine:
     size: [256, 256]
 
     n_lka_steps: 1
-    n_simulated_envs: &nse 640
+    n_simulated_envs: &nse 2000
     n_simulated_steps: &nss 20
     model_rollout_type: sim
-    compute_return_at_once: True
+    compute_return_at_once: False
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
@@ -61,8 +61,8 @@ env:
     uid2aid: null
     shared_policy: False
 
-    n_runners: &nrunners 8
-    n_envs: &nenvs 8
+    n_runners: &nrunners 10
+    n_envs: &nenvs 10
 
     use_sample_mask: True
     use_idx: False
@@ -106,7 +106,7 @@ model:
 
 loss:
     # hyperparams for value target and advantage
-    target_type: gae
+    target_type: vtrace
     c_clip: 1
     rho_clip: 1
     adv_type: gae
@@ -170,7 +170,7 @@ trainer:
     n_lka_epochs: *nepochs
     n_lka_mbs: *nmbs
     ignore_lka_value_update: False
-    debug: True
+    debug: False
 
     theta_opt:
         opt_name: adam
@@ -185,12 +185,12 @@ actor:
         obs_names: [obs, global_state]
         obs_normalized_axis: [0, 1]    # obs is normalized at once with the sequential dimension
         obs_normalized_ndim: 2
-        normalize_obs: False
+        normalize_obs: True
         obs_clip: 10
     reward_rms:
         reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
         reward_normalized_ndim: 1
-        normalize_reward: True
+        normalize_reward: False
         update_reward_rms_in_time: False
         gamma: *gamma
 
