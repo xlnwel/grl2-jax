@@ -188,9 +188,6 @@ class Model(ModelBase):
             next_obs = model_dist.mode()
         else:
             next_obs = model_dist.sample(seed=rngs[1])
-        if elite_indices is not None:
-            i = random.choice(rngs[2], elite_indices)
-            next_obs = next_obs.take(i, axis=0)
         if isinstance(model_dist, jax_dist.MultivariateNormalDiag):
             # for continuous obs, we predict 𝛥(o)
             if self.config.pred_raw:
@@ -202,6 +199,11 @@ class Model(ModelBase):
         if isinstance(reward_dist, jax_dist.Categorical):
             rewards = self.env_stats.reward_map[rewards]
         discount = disc_dist.mode()
+        if elite_indices is not None:
+            i = random.choice(rngs[2], elite_indices)
+            next_obs = next_obs.take(i, axis=0)
+            reward = reward.take(i, axis=0)
+            discount = discount.take(i, axis=0)
 
         return next_obs, reward, discount, stats
 
