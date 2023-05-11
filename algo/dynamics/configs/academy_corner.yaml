@@ -21,7 +21,7 @@ routine:
     n_envs: 64
 
     model_warm_up: True
-    model_warm_up_steps: 1e5
+    model_warm_up_steps: 5e5
 
 env:
     env_name: &env_name grf-academy_corner
@@ -66,7 +66,7 @@ strategy:
         ergodic: False
         training_data_size: &ds 1e5
         valid_data_size: 1000
-        n_wp_epochs: 5
+        n_wp_epochs: 3
         n_epochs: &nepochs 1000
 
 model:
@@ -75,6 +75,7 @@ model:
     global_state_type: obs
     rn_std: .1
     model_norm_obs: &obs_norm True
+    reward_sym_scale: True
     pred_raw: False
     deterministic_trans: True
     model_loss_type: &mlt mse

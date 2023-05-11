@@ -53,6 +53,7 @@ model:
     global_state_type: obs
     rn_std: .1
     model_norm_obs: &obs_norm True
+    reward_sym_scale: False
     pred_raw: False
     deterministic_trans: True
     model_loss_type: &mlt mse
