@@ -10,9 +10,7 @@ envs=(
     escalation
     # staghunt
 )
-configs=(
-    "${suite}"
-)
+configs=$envs
 args1=(
     50
     50

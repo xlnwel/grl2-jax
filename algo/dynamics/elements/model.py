@@ -10,7 +10,7 @@ from core.ckpt.pickle import save, restore
 from core.elements.model import Model as ModelBase
 from core.typing import dict2AttrDict, AttrDict
 from tools.file import source_file
-from jax_tools import jax_dist
+from jax_tools import jax_dist, jax_math
 from env.typing import EnvOutput
 from tools.rms import *
 from .utils import *
@@ -166,6 +166,8 @@ class Model(ModelBase):
 
         obs = dict2AttrDict({'obs': next_obs, 'global_state': global_state})
         
+        if self.config.reward_sym_scale:
+            reward = jax_math.symexp(reward)
         # Deal with the case when the environment has already been reset
         prev_discount = 1 - data.reset
         prev_discount_exp = jnp.expand_dims(prev_discount, -1)

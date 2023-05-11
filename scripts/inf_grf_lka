@@ -16,16 +16,16 @@ envs=(
 shift
 configs=$envs
 args1=(
-    5e-4
-    8e-4
+    1e-3
 )
 args2=(
-    True
-    False
+    1
 )
 args3=(
-    True
-    False
+    1e-3
+    7e-4
+    5e-4
+    3e-4
 )
 args4=(
     True
@@ -33,7 +33,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-# date="0505"
+# date="0510"
 info=""
 ld="${suite}-logs"
 
@@ -71,9 +71,10 @@ commands=()
 kws=$@
 # for e in "${envs[@]}"; do
 # for a1 in "${args1[@]}"; do
-env="${suite}-${e}"
-config="${e}"
-# kws="$@ 1#lr=$a1"
+for a1 in "${args1[@]}"; do
+    kws="$@ entropy_coef=$a1"
+    env="${suite}-${e}"
+    config="${e}"
 # if [ "$INF_MAC_NODE_RANK" -eq 0 ]; then
 #     for s in {0..4}; do
 #         py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
@@ -87,12 +88,11 @@ config="${e}"
 #         echo $py_script
 #     done
 # fi
-# done
-for s in {0..4}; do
-    py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-    commands+=("$py_script")
-    echo $py_script
+    for s in {0..5}; do
+        py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+    done
 done
-
-printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 5 -L 1 bash -c COMMAND 
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 6 -L 1 bash -c COMMAND 
 echo "Script completed"

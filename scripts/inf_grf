@@ -5,26 +5,19 @@ export PYTHONPATH=.
 suite=grf
 algos=(
     happo
-    # happo_lka2
 )
 envs=(
-    # $1
-    academy_3_vs_1_with_keeper
-    academy_corner
-    academy_counterattack_hard
+    $1
+    # academy_3_vs_1_with_keeper
+    # academy_corner
+    # academy_counterattack_hard
     # academy_custom_counterattack_hard
 )
-# shift
+shift
 configs=$envs
 args1=(
-    100
-    100
-    100
-    100
-    200
-    200
-    200
-    200
+    # 8e-4
+    1e-3
 )
 args2=(
     15
@@ -42,7 +35,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-date="0509"
+# date="0510"
 info=""
 ld="${suite}-logs"
 
@@ -76,26 +69,28 @@ a3=${args3[$idx]}
 commands=()
 kws=$@
 # for e in "${envs[@]}"; do
-env="${suite}-${e}"
-config="${e}"
-# if [ "$INF_MAC_NODE_RANK" -eq 0 ]; then
-#     for s in {0..4}; do
-#         py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-#         commands+=("$py_script")
-#         echo $py_script
-#     done
-# else
-#     for s in {5..9}; do
-#         py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-#         commands+=("$py_script")
-#         echo $py_script
-#     done
-# fi
-for s in {0..1}; do
-    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
-    commands+=("$py_script")
-    echo $py_script
+for a1 in "${args1[@]}"; do
+    kws="$@ entropy_coef=$a1"
+    env="${suite}-${e}"
+    config="${e}"
+    # if [ "$INF_MAC_NODE_RANK" -eq 0 ]; then
+    #     for s in {0..4}; do
+    #         py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+    #         commands+=("$py_script")
+    #         echo $py_script
+    #     done
+    # else
+    #     for s in {5..9}; do
+    #         py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+    #         commands+=("$py_script")
+    #         echo $py_script
+    #     done
+    # fi
+    for s in {0..5}; do
+        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+        commands+=("$py_script")
+        echo $py_script
+    done
 done
-# done
-printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 5 -L 1 bash -c COMMAND 
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 6 -L 1 bash -c COMMAND 
 echo "Script completed"

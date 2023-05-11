@@ -38,6 +38,7 @@ class GRF:
         shared_ckpt_reward=False, 
         shared_reward=False, 
         shared_policy=False, 
+        score_reward_scale=None, 
         # required configs for grl
         max_episode_steps=3000,
         use_action_mask=False,
@@ -55,6 +56,7 @@ class GRF:
         self.representation = representation
         self.to_render = render
         self.shared_reward = shared_reward
+        self.score_reward_scale = score_reward_scale
         self.selected_agents = selected_agents
 
         # assert number_of_left_players_agent_controls in (1, 11), \
@@ -422,6 +424,8 @@ class GRF:
             return reward
 
         if self.shared_ckpt_reward:
+            if info['score_reward'] != 0 and self.score_reward_scale is not None:
+                reward = self.score_reward_scale * info['score_reward'] * np.ones_like(reward)
             if self.number_of_right_players_agent_controls == 0:
                 reward = add_ckpt_reward(reward, 0)
             else:

@@ -92,10 +92,10 @@ model:
             max_logvar: .5
             min_logvar: -10
         model_config:
-            units_list: [256]
+            units_list: []
             activation: relu
         reward_config:
-            units_list: [256]
+            units_list: []
             activation: relu
 
 loss:
@@ -114,7 +114,7 @@ trainer:
 
     theta_opt:
         opt_name: adam
-        lr: 5e-4
+        lr: 8e-4
         clip_norm: 10
         eps: 1e-5
         weight_decay: 1e-5
@@ -123,7 +123,7 @@ actor: {}
 
 
 buffer:
-    type: dual
+    type: uniform
 
     recent_primal_replay: False
     detached: False
@@ -133,7 +133,7 @@ buffer:
     n_envs: *nenvs
     max_size: *ds
     min_size: 1e3
-    batch_size: 256
+    batch_size: 2048
     sample_size: 1
     max_steps: 1
 

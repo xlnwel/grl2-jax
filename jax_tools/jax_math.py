@@ -79,3 +79,9 @@ def logsumexp(x, tau, axis=None, keepdims=False):
     """ tau * tf.logsumexp(x / tau) """
     y = scipy.special.logsumexp(x, axis=axis, keepdims=keepdims, b=tau)
     return tau * y
+
+def symlog(x):
+    return lax.sign(x) * lax.log(lax.abs(x) + 1)
+
+def symexp(x):
+    return lax.sign(x) * (lax.exp(lax.abs(x)) - 1)

@@ -1,6 +1,7 @@
 import argparse
 import os, sys
 from enum import Enum
+from datetime import datetime, timedelta
 from pathlib import Path
 import json
 import pandas as pd
@@ -185,7 +186,6 @@ def get_level(search_dir, last_prefix):
         return DirLevel.DATE
     # find algorithm name
     algo = None
-    model = None
     for i, name in enumerate(all_names):
         if name.isdigit():
             algo = all_names[i-1]
@@ -243,7 +243,32 @@ if __name__ == '__main__':
     record_name = 'record'
     process_name = 'progress.csv'
     name = args.name
-    do_logging(f'Loading logs on date: {args.date}')
+    date = []
+    for d in args.date:
+        if d.isdigit():
+            date.append(d)
+        else:
+            dt = datetime.now()
+            if d == 'today':
+                dt = dt
+            elif d == 'tomorrow':
+                # yesterday
+                dt = dt - timedelta(days=1)
+            elif d == 'yd':
+                # tomorrow
+                dt = dt + timedelta(days=1)
+            elif d == 'dby':
+                # the day before yesterday
+                dt = dt - timedelta(days=2)
+            elif d == 'tda':
+                # three days ago
+                dt = dt - timedelta(days=3)
+            elif d == 'fda':
+                # four days ago
+                dt = dt - timedelta(days=4)
+            date.append(dt.strftime('%m%d'))
+            
+    do_logging(f'Loading logs on date: {date}')
 
     directory = os.path.abspath(args.directory)
     target = os.path.expanduser(args.target)
@@ -273,15 +298,13 @@ if __name__ == '__main__':
     print('Search directory level:', level)
     # all_data = collections.defaultdict(list)
     # for d in yield_dirs(search_dir, args.prefix, is_suffix=False, root_matches=args.name):
-    matches = args.name + args.date
-    ignores = args.ignore
 
     for d in fixed_pattern_search(
         search_dir, 
         level=level, 
         env=args.env, 
         algo=args.algo, 
-        date=args.date, 
+        date=date, 
         model=args.model
     ):
         last_name = d.split('/')[-1]

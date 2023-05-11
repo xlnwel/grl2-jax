@@ -95,9 +95,13 @@ class Loss(LossBase):
         else:
             stats.trans_mae = stats.model_mae
 
+        if self.model.config.reward_sym_scale:
+            reward = jax_math.symlog(data.reward)
+        else:
+            reward = data.reward
         # reward loss
         reward_loss, stats = compute_reward_loss(
-            self.config, reward_dist, data.reward, stats)
+            self.config, reward_dist, reward, stats)
 
         # discount loss
         discount_loss, stats = compute_discount_loss(

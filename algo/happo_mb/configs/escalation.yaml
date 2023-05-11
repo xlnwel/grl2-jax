@@ -127,7 +127,7 @@ loss:
         lam: &lam .95
         pg_coef: 1
         entropy_coef: .01
-        lka_entropy_coef: 5e-3
+        lka_entropy_coef: 0
         value_coef: 1
 
 trainer:

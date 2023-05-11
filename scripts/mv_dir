@@ -6,8 +6,9 @@ export PYTHONPATH=.
 # python run/mv_dir.py /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_3_vs_1_with_keeper/happo_lka/0413 -p a0 dynamics -nd 0412 -mr 1#=
 # python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_3_vs_1_with_keeper/happo_mb/0505/0\#n_simulated_steps=20-1\#lr=1e-3-1\#pred_raw=True -nr grf-logs
 # python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_3_vs_1_with_keeper/happo_mb/0505/0\#n_simulated_steps=20-1\#lr=1e-3-1\#pred_raw=False -nr grf-logs
-# python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_corner/happo_mb/0506/ -nr grf-logs
-python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_3_vs_1_with_keeper/happo/0507/baseline -nd 0508
-python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_corner/happo/0507/baseline -nd 0508
-python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_counterattack_hard/happo/0507/baseline -nd 0508
+# # python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_corner/happo_mb/0506/ -nr grf-logs
+# python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_3_vs_1_with_keeper/happo/0507/baseline -nd 0508
+# python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_corner/happo/0507/baseline -nd 0508
+# python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_counterattack_hard/happo/0507/baseline -nd 0508
 # python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_3_vs_1_with_keeper/happo/0506 -nr grf-logs
+python run/mv_dir.py -cp grf-logs -nr /System/Volumes/Data/mnt/公共区/cxw/grf-logs
