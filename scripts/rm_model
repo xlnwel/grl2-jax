@@ -1,0 +1,6 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+python run/rm_model.py /Users/chenxw/Documents/html-logs -d 0517 -e mujoco -m n_lka_epochs=5-sample_reg_coef=
+python run/rm_model.py /System/Volumes/Data/mnt/公共区/cxw/ -d 0517 -e mujoco -m n_lka_epochs=5-sample_reg_coef=

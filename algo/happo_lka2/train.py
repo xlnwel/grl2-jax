@@ -24,7 +24,7 @@ def train(
     env_name = runner.env_config().env_name
     eval_data = load_eval_data(filename=env_name)
 
-    rollout_type = routine_config.get('rollout_type', 'mix')
+    rollout_type = routine_config.get('rollout_type', 'lka')
     assert rollout_type in ('lka', 'mix', 'one'), rollout_type
     n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
@@ -40,7 +40,7 @@ def train(
         time2record = to_record(env_step)
 
         if time2record:
-            eval_and_log(agent, None, runner, routine_config, 
+            eval_and_log(agent, None, None, routine_config, 
                          agent.training_data, eval_data)
 
 

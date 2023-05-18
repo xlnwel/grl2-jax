@@ -239,6 +239,8 @@ def evaluate(
     scores = []
     epslens = []
     stats_list = []
+    if size is not None and len(size) == 1:
+        size = size * 2
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
     frames = [collections.deque(maxlen=video_len) 
         for _ in range(min(n_windows, env.n_envs))]

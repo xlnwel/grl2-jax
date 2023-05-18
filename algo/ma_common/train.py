@@ -7,7 +7,7 @@ from core.typing import get_basic_model_name
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from tools.display import print_dict
 from tools.utils import modify_config, prefix_name, flatten_dict
-from tools.timer import Every, Timer, timeit
+from tools.timer import Timer, timeit
 from algo.ma_common.run import Runner
 
 
@@ -98,15 +98,16 @@ def prepare_dynamics_errors(errors):
         for k2, v in errs.items():
             error_stats[f'{k1}-{k2}'] = v
     TRAIN = 'train'
-    for k1, errs in errors.items():
-        for k2 in errs.keys():
-            if k1 != TRAIN:
-                k1_err = np.mean(error_stats[f'{k1}-{k2}'])
-                train_err = np.mean(error_stats[f'{TRAIN}-{k2}'])
-                k1_train_err = k1_err - train_err
-                error_stats[f'{k1}&{TRAIN}-{k2}'] = k1_train_err
-                error_stats[f'norm_{k1}&{TRAIN}-{k2}'] = \
-                    k1_train_err / train_err if train_err else k1_train_err
+    if TRAIN in errors:
+        for k1, errs in errors.items():
+            for k2 in errs.keys():
+                if k1 != TRAIN:
+                    k1_err = np.mean(error_stats[f'{k1}-{k2}'])
+                    train_err = np.mean(error_stats[f'{TRAIN}-{k2}'])
+                    k1_train_err = k1_err - train_err
+                    error_stats[f'{k1}&{TRAIN}-{k2}'] = k1_train_err
+                    error_stats[f'norm_{k1}&{TRAIN}-{k2}'] = \
+                        k1_train_err / train_err if train_err else k1_train_err
     error_stats = prefix_name(error_stats, 'model_error')
 
     return error_stats
@@ -199,7 +200,11 @@ def main(configs, train):
     use_ray = config.env.get('n_runners', 1) > 1
     if use_ray:
         from tools.ray_setup import sigint_shutdown_ray
-        ray.init(num_cpus=config.env.n_runners)
+        from sys import platform
+        if platform.startswith('linux'):
+            ray.init(num_cpus=config.env.n_runners, num_gpus=1)
+        else:
+            ray.init(num_cpus=config.env.n_runners)
         sigint_shutdown_ray()
 
     runner = Runner(config.env)

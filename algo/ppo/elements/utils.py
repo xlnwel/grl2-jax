@@ -14,7 +14,7 @@ def get_initial_state(state, i):
     return jax.tree_util.tree_map(lambda x: x[:, i], state)
 
 
-def _reshape_for_bptt(*args, bptt):
+def reshape_for_bptt(*args, bptt):
     return jax.tree_util.tree_map(
         lambda x: x.reshape(-1, bptt, *x.shape[2:]), args
     )
@@ -47,7 +47,7 @@ def compute_values(
             shape = x.shape[:-1]
             assert x.shape[1] % bptt == 0, (x.shape, bptt)
             x, next_x, state_reset, next_state_reset, state = \
-                _reshape_for_bptt(
+                reshape_for_bptt(
                     x, next_x, state_reset, next_state_reset, state, bptt=bptt
                 )
         state0 = get_initial_state(state, 0)
@@ -77,7 +77,7 @@ def compute_policy_dist(
     if state is not None and bptt is not None:
         shape = x.shape[:-1]
         assert x.shape[1] % bptt == 0, (x.shape, bptt)
-        x, state_reset, state, action_mask = _reshape_for_bptt(
+        x, state_reset, state, action_mask = reshape_for_bptt(
             x, state_reset, state, action_mask, bptt=bptt
         )
     state = get_initial_state(state, 0)
@@ -311,14 +311,17 @@ def summarize_adv_ratio(stats, data):
         raw_adv = expand_dims_match(stats.raw_adv, stats.ratio)
     else:
         raw_adv = stats.raw_adv
-    stats.raw_adv_ratio_pp = jnp.mean(jnp.logical_and(raw_adv > 0, stats.ratio > 1))
-    stats.raw_adv_ratio_pn = jnp.mean(jnp.logical_and(raw_adv > 0, stats.ratio < 1))
-    stats.raw_adv_ratio_np = jnp.mean(jnp.logical_and(raw_adv < 0, stats.ratio > 1))
-    stats.raw_adv_ratio_nn = jnp.mean(jnp.logical_and(raw_adv < 0, stats.ratio < 1))
-    stats.adv_ratio_pp = jnp.mean(jnp.logical_and(stats.advantage > 0, stats.ratio > 1))
-    stats.adv_ratio_pn = jnp.mean(jnp.logical_and(stats.advantage > 0, stats.ratio < 1))
-    stats.adv_ratio_np = jnp.mean(jnp.logical_and(stats.advantage < 0, stats.ratio > 1))
-    stats.adv_ratio_nn = jnp.mean(jnp.logical_and(stats.advantage < 0, stats.ratio < 1))
+    stats.raw_adv_ratio_pp = jnp.logical_and(raw_adv > 0, stats.ratio > 1)
+    stats.raw_adv_ratio_pn = jnp.logical_and(raw_adv > 0, stats.ratio < 1)
+    stats.raw_adv_ratio_np = jnp.logical_and(raw_adv < 0, stats.ratio > 1)
+    stats.raw_adv_ratio_nn = jnp.logical_and(raw_adv < 0, stats.ratio < 1)
+    stats.raw_adv_zero = raw_adv == 0
+    stats.ratio_one = stats.ratio == 1
+    stats.adv_ratio_pp = jnp.logical_and(stats.advantage > 0, stats.ratio > 1)
+    stats.adv_ratio_pn = jnp.logical_and(stats.advantage > 0, stats.ratio < 1)
+    stats.adv_ratio_np = jnp.logical_and(stats.advantage < 0, stats.ratio > 1)
+    stats.adv_ratio_nn = jnp.logical_and(stats.advantage < 0, stats.ratio < 1)
+    stats.adv_zero = stats.advantage == 0
     stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 0)
     stats.np_ratio = jnp.where(stats.adv_ratio_np, stats.ratio, 0)
 
@@ -385,6 +388,7 @@ def compute_sample_regularization(
     stats.mu = lax.exp(data.mu_logprob)
     stats.pi = lax.exp(stats.pi_logprob)
     stats.delta = stats.pi - stats.mu
+    clip_range = float(clip_range)
     if data.sample_mask is not None:
         data.sample_mask = expand_shape_match(data.sample_mask, stats.ratio, np=jnp)
     if reg_type is None:

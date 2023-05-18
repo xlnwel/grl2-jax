@@ -444,7 +444,9 @@ class GRF:
             obs = [obs[i] for i in self.env.controlled_players]
         return obs
 
-    def seed(self, seed):
+    def seed(self, seed=None):
+        print('seed', seed)
+        self.env.unwrapped.seed(seed)
         return seed
 
 def parse_args():
@@ -479,18 +481,22 @@ if __name__ == '__main__':
 
     from tools.display import print_dict_info, print_dict
     from tools.utils import batch_dicts
+    import numpy as np
+    np.random.seed(0)
     env = GRF(**config)
     left = args.left
     obs_left = []
     obs_right = []
     obs = env.reset()
+    print(env.env.unwrapped, dir(env.env.unwrapped))
+    env.seed(1)
     # obs_left.append(obs[0])
     # obs_right.append(obs[1])
     obs = env._raw_obs()
     ids = np.array([o['active'] for o in obs])
     # print(obs[0]['obs'].reshape(-1, 5))
-    print(ids)
-    print('ball_owned_team', [o['ball_owned_team'] for o in obs])
+    # print(ids)
+    # print('ball_owned_team', [o['ball_owned_team'] for o in obs])
     # ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
     for i in range(args.step):
         a = env.random_action()
@@ -499,10 +505,10 @@ if __name__ == '__main__':
         new_ids = np.array([o['active'] for o in obs])
         # new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
         np.testing.assert_equal(ids, new_ids)
-        print('ball_owned_team', [o['ball_owned_team'] for o in obs])
+        # print('ball_owned_team', [o['ball_owned_team'] for o in obs])
         # print(obs[0]['obs'].reshape(-1, 5))
         if np.all(done):
-            print('Done ball_owned_team', [o['ball_owned_team'] for o in obs])
+            # print('Done ball_owned_team', [o['ball_owned_team'] for o in obs])
             env.reset()
             new_ids = np.array([o['active'] for o in env._raw_obs()])
             # new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])

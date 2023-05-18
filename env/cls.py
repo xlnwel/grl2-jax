@@ -1,9 +1,9 @@
 import itertools
+import random
 import numpy as np
 import cv2
 
 from core.typing import dict2AttrDict
-from tools.display import print_dict_info
 from tools.utils import batch_dicts, convert_batch_with_func
 from env import make_env
 from env.typing import EnvOutput
@@ -13,8 +13,6 @@ from env.utils import batch_env_output, batch_ma_env_output
 class Env:
     def __init__(self, config, env_fn=make_env, agents={}):
         self.env = env_fn(config, eid=None, agents=agents)
-        if config.get('seed') is not None and hasattr(self.env, 'seed'):
-            self.env.seed(config['seed'])
         self.name = config['env_name']
         self.max_episode_steps = self.env.max_episode_steps
         self.n_envs = getattr(self.env, 'n_envs', 1)
@@ -99,13 +97,15 @@ class VecEnvBase:
         self.name = config['env_name']
         if 'eid' not in config:
             config['eid'] = 0
-        self.envs = [env_fn(config, config['eid'] + eid)
-            for eid in range(n_envs)]
+        self.envs = []
+        for i in range(n_envs):
+            config_i = config.copy()
+            config_i['eid'] += i
+            config_i['seed'] += i
+            env = env_fn(config_i, config_i['eid'])
+            # env.seed(config_i['seed'])
+            self.envs.append(env)
         self.env = self.envs[0]
-        if config.get('seed') is not None and hasattr(self.env, 'seed'):
-            [env.seed(config['seed'] + i) 
-                for i, env in enumerate(self.envs)
-                if hasattr(env, 'seed')]
         self.max_episode_steps = self.env.max_episode_steps
         self.env_type = 'VecEnv'
 
@@ -147,12 +147,11 @@ class VecEnv(VecEnvBase):
 
     def random_action(self, *args, **kwargs):
         if self._stats.is_multi_agent:
-            return list(
-                np.stack([env.random_action() if hasattr(env, 'random_action') \
-                else env.action_space.sample() for env in self.envs], 1))
+            return np.stack([env.random_action() if hasattr(env, 'random_action')
+                else env.action_space.sample() for env in self.envs])
         else:
-            return [np.stack([env.random_action() if hasattr(env, 'random_action') \
-                else env.action_space.sample() for env in self.envs])]
+            return np.stack([env.random_action() if hasattr(env, 'random_action')
+                else env.action_space.sample() for env in self.envs])
 
     def reset(self, idxes=None, convert_batch=True, **kwargs):
         idxes = self._get_idxes(idxes)
@@ -161,8 +160,6 @@ class VecEnv(VecEnvBase):
         return out
 
     def step(self, actions, convert_batch=True, **kwargs):
-        if isinstance(actions, (tuple, list)):
-            actions = zip(*actions)
         outs = [e.step(a) for e, a in zip(self.envs, actions)]
         out = self.process_output(outs, convert_batch=convert_batch)
         return out
@@ -525,15 +522,21 @@ class MATBVecEnv(VecEnvBase):
 
 if __name__ == '__main__':
     config = dict(
-        env_name='gym-Ant-v4',
-        n_runners=2,
+        env_name='mujoco-Ant-v3',
+        n_runners=1,
         n_envs=2,
         to_multi_agent=True,
+        seed=0
     )
+    import numpy as np
+    import random
+    random.seed(0)
+    np.random.seed(0)
     env = VecEnv(config)
-    for k in range(100):
+    for k in range(10):
         a = env.random_action()
         o, r, d, re = env.step((a))
+        print(r)
         if np.any(re):
             eids = [i for i, r in enumerate(re)]
             discounts = d[eids]

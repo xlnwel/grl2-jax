@@ -21,7 +21,7 @@ routine:
     n_envs: 64
 
     model_warm_up: True
-    model_warm_up_steps: 5e5
+    model_warm_up_steps: 1e5
 
 env:
     env_name: &env_name grf-academy_corner
@@ -66,8 +66,8 @@ strategy:
         ergodic: False
         training_data_size: &ds 1e5
         valid_data_size: 1000
-        n_wp_epochs: 3
-        n_epochs: &nepochs 1000
+        n_wp_epochs: 50
+        n_epochs: &nepochs 800
 
 model:
     aid: 0
@@ -85,7 +85,7 @@ model:
         nn_id: edynamics
         n_models: &n 1
         repr_config:
-            units_list: [512, 512, 512, 512]
+            units_list: [1024, 1024, 1024, 1024]
             activation: relu
             norm: null
         model_out_config:
@@ -115,7 +115,7 @@ trainer:
 
     theta_opt:
         opt_name: adam
-        lr: 8e-4
+        lr: 5e-4
         clip_norm: 10
         eps: 1e-5
         weight_decay: 1e-5
@@ -134,7 +134,7 @@ buffer:
     n_envs: *nenvs
     max_size: *ds
     min_size: 1e3
-    batch_size: 2048
+    batch_size: 1024
     sample_size: 1
     max_steps: 1
 

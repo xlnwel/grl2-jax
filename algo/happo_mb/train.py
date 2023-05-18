@@ -109,7 +109,7 @@ def train(
     eval_data = load_eval_data(filename=env_name)
     rng = dynamics.model.rng
 
-    rollout_type = routine_config.get('rollout_type', 'mix')
+    rollout_type = routine_config.get('rollout_type', 'lka')
     assert rollout_type in ('lka', 'mix', 'one'), rollout_type
     n_agents = runner.env_stats().n_agents
     while env_step < routine_config.MAX_STEPS:
@@ -125,6 +125,9 @@ def train(
             dynamics_optimize(dynamics, warm_up_stage=True)
         else:
             dynamics_optimize(dynamics)
+            if time2record:
+                stats = dynamics.valid_stats()
+                dynamics.store(**stats)
 
             lka_train(
                 agent, 
@@ -160,9 +163,6 @@ def train(
             # if routine_config.quantify_dynamics_errors:
             #     outdir = modelpath2outdir(agent.get_model_path())
             #     log_dynamics_errors(errors, outdir, env_step)
-            if dynamics.get_train_step() > 0:
-                stats = dynamics.valid_stats()
-                dynamics.store(**stats)
             eval_and_log(agent, dynamics, None, routine_config, 
                          agent.training_data, eval_data, errors)
 
@@ -178,7 +178,11 @@ def main(configs, train=train):
     use_ray = config.env.get('n_runners', 1) > 1
     if use_ray:
         from tools.ray_setup import sigint_shutdown_ray
-        ray.init(num_cpus=config.env.n_runners)
+        from sys import platform
+        if platform.startswith('linux'):
+            ray.init(num_cpus=config.env.n_runners, num_gpus=1)
+        else:
+            ray.init(num_cpus=config.env.n_runners)
         sigint_shutdown_ray()
 
     runner = Runner(config.env)

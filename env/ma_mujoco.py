@@ -6,6 +6,7 @@ import numpy as np
 from core.typing import AttrDict
 from env.ma_mujoco_env.multiagent_mujoco.mujoco_multi import MujocoMulti
 
+
 class MAMujoco(gym.Wrapper):
     def __init__(self, config):
         scenario, agent_conf = config.env_name.split('_')

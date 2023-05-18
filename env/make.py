@@ -29,7 +29,10 @@ def process_single_agent_env(env, config):
         )
     if config.get('to_multi_agent', False):
         env = wrappers.Single2MultiAgent(env)
-    env = wrappers.post_wrap(env, config)
+        env = wrappers.DataProcess(env)
+        env = wrappers.MASimEnvStats(env, seed=config.seed)
+    else:
+        env = wrappers.post_wrap(env, config)
 
     return env
 
@@ -47,6 +50,25 @@ def make_bypass(config):
     env = process_single_agent_env(env, config)
 
     return env
+
+
+def make_mujoco(config):
+    import gym
+    from env.dummy import DummyEnv
+    config = _change_env_name(config)
+    if '_' in config['env_name']:
+        config['env_name'] = config['env_name'].replace('_', '-')
+    elif '-' in config['env_name']:
+        pass
+    else:
+        config['env_name'] = config['env_name'] + '-v3'
+    env = gym.make(config['env_name'])
+    env = DummyEnv(env)    # useful for hidding unexpected frame_skip
+    config.setdefault('max_episode_steps', env.spec.max_episode_steps)
+    env = process_single_agent_env(env, config)
+
+    return env
+
 
 def make_gym(config):
     import gym
@@ -123,7 +145,7 @@ def make_mpe(config):
     env = MPEEnv(config)
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
 
     return env
 
@@ -133,7 +155,7 @@ def make_spiel(config):
     env = OpenSpiel(**config)
     env = wrappers.TurnBasedProcess(env)
     # env = wrappers.SqueezeObs(env, config['squeeze_keys'])
-    env = wrappers.MATurnBasedEnvStats(env)
+    env = wrappers.MATurnBasedEnvStats(env, seed=config.seed)
 
     return env
 
@@ -156,7 +178,7 @@ def make_smac(config):
     env = SMACEnv(config)
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
 
     return env
 
@@ -165,7 +187,7 @@ def make_smac2(config):
     from env.smac2 import SMAC
     config = _change_env_name(config)
     env = SMAC(**config)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
 
     return env
 
@@ -175,7 +197,7 @@ def make_ma_mujoco(config):
     config = _change_env_name(config)
     env = MAMujoco(config)
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
 
     return env
 
@@ -185,7 +207,7 @@ def make_ma_minigrid(config):
     env = MAMiniGrid(config)
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
 
     return env
 
@@ -195,7 +217,7 @@ def make_lbf(config):
     env = LBFEnv(config)
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
 
     return env 
 
@@ -207,7 +229,7 @@ def make_overcooked(config):
     if config.get('record_state', False):
         env = wrappers.StateRecorder(env, config['rnn_type'], config['state_size'])
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
     
     return env
 
@@ -218,7 +240,7 @@ def make_matrix(config):
     env = env_map[config['env_name']](**config)
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
 
     return env
 
@@ -230,7 +252,8 @@ def make_magw(config):
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.PopulationSelection(env, config.pop('population_size', 1))
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env, timeout_done=config.get('timeout_done', True))
+    env = wrappers.MASimEnvStats(
+        env, timeout_done=config.get('timeout_done', True), seed=config.seed)
 
     return env
 
@@ -240,7 +263,7 @@ def make_smarts(config):
     config = _change_env_name(config)
     env = make(config)
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
 
     return env
 
@@ -250,7 +273,7 @@ def make_grf(config):
     config = _change_env_name(config)
     env = GRF(**config)
     env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+    env = wrappers.MASimEnvStats(env, seed=config.seed)
 
     return env
 
@@ -265,20 +288,24 @@ def make_unity(config):
         action_low=config.get('action_low', -1), 
         action_high=config.get('action_high', 1)
     )
-    env = wrappers.UnityEnvStats(env)
+    env = wrappers.UnityEnvStats(env, seed=config.seed)
 
     return env
 
 if __name__ == '__main__':
     import numpy as np
     from tools import yaml_op
-    config = yaml_op.load_config('algo/happo/configs/ma_mujoco')
-    print(config.env)
-    env = make_ma_mujoco(config.env)
-    for step in range(1000):
+    import random
+    random.seed(0)
+    np.random.seed(0)
+    config = yaml_op.load_config('algo/happo/configs/mujoco')
+    config.env.seed = 0
+    env = make_mujoco(config.env)
+    for step in range(10):
         a = env.random_action()
         o, r, d, re = env.step(a)
-        # print('reward', r)
+        print('reward', r)
         if np.all(re):
-            print(step, 'info', env.info())
-            print('epslen', env.epslen())
+            # print(step, 'info', env.info())
+            # print('epslen', env.epslen())
+            print(re)

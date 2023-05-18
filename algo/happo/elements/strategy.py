@@ -8,12 +8,12 @@ class Strategy(StrategyBase):
     def compute_value(self, env_output, states=None):
         if isinstance(env_output.obs, list):
             inps = [AttrDict(
-                global_state=o['global_state']
+                global_state=o.get('global_state', o['obs'])
             ) for o in env_output.obs]
             resets = env_output.reset
         else:
             inps = [AttrDict(
-                global_state=env_output.obs['global_state'][:, uids]
+                global_state=env_output.obs.get('global_state', env_output.obs['obs'])[:, uids]
             ) for uids in self.aid2uids]
             resets = [env_output.reset[:, uids] for uids in self.aid2uids]
         inps = self._memory.add_memory_state_to_input(inps, resets, states)

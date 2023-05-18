@@ -75,11 +75,11 @@ def extract_sampling_keys(
     if not config.timeout_done:
         for k in obs_keys:
             sample_keys.add(f'next_{k}')
-    if env_stats.use_action_mask:
+    if (env_stats.use_action_mask[aid] if isinstance(env_stats.use_action_mask, (list, tuple)) else env_stats.use_action_mask):
         sample_keys.add('action_mask')
     elif 'action_mask' in sample_keys:
         sample_keys.remove('action_mask')
-    if env_stats.use_sample_mask:
+    if (env_stats.use_sample_mask[aid] if isinstance(env_stats.use_sample_mask, (list, tuple)) else env_stats.use_sample_mask):
         sample_keys.add('sample_mask')
     elif 'sample_mask' in sample_keys:
         sample_keys.remove('sample_mask')

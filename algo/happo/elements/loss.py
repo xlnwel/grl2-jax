@@ -8,6 +8,47 @@ from tools.rms import denormalize
 from .utils import *
 
 
+def _compute_target_adv(
+    *, 
+    config, 
+    reward, 
+    discount, 
+    reset=None, 
+    value, 
+    next_value, 
+    ratio, 
+    gamma, 
+    lam, 
+    axis=1, 
+):
+    if config.adv_horizon:
+        shape = reward.shape
+        reward, discount, reset, value, next_value, ratio = \
+            reshape_for_bptt(
+                reward, discount, reset, value, next_value, ratio, bptt=config.adv_horizon
+            )
+        
+    v_target, adv = jax_loss.compute_target_advantage(
+        config=config, 
+        reward=reward, 
+        discount=discount, 
+        reset=reset, 
+        value=value, 
+        next_value=next_value, 
+        ratio=ratio, 
+        gamma=gamma, 
+        lam=lam, 
+        axis=axis
+    )
+
+    if config.adv_horizon:
+        v_target, adv = jax.tree_util.tree_map(
+            lambda x: x.reshape(shape), (v_target, adv)
+        )
+
+    return v_target, adv
+
+
 class Loss(LossBase):
     def loss(
         self, 
@@ -366,7 +407,7 @@ class Loss(LossBase):
             else:
                 value = lax.stop_gradient(stats.value)
 
-            v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+            v_target, stats.raw_adv = _compute_target_adv(
                 config=self.config, 
                 reward=data.reward, 
                 discount=data.discount, 
@@ -434,6 +475,7 @@ class Loss(LossBase):
             data, 
             self.config.lka_value_sil_coef
         )
+        stats = summarize_adv_ratio(stats, data)
         loss = actor_loss + value_loss + stats.reg_loss \
             + stats.pos_sample_reg_loss + stats.sample_reg_loss \
             + actor_sil_loss + value_sil_loss
@@ -498,7 +540,7 @@ class Loss(LossBase):
             else:
                 value = lax.stop_gradient(stats.value)
 
-            v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+            v_target, stats.raw_adv = _compute_target_adv(
                 config=self.config, 
                 reward=data.reward, 
                 discount=data.discount, 
@@ -597,6 +639,7 @@ class Loss(LossBase):
             self.config.lka_actor_sil_coef, 
             clip_range=self.config.ppo_clip_range
         )
+        stats = summarize_adv_ratio(stats, data)
         loss = actor_loss + stats.reg_loss \
             + stats.pos_sample_reg_loss + stats.sample_reg_loss \
             + actor_sil_loss

@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tensorboard.backend.event_processing import event_accumulator
 
+from tools.file import mkdir
+from tools.utils import squarest_grid_size
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -69,23 +72,33 @@ def prepare_data_for_plotting(data: dict, *, y, x='steps', smooth_radius=0, lege
     return data
 
 
+def setup_figure(figsize=(20, 10), n=1):
+    size = squarest_grid_size(n, more_on_width=True)
+    # figsize = (figsize[0], figsize[1])
+    # print('figsize', figsize)
+    fig = plt.figure(figsize=figsize)
+    fig.tight_layout(pad=10)
+    axs = fig.subplots(*size)
+    return fig, axs
+
+
 def lineplot_dataframe(data, title, *, y, x='steps', fig=None, ax=None, legend='legend', outdir=None):
     if fig is None:
-        fig = plt.figure(figsize=(20, 10))
-        fig.tight_layout(pad=2)
-        ax = fig.add_subplot()
+        fig, ax = setup_figure()
     sns.set(style="whitegrid", font_scale=1.5)
     sns.set_palette('Set2') # or husl
     sns.lineplot(x=x, y=y, 
         ax=ax, data=data, dashes=False, linewidth=3, hue=legend)
     ax.grid(True, alpha=0.8, linestyle=':')
-    ax.legend(loc='best').set_draggable(True)
+    # ax.legend(loc='best').set_draggable(True)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.set_title(title)
+    ax.legend(loc='lower left', bbox_to_anchor=(0, 1.05))
     if outdir:
+        mkdir(outdir)
         fig_path = '/'.join([outdir, f'{title}.png'])
-        fig.savefig(fig_path)
+        fig.savefig(fig_path, bbox_inches='tight')
         print(f'File saved at "{fig_path}"')
 
 

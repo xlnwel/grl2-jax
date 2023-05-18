@@ -70,10 +70,10 @@ class AttrDict(collections.defaultdict):
 
     """ The following three methods enable pickling """
     def __getstate__(self):
-        return (self.asdict(),)
+        return self.asdict()
 
     def __setstate__(self, state):
-        self.update(state[0])
+        self.update(state)
 
     def __reduce__(self):
         return (AttrDict, (), self.__getstate__())
@@ -252,9 +252,8 @@ def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
                         f"'{self._fields[j]}'.") from e
         
     def __setstate__(self, state):
-        value = state[0]
         try:
-            for j, (s, v) in enumerate(zip(self, value)):
+            for j, (s, v) in enumerate(zip(self, state)):
                 if isinstance(s, dict):
                     for k in s.keys():
                         s[k] = v[k]

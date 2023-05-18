@@ -79,15 +79,18 @@ def get_env_stats(config):
 
 if __name__ == '__main__':
     import numpy as np
-    config = dict(
-        env_name='ma_mujoco-HalfCheetah_2x3',
-        n_runners=1,
-        n_envs=1,
-        to_multi_agent=True,
-    )
+    from tools import yaml_op
+    config = yaml_op.load_config('algo/happo/configs/academy_3_vs_1_with_keeper')
+    config = config.env
+    config.n_runners=2
+    config.n_envs=1
+    config.seed = 0
+    import numpy as np
+    import random
+    random.seed(0)
+    np.random.seed(0)
     env = create_env(config)
-    for k in range(1000):
+    for k in range(10):
         a = env.random_action()
         o, r, d, re = env.step(a)
-        if np.any(re):
-            print('info', env.info())
+        print(o[0]['obs'][0, 0, :10])

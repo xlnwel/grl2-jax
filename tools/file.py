@@ -1,8 +1,24 @@
 import os, glob
 import types
+import pathlib
 import importlib
+import shutil
 
 from core.log import do_logging
+
+
+def mkdir(d):
+    if not os.path.isdir(d):
+        pathlib.Path(d).mkdir(parents=True)
+
+
+def rm(path):
+    if os.path.isfile(path):
+        # Delete the file using os.remove
+        os.remove(path)
+    elif os.path.isdir(path):
+        # Delete the directory and its contents using shutil.rmtree
+        shutil.rmtree(path)
 
 
 def source_file(file_path):

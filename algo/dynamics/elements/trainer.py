@@ -111,6 +111,8 @@ class Trainer(TrainerBase):
                 discount_mae=stats.discount_mae, 
                 trans_mae=stats.trans_mae, 
             )
+        for i in range(stats.model_mae.shape[-1]):
+            stats[f'model_mae{i}'] = stats.model_mae[..., i]
         return theta, opt_state, stats
 
     def process_data(self, data):

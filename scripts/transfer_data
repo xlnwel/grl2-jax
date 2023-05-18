@@ -6,17 +6,21 @@ source activate grl
 dir=$1
 shift
 
+sleep=60
 while true
 do
     tomorrow=$(date -v+1d "+%m%d")
     today=$(date +"%m%d")
     yesterday=$(date -v-1d "+%m%d")
     dby=$(date -v-2d "+%m%d")
+    # tda=$(date -v-3d "+%m%d")
+    # fda=$(date -v-4d "+%m%d")
 
+    python run/config_html_plt.py
     # rm -rf html-logs
-    py_script="python run/plt.py $dir -ln a0 -d tomorrow today yesterday dby $@ "
+    py_script="python run/html_plt.py $dir -ln a0 dynamics -d tomorrow today yesterday dby $@ "
     echo $py_script
     eval $py_script
-    echo "sleeping for 300 seconds"
-    sleep 300
+    echo "sleeping for $sleep seconds"
+    sleep $sleep
 done

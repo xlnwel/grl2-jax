@@ -39,10 +39,10 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         sigint_shutdown_ray()
 
     algo_name = config.algorithm
-    env_name = config.env['name']
+    env_name = config.env['env_name']
 
     try:
-        make_env = pkg.import_module('env', algo_name, place=-1).make_env
+        make_env = pkg.import_module('env', algo=algo_name, place=-1).make_env
     except Exception as e:
         make_env = None
     

@@ -18,42 +18,20 @@ routine:
     n_steps: &nsteps 10
     LOG_PERIOD: 2e5
 
-    n_envs: 64
+    n_envs: &nenvs 64
 
     model_warm_up: True
-    model_warm_up_steps: 1e5
+    model_warm_up_steps: 5e4
 
 env:
-    env_name: &env_name grf-academy_3_vs_1_with_keeper
-    representation: simple115v2
-    rewards: scoring,checkpoints
-    render: False
-    write_full_episode_dumps: False
-    write_video: False
-    dump_frequency: 1000
-    logdir: results/grf
-    extra_players: null
-    number_of_left_players_agent_controls: 3
-    number_of_right_players_agent_controls: 0
-    add_role_to_obs: False
-    shared_ckpt_reward: False
-    shared_reward: True
-    selected_agents: True
-
-    max_episode_steps: 200
-    use_action_mask: False
-    uid2aid: null
-    shared_policy: False
-
-    n_runners: &nrunners 8
-    n_envs: &nenvs 8
-
-    use_sample_mask: True
-    use_idx: False
-    use_hidden: False
-    use_event: False
-    agentwise_global_state: False
+    env_name: &env_name gym-HalfCheetah-v3
+    n_runners: &nrunners 1
+    n_envs: *nenvs
+    max_episode_steps: 1000
+    population_size: 1
     timeout_done: &td False
+
+    uid2aid: [0, 1]
 
 agent: {}
 
@@ -65,9 +43,9 @@ strategy:
     train_loop:
         ergodic: False
         training_data_size: &ds 1e5
-        valid_data_size: 1000
-        n_wp_epochs: 50
-        n_epochs: &nepochs 800
+        valid_data_size: 4000
+        n_wp_epochs: 10
+        n_epochs: &nepochs 1000
 
 model:
     aid: 0
@@ -75,7 +53,7 @@ model:
     global_state_type: obs
     rn_std: .1
     model_norm_obs: &obs_norm True
-    reward_sym_scale: True
+    reward_sym_scale: False
     pred_raw: False
     deterministic_trans: True
     model_loss_type: &mlt mse
@@ -85,7 +63,7 @@ model:
         nn_id: edynamics
         n_models: &n 1
         repr_config:
-            units_list: [1024, 1024, 1024, 1024]
+            units_list: [256, 256, 256, 256]
             activation: relu
             norm: null
         model_out_config:
@@ -126,47 +104,20 @@ actor: {}
 buffer:
     type: uniform
 
-    recent_primal_replay: False
-    detached: False
-
     model_norm_obs: *obs_norm
     n_runners: *nrunners
     n_envs: *nenvs
     max_size: *ds
     min_size: 1e3
-    batch_size: 1024
+    n_recency: 1e3
+    batch_size: 256
     sample_size: 1
+
     max_steps: 1
 
-    primal_percentage: .5
-    sample_keys: &sk
+    sample_keys: 
         - obs
         - action
         - reward
         - discount
         - reset
-
-    primal_replay:
-        type: uniform
-
-        n_runners: *nrunners
-        n_envs: *nenvs
-        n_recency: &nr 1e4
-        max_size: *nr
-        min_size: 1e3
-        sample_size: 1
-        max_steps: 1
-
-        sample_keys: *sk
-
-    secondary_replay:
-        type: uniform
-
-        n_runners: *nrunners
-        n_envs: *nenvs
-        max_size: *ds
-        min_size: 1e3
-        sample_size: 1
-        max_steps: 1
-
-        sample_keys: *sk

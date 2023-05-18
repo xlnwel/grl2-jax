@@ -2,6 +2,7 @@ import os
 import importlib
 
 # from gym.envs.registration import register
+from core.utils import set_seed
 
 # register(
 #     id='Overcooked-v0',
@@ -28,6 +29,7 @@ def retrieve_all_make_env():
 
 def make_env(config, eid=None, agents={}):
     config = config.copy()
+    set_seed(config['seed'])
     env_name = config['env_name'].lower()
 
     env_dict = retrieve_all_make_env()

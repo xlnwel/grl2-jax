@@ -71,10 +71,11 @@ class TrainingLoop:
     def _after_train(self, stats):
         return stats
 
-    def sample_data(self, batch_size=None):
+    def sample_data(self, batch_size=None, record_data=True):
         with Timer('sample_data'):
             data = self.buffer.sample(batch_size=batch_size)
-        self.training_data = data
+        if record_data:
+            self.training_data = data
         if data is None:
             return None
         data.setdefault('global_state', data.obs)

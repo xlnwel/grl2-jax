@@ -108,6 +108,7 @@ loss:
     rho_clip: 1
     adv_type: gae
     norm_adv: False
+    adv_horizon: null
 
     prnn_bptt: 10
     vrnn_bptt: 10

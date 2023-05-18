@@ -27,7 +27,9 @@ def post_wrap(env, config):
         env, config.get('max_episode_steps', None), 
         timeout_done=config.get('timeout_done', False), 
         life_long=config.get('life_long', False), 
-        auto_reset=config.get('auto_reset', True))
+        auto_reset=config.get('auto_reset', True), 
+        seed=config.get('seed', None)
+    )
     return env
 
 
@@ -551,6 +553,10 @@ class Single2MultiAgent(gym.Wrapper):
             self.action_dim=[env.action_dim]
             self.is_action_discrete = [env.is_action_discrete]
             self.action_dtype = [env.action_dtype]
+        self.n_agents = getattr(env, 'n_agents', 1)
+        self.n_units = getattr(env, 'n_units', 1)
+        self.uid2aid = getattr(env, 'uid2aid', [0])
+        self.aid2uids = getattr(env, 'aid2uids', [np.zeros(1, np.int32)])
         self._stats = AttrDict(
             obs_shape=self.obs_shape,
             obs_dtype=self.obs_dtype,
@@ -560,15 +566,19 @@ class Single2MultiAgent(gym.Wrapper):
             action_high=[getattr(env, 'action_high', None)], 
             is_action_discrete=self.is_action_discrete,
             action_dtype=self.action_dtype,
-            n_agents=getattr(env, 'n_agents', 1),
-            n_units=getattr(env, 'n_units', 1),
-            uid2aid=getattr(env, 'uid2aid', [0]),
-            aid2uids=getattr(env, 'aid2uids', [[0]]),
+            n_agents=self.n_agents,
+            n_units=self.n_units,
+            uid2aid=self.uid2aid,
+            aid2uids=self.aid2uids,
             use_sample_mask=[getattr(env, 'use_sample_mask', False)],
             use_action_mask=[getattr(env, 'use_action_mask', False)],
             is_multi_agent=True,
             is_simultaneous_move=True,
         )
+
+        self._score = 0
+        self._dense_score = 0
+        self._epslen = 0
 
     def stats(self):
         return self._stats
@@ -581,6 +591,9 @@ class Single2MultiAgent(gym.Wrapper):
     def reset(self):
         obs = super().reset()
         obs = self._get_obs(obs)
+        self._score = 0
+        self._dense_score = 0
+        self._epslen = 0
 
         return obs
 
@@ -588,6 +601,14 @@ class Single2MultiAgent(gym.Wrapper):
         action = np.squeeze(action)
         obs, reward, done, info = super().step(action, **kwargs)
         obs = self._get_obs(obs)
+        self._score += reward
+        self._dense_score += reward
+        self._epslen += 1
+        info['score'] = self._score
+        info['dense_score'] = self._dense_score
+        info['epslen'] = self._epslen
+        info['game_over'] = done
+
         if not self._obs_only:
             reward = np.expand_dims(reward, 0)
             done = np.expand_dims(done, 0)
@@ -600,7 +621,8 @@ class Single2MultiAgent(gym.Wrapper):
         elif isinstance(obs, dict):
             obs = [{k: np.expand_dims(v, 0) for k, v in obs.items()}]
         else:
-            obs = [{'obs': np.expand_dims(obs, 0)}]
+            obs = np.expand_dims(obs, 0)
+            obs = [{'obs': obs, 'global_state': obs}]
         return obs
 
 
@@ -828,7 +850,8 @@ class EnvStatsBase(gym.Wrapper):
         max_episode_steps=None, 
         timeout_done=False, 
         life_long=False, 
-        auto_reset=True
+        auto_reset=True, 
+        seed=None
     ):
         """ Records environment statistics """
         super().__init__(env)
@@ -891,6 +914,7 @@ class EnvStatsBase(gym.Wrapper):
                 self._stats['obs_keys'] = list(env.obs_shape)
         if timeout_done:
             do_logging('Timeout is treated as done', logger=logger)
+        self.env.seed(seed)
         self._reset()
 
     def stats(self):
@@ -1073,12 +1097,15 @@ class MASimEnvStats(EnvStatsBase):
                  env, 
                  max_episode_steps=None, 
                  timeout_done=False, 
-                 auto_reset=True):
+                 auto_reset=True, 
+                 seed=None
+                 ):
         super().__init__(
             env, 
             max_episode_steps=max_episode_steps, 
             timeout_done=timeout_done, 
-            auto_reset=auto_reset
+            auto_reset=auto_reset, 
+            seed=seed
         )
         self._stats.is_multi_agent = True
 
@@ -1168,12 +1195,14 @@ class MATurnBasedEnvStats(EnvStatsBase):
                  env, 
                  max_episode_steps=None, 
                  timeout_done=False, 
-                 auto_reset=True):
+                 auto_reset=True, 
+                 seed=None):
         super().__init__(
             env, 
             max_episode_steps=max_episode_steps, 
             timeout_done=timeout_done, 
-            auto_reset=auto_reset
+            auto_reset=auto_reset, 
+            seed=seed
         )
         self._stats.is_multi_agent = True
         self._stats.is_simultaneous_move = False

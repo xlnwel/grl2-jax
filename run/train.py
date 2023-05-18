@@ -1,12 +1,14 @@
 import os, sys
 # os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
-os.environ["XLA_FLAGS"] = '--xla_gpu_force_compilation_parallelism=1'
+if sys.platform == "linux" or sys.platform == "linux2":
+    pass
+elif sys.platform == "darwin":
+    os.environ["XLA_FLAGS"] = '--xla_gpu_force_compilation_parallelism=1'
 # running in a single cpu
 # os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false "
                            # "intra_op_parallelism_threads=1")
 
 from datetime import datetime
-import numpy as np
 
 # try:
 #     from tensorflow.python.compiler.mlcompute import mlcompute
@@ -206,7 +208,6 @@ def _run_with_configs(cmd_args):
 
 if __name__ == '__main__':
     cmd_args = parse_train_args()
-    cmd_args = _setup_n_agents_for_ma_mujoco(cmd_args)
 
     setup_logging(cmd_args.verbose)
     if not (cmd_args.grid_search and cmd_args.multiprocess) and cmd_args.gpu is not None:
@@ -215,7 +216,8 @@ if __name__ == '__main__':
     processes = []
     if cmd_args.directory != '':
         configs = [search_for_config(d) for d in cmd_args.directory]
-        main = pkg.import_main('train', config=configs[0])
+        main = pkg.import_main(cmd_args.train_entry, config=configs[0])
         main(configs)
     else:
+        cmd_args = _setup_n_agents_for_ma_mujoco(cmd_args)
         _run_with_configs(cmd_args)

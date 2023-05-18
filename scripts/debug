@@ -6,29 +6,7 @@ commands=()
 envs=(
     escalation
 )
-for e in "${envs[@]}"; do
-    kws=""
-    for s in {0..8}; do
-        py_script="python run/train.py -a happo -e magw-$e -c escalation -ld magw-logs -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-    done
-done
-for e in "${envs[@]}"; do
-    kws="0#rescaled_by_adv=True 0#rescaled_by_mu=False 0#sample_pos_reg_coef=1"
-    for s in {0..8}; do
-        py_script="python run/train.py -a happo -e magw-$e -c escalation -ld magw-logs -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-    done
-done
-for e in "${envs[@]}"; do
-    kws="0#rescaled_by_adv=True 0#rescaled_by_mu=False 0#sample_reg_coef=1"
-    for s in {0..8}; do
-        py_script="python run/train.py -a happo -e magw-$e -c escalation -ld magw-logs -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-    done
-done
-printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
+python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -n 0517 -kw -s 2 &
+python run/train.py -a happo -e grf-academy_3_vs_1_with_keeper -c academy_3_vs_1_with_keeper -ld grf-logs -n 0518 -kw -s 2 &
+wait
 echo "Script completed"

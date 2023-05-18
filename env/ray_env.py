@@ -20,10 +20,8 @@ class RayVecEnv:
         self.envs = []
         config = AttrDict2dict(config)
         for i in range(self.n_runners):
-            if config.get('seed'):
-                config['seed'] += i * self.envsperworker
-            if 'eid' in config:
-                config['eid'] = i * self.envsperworker
+            config['seed'] = config.get('seed', 0) + i * self.envsperworker
+            config['eid'] = config.get('eid', 0) + i * self.envsperworker
             self.envs.append(RayEnvType.remote(config, env_fn))
 
         self.env = EnvType(config, env_fn)
@@ -49,7 +47,10 @@ class RayVecEnv:
         action = ray.get([env.random_action.remote() for env in self.envs])
         if self._stats.is_multi_agent:
             # get a list of agent-wise actions
-            action = [np.concatenate(a) for a in zip(*action)]
+            if isinstance(self.env, Env):
+                action = np.stack(action)
+            else:
+                action = [np.concatenate(a) for a in zip(*action)]
         elif isinstance(self.env, Env):
             action = np.stack(action)
         else:
@@ -154,6 +155,9 @@ class RayVecEnv:
             # and we chain them into [out*]
             out = list(itertools.chain(*out))
         return out
+
+    def seed(self, seed=None):
+        ray.get([e.seed(seed) for e in self.envs])
 
     def close(self):
         ray.get([env.close.remote() for env in self.envs])

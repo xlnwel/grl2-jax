@@ -1,6 +1,6 @@
-set -e
+# set -e
 
-cp ~/chenxinwei/.zshrc ~/.zshrc
+# cp ~/chenxinwei/.zshrc ~/.zshrc
 
 # apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub
 # sudo apt-key del 7fa2af80
@@ -14,7 +14,7 @@ cp ~/chenxinwei/.zshrc ~/.zshrc
 # # setup locales in ~/.bashrc or ~/.zshrc
 # export LANG=en_US.UTF-8
 # export LC_ALL=en_US.UTF-8
-yes y | sudo apt-get install mosh
+# yes y | sudo apt-get install mosh
 # yes y | sudo apt-get install -y locales
 
 yes y | sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-dev \
@@ -28,26 +28,26 @@ libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-pip
 # sudo mv nvidia-ml.list nvidia-ml.list-old
 cd ~
 yes y | sudo apt-get install libboost-all-dev
-sudo chown -R ubuntu ~/.condarc
-conda config --add envs_dirs $HOME/chenxinwei/conda/envs
+# sudo chown -R ubuntu ~/.condarc
+# conda config --add envs_dirs $HOME/chenxinwei/conda/envs
 # yes y | conda create -n grl python==3.8.10
-
-# conda activate grl
+yes y | conda create -n grl python==3.9.15
+conda activate grl
 
 # yes y | conda install cudnn
 # pip install --upgrade pip
 
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --upgrade setuptools psutil wheel
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple opencv-python
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen mujoco-py mujoco
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gfootball
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple jax optax haiku chex
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tensorflow
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ray
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple scipy pandas Pillow matplotlib plotly
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ipython
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tqdm
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --upgrade setuptools psutil wheel
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple opencv-python
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen mujoco-py mujoco
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gfootball
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple jax optax dm-haiku distrax chex
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tensorflow
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ray
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple scipy pandas Pillow matplotlib plotly seaborn
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ipython
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tqdm
 # pip install pysc2
 
 # rsync -avz ~/chenxinwei/StarCraftII ~/
-rsync -avz ~/chenxinwei/.mujoco ~/
+# rsync -avz ~/chenxinwei/.mujoco ~/

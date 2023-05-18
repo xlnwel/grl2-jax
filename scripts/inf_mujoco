@@ -1,0 +1,91 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+suite=mujoco
+algos=(
+    happo
+    # $1
+    # happo
+    # happo_lka2
+)
+# shift
+envs=(
+    # $1
+    Ant
+    HalfCheetah
+    Walker2d
+)
+configs=(
+    "${suite}"
+)
+# shift
+args1=(
+    # $2
+    15
+    15
+    10
+    10
+)
+args2=(
+    1
+    5
+    1
+    5
+)
+args3=(
+    True
+    False
+)
+args4=(
+    1
+    .5
+    # .1
+)
+date=$(date +"%m%d")
+date="0517"
+info=""
+ld="${suite}-logs"
+gpus=$(nvidia-smi -L | wc -l)
+
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
+
+# INF_MAC_NODE_RANK=$1
+le=${#envs[@]}
+idx=$(($INF_MAC_NODE_RANK % $le))
+e=${envs[$idx]}
+env="${suite}-${e}"
+lc=${#configs[@]}
+idx=$(($INF_MAC_NODE_RANK % $lc))
+config=${configs[$idx]}
+la=${#algos[@]}
+idx=$(($INF_MAC_NODE_RANK % $la))
+a=${algos[$idx]}
+la1=${#args1[@]}
+idx=$(($INF_MAC_NODE_RANK % $la1))
+a1=${args1[$idx]}
+la2=${#args2[@]}
+idx=$(($INF_MAC_NODE_RANK % $la2))
+a2=${args2[$idx]}
+la3=${#args3[@]}
+idx=$(($INF_MAC_NODE_RANK % $la3))
+a3=${args3[$idx]}
+
+commands=()
+kws=$@
+for a in "${algos[@]}"; do
+    for e in "${envs[@]}"; do
+        env="${suite}-${e}"
+        for s in {0..4}; do
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+            commands+=("$py_script")
+            echo $py_script
+        done
+    done
+done
+printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
+echo "Script completed"

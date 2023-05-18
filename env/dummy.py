@@ -26,14 +26,20 @@ class DummyEnv:
 
         self.render = env.render
         self.close = env.close
-        self.seed = env.seed
+        self._seed = env.seed
 
     @property
     def is_multiagent(self):
         return getattr(self.env, 'is_multiagent', False)
 
+    def seed(self, seed):
+        seed = self.env.seed(seed)
+
     def random_action(self):
-        return self.action_space.sample()
+        if self.is_action_discrete:
+            return np.random.randint(self.action_dim)
+        else:
+            return np.random.uniform(-1, 1, size=self.action_shape)
     
     def reset(self):
         obs = self.env.reset()

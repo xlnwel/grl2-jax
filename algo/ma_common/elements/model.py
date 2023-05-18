@@ -49,6 +49,12 @@ class MAModelBase(ModelCore):
         aid = self.config.get('aid', 0)
         self.is_action_discrete = self.env_stats.is_action_discrete[aid]
 
+    def action(self, data, evaluation):
+        for d in data:
+            if 'global_state' not in d:
+                d.global_state = d.obs
+        return super().action(data, evaluation)
+
     def forward_policy(self, params, rng, data, return_state=True):
         state = data.pop('state', AttrDict())
         act_out, state.policy = self.modules.policy(

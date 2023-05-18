@@ -1,0 +1,5 @@
+#!/bin/bash
+
+export PYTHONPATH=.
+
+python run/config_html_plt.py /Users/chenxw/work/Polixir/cache/WEB_ROM/configs -c 0516-mb -t tmp

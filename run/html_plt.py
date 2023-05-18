@@ -1,13 +1,10 @@
 import argparse
 import os, sys
-from enum import Enum
-from datetime import datetime, timedelta
 from pathlib import Path
 import json
-import pandas as pd
 import subprocess
-import collections
 import numpy as np
+import pandas as pd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -15,15 +12,7 @@ from core.log import do_logging
 from core.mixin.monitor import is_nonempty_file, merge_data
 from tools import yaml_op
 from tools.utils import flatten_dict, recursively_remove
-
-ModelPath = collections.namedtuple('ModelPath', 'root_dir model_name')
-DataPath = collections.namedtuple('data_path', 'path data')
-
-
-def get_model_path(dirpath) -> ModelPath:
-    d = dirpath.split('/')
-    model_path = ModelPath('/'.join(d[:3]), '/'.join(d[3:]))
-    return model_path
+from tools.logops import *
 
 
 def parse_args():
@@ -31,7 +20,7 @@ def parse_args():
     parser.add_argument('directory',
                         type=str,
                         default='.')
-    parser.add_argument('--prefix', '-p', 
+    parser.add_argument('--last_name', '-ln', 
                         type=str, 
                         default=['seed'], 
                         nargs='*')
@@ -109,7 +98,7 @@ def rename_env(config: dict):
     return config
 
 
-def process_data(data):
+def process_data(data, name):
     if 'model_error/ego&train-trans' in data:
         k1_err = data[f'model_error/ego-trans']
         train_err = data[f'model_error/train-trans']
@@ -119,8 +108,19 @@ def process_data(data):
             k1_train_err / train_err, k1_train_err)
     if 'cos_lka_pi' in data:
         data['cos_lka_mu_diff'] = data['cos_lka_pi'] - data['cos_mu_pi']
-    if 'kl_lka_pi' not in data and 'kl_mu_pi' in data:
-        data['kl_lka_pi'] = data['kl_mu_pi']
+    # if name != 'happo':
+    new_data = {}
+    for k in data.keys():
+        if 'agent0_first_epoch' in k:
+            k2 = k.replace('first', 'last')
+            new_key = k.split('agent0_first_epoch/') + ['_diff']
+            new_key = ''.join(new_key)
+            new_data[new_key] = data[k2] - data[k]
+    data = pd.concat([data, pd.DataFrame(new_data)], axis=1)
+                # print(name)
+                # print(k, data.loc[0, k])
+                # print(k2, data.loc[0, k2])
+                # print(new_key, data.loc[0, new_key])
     # if 'lka_ego_score_diff' in list(data):
     #     data.loc[:, 'lka_ego_score_sign'] = np.sign(data['lka_ego_score_diff'])
     return data
@@ -142,98 +142,6 @@ def to_csv(env_name, v):
         data.to_csv(csv_path)
 
 
-class DirLevel(Enum):
-    ROOT = 0
-    LOGS = 1
-    ENV = 2
-    ALGO = 3
-    DATE = 4
-    MODEL = 5
-    SEED = 6
-    FINAL = 7
-    
-    def next(self):
-        v = self.value + 1
-        if v > 7:
-            raise ValueError(f'Enumeration ended')
-        return DirLevel(v)
-
-
-
-def join_dir_name(filedir, filename):
-    return '/'.join([filedir, filename])
-
-
-def get_level(search_dir, last_prefix):
-    for d in os.listdir(search_dir):
-        if d.endswith('logs'):
-            return DirLevel.ROOT
-    all_names = search_dir.split('/')
-    last_name = all_names[-1]
-    if any([last_name.startswith(p) for p in last_prefix]):
-        return DirLevel.FINAL
-    if last_name.endswith('logs'):
-        return DirLevel.LOGS
-    if last_name.startswith('seed'):
-        return DirLevel.SEED
-    suite = None
-    for name in search_dir.split('/'):
-        if name.endswith('-logs'):
-            suite = name.split('-')[0]
-    if last_name.startswith(f'{suite}'):
-        return DirLevel.ENV
-    if last_name.isdigit():
-        return DirLevel.DATE
-    # find algorithm name
-    algo = None
-    for i, name in enumerate(all_names):
-        if name.isdigit():
-            algo = all_names[i-1]
-            if len(all_names) == i+2:
-                return DirLevel.MODEL
-    if algo is None:
-        return DirLevel.ALGO
-    
-    return DirLevel.FINAL
-
-
-def fixed_pattern_search(
-    search_dir, 
-    level=DirLevel.LOGS, 
-    env=None, 
-    algo=None, 
-    date=None, 
-    model=None
-):
-    if not os.path.isdir(search_dir):
-        return []
-    elif level == DirLevel.FINAL:
-        yield search_dir
-    else:
-        if level == DirLevel.MODEL and model is not None:
-            if all([m not in search_dir for m in model]):
-                return []
-        elif level == DirLevel.DATE and date is not None:
-            if all([d not in search_dir for d in date]):
-                return []
-        elif level == DirLevel.ALGO and algo is not None:
-            if all([a not in search_dir for a in algo]):
-                return []
-        elif level == DirLevel.ENV and env is not None:
-            if all([e not in search_dir for e in env]):
-                return []
-        for d in os.listdir(search_dir):
-            for f in fixed_pattern_search(
-                join_dir_name(search_dir, d), 
-                level=level.next(), 
-                env=env, 
-                algo=algo, 
-                date=date, 
-                model=model
-            ):
-                yield f
-
-
 if __name__ == '__main__':
     args = parse_args()
     
@@ -241,33 +149,9 @@ if __name__ == '__main__':
     player0_config_name = 'config_p0.yaml' 
     js_name = 'parameter.json'
     record_name = 'record'
-    process_name = 'progress.csv'
+    progress_name = 'progress.csv'
     name = args.name
-    date = []
-    for d in args.date:
-        if d.isdigit():
-            date.append(d)
-        else:
-            dt = datetime.now()
-            if d == 'today':
-                dt = dt
-            elif d == 'tomorrow':
-                # yesterday
-                dt = dt - timedelta(days=1)
-            elif d == 'yd':
-                # tomorrow
-                dt = dt + timedelta(days=1)
-            elif d == 'dby':
-                # the day before yesterday
-                dt = dt - timedelta(days=2)
-            elif d == 'tda':
-                # three days ago
-                dt = dt - timedelta(days=3)
-            elif d == 'fda':
-                # four days ago
-                dt = dt - timedelta(days=4)
-            date.append(dt.strftime('%m%d'))
-            
+    date = get_date(args.date)
     do_logging(f'Loading logs on date: {date}')
 
     directory = os.path.abspath(args.directory)
@@ -294,10 +178,8 @@ if __name__ == '__main__':
         process = subprocess.Popen(cmd)
 
     search_dir = directory
-    level = get_level(search_dir, args.prefix)
+    level = get_level(search_dir, args.last_name)
     print('Search directory level:', level)
-    # all_data = collections.defaultdict(list)
-    # for d in yield_dirs(search_dir, args.prefix, is_suffix=False, root_matches=args.name):
 
     for d in fixed_pattern_search(
         search_dir, 
@@ -308,7 +190,7 @@ if __name__ == '__main__':
         model=args.model
     ):
         last_name = d.split('/')[-1]
-        if not any([last_name.startswith(p) for p in args.prefix]):
+        if not any([last_name.startswith(p) for p in args.last_name]):
             continue
         # load config
         yaml_path = '/'.join([d, config_name])
@@ -340,7 +222,7 @@ if __name__ == '__main__':
         json_path = '/'.join([target_dir, js_name])
         record_filename = '/'.join([d, record_name])
         record_path = record_filename + '.txt'
-        csv_path = '/'.join([target_dir, process_name])
+        csv_path = '/'.join([target_dir, progress_name])
         # do_logging(f'yaml path: {yaml_path}')
         if not is_nonempty_file(record_path):
             do_logging(f'Bypass {record_path} due to its non-existence', color='magenta')
@@ -360,7 +242,7 @@ if __name__ == '__main__':
 
         # save stats
         data = merge_data(record_filename, '.txt')
-        data = process_data(data)
+        data = process_data(data, config['name'])
         for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
             if k not in data.keys():
                 try:
@@ -371,12 +253,6 @@ if __name__ == '__main__':
         with open(json_path, 'w') as json_file:
             json.dump(config, json_file)
         data.to_csv(csv_path, index=False)
-        # all_data[config.env_name].append(DataPath(csv_path, data))
-        # to_csv(config.env_name, DataPath(csv_path, data))
-
-    # for k, v in all_data.items():
-    #     to_csv(k, v)
-    # all_data.clear()
         
     if process is not None:
         do_logging('Waiting for rsync to complete...')

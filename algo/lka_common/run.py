@@ -142,7 +142,7 @@ def concat_env_output(env_output):
 
 
 @timeit
-def quantify_dynamics_errors(agent, dynamics, env_config, n_steps, lka_aids, n_envs=100):
+def quantify_dynamics_errors(agent, dynamics, env_config, n_steps, lka_aids, env=None, n_envs=100):
     dynamics.model.choose_elite(0)
     agent.model.check_params(False)
     agent.model.switch_params(True, lka_aids)
@@ -152,18 +152,22 @@ def quantify_dynamics_errors(agent, dynamics, env_config, n_steps, lka_aids, n_e
     errors.reward = []
     errors.discount = []
 
-    env_config = env_config.copy()
-    env_config.n_runners = 1
-    env_config.n_envs = n_envs
-    env = create_env(env_config)
-    env.manual_reset()
-    env_output = env.reset()
+    if env is None:
+        env_config = env_config.copy()
+        env_config.n_runners = 1
+        env_config.n_envs = n_envs
+        env = create_env(env_config)
+        env.manual_reset()
+        env_output = env.reset()
+    else:
+        env_output = env.output()
     env_output = concat_env_output(env_output)
     for _ in range(n_steps):
         action, _ = agent(env_output)
         new_env_output = env.step(action)
         new_env_output = concat_env_output(new_env_output)
         env_output.obs['action'] = action
+        env_output.obs['reset'] = env_output.reset
         new_model_output, _ = dynamics(env_output)
         trans_mae = np.abs(new_env_output.obs['obs'] - new_model_output.obs['obs'])
         errors.trans.append(np.mean(trans_mae))

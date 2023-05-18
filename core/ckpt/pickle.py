@@ -45,7 +45,7 @@ def restore(*, filedir=None, filename, backtrack=3, default={}, name='data'):
                 data = cloudpickle.load(f)
             do_logging(f'Restoring {name} from "{filename}"', backtrack=backtrack)
         except Exception as e:
-            do_logging(f'Failing restoring {name} from {filename}', backtrack=backtrack)
+            do_logging(f'Failing restoring {name} from {filename}: {e}', backtrack=backtrack)
     else:
         do_logging(f'No such file: {filename}', backtrack=backtrack)
 

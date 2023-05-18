@@ -1,0 +1,4 @@
+#!/bin/bash
+
+
+inf_mac job list --user chenxw | grep chenxw | awk -F '|' '{print $2}' | xargs inf_mac job kill --job-id

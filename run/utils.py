@@ -101,7 +101,9 @@ def change_config_with_kw_string(kw, config, config_idx=None):
 def model_name_from_kw_string(kw, model_name=''):
     if kw:
         for s in kw:
-            _, value = s.split('=', 1)
+            key, value = s.split('=', 1)
+            if key == 'debug':
+                continue
             value = eval_str(value)
             if model_name != '':
                 model_name += '-'

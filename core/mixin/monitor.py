@@ -50,7 +50,9 @@ def merge_data(filename, suffix):
     if data:
         data = pd.concat(data)
 
-    return data
+        return data
+    else:
+        return None
 
 
 """ Recorder """

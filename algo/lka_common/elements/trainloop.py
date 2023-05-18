@@ -12,14 +12,14 @@ class TrainingLoop(TrainingLoopBase):
     def lookahead_train(self, **kwargs):
         if self.config.n_lka_epochs:
             for _ in range(self.config.n_lka_epochs):
-                data = self.sample_data()
+                data = self.sample_data(record_data=False)
                 if data is None:
                     do_logging('Bypassing lookahead train')
                     return
 
                 stats = self.trainer.lookahead_train(data, **kwargs)
         else:
-            data = self.sample_data()
+            data = self.sample_data(record_data=False)
             if data is None:
                 do_logging('Bypassing lookahead train')
                 return

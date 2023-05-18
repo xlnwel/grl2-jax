@@ -99,7 +99,7 @@ class Trainer(TrainerBase):
                     theta, opt_state, data, self.n_epochs, 
                     self.n_mbs, self.indices, 
                     self.jit_train, aids=aids, 
-                    return_stats=True
+                    return_stats=True, name=None
                 )
         elif self.config.update_scheme == 'whole':
             theta, opt_state, stats = \
@@ -107,7 +107,7 @@ class Trainer(TrainerBase):
                     theta, opt_state, data, self.n_epochs, 
                     self.n_mbs, self.indices, 
                     self.jit_train, aids=aids, 
-                    return_stats=True
+                    return_stats=True, name=None
                 )
         else:
             raise NotImplementedError(self.config.update_scheme)
@@ -120,13 +120,12 @@ class Trainer(TrainerBase):
         if self.config.popart:
             for aid, uids in enumerate(self.env_stats.aid2uids):
                 self.popart[aid].update(np.take(stats.v_target, indices=uids, axis=2))
+            stats['theta/popart/mean'] = [rms.mean for rms in self.popart]
+            stats['theta/popart/std'] = [rms.std for rms in self.popart]
 
         data = flatten_dict({k: v 
             for k, v in data.items() if v is not None}, prefix='data')
         stats.update(data)
-        stats['theta/popart/mean'] = [rms.mean for rms in self.popart]
-        stats['theta/popart/std'] = [rms.std for rms in self.popart]
-        # stats = sample_stats(stats, max_record_size=100)
 
         return stats
 
@@ -141,14 +140,14 @@ class Trainer(TrainerBase):
                 theta, opt_state, data, self.n_lka_epochs, 
                 self.n_lka_mbs, self.lka_indices, 
                 self.jit_lka_train, aids=aids, 
-                return_stats=True
+                return_stats=True, name='lka'
             )
         elif self.config.update_scheme == 'whole':
             theta, opt_state, stats = self.sequential_opt(
                 theta, opt_state, data, self.n_lka_epochs, 
                 self.n_lka_mbs, self.lka_indices, 
                 self.jit_lka_train, aids=aids, 
-                return_stats=True
+                return_stats=True, name='lka'
             )
         else:
             raise NotImplementedError(self.config.update_scheme)
@@ -158,7 +157,6 @@ class Trainer(TrainerBase):
         self.model.set_lka_params(theta)
         self.lookahead_opt_state = opt_state
 
-        stats = prefix_name(stats, name='lka')
         data = flatten_dict({k: v 
             for k, v in data.items() if v is not None}, prefix='lka/data')
         stats.update(data)
@@ -166,7 +164,8 @@ class Trainer(TrainerBase):
         return stats
     
     def sequential_opt(self, theta, opt_state, data, 
-            n_epochs, n_mbs, indices, train_fn, aids=None, return_stats=True):
+            n_epochs, n_mbs, indices, train_fn, aids=None, 
+            return_stats=True, name=None):
         teammate_log_ratio = jnp.zeros((*data.mu_logprob.shape[:2], 1))
 
         v_target = [None for _ in self.aid2uids]
@@ -181,12 +180,13 @@ class Trainer(TrainerBase):
             for e in range(n_epochs):
                 vts = []
                 np.random.shuffle(indices)
-                for idx in np.split(indices, n_mbs):
-                    d = agent_data.slice(idx)
+                _indices = np.split(indices, n_mbs)
+                for i, d in enumerate(yield_from_tree_with_indices(
+                        agent_data, _indices, axis=0)):
                     if self.config.popart:
                         d.popart_mean = self.popart[aid].mean
                         d.popart_std = self.popart[aid].std
-                    tlr = teammate_log_ratio[idx]
+                    tlr = teammate_log_ratio[_indices[i]]
                     agent_theta, agent_opt_state, stats = \
                         train_fn(
                             agent_theta, 
@@ -197,11 +197,18 @@ class Trainer(TrainerBase):
                             compute_teammate_log_ratio=False, 
                             return_stats=self.config.get('debug', False)
                         )
+                    # if name is None:
+                    #     print('adv_ratio_pp', stats.adv_ratio_pp)
+                    #     print('adv_ratio_pn', stats.adv_ratio_pn)
+                    #     print('adv_ratio_np', stats.adv_ratio_np)
+                    #     print('adv_ratio_nn', stats.adv_ratio_nn)
+                    #     np.testing.assert_almost_equal(
+                    #         stats.adv_ratio_pp + stats.adv_ratio_pn + stats.adv_ratio_np + stats.adv_ratio_nn, 1, 2)
                     vts.append(stats.pop('v_target'))
+                    if e == 0 and i == 0:
+                        all_stats.update(**prefix_name(stats, name=f'agent{aid}_first_epoch'))
                 if e == n_epochs-1:
                     all_stats.update(**prefix_name(stats, name=f'agent{aid}_last_epoch'))
-                elif e == 0:
-                    all_stats.update(**prefix_name(stats, name=f'agent{aid}_first_epoch'))
             teammate_log_ratio = self.compute_teammate_log_ratio(
                 agent_theta.policy, self.rng, teammate_log_ratio, agent_data
             )
@@ -214,12 +221,13 @@ class Trainer(TrainerBase):
         if return_stats:
             all_stats.v_target = np.concatenate(v_target, 2)
             assert all_stats.v_target.shape == data.reward.shape, (all_stats.v_target.shape, data.reward.shape)
+            all_stats = prefix_name(all_stats, name=name)
             return theta, opt_state, all_stats
         return theta, opt_state
 
     def stepwise_sequential_opt(self, theta, opt_state, data, 
-            n_epochs, n_mbs, indices, train_fn, aids=None, return_stats=True):
-        period = 10 if n_epochs > 10 else 2
+            n_epochs, n_mbs, indices, train_fn, aids=None, 
+            return_stats=True, name=None):
         all_stats = AttrDict()
 
         for e in range(n_epochs):
@@ -260,14 +268,13 @@ class Trainer(TrainerBase):
                             all_stats.update(**prefix_name(stats, name=f'agent{aid}_last_epoch'))
                         elif e == 0 and i == 0:
                             all_stats.update(**prefix_name(stats, name=f'agent{aid}_first_epoch'))
-                        elif e % period == 0 and i == n_mbs - 1:
-                            all_stats.update(**prefix_name(stats, name=f'agent{aid}_epoch{e}'))
                 v_target.append(vts)
 
         if return_stats:
             v_target = [np.concatenate(v, 2) for v in v_target]
             all_stats.v_target = np.concatenate(v_target)
             assert all_stats.v_target.shape == data.reward.shape, (all_stats.v_target.shape, data.reward.shape)
+            all_stats = prefix_name(all_stats, name=name)
             return theta, opt_state, all_stats
         return theta, opt_state
 
