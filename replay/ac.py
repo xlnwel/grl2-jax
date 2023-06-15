@@ -198,8 +198,9 @@ class ACBuffer(Buffer):
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
         assert len(self._queue) == 1, len(self._queue)
-        sample = {k: self._queue[0][k] for k in sample_keys}
-        self._queue[0]['used'] = True
+        # sample = {k: self._queue[0][k] for k in sample_keys}
+        sample = self._queue[0]
+        # self._queue[0]['used'] = True
 
         return sample
 

@@ -14,7 +14,6 @@ class RayBase:
         if seed is not None:
             if id is not None:
                 seed += id * 1000
-            print('seed', seed)
             set_seed(seed)
 
     def register_handler(self, **kwargs):

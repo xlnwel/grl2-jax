@@ -49,6 +49,7 @@ class DummyEnv:
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
         obs = {'obs': obs}
+        info = {}
         return obs, reward, done, info
 
 

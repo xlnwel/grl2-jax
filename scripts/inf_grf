@@ -9,10 +9,7 @@ algos=(
 envs=(
     # $1
     academy_3_vs_1_with_keeper
-    academy_3_vs_1_with_keeper
     academy_corner
-    academy_corner
-    academy_counterattack_hard
     academy_counterattack_hard
     # academy_custom_counterattack_hard
 )
@@ -38,7 +35,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-# date="0512"
+# date=0519
 info=""
 ld="${suite}-logs"
 

@@ -1,6 +1,6 @@
 import numpy as np
 
-from tools.rms import denormalize
+from tools.rms import normalize, denormalize
 from tools.display import print_dict_info
 from algo.ma_common.run import Runner, concat_along_unit_dim
 
@@ -45,6 +45,8 @@ def prepare_buffer(
             next_value=next_value, 
             reset=data.reset,
         )
+        if agent.trainer.config.popart:
+            data.v_target = normalize(data.v_target, mean, std)
 
     buffer.move_to_queue(data)
 

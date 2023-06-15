@@ -5,7 +5,6 @@ yes y | sudo apt-get install htop tmux
 yes y | sudo apt-get install nano vim
 yes y | sudo apt-get install rsync
 rsync -avz ~/chenxinwei/.zshrc ~/
-rsync -avz ~/chenxinwei/.script ~/
 # setup zsh
 yes y | sudo apt-get install zsh
 rsync -avz ~/chenxinwei/.oh-my-zsh ~/

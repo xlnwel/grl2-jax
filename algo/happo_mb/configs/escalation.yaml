@@ -34,7 +34,7 @@ routine:
     switch_model_at_every_step: False
     quantify_dynamics_errors: False
     rollout_type: lka
-    same_order: False
+    same_order: True
 
 env:
     env_name: &env_name magw-escalation

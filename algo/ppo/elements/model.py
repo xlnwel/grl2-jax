@@ -141,23 +141,28 @@ class Model(MAModelBase):
         if not self.has_rnn:
             return None
         data = construct_fake_data(self.env_stats, batch_size)
-        _, policy_state = self.modules.policy(
-            self.params.policy, 
-            self.act_rng, 
-            data.obs, 
-            data.state_reset
-        )
-        _, value_state = self.modules.value(
-            self.params.value, 
-            self.act_rng, 
-            data.global_state, 
-            data.state_reset
-        )
-        self._initial_state = AttrDict(
-            policy=jax.tree_util.tree_map(jnp.zeros_like, policy_state), 
-            value=jax.tree_util.tree_map(jnp.zeros_like, value_state), 
-        )
-        return self._initial_state
+        states = []
+        for p, v, d in zip(self.params.policies, self.params.vs, data):
+            state = AttrDict()
+            p = p.copy()
+            p.pop(LOOKAHEAD)
+            _, state.policy = self.modules.policy(
+                p, 
+                self.act_rng, 
+                d.obs, 
+                d.state_reset
+            )
+            _, state.value = self.modules.value(
+                v, 
+                self.act_rng, 
+                d.global_state, 
+                d.state_reset
+            )
+            states.append(state)
+        states = tuple(states)
+        self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, states)
+
+        return self._initial_states[name]
 
 
 def setup_config_from_envstats(config, env_stats):
@@ -185,19 +190,19 @@ def create_model(
     return Model(
         config=config, 
         env_stats=env_stats, 
-        name=name,
+        name=name, 
         **kwargs
     )
 
 
-if __name__ == '__main__':
-    from tools.yaml_op import load_config
-    from env.func import create_env
-    from tools.display import pwc
-    config = load_config('algo/zero_mr/configs/magw_a2c')
+# if __name__ == '__main__':
+#     from tools.yaml_op import load_config
+#     from env.func import create_env
+#     from tools.display import pwc
+#     config = load_config('algo/zero_mr/configs/magw_a2c')
     
-    env = create_env(config.env)
-    model = create_model(config.model, env.stats())
-    data = construct_fake_data(env.stats(), 0)
-    print(model.action(model.params, data))
-    pwc(hk.experimental.tabulate(model.raw_action)(model.params, data), color='yellow')
+#     env = create_env(config.env)
+#     model = create_model(config.model, env.stats())
+#     data = construct_fake_data(env.stats(), 0)
+#     print(model.action(model.params, data))
+#     pwc(hk.experimental.tabulate(model.raw_action)(model.params, data), color='yellow')

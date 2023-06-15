@@ -8,39 +8,40 @@ algos=(
 )
 envs=(
     # $1
-    academy_3_vs_1_with_keeper
-    # academy_corner
-    # academy_counterattack_hard
+    # academy_3_vs_1_with_keeper
+    academy_corner
+    academy_counterattack_hard
     # academy_custom_counterattack_hard
 )
 # shift
 configs=$envs
 args1=(
-    300
-    500
-    800
+    10
+    # 5
+    # 15
     # 300
     # 800
     # 4096
 )
 args2=(
-    1024
-    2048
+    # $1
+    1000
+    2000
     # 4096
     # 2048
     # 1e-3
 )
 args3=(
-    1e4
-    1e5
+    # $2
+    15
+    10
 )
 args4=(
-    True
-    # False
-    # .1
+    # $3
+    1
+    5
 )
 date=$(date +"%m%d")
-# date="0516"
 info=""
 ld="${suite}-logs"
 
@@ -59,25 +60,27 @@ if [[ "$OSTYPE" == 'linux-gnu'* ]]; then
             for a2 in "${args2[@]}"; do
                 for a1 in "${args1[@]}"; do
                     for a3 in "${args3[@]}"; do
-                        kws="1#n_epochs=$a1 1#batch_size=$a2 1#max_size=$a3 debug=True"
-                        env="${suite}-${e}"
-                        config="${e}"
-                        for s in {0..2}; do
-                            gpus=$(nvidia-smi -L | wc -l)
-                            gpu=$(($i % $gpus))
-                            py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s --gpu $gpu 2> /dev/null"
-                            commands+=("$py_script")
-                            echo $py_script
-                            # eval $py_script
-                            # sleep 3
-                            ((i=(i+1) ))
+                        for a4 in "${args4[@]}"; do
+                            kws="compute_return_at_once=True target_type=gae 0#n_lka_epochs=$a1 0#n_simulated_envs=$a2 0#n_simulated_steps=$a3 1#n_epochs=1500 1#reward_coef=$a4 debug=True"
+                            env="${suite}-${e}"
+                            config="${e}"
+                            for s in {0..4}; do
+                                gpus=$(nvidia-smi -L | wc -l)
+                                gpu=$(($i % $gpus))
+                                py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s --gpu $gpu"
+                                commands+=("$py_script")
+                                echo $py_script
+                                # eval $py_script
+                                # sleep 3
+                                ((i=(i+1) ))
+                            done
                         done
                     done
                 done
             done
         done
     done
-    printf "%s\n" "${commands[@]}" | xargs -P 6 -I {} bash -c "{}"
+    printf "%s\n" "${commands[@]}" | xargs -s 1024 -P 10 -I {} bash -c "{}"
 else
     le=${#envs[@]}
     idx=$(($INF_MAC_NODE_RANK % $le))
@@ -98,17 +101,20 @@ else
     la3=${#args3[@]}
     idx=$(($INF_MAC_NODE_RANK % $la3))
     a3=${args3[$idx]}
+    la4=${#args4[@]}
+    idx=$(($INF_MAC_NODE_RANK % $la4))
+    a4=${args4[$idx]}
 
-    kws="1#n_epochs=$a1 1#batch_size=$a2 1#lr=$a3 1#max_size=5e5 debug=True"
+    kws="compute_return_at_once=True target_type=gae max_episode_steps=1000 0#n_lka_epochs=$1 0#n_simulated_envs=$2 0#n_simulated_steps=$3 1#n_epochs=$4 debug=True"
     env="${suite}-${e}"
     config="${e}"
     # kws=$@
-    for s in {0..0}; do
+    for s in {0..4}; do
         py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
         commands+=("$py_script")
         echo $py_script
     done
-    printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 6 -L 1 bash -c COMMAND 
+    printf '%s\n' "${commands[@]}" | xargs -S 1024 -I COMMAND -P 5 -L 1 bash -c COMMAND
 fi
 
 # kws=$@

@@ -38,9 +38,10 @@
         "*.tar"
     ]
 }
+
 {
     "host": "36.111.128.2",
-    "port": 44087,
+    "port": 44186,
     "username": "ubuntu",
     "password": "imin",
     "protocol": "sftp",
@@ -49,7 +50,48 @@
     "passphrase": null,
     "passive": true, 
     "interactiveAuth": false,
-    "remotePath": "/home/ubuntu/chenxinwei/grl",
+    "remotePath": "/home/ubuntu/grl",
+    "uploadOnSave": true,
+    "syncMode": "update",
+
+    "watcher": {
+        "files": "glob",
+        "autoUpload": true,
+        "autoDelete": true
+    },
+    "ignore": [
+        ".vscode",
+        ".git",
+        ".gitignore",
+        ".DS_Store",
+        "old-logs**",
+        "*.pyc",
+        "logs**",
+        "**-logs",
+        "**.md",
+        "**__pycache__**",
+        "**results**",
+        "trial",
+        "gpo_meta",
+        "algo2",
+        "algo3", 
+        ".tmp*", 
+        "*.tar"
+    ]
+}
+
+{
+    "host": "172.16.20.124",
+    "port": 22,
+    "username": "root",
+    "password": "polixir",
+    "protocol": "sftp",
+    "agent": null,
+    "privateKeyPath": null,
+    "passphrase": null,
+    "passive": true, 
+    "interactiveAuth": false,
+    "remotePath": "/home/ubuntu/grl",
     "uploadOnSave": true,
     "syncMode": "update",
 

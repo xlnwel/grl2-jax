@@ -43,7 +43,7 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-date="0517"
+date="0617"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)

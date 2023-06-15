@@ -26,7 +26,7 @@ routine:
 
     n_lka_steps: 0
     model_rollout_type: sim
-    compute_return_at_once: False
+    compute_return_at_once: True
     ignore_ratio_for_ego: False
     ignore_ratio_for_lookahead: False
     perm: null
@@ -80,12 +80,12 @@ model:
 
 loss:
     # hyperparams for value target and advantage
-    target_type: vtrace
+    target_type: gae
     c_clip: 1
     rho_clip: 1
     adv_type: gae
     norm_adv: False
-    zero_center: True
+    zero_center: False
     popart: &popart True
 
     prnn_bptt: 10
@@ -195,3 +195,5 @@ buffer:
         - mu_scale
         - state_reset
         - state
+        - advantage
+        - v_target

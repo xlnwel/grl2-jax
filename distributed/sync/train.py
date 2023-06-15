@@ -40,7 +40,6 @@ def main(configs):
     save_configs(configs)
     
     seed = config.get('seed')
-    print('seed', seed)
     set_seed(seed)
 
     controller = Controller(configs[0])

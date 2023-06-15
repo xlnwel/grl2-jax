@@ -124,8 +124,13 @@ def tree_slice(d, loc=None, indices=None, axis=None):
 def dict2AttrDict(d: dict, shallow=False, to_copy=False):
     if isinstance(d, AttrDict) and not to_copy:
         return d
-    if d is None:
+    if not isinstance(d, (list, dict, tuple)):
         return d
+    if isinstance(d, (list, tuple)):
+        return type(d)([
+            dict2AttrDict(dd, to_copy=to_copy) 
+            for dd in d])
+    assert isinstance(d, dict), d
     if shallow:
         res = AttrDict()
         for k, v in d.items():
@@ -134,7 +139,7 @@ def dict2AttrDict(d: dict, shallow=False, to_copy=False):
 
     res = AttrDict()
     for k, v in d.items():
-        if isinstance(v, dict):
+        if isinstance(v, (dict, list, tuple)):
             res[k] = dict2AttrDict(v, to_copy=to_copy)
         else:
             res[k] = copy.deepcopy(v)

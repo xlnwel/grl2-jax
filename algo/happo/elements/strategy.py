@@ -5,6 +5,16 @@ from algo.lka_common.elements.strategy import Strategy as StrategyBase, create_s
 
 
 class Strategy(StrategyBase):
+    def _prepare_input_to_actor(self, env_output):
+        inp = super()._prepare_input_to_actor(env_output)
+        inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
+        return inp
+
+    def _record_output(self, out):
+        state = out[-1]
+        self._memory.set_states(state)
+        return out
+
     def compute_value(self, env_output, states=None):
         if isinstance(env_output.obs, list):
             inps = [AttrDict(
@@ -18,6 +28,7 @@ class Strategy(StrategyBase):
             resets = [env_output.reset[:, uids] for uids in self.aid2uids]
         inps = self._memory.add_memory_state_to_input(inps, resets, states)
         value = self.actor.compute_value(inps)
+
         return value
 
 

@@ -15,7 +15,7 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 2e6
+    MAX_STEPS: 5e6
     n_steps: &nsteps 100
     LOG_PERIOD: 1e5
     EVAL_PERIOD: null
@@ -34,7 +34,7 @@ routine:
     ignore_ratio_for_lookahead: False
     perm: null
     restore_state: False
-    switch_model_at_every_step: True
+    switch_model_at_every_step: False
     quantify_dynamics_errors: False
     rollout_type: lka
     concise_mode: True
@@ -162,7 +162,7 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 30
+    n_epochs: &nepochs 15
     n_mbs: &nmbs 1
     n_steps: *nsteps
     update_scheme: whole

@@ -64,10 +64,10 @@ def get_level(search_dir, last_prefix=None):
 
 
 def get_date(args_date):
-    date = []
+    date = set()
     for d in args_date:
         if d.isdigit():
-            date.append(d)
+            date.add(str(d))
         else:
             dt = datetime.now()
             if d == 'today':
@@ -87,7 +87,7 @@ def get_date(args_date):
             elif d == 'fda':
                 # four days ago
                 dt = dt - timedelta(days=4)
-            date.append(dt.strftime('%m%d'))
+            date.add(dt.strftime('%m%d'))
     return date
 
 
@@ -106,7 +106,10 @@ def fixed_pattern_search(
     elif not os.path.isdir(search_dir) or level.greater(final_level):
         return []
     elif level == final_level:
-        if final_name is None or search_dir.endswith(final_name):
+        last_name = search_dir.split('/')[-1]
+        if not isinstance(final_name, (list, tuple)):
+            final_name = [final_name]
+        if final_name is None or any([last_name.startswith(p) for p in final_name]):
             yield search_dir
         else:
             return []
@@ -118,7 +121,7 @@ def fixed_pattern_search(
             if all([d not in search_dir for d in date]):
                 return []
         elif level == DirLevel.ALGO and algo:
-            if all([a not in search_dir for a in algo]):
+            if all([not search_dir.endswith(a) for a in algo]):
                 return []
         elif level == DirLevel.ENV and env:
             if all([e not in search_dir for e in env]):

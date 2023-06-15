@@ -98,8 +98,14 @@ if __name__ == '__main__':
         root, env, algo, date, model = d.rsplit('/', 4)
         root = root if args.new_root is None else args.new_root
         prev_dir = '/'.join([root, env, algo, date])
-        new_dir = '/'.join([root, env, algo, date, model])
-        do_logging(f'Moving directory from {d} to {new_dir}')
+        new_date = args.new_date if args.new_date else date
+        new_model = model
+        if model_rename:
+            for s in model_rename:
+                old, new = s.split('=')
+                new_model = new_model.replace(old, new)
+        new_dir = '/'.join([root, env, algo, new_date, new_model])
+        do_logging(f'Moving directory from \n{d} to \n{new_dir}')
         if not os.path.isdir(prev_dir):
             Path(prev_dir).mkdir(parents=True)
         # if os.path.isdir(new_dir):
@@ -109,11 +115,11 @@ if __name__ == '__main__':
         else:
             os.rename(d, new_dir)
         for d2 in fixed_pattern_search(
-            d, 
+            new_dir, 
             level=DirLevel.MODEL, 
             env=args.env, 
             algo=args.algo, 
-            date=date, 
+            date=new_date, 
             model=args.model, 
         ):
             last_name = d2.split('/')[-1]

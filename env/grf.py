@@ -445,7 +445,6 @@ class GRF:
         return obs
 
     def seed(self, seed=None):
-        print('seed', seed)
         self.env.unwrapped.seed(seed)
         return seed
 

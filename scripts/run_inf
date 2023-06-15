@@ -10,87 +10,53 @@
 # ./scripts/inf magw 1 inf_magw_mb n_simulated_envs=400 lka_entropy_coef=0
 
 # mujoco
-# ./scripts/inf mujoco 1 inf_mujoco happo
+# ./scripts/inf mujoco 1 inf_mujoco nepochs=5 
+# ./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=exp rescaled_by_adv=True sample_reg_coef=1
+./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=exp rescaled_by_adv=True sample_pos_reg_coef=1
+# ./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=log rescaled_by_adv=True sample_reg_coef=1
+./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=log rescaled_by_adv=True sample_pos_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_type=exp sample_pos_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_type=exp sample_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_type=log sample_pos_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_type=log sample_reg_coef=1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 400 15 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 400 15 5
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 400 10 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 400 10 5
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 800 15 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 800 15 5
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 800 10 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 800 10 5
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 1200 15 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 1200 15 5
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 1200 10 1
+# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 1200 10 5
 # ./scripts/inf mujoco 1 inf_mujoco happo_lka2
 # ./scripts/inf mujoco 1 inf_mujoco happo_lka2 n_lka_epochs=5
 # ./scripts/inf mujoco 1 inf_mujoco happo_lka2 n_lka_epochs=5 sample_reg_type=exp rescaled_by_adv=True sample_reg_coef=1 debug=True
 # ./scripts/inf mujoco 1 inf_mujoco happo_lka2 n_lka_epochs=5 sample_reg_type=exp rescaled_by_adv=True sample_reg_coef=.5 debug=True
 # ./scripts/inf mujoco 1 inf_mujoco happo_lka2 n_lka_epochs=5 sample_reg_type=exp rescaled_by_adv=True sample_reg_coef=.1 debug=True
-# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo 0#n_epochs=800
-# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=400 0#rollout_type=mix
-# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=800 0#rollout_type=mix
-# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=400 0#rollout_type=lka
-# ./scripts/inf ma_mujoco 1 inf_mbpo mambpo_lka2 0#n_epochs=800 0#rollout_type=lka
 
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_type=log sample_reg_coef=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_type=log sample_pos_reg_coef=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#dynamics_name=dynamics_tx
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#n_epochs=800
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#lr=3e-4
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#lr=8e-4
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 1#max_size=3e5
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=True lower_threshold=-1 upper_threshold=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=True lower_threshold=-2 upper_threshold=2
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=False lower_threshold=-1 upper_threshold=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=False lower_threshold=-2 upper_threshold=2
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=False rescaled_by_mu=True lower_threshold=-1 upper_threshold=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=False rescaled_by_mu=True lower_threshold=-2 upper_threshold=2
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=False rescaled_by_mu=False lower_threshold=-1 upper_threshold=1
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_coef=1 rescaled_by_adv=False rescaled_by_mu=False lower_threshold=-2 upper_threshold=2
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#n_simulated_envs=400 0#n_simulated_steps=15
-# ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 0#n_simulated_envs=400 0#n_simulated_steps=20
-
-# ./scripts/inf grf 3 inf_grf_lka2 lka_actor_sil_coef=1 lka_value_sil_coef=0
-# ./scripts/inf grf 2 inf_grf_lka2 sample_reg_coef=.1
-# ./scripts/inf grf 3 inf_grf debug=True
-# ./scripts/inf grf 3 inf_grf_lka2 debug=True
-# ./scripts/inf grf 1 inf_grf compute_return_at_once=True
-# ./scripts/inf grf 3 inf_grf sample_reg_coef=1 sample_reg_type=exp reg_clip=0.2 debug=True rescaled_by_adv=True
 # ./scripts/inf grf 3 inf_grf
-# ./scripts/inf grf 1 inf_grf_lka
-# ./scripts/inf grf 1 inf_grf_lka 1024 500 5e-4
-# ./scripts/inf grf 1 inf_grf_lka 1024 500 3e-4
-# ./scripts/inf grf 1 inf_grf_lka 1024 800 5e-4
-# ./scripts/inf grf 1 inf_grf_lka 1024 800 3e-4
-# ./scripts/inf grf 1 inf_grf_lka 512 500 5e-4
-# ./scripts/inf grf 1 inf_grf_lka 512 500 3e-4
-# ./scripts/inf grf 1 inf_grf_lka 512 800 5e-4
-# ./scripts/inf grf 1 inf_grf_lka 512 800 3e-4
-# ./scripts/inf grf 1 inf_grf_lka 4096 3e-3
-# ./scripts/inf grf 1 inf_grf_lka 8192 1e-3
-# ./scripts/inf grf 1 inf_grf_lka 8192 3e-3
-./scripts/inf grf 3 inf_grf
-./scripts/inf grf 3 inf_grf_lka2
-./scripts/inf grf 3 inf_grf_lka2 lka_reg_coef=.5
-./scripts/inf grf 3 inf_grf_lka2 lka_reg_coef=.1
-# ./scripts/inf grf 1 inf_grf_lka2 academy_corner n_epochs=30
-# ./scripts/inf grf 1 inf_grf_lka2 academy_counterattack_hard n_epochs=30
-# ./scripts/inf grf 1 inf_grf_lka2 academy_3_vs_1_with_keeper n_epochs=30
-# ./scripts/inf grf 1 inf_grf_lka2 academy_corner n_epochs=15
-# ./scripts/inf grf 1 inf_grf_lka2 academy_counterattack_hard n_epochs=15
-# ./scripts/inf grf 1 inf_grf_lka academy_3_vs_1_with_keeper 0#n_epochs=30
-# ./scripts/inf grf 1 inf_grf_lka academy_corner 0#n_epochs=15
-# ./scripts/inf grf 1 inf_grf_lka academy_counterattack_hard 0#n_epochs=15
-# ./scripts/inf grf 1 inf_grf n_epochs=30 entropy_coef=5e-3
-# ./scripts/inf grf 3 inf_grf_lka2 n_epochs=30 
-# ./scripts/inf grf 1 inf_grf n_epochs=15 entropy_coef=3e-4
-# ./scripts/inf grf 2 inf_grf_lka2 n_epochs=30 n_lka_epochs=15 
-# ./scripts/inf grf 2 inf_grf_lka2 n_epochs=30 n_lka_epochs=15 lka_entropy_coef=0
-# ./scripts/inf grf 2 inf_grf_lka2 n_epochs=30 lka_reg_coef=.1 lka_entropy_coef=0
-# ./scripts/inf grf 3 inf_grf_lka2 lka_actor_sil_coef=1 lka_value_sil_coef=1
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=500 1#lr=1e-3
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=500 1#lr=8e-4
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=500 1#lr=5e-4
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=800 1#lr=1e-3
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=800 1#lr=8e-4
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=800 1#lr=5e-4
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=500 1#lr=8e-4 1#repr_config:units_list=1024,1024,1024,1024
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=800 1#lr=8e-4 1#repr_config:units_list=1024,1024,1024,1024
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=800 1#lr=8e-4 1#repr_config:units_list=800,800,800,800
-# ./scripts/inf grf 1 inf_grf_lka 0#1#n_epochs=800 1#lr=1e-3 1#repr_config:units_list=800,800,800,800
-# ./scripts/inf grf 2 inf_grf target_type=vtrace
-# ./scripts/inf grf 1 inf_grf n_epochs=30
-# ./scripts/inf grf 1 inf_grf_lka academy_counterattack_hard 0#n_lka_epochs=15 1#n_epochs=1000 1#lr=5e-4 1#primal_percentage=.5
-# ./scripts/inf grf 1 inf_grf_lka academy_counterattack_hard 0#n_lka_epochs=15 1#n_epochs=1000 1#lr=5e-4 1#primal_percentage=.1
-# ./scripts/inf grf 1 inf_grf_lka academy_counterattack_hard 0#n_lka_epochs=15 1#n_epochs=1500 1#lr=5e-4 1#primal_percentage=.5
-# ./scripts/inf grf 1 inf_grf_lka academy_counterattack_hard 0#n_lka_epochs=15 1#n_epochs=1500 1#lr=5e-4 1#primal_percentage=.1
+# ./scripts/inf grf 3 inf_grf sample_reg_type=log sample_reg_coef=1
+# ./scripts/inf grf 3 inf_grf sample_reg_type=exp sample_reg_coef=1
+# ./scripts/inf grf 2 inf_grf compute_return_at_once=True target_type=gae max_episode_steps=1000
+# ./scripts/inf grf 2 inf_grf target_type=gae units_list=256,256
+# ./scripts/inf grf 3 inf_grf target_type=gae sample_reg_type=exp sample_pos_reg_coef=1
+# ./scripts/inf grf 3 inf_grf_lka2 target_type=gae
+# ./scripts/inf grf 1 inf_grf_lka 5 1000 15 1200 1
+# ./scripts/inf grf 1 inf_grf_lka 5 2000 15 1200 1
+# ./scripts/inf grf 2 inf_grf_lka 10 1000 10 2000
+# ./scripts/inf grf 2 inf_grf_lka 10 1000 15 2000
+# ./scripts/inf grf 2 inf_grf_lka 10 1000 20 2000
+# ./scripts/inf grf 2 inf_grf_lka 10 2000 10 2000
+# ./scripts/inf grf 2 inf_grf_lka 10 2000 15 2000
+# ./scripts/inf grf 2 inf_grf_lka 10 2000 20 2000
+# ./scripts/inf grf 1 inf_grf_lka 10 1000 15 1500 5
+# ./scripts/inf grf 1 inf_grf_lka 10 1000 10 1500 1
+# ./scripts/inf grf 1 inf_grf_lka 10 1000 10 1500 5
+# ./scripts/inf grf 1 inf_grf_lka 5 1000 15 1200 10
+# ./scripts/inf grf 1 inf_grf_lka 5 2000 15 1200 10
+# ./scripts/inf grf 1 inf_grf_lka 10 1000 15 1200 10
+# ./scripts/inf grf 1 inf_grf_lka 10 2000 15 1200 10

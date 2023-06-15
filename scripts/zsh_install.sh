@@ -14,39 +14,44 @@
 # # setup locales in ~/.bashrc or ~/.zshrc
 # export LANG=en_US.UTF-8
 # export LC_ALL=en_US.UTF-8
-# yes y | sudo apt-get install mosh
+# # yes y | sudo apt-get install mosh
 # yes y | sudo apt-get install -y locales
 
 yes y | sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-dev \
 libsdl2-image-dev libsdl2-ttf-dev libsdl2-gfx-dev \
 libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-pip
 
-# echo "nameserver 114.114.114.114" | sudo tee -a /etc/resolv.conf
-# echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
-# cd /etc/apt/sources.list.d
-# sudo mv cuda.list cuda.list-old
-# sudo mv nvidia-ml.list nvidia-ml.list-old
-cd ~
+# # echo "nameserver 114.114.114.114" | sudo tee -a /etc/resolv.conf
+# # echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+# # cd /etc/apt/sources.list.d
+# # sudo mv cuda.list cuda.list-old
+# # sudo mv nvidia-ml.list nvidia-ml.list-old
+# cd ~
 yes y | sudo apt-get install libboost-all-dev
 # sudo chown -R ubuntu ~/.condarc
-# conda config --add envs_dirs $HOME/chenxinwei/conda/envs
-# yes y | conda create -n grl python==3.8.10
+# conda config --add envs_dirs $HOME/.conda/envs
 yes y | conda create -n grl python==3.9.15
-conda activate grl
+source activate grl
 
-# yes y | conda install cudnn
-# pip install --upgrade pip
+conda install -c conda-forge cudatoolkit=11.8.0
+pip install nvidia-cudnn-cu11==8.6.0.163
+mkdir -p $CONDA_PREFIX/etc/conda/activate.d
+echo 'CUDNN_PATH=$(dirname $(python -c "import nvidia.cudnn;print(nvidia.cudnn.__file__)"))' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
+echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/:$CUDNN_PATH/lib' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
+pip install --upgrade pip
 
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --upgrade setuptools psutil wheel
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple opencv-python
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen mujoco-py mujoco
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gfootball
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple jax optax dm-haiku distrax chex
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tensorflow
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ray
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple scipy pandas Pillow matplotlib plotly seaborn
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ipython
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tqdm
+pip install --upgrade setuptools psutil wheel
+pip install opencv-python
+pip install gym==0.24.1
+# pip install atari_py procgen mujoco-py mujoco
+pip install jax optax dm-haiku distrax chex
+pip install --upgrade "jax[cuda11_local]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+pip install tensorflow
+pip install ray
+pip install scipy pandas Pillow matplotlib plotly seaborn
+pip install ipython
+pip install tqdm
+pip install gfootball
 # pip install pysc2
 
 # rsync -avz ~/chenxinwei/StarCraftII ~/

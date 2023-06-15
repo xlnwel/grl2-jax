@@ -1,0 +1,1455 @@
+Script started on Tue Mar 21 06:09:55 2023
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[6:09:56] 
+[1m[31m$ [00m[K[?1h=[?2004h./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\inf_mac job run python --exec-command sh ./scripts/inf_escalation ma_mujoco      --working-dir . --num-nodes 3 --user chenxw --use-env chenxw     --sync-dir ./ma_mujoco-logs:/System/Volumes/Data/mnt/公共区/cxw
+Usage: inf_mac job run python [OPTIONS]
+Try 'inf_mac job run python --help' for help.
+
+Error: Got unexpected extra arguments (./scripts/inf_escalation ma_mujoco)
+[1m[3m%[23m[1m[0m                                                                                                                           ./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\inf_mac job run python --exec-command sh ./scripts/inf_escalation ma_mujoco      --working-dir . --num-nodes 3 --user chenxw --use-env chenxw     --sync-dir ./ma_mujoco-logs:/System/Volumes/Data/mnt/公共区/cxw
+Usage: inf_mac job run python [OPTIONS]
+Try 'inf_mac job run python --help' for../scripts/run_infinf ma_mujoco 2 inf_mujoco_ppo[30Drun_inf                       [23D[?1l>[?2004l
+k./scripts/run_inf\inf_mac job run python --exec-command sh ./scripts/inf_escalation magw  --working-dir . --num-nodes 3 --user chenxw --use-env chenxw --sync-dir ./magw-logs:/System/Volumes/Data/mnt/公共区/cxw
+Usage: inf_mac job run python [OPTIONS]
+Try 'inf_mac job run python --help' for help.
+
+Error: Got unexpected extra arguments (./scripts/inf_escalation magw)
+[1m[3m%[23m[1m[0m                                                                   ../scripts/run_infinf ma_mujoco 2 inf_mujoco_ppo[30Drun_inf                       [23D[?1l>[?2004l
+k./scripts/run_inf\inf_mac job run python --exec-command sh ./scripts/inf_escalation magw  --working-dir . --num-nodes 3 --user chenxw --use-env chenxw --sync-dir ./magw-logs:/System/Volumes/Data/mnt/公共区/cxw
+Usage: inf_mac job run python [OPTIONS]
+Try 'inf_mac job run python --help./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 06:11:31,712 - inf_mac - INFO - job id: python_job_chenxw__KWJmthhp
+2023-03-21 06:11:31,712 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 06:11:32,519 - inf_mac - INFO - working dir size: 9.12109375 MB
+2023-03-21 06:11:32,519 - inf_mac - INFO - upload working dir...
+2023-03-21 06:11:35,052 - inf_mac - INFO - submitting job...
+2023-03-21 06:11:36,383 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 06:11:37,479 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 06:11:37,480 - inf_mac - INFO - job url: http://172.16.112023-03-21 06:11:31,712 - inf_mac - INFO - job id: python_job_chenxw__KWJmthhp
+2023-03-21 06:11:31,712 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 06:11:32,519 - inf_mac - INFO - working dir size: 9.12109375 MB
+2023-03-21 06:11:32,519 - inf_mac - INFO - upload working dir...
+2023-03-21 06:11:35,052 - inf_mac - INFO - submitting job...
+2023-03-21 06:11:36,383 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 06:11:37,479 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 06:../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 06:30:35,654 - inf_mac - INFO - job id: python_job_chenxw__3cAJidoG
+2023-03-21 06:30:35,654 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 06:30:36,407 - inf_mac - INFO - working dir size: 9.12109375 MB
+2023-03-21 06:30:36,407 - inf_mac - INFO - upload working dir...
+2023-03-21 06:30:39,841 - inf_mac - INFO - submitting job...
+2023-03-21 06:30:40,951 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 06:30:42,092 - inf_mac - INFO - allocation status: 3/3...../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 06:30:35,654 - inf_mac - INFO - job id: python_job_chenxw__3cAJidoG
+2023-03-21 06:30:35,654 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 06:30:36,407 - inf_mac - INFO - working dir size: 9.12109375 MB
+2023-03-21 06:30:36,407 - inf_mac - INFO - upload working dir...
+2023-03-21 06:30:39,841 - inf_mac - INFO - submitting job...
+2023-03-21 06:30:40,951 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 06:30:42,092 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 06:../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 08:12:21,960 - inf_mac - INFO - job id: python_job_chenxw__ZP5tAVsG
+2023-03-21 08:12:21,961 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 08:12:22,945 - inf_mac - INFO - working dir size: 9.12109375 MB
+2023-03-21 08:12:22,946 - inf_mac - INFO - upload working dir...
+2023-03-21 08:12:25,647 - inf_mac - INFO - submitting job...
+2023-03-21 08:12:26,743 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 08:12:27,869 - inf_mac - INFO - allocation status: 2/3....2023-03-21 08:12:28,892 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 08:12:28,893 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__ZP5tAVsG
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[8:12:29] 
+[1m[31m$ [00m[K[?1h=[?2004h./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 08:17:53,863 - inf_mac - INFO - job id: python_job_chenxw__YSg9T8yy
+2023-03-21 08:17:53,863 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 08:17:54,916 - inf_mac - INFO - working dir size: 9.130859375 MB
+2023-03-21 08:17:54,916 - inf_mac - INFO - upload working dir...
+2023-03-21 08:17:57,265 - inf_mac - INFO - submitting job...
+2023-03-21 08:17:58,574 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 08:17:59,672 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 08:17:59,672 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__YSg9T8yy
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[8:17:59] 
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 11:52:53,090 - inf_mac - INFO - job id: python_job_chenxw__ZxRwWyqL
+2023-03-21 11:52:53,090 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 11:52:53,848 - inf_mac - INFO - working dir size: 9.130859375 MB
+2023-03-21 11:52:53,849 - inf_mac - INFO - upload working dir...
+2023-03-21 11:52:57,457 - inf_mac - INFO - submitting job...
+2023-03-21 11:52:58,775 - inf_mac - INFO - allocation status: 0/1...
+2023-03-21 11:52:59,806 - inf_mac - INFO - allocation status: 1/1...../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 11:52:53,090 - inf_mac - INFO - job id: python_job_chenxw__ZxRwWyqL
+2023-03-21 11:52:53,090 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 11:52:53,848 - inf_mac - INFO - working dir size: 9.130859375 MB
+2023-03-21 11:52:53,849 - inf_mac - INFO - upload working dir...
+2023-03-21 11:52:57,457 - inf_mac - INFO - submitting job...
+2023-03-21 11:52:58,775 - inf_mac - INFO - allocation status: 0/1...
+2023-03-21 11:52:59,806 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 11:53:00,900 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 11:5../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 14:49:23,005 - inf_mac - INFO - job id: python_job_chenxw__48uZy265
+2023-03-21 14:49:23,005 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 14:49:23,905 - inf_mac - INFO - working dir size: 9.140625 MB
+2023-03-21 14:49:23,905 - inf_mac - INFO - upload working dir...
+2023-03-21 14:49:29,450 - inf_mac - INFO - submitting job...
+2023-03-21 14:49:30,777 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 14:49:31,885 - inf_mac - INFO - allocation status: 2/2...
+2023-03-21 14:49:31,[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 14:49:23,005 - inf_mac - INFO - job id: python_job_chenxw__48uZy265
+2023-03-21 14:49:23,005 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 14:49:23,905 - inf_mac - INFO - working dir size: 9.140625 MB
+2023-03-21 14:49:23,905 - inf_mac - INFO - upload working dir...
+2023-03-21 14:49:29,450 - inf_mac - INFO - submitting job...
+2023-03-21 14:49:30,777 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 14:49:31,885 - inf_mac - INFO - allocation status: 2/2...
+2023-03-21 14:4../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 15:05:53,121 - inf_mac - INFO - job id: python_job_chenxw__ZQLQjE2D
+2023-03-21 15:05:53,121 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 15:05:54,471 - inf_mac - INFO - working dir size: 9.140625 MB
+2023-03-21 15:05:54,471 - inf_mac - INFO - upload working dir...
+2023-03-21 15:05:58,371 - inf_mac - INFO - submitting job...
+2023-03-21 15:05:59,748 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 15:06:00,885 - inf_mac - INFO - allocation status: 2/2...
+2../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 15:05:53,121 - inf_mac - INFO - job id: python_job_chenxw__ZQLQjE2D
+2023-03-21 15:05:53,121 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 15:05:54,471 - inf_mac - INFO - working dir size: 9.140625 MB
+2023-03-21 15:05:54,471 - inf_mac - INFO - upload working dir...
+2023-03-21 15:05:58,371 - inf_mac - INFO - submitting job...
+2023-03-21 15:05:59,748 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 15:06:00,885 - inf_mac - INFO - allocation status: 2/2...
+2023-03-21 15:0../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 17:12:45,043 - inf_mac - INFO - job id: python_job_chenxw__oYjaV8kb
+2023-03-21 17:12:45,044 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 17:12:46,218 - inf_mac - INFO - working dir size: 9.150390625 MB
+2023-03-21 17:12:46,218 - inf_mac - INFO - upload working dir...
+2023-03-21 17:12:50,360 - inf_mac - INFO - submitting job...
+2023-03-21 17:12:51,676 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 17:12:52,775 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 17:12:52,776 - inf_mac - INFO - job url: http://172.16.12023-03-21 17:12:45,043 - inf_mac - INFO - job id: python_job_chenxw__oYjaV8kb
+2023-03-21 17:12:45,044 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 17:12:46,218 - inf_mac - INFO - working dir size: 9.150390625 MB
+2023-03-21 17:12:46,218 - inf_mac - INFO - upload working dir...
+2023-03-21 17:12:50,360 - inf_mac - INFO - submitting job...
+2023-03-21 17:12:51,676 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 17:12:52,775 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 17:1../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 17:17:34,486 - inf_mac - INFO - job id: python_job_chenxw__bX6jqsoc
+2023-03-21 17:17:34,486 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 17:17:35,809 - inf_mac - INFO - working dir size: 9.150390625 MB
+2023-03-21 17:17:35,809 - inf_mac - INFO - upload working dir...
+2023-03-21 17:17:40,074 - inf_mac - INFO - submitting job...
+2023-03-21 17:17:41,218 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 17:17:42,631 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 17:17:42,632 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__bX6jqsoc
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mo2023-03-21 17:17:42,631 - inf_mac - INFO - allocation status: 3/3...
+2023-03-21 17:1../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+^CTraceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/bin/inf_mac", line 5, in <module>
+    from inf_mac.inf_mac import main
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 1, in <module>
+    from distutils.command.upload import upload
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1002, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", liscripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+^CTraceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/bin/inf_mac", line 5, in <module>
+    from inf_mac.inf_mac import main
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 1, in <module>
+    from distutils.command.upload import upload
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1002, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 945, in _find_spec
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/_distutils_hack/__init__.py", line 97, in find_spec
+    return method()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/_distutils_hack/__init__.py", line 108, in spec_for_distutils
+    mod = importlib.import_module('setuptools._distutils')
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/setuptools/__init__.py", line 18, in <module>
+    from setuptools.dist import Distribution
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/setuptools/dist.py", line 34, in <module>
+    from ._importlib import metadata
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/setuptools/_importlib.py", line 41, in <module>
+    import importlib.metadata as metadata  # noqa: F401
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/importlib/metadata/__init__.py", line 17, in <module>
+    from . import _adapters, _meta
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/importlib/metadata/_adapters.py", line 5, in <module>
+    from ._text import FoldedCase
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/importlib/metadata/_text.py", line 3, in <module>
+    from ._functools import method_cache
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1002, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 945, in _find_spec
+  File "<frozen importlib._bootstrap_external>", line 1439, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1411, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1578, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1532, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1040, in __init__
+KeyboardInterrupt
+
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\^C[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 17:35:37,627 - inf_mac - INFO - job id: python_job_chenxw__FsacBoof
+2023-03-21 17:35:37,627 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 17:35:38,744 - inf_mac - INFO - working dir size: 9.16015625 MB
+2023-03-21 17:35:38,744 - inf_mac - INFO - upload working dir...
+2023-03-21 17:35:41,462 - inf_mac - INFO - submitting job...
+2023-03-21 17:35:42,779 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 17:35:43,880 - inf_mac - INFO - allocation status: 6/6...
+2023-03-21 17:35:43,881 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__FsacBoof
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36map2023-03-21 17:35:42,779 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 17:35:43,880 - inf_mac - INFO - allocation status: 6/6...
+2023-03-21 17:3ggit push[?1l>[?2004l
+kgit\Enumerating objects: 173, done.
+Counting objects:   0% (1/173)Counting objects:   1% (2/173)Counting objects:   2% (4/173)Counting objects:   3% (6/173)Counting objects:   4% (7/173)Counting objects:   5% (9/173)Counting objects:   6% (11/173)Counting objects:   7% (13/173)Counting objects:   8% (14/173)Counting objects:   9% (16/173)Counting objects:  10% (18/173)Counting objects:  11% (20/173)Counting objects:  12% (21/173)Counting objects:  13% (23/173)Counting objects:  14% (25/173)Counting objects:  15% (26/173)Countinggit push[?1l>[?2004l
+kgit\Enumerating objects: 173, done.
+Counting objects:   0% (1/173)Counting objects:   1% (2/173)Counting objects:   2% (4/173)Counting objects:   3% (6/173)Counting objects:   4% (7/173)Counting objects:   5% (9/173)Counting objects:   6% (11/173)Counting objects:   7% (13/173)Counting objects:   8% (14/173)Counting objects:   9% (16/173)Counting objects:  10% (18/173)Counting objects:  11% (20/173)Counting objects:  12% (21/173)Counting objects:  13% (23/173)Counting objects:  14% (25/173)Counting objects:  15% (26/173)Counting objects:  16% (28/173)Counting objects:  17% (30/173)Counting objects:  18% (32/173)Counting objects:  19% (33/173)Counting objects:  20% (35/173)Counting objects:  21% (37/173)Counting objects:  22% (39/173)Counting objects:  23% (40/173)Counting objects:  24% (42/173)Counting objects:  25% (44/173)Counting objects:  26% (45/173)Counting objects:  27% (47/173)Counting objects:  28% (49/173)Counting objects:  29% (51/173)Counting objects:  30% (52/173)Counting objects:  31% (54/173)Counting objects:  32% (56/173)Counting objects:  33% (58/173)Counting objects:  34% (59/173)Counting objects:  35% (61/173)Counting objects:  36% (63/173)Counting objects:  37% (65/173)Counting objects:  38% (66/173)Counting objects:  39% (68/173)Counting objects:  40% (70/173)Counting objects:  41% (71/173)Counting objects:  42% (73/173)Counting objects:  43% (75/173)Counting objects:  44% (77/173)Counting objects:  45% (78/173)Counting objects:  46% (80/173)Counting objects:  47% (82/173)Counting objects:  48% (84/173)Counting objects:  49% (85/173)Counting objects:  50% (87/173)Counting objects:  51% (89/173)Counting objects:  52% (90/173)Counting objects:  53% (92/173)Counting objects:  54% (94/173)Counting objects:  55% (96/173)Counting objects:  56% (97/173)Counting objects:  57% (99/173)Counting objects:  58% (101/173)Counting objects:  59% (103/173)Counting objects:  60% (104/173)Counting objects:  61% (106/173)Counting objects:  62% (108/173)Counting objects:  63% (109/173)Counting objects:  64% (111/173)Counting objects:  65% (113/173)Counting objects:  66% (115/173)Counting objects:  67% (116/173)Counting objects:  68% (118/173)Counting objects:  69% (120/173)Counting objects:  70% (122/173)Counting objects:  71% (123/173)Counting objects:  72% (125/173)Counting objects:  73% (127/173)Counting objects:  74% (129/173)Counting objects:  75% (130/173)Counting objects:  76% (132/173)Counting objects:  77% (134/173)Counting objects:  78% (135/173)Counting objects:  79% (137/173)Counting objects:  80% (139/173)Counting objects:  81% (141/173)Counting objects:  82% (142/173)Counting objects:  83% (144/173)Counting objects:  84% (146/173)Counting objects:  85% (148/173)Counting objects:  86% (149/173)Counting objects:  87% (151/173)Counting objects:  88% (153/173)Counting objects:  89% (154/173)Counting objects:  90% (156/173)Counting objects:  91% (158/173)Counting objects:  92% (160/173)Counting objects:  93% (161/173)Counting objects:  94% (163/173)Counting objects:  95% (165/173)Counting objects:  96% (167/173)Counting objects:  97% (168/173)Counting objects:  98% (170/173)Counting objects:  99% (172/173)Counting objects: 100% (173/173)Counting objects: 100% (173/173), done.
+Delta compression using up to 8 threads
+Compressing objects:   1% (1/99)Compressing objects:   2% (2/99)Compressing objects:   3% (3/9ssing objects:  21% (21/99)Compressing objects:  22% (22/99)Compressing objects:  23% (23/99)Compressing objects:  24% (24/99)Compressing objects:  25% (25/99)Compressing objects:  26% (26/99)Compressing objects:  27% (27/99)Compressing objects:  28% (28/99)Compressing objects:  29% (29/99)Compressing objects:  30% (30/99)Compressing objects:  31% (31/99)Compressing objects:  32% (32/99)Compressing objects:  33% (33/99)Compressing objects:  34% (34/99)Compressing objects:  35% (35/99)Compressing objects:  36% (36/99)Compressing objects:  37% (37/99)Compressissing objects:  21% (21/99)Compressing objects:  22% (22/99)Compressing objects:  23% (23/99)Compressing objects:  24% (24/99)Compressing objects:  25% (25/99)Compressing objects:  26% (26/99)Compressing objects:  27% (27/99)Compressing objects:  28% (28/99)Compressing objects:  29% (29/99)Compressing objects:  30% (30/99)Compressing objects:  31% (31/99)Compressing objects:  32% (32/99)Compressing objects:  33% (33/99)Compressing objects:  34% (34/99)Compressing objects:  35% (35/99)Compressing objects:  36% (36/99)Compressing objects:  37% (37/99)Compressing objects:  38% (38/99)Compressing objects:  39% (39/99)Compressing objects:  40% (40/99)Compressing objects:  41% (41/99)Compressing objects:  42% (42/99)Compressing objects:  43% (43/99)Compressing objects:  44% (44/99)Compressing objects:  45% (45/99)Compressing objects:  46% (46/99)Compressing objects:  47% (47/99)Compressing objects:  48% (48/99)Compressing objects:  49% (49/99)Compressing objects:  50% (50/99)Compressing objects:  51% (51/99)Compressing objects:  52% (52/99)Compressing objects:  53% (53/99)Compressing objects:  54% (54/99)Compressing objects:  55% (55/99)Compressing objects:  56% (56/99)Compressing objects:  57% (57/99)Compressing objects:  58% (58/99)Compressing objects:  59% (59/99)Compressing objects:  60% (60/99)Compressing objects:  61% (61/99)Compressing objects:  62% (62/99)Compressing objects:  63% (63/99)Compressing objects:  64% (64/99)Compressing objects:  65% (65/99)Compressing objects:  66% (66/99)Compressing objects:  67% (67/99)Compressing objects:  68% (68/99)Compressing objects:  69% (69/99)Compressing objects:  70% (70/99)Compressing objects:  71% (71/99)Compressing objects:  72% (72/99)Compressing objects:  73% (73/99)Compressing objects:  74% (74/99)Compressing objects:  75% (75/99)Compressing objects:  76% (76/99)Compressing objects:  77% (77/99)Compressing objects:  78% (78/99)Compressing objects:  79% (79/99)Compressing objects:  80% (80/99)Compressing objects:  81% (81/99)Compressing objects:  82% (82/99)Compressing objects:  83% (83/99)Compressing objects:  84% (84/99)Compressing objects:  85% (85/99)Compressing objects:  86% (86/99)Compressing objects:  87% (87/99)Compressing objects:  88% (88/99)Compressing objects:  89% (89/99)Compressing objects:  90% (90/99)Compressing objects:  91% (91/99)Compressing objects:  92% (92/99)Compressing objects:  93% (93/99)Compressing objects:  94% (94/99)Compressing objects:  95% (95/99)Compressing objects:  96% (96/99)Compressing objects:  97% (97/99)Compressing objects:  98% (98/99)Compressing objects: 100% (99/99)Compressing objects: 100% (99/99), done.
+Writing objects:   0% (1/102)Writing objects:   1% (2/102)Writing objects:   2% (3/102)Writing objects:   3% (4/102)Writing objects:   4% (5/102)Writing objects:   7% (8/102)Writing objects:   8% (9/102)Writing objects:   9% (10/102)Writing objects:  10% (11/102)Writing objects:  11% (12/102)Writing objects:  12% (13/102)Writing objects:  13% (14/102)Writing objects:  14% (15/102)Writing objects:  15% (16/102)Writing objects:  18% (19/102)Writing objects:  19% (20/102)Writing objects:  20% (21/102)Writing objects:  22% (23/102)Writing objects:  23% (24/102)Writing objects:  24% (25/102)Writing objects:  25% (26/102)Writing objects:  26% (27/102)Writing objects:  27% (28/102)Writing objects:  28% (29/102)Writing objects:  29% (30/102)Writing objects:  30% (31 51% (53/102)Writing objects:  52% (54/102)Writing objects:  53% (55/102)Writing objects:  54% (56/102)Writing objects:  55% (57/102)Writing objects:  56% (58/102)Writing objects:  57% (59/102)Writing objects:  58% (60/102)Writing objects:  59% (61/102)Writing objects:  60% (62/102)Writing objects:  61% (63/102)Writing objects:  62% (64/102)Writing objects:  63% (65/102)Writing objects:  64% (66/102)Writing objects:  65% (67/102)Writing objects:  66% (68/102)Writing objects:  67% (69/102)Writing objects:  68% (70/102)Writing objects:  69% (71/102)Writing o 51% (53/102)Writing objects:  52% (54/102)Writing objects:  53% (55/102)Writing objects:  54% (56/102)Writing objects:  55% (57/102)Writing objects:  56% (58/102)Writing objects:  57% (59/102)Writing objects:  58% (60/102)Writing objects:  59% (61/102)Writing objects:  60% (62/102)Writing objects:  61% (63/102)Writing objects:  62% (64/102)Writing objects:  63% (65/102)Writing objects:  64% (66/102)Writing objects:  65% (67/102)Writing objects:  66% (68/102)Writing objects:  67% (69/102)Writing objects:  68% (70/102)Writing objects:  69% (71/102)Writing objects:  70% (72/102)Writing objects:  71% (73/102)Writing objects:  72% (74/102)Writing objects:  73% (75/102)Writing objects:  74% (76/102)Writing objects:  75% (77/102)Writing objects:  76% (78/102)Writing objects:  77% (79/102)Writing objects:  78% (80/102)Writing objects:  79% (81/102)Writing objects:  80% (82/102)Writing objects:  81% (83/102)Writing objects:  82% (84/102)Writing objects:  83% (85/102)Writing objects:  84% (86/102)Writing objects:  85% (87/102)Writing objects:  86% (88/102)Writing objects:  87% (89/102)Writing objects:  88% (90/102)Writing objects:  89% (91/102)Writing objects:  90% (92/102)Writing objects:  91% (93/102)Writing objects:  92% (94/102)Writing objects:  93% (95/102)Writing objects:  94% (96/102)Writing objects:  95% (97/102)Writing objects:  96% (98/102)Writing objects:  97% (99/102)Writing objects:  98% (100/102)Writing objects:  99% (101/102)Writing objects: 100% (102/102)Writing objects: 100% (102/102), 24.81 KiB | 2.25 MiB/s, done.
+Total 102 (delta 68), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas:   0% (0/68)[Kremote: Resolving deltas:   1% (1/68)[Kremote: Resolving deltas:   2% (2/68)[Kremote: Resolving deltas:   4% (3/68)[Kremote: Resolving deltas:   5% (4/68)[Kremote: Resolving deltas:   7% (5/68)[Kremote: Resolving deltas:   8% (6/68)[Kremote: Resolving deltas:  10% (7/68)[Kremote: Resolving deltas:  11% (8/68)[Kremote: Resolving deltas:  13% (9/68)[Kremote: Resolving deltas:  14% (10/68)[Kremote: Resolving deltas:  16% (11/68)[Kremote: Resolving deltas:  17% (12/68)[Kremote: Resolving deltas:  19% (13/68)[Kremote: Resolving deltas:  20% (14/68)[Kremote: Resolving deltas:  22% (15/68)[Kremote: Resolving deltas:  23% (16/68)[Kremote: Resolving deltas:  25% (17/68)[Kremote: Resolving deltas:  26% (18/68)[Kremote: Resolving deltas:  27% (19/68)[Kremote: Resolving deltas:  29% (20/68)[Kremote: Resolving deltas:  30% (21/68)[Kremote: Resolving deltas:  32% (22/68)[Kremote: Resolving deltas:  33% (23/68)[Kremote: Resolving deltas:  35% (24/68)[Kremote: Resolving deltas:  36% (25/68)[Kremote: Resolving deltas:  38% (26/68)[Kremote: Resolving deltas:  39% (27/68)[Kremote: Resolving deltas:  41% (28/68)[Kremote: Resolving deltas:  42% (29/68)[Kremote: Resolving deltas:  44% (30/68)[Kremote: Resolving deltas:  45% (31/68)[Kremote: Resolving deltas:  47% (32/68)[Kremote: Resolving deltas:  48% (33/68)[Kremote: Resolving deltas:  50% (34/68)[Kremote: Resolving deltas:  51% (35/68)[Kremote: Resolving deltas:  52% (36/68)[Kremote: Resolving deltas:  54% (37/68)[Kremote: Resolving deltas:  55% (38/68)[Kremote: Resolving deltas:  57% (39/68)[Kremote: Resolving deltas:  58% (40/68)[Kremote: Resolving deltas:  60% (41/68)[Kremote: Resolving deltas:  61% (42/68)[Kremote: Resolving deltas:  63% (43/68)[Kremote: Resolving deving deltas:  85% (58/68)[Kremote: Resolving deltas:  86% (59/68)[Kremote: Resolving deltas:  88% (60/68)[Kremote: Resolving deltas:  89% (61/68)[Kremote: Resolving deltas:  91% (62/68)[Kremote: Resolving deltas:  92% (63/68)[Kremote: Resolving deltas:  94% (64/68)[Kremote: Resolving deltas:  95% (65/68)[Kremote: Resolving deltas:  97% (66/68)[Kremote: Resolving deltas:  98% (67/68)[Kremote: Resolving deltas: 100% (68/68)[Kremote: Resolving deltas: 100% (68/68), completed with 51 local objects.[K
+To https://github.com/xlnwel/lka.git
+   a8e47ef9..45f7ving deltas:  85% (58/68)[Kremote: Resolving deltas:  86% (59/68)[Kremote: Resolving deltas:  88% (60/68)[Kremote: Resolving deltas:  89% (61/68)[Kremote: Resolving deltas:  91% (62/68)[Kremote: Resolving deltas:  92% (63/68)[Kremote: Resolving deltas:  94% (64/68)[Kremote: Resolving deltas:  95% (65/68)[Kremote: Resolving deltas:  97% (66/68)[Kremote: Resolving deltas:  98% (67/68)[Kremote: Resolving deltas: 100% (68/68)[Kremote: Resolving deltas: 100% (68/68), completed with../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 20:02:31,824 - inf_mac - INFO - job id: python_job_chenxw__5uKyYhEH
+2023-03-21 20:02:31,825 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 20:02:32,747 - inf_mac - INFO - working dir size: 9.1796875 MB
+2023-03-21 20:02:32,748 - inf_mac - INFO - upload working dir...
+2023-03-21 20:02:35,912 - inf_mac - INFO - submitting job...
+2023-03-21 20:02:37,065 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 20:02:38,190 - inf_mac - INFO - allocation status: 4/4...
+2023-03-21 20:02:38,191 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__5uKyYhEH
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36map2023-03-21 20:02:37,065 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 20:02:38,190 - inf_mac - INFO - allocation status: 4/4...
+2023-03-21 20:0../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 20:04:29,303 - inf_mac - INFO - job id: python_job_chenxw__4ft5aKzg
+2023-03-21 20:04:29,304 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 20:04:30,068 - inf_mac - INFO - working dir size: 9.1796875 MB
+2023-03-21 20:04:30,068 - inf_mac - INFO - upload working dir...
+2023-03-21 20:04:33,203 - inf_mac - INFO - submitting job...
+2023-03-21 20:04:34,491 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 20:04:35,624 - inf_mac - INFO - allocation status: 1/1...
+2023-03-21 20:04:35,624 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__4ft5aKzg
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[20:04:35] 
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 20:15:11,557 - inf_mac - INFO - job id: python_job_chenxw__NZgLinNW
+2023-03-21 20:15:11,558 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 20:15:12,767 - inf_mac - INFO - working dir size: 9.1796875 MB
+2023-03-21 20:15:12,767 - inf_mac - INFO - upload working dir...
+2023-03-21 20:15:15,827 - inf_mac - INFO - submitting job...
+2023-03-21 20:15:16,986 - inf_mac - INFO - allocation status: 1/1...
+Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-21 20:15:11,557 - inf_mac - INFO - job id: python_job_chenxw__NZgLinNW
+2023-03-21 20:15:11,558 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-21 20:15:12,767 - inf_mac - INFO - working dir size: 9.1796875 MB
+2023-03-21 20:15:12,767 - inf_mac - INFO - upload working dir...
+2023-03-21 20:15:15,827 - inf_mac - INFO - submitting job...
+2023-03-21 20:15:16,986 - inf_mac - INFO - allocation status: 1/1...
+Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/connectionpool.py", line 449, in _make_request
+    six.raise_from(e, None)
+  File "<string>", line 3, in raise_from
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/connectionpool.py", line 444, in _make_request
+    httplib_response = conn.getresponse()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/http/client.py", line 1374, in getresponse
+    response.begin()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/http/client.py", line 318, in begin
+    version, status, reason = self._read_status()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/http/client.py", line 279, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+TimeoutError: timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/requests/adapters.py", line 489, in send
+    resp = conn.urlopen(
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/connectionpool.py", line 787, in urlopen
+    retries = retries.increment(
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/util/retry.py", line 550, in increment
+    raise six.reraise(type(error), error, _stacktrace)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/packages/six.py", line 770, in reraise
+    raise value
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/connectionpool.py", line 703, in urlopen
+    httplib_response = self._make_request(
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/connectionpool.py", line 451, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/connectionpool.py", line 340, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host='127.0.0.1', port=7890): Read timed out. (read timeout=5)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/nomad/api/base.py", line 148, in _request
+    response = self.session.delete(
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/requests/sessions.py", line 669, in delete
+    return self.request("DELETE", url, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/requests/sessions.py", line 587, in request
+    resp = self.send(prep, **send_kwargs)
+3/envs/inf/bin/inf_mac", line 8, in <module>
+    sys.exit(main())
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1128, in __call__
+    return self.main(*args, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1053, in main
+    rv = self.invoke(ctx)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1659, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lvs/inf/bin/inf_mac", line 8, in <module>
+    sys.exit(main())
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1128, in __call__
+    return self.main(*args, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1053, in main
+    rv = self.invoke(ctx)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1659, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1659, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1659, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1395, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 754, in invoke
+    return __callback(*args, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 232, in run_python
+    run_common(user, name, num_nodes, working_dir, command, 'python', use_env, sync_dir, attach)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 151, in run_common
+    nomad_utils.submit_common_job(
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/nomad_utils.py", line 366, in submit_common_job
+    run_and_wait_job_allocation(server, jobspec, retry_times=retry_times)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/nomad_utils.py", line 214, in run_and_wait_job_allocation
+    server.job.deregister_job(job_id)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/nomad/api/job.py", line 304, in deregister_job
+    return self.request(id, params=params, method="delete").json()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/nomad/api/base.py", line 79, in request
+    response = self._request(
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/nomad/api/base.py", line 175, in _request
+    raise nomad.api.exceptions.BaseNomadException(error)
+nomad.api.exceptions.BaseNomadException: The BaseNomadException was raised due to the following error: HTTPConnectionPool(host='127.0.0.1', port=7890): Read magw-logs
+Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/bin/inf_mac", line 8, in <module>
+    sys.exit(main())
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1128, in __call__
+    return self.main(*args, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1053, in main
+    rv = self.invoke(ctx)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1659, in invoke
+    return _process_result(sub_ctTraceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/bin/inf_mac", line 8, in <module>
+    sys.exit(main())
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1128, in __call__
+    return self.main(*args, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1053, in main
+    rv = self.invoke(ctx)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1659, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1659, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1659, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1395, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 754, in invoke
+    return __callback(*args, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 232, in run_python
+    run_common(user, name, num_nodes, working_dir, command, 'python', use_env, sync_dir, attach)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 132, in run_common
+ ../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 06:46:43,627 - inf_mac - INFO - job id: python_job_chenxw__LEQz2gHV
+2023-03-22 06:46:43,627 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 06:46:44,672 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 06:46:44,672 - inf_mac - INFO - upload working dir...
+2023-03-22 06:46:47,091 - inf_mac - INFO - submitting job...
+2023-03-22 06:46:48,225 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 06:46:49,551 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 06:46:[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 06:46:43,627 - inf_mac - INFO - job id: python_job_chenxw__LEQz2gHV
+2023-03-22 06:46:43,627 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 06:46:44,672 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 06:46:44,672 - inf_mac - INFO - upload working dir...
+2023-03-22 06:46:47,091 - inf_mac - INFO - submitting job...
+2023-03-22 06:46:48,225 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 06:46:49,551 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 06:./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 06:53:00,571 - inf_mac - INFO - job id: python_job_chenxw__VAqzHtB5
+2023-03-22 06:53:00,572 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 06:53:01,419 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 06:53:01,419 - inf_mac - INFO - upload working dir...
+2023-03-22 06:53:03,372 - inf_mac - INFO - submitting job...
+2023-03-22 06:53:04,532 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 06:53:05,674 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 06:53:05,675 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__VAqzHtB5
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[6:53:06] 
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 06:54:15,846 - inf_mac - INFO - job id: python_job_chenxw__CtxFsQJ3
+2023-03-22 06:54:15,847 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 06:54:16,610 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 06:54:16,611 - inf_mac - INFO - upload working dir...
+2023-03-22 06:54:17,906 - inf_mac - INFO - submitting job...
+2023-03-22 06:54:18,996 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 06:54:20,093 - inf_mac - INFO - allocation status: 6/6...../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 06:54:15,846 - inf_mac - INFO - job id: python_job_chenxw__CtxFsQJ3
+2023-03-22 06:54:15,847 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 06:54:16,610 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 06:54:16,611 - inf_mac - INFO - upload working dir...
+2023-03-22 06:54:17,906 - inf_mac - INFO - submitting job...
+2023-03-22 06:54:18,996 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 06:54:20,093 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 06:../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 07:04:41,212 - inf_mac - INFO - job id: python_job_chenxw__GfAPENTH
+2023-03-22 07:04:41,212 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 07:04:42,011 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 07:04:42,011 - inf_mac - INFO - upload working dir...
+2023-03-22 07:04:43,337 - inf_mac - INFO - submitting job...
+2023-03-22 07:04:44,422 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 07:04:45,523 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 07:04:45,524 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__GfAPENTH
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[7:04:45] 
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 08:17:36,396 - inf_mac - INFO - job id: python_job_chenxw__7cKaKSyy
+2023-03-22 08:17:36,397 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 08:17:37,237 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 08:17:37,238 - inf_mac - INFO - upload working dir...
+2023-03-22 08:17:38,648 - inf_mac - INFO - submitting job...
+2023-03-22 08:17:39,737 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 08:17:40,830 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 08:17:40,831 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__7cKaKSyy
+[1m[3m%[23m[1m[0m            2023-03-22 08:17:36,397 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 08:17:37,237 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 08:17:37,238 - inf_mac - INFO - upload working dir...
+2023-03-22 08:17:38,648 - inf_mac - INFO - submitting job...
+2023-03-22 08:17:39,737 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 08:17:40,830 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 08:../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 10:58:51,256 - inf_mac - INFO - job id: python_job_chenxw__XwagPVzp
+2023-03-22 10:58:51,256 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 10:58:52,089 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 10:58:52,090 - inf_mac - INFO - upload working dir...
+2023-03-22 10:58:53,637 - inf_mac - INFO - submitting job...
+2023-03-22 10:58:54,723 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 10:58:55,824 - inf_mac - INFO - allocation status: 6/6...../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 10:58:51,256 - inf_mac - INFO - job id: python_job_chenxw__XwagPVzp
+2023-03-22 10:58:51,256 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 10:58:52,089 - inf_mac - INFO - working dir size: 9.189453125 MB
+2023-03-22 10:58:52,090 - inf_mac - INFO - upload working dir...
+2023-03-22 10:58:53,637 - inf_mac - INFO - submitting job...
+2023-03-22 10:58:54,723 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 10:58:55,824 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 10:5../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 12:44:13,610 - inf_mac - INFO - job id: python_job_chenxw__ohrP493P
+2023-03-22 12:44:13,610 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 12:44:14,658 - inf_mac - INFO - working dir size: 9.19921875 MB
+2023-03-22 12:44:14,659 - inf_mac - INFO - upload working dir...
+2023-03-22 12:44:21,713 - inf_mac - INFO - submitting job...
+2023-03-22 12:44:22,820 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 12:44:23,941 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 12:44:2[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 12:44:13,610 - inf_mac - INFO - job id: python_job_chenxw__ohrP493P
+2023-03-22 12:44:13,610 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 12:44:14,658 - inf_mac - INFO - working dir size: 9.19921875 MB
+2023-03-22 12:44:14,659 - inf_mac - INFO - upload working dir...
+2023-03-22 12:44:21,713 - inf_mac - INFO - submitting job...
+2023-03-22 12:44:22,820 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 12:44:23,941 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 12:4./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 13:55:28,431 - inf_mac - INFO - job id: python_job_chenxw__DZSugFma
+2023-03-22 13:55:28,431 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 13:55:29,405 - inf_mac - INFO - working dir size: 9.19921875 MB
+2023-03-22 13:55:29,406 - inf_mac - INFO - upload working dir...
+2023-03-22 13:55:30,766 - inf_mac - INFO - submitting job...
+2023-03-22 13:55:31,851 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 13:55:32,968 - inf_mac - INFO - allocation status: 6/6...
+2023-03-22 13:55:32,968 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__DZSugFma
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[13:55:33] 
+[1m[31m$ [00m[K[?1h=[?2004h./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 14:34:29,828 - inf_mac - INFO - job id: python_job_chenxw__XBLppZFa
+2023-03-22 14:34:29,828 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 14:34:30,940 - inf_mac - INFO - working dir size: 9.19921875 MB
+2023-03-22 14:34:30,940 - inf_mac - INFO - upload working dir...
+2023-03-22 14:34:32,457 - inf_mac - INFO - submitting job...
+2023-03-22 14:34:33,545 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 14:34:34,649 - inf_mac - INFO - allocation status: 2/2...
+2./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 14:34:29,828 - inf_mac - INFO - job id: python_job_chenxw__XBLppZFa
+2023-03-22 14:34:29,828 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 14:34:30,940 - inf_mac - INFO - working dir size: 9.19921875 MB
+2023-03-22 14:34:30,940 - inf_mac - INFO - upload working dir...
+2023-03-22 14:34:32,457 - inf_mac - INFO - submitting job...
+2023-03-22 14:34:33,545 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 14:34:34,649 - inf_mac - INFO - allocation status: 2/2...
+2023-03-22 14:3../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 16:23:38,590 - inf_mac - INFO - job id: python_job_chenxw__NiV9uqum
+2023-03-22 16:23:38,590 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:23:40,008 - inf_mac - INFO - working dir size: 9.208984375 MB
+2023-03-22 16:23:40,008 - inf_mac - INFO - upload working dir...
+^C
+Aborted!
+^C
+[1m[3m%[23m[1m[0m                                                                                                                                                                ../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 16:23:38,590 - inf_mac - INFO - job id: python_job_chenxw__NiV9uqum
+2023-03-22 16:23:38,590 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:23:40,008 - inf_mac - INFO - working dir size: 9.208984375 MB
+2023-03-22 16:23:40,008 - inf_mac - INFO - upload working dir...
+^C
+Aborted!
+^C
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\^C[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 16:24:30,921 - inf_mac - INFO - job id: python_job_chenxw__RXYReqn6
+2023-03-22 16:24:30,921 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:24:31,426 - inf_mac - INFO - working dir size: 9.208984375 MB
+2023-03-22 16:24:31,426 - inf_mac - INFO - upload working dir...
+2023-03-22 16:24:50,848 - inf_mac - INFO - submitting job...
+2023-03-22 16:24:51,949 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:24:53,061 - inf_mac - INFO - allocation status: 3/3...
+2023-03-22 16:24:53,061 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__RXYReqn6
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mo2023-03-22 16:24:53,061 - inf_mac - INFO - allocation status: 3/3...
+2023-03-22 16:2../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 16:30:52,672 - inf_mac - INFO - job id: python_job_chenxw__3sTcTixF
+2023-03-22 16:30:52,672 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:30:53,673 - inf_mac - INFO - working dir size: 9.208984375 MB
+2023-03-22 16:30:53,673 - inf_mac - INFO - upload working dir...
+2023-03-22 16:31:06,488 - inf_mac - INFO - submitting job...
+2023-03-22 16:31:08,243 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:31:09,385 - inf_mac - INFO - allocation status: 3/3...
+2023-03-22 16:31:09,385 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__3sTcTixF
+[1m[3m%[23m[1m[0m            2023-03-22 16:30:52,672 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:30:53,673 - inf_mac - INFO - working dir size: 9.208984375 MB
+2023-03-22 16:30:53,673 - inf_mac - INFO - upload working dir...
+2023-03-22 16:31:06,488 - inf_mac - INFO - submitting job...
+2023-03-22 16:31:08,243 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:31:09,385 - inf_mac - INFO - allocation status: 3/3...
+2023-03-22 16:3../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 16:56:02,189 - inf_mac - INFO - job id: python_job_chenxw__Hn9yNLZV
+2023-03-22 16:56:02,189 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:56:03,027 - inf_mac - INFO - working dir size: 9.208984375 MB
+2023-03-22 16:56:03,027 - inf_mac - INFO - upload working dir...
+2023-03-22 16:56:20,894 - inf_mac - INFO - submitting job...
+2023-03-22 16:56:21,976 - inf_mac - INFO - allocation status: 1/1...
+Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/response.py", line 443, in _error_catcher
+    yield
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/response.py", line 815, in read_chunked
+    self._update_chunk_length()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/response.py", line 745, in _update_chunk_length
+    line = self._fp.fp.readline()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/socket.py", line 70Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/response.py", line 443, in _error_catcher
+    yield
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/response.py", line 815, in read_chunked
+    self._update_chunk_length()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/response.py", line 745, in _update_chunk_length
+    line = self._fp.fp.readline()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/socket.py", line 705, in readinto
+    return self._sock.recv_into(b)
+TimeoutError: timed out
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/requests/models.py", line 816, in generate
+    yield from self.raw.stream(chunk_size, decode_content=True)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/response.py", line 623, in stream
+    for line in self.read_chunked(amt, decode_content=decode_content):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/response.py", line 803, in read_chunked
+    with self._error_catcher():
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/urllib3/response.py", line 448, in _error_catcher
+    raise ReadTimeoutError(self._pool, None, "Read timed out.")
+urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host='127.0.0.1', port=7890): Read timed out.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/nomad/api/base.py", line 113, in _request
+    response = self.session.get(
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/requests/sessions.py", line 600, in get
+    return self.request("GET", url, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/requests/sessions.py", line 587, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/requests/sessions.py", line 745, in send
+    r.content
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/requests/models.py", line 899, in content
+    self._content = b"".join(self.iter_content(CONTENT_CHUNK_SIZE)) or b""
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/requests/models.py", line 822, in generate
+    raise ConnectionError(e)
+requests.exceptions.ConnectionError: HTTPConnectionPool(host='127.0.0.1', port=7890): Read timed out.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/bin/inf_mac", line 8, in <module>
+    sys.exit(main())
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1128, in __call__
+    return self.main(*args, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 1053, in main
+    rv = self.invoke(ctx)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line ctx.params)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/click/core.py", line 754, in invoke
+    return __callback(*args, **kwargs)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 232, in run_python
+    run_common(user, name, num_nodes, working_dir, command, 'python', use_env, sync_dir, attach)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 151, in run_common
+    nomad_utils.submit_common_job(
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/nomad_utils.py", line 364, in submit_common_job
+    raise e
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/nomad_utils.py", line 318, in submit_common_job
+    alloc_head = server.allocation.get_allocation(alloc_id)
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/nomad/api/allocation.py", line 57, in get_allocation
+    return self.request(id, method="get").json()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/nomad/api/base.py", line 79, in request
+    response = self._request(
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/nomad/api/base.py", line 172, in _request
+    raise nomad.api.exceptions.BaseNomadException(error)
+nomad.api.exceptions.BaseNomadException: The BaseNomadException was raised due to the following error: HTTPConnectionPool(host='127.0.0.1', port=7890): Read timed out.
+magw-logs
+^C
+Aborted!
+^C
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[16:56:32] C:[31m130[00m
+[1m[31m$ [00m[K[?1h=[?2004h[?2004l
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[16:56:32] C:[31m130[00m
+[1m[31m$ [00m[K[?1h=[?2004h./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 16:56:35,188 - inf_mac - INFO - job id: python_job_chenxw__y6hXcHHT
+2023-03-22 16:56:35,188 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:56:35,800 - inf_mac - INFO - working dir size: 9.208984375 MB
+2023-03-22 16:56:35,800 - inf_mac - INFO - upload working dir...
+^C
+Aborted!
+^C
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[16:56:38] C:[31m130[00m
+[1m[31m$ [00m[K[?1h=[?2004h[?2004l
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[16:56:38] C:[31m130[00m
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 16:57:45,869 - inf_mac - INFO - job id: python_job_chenxw__oz66QqAM
+2023-03-22 16:57:45,869 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:57:46,221 - inf_mac - INFO - working dir size: 9.21875 MB
+2023-03-22 16:57:46,222 - inf_mac - INFO - upload working dir...
+2023-03-22 16:58:00,324 - inf_mac - INFO - submitting job...
+2023-03-22 16:58:01,460 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:58:02,616 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:58:02,616 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__oz66QqAM
+magw-logs
+2023-03-22 16:58:05,413 - inf_mac - INFO - job id: python_job_chenxw__EHzuhM3v
+2023-03-22 16:58:05,413 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:58:05,751 - inf_mac - INFO - working dir size: 9.21875 MB
+2023-03-22 162023-03-22 16:58:00,324 - inf_mac - INFO - submitting job...
+2023-03-22 16:58:01,460 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:58:02,616 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:58:02,616 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__oz66QqAM
+magw-logs
+2023-03-22 16:58:05,413 - inf_mac - INFO - job id: py2023-03-22 16:58:23,352 - inf_mac - INFO - job id: python_job_chenxw__Fr3DqimE
+2023-03-22 16:58:23,352 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:58:23,636 - inf_mac - INFO - working dir size: 9.21875 MB
+2023-03-22 16:58:23,636 - inf_mac - INFO - upload working dir...
+2023-03-22 16:58:37,214 - inf_mac - INFO - submitting job...
+2023-03-22 16:58:38,304 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:58:39,412 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:58:39,412 - inf_mac - INFO - job url: http://172.16.11.1:2023-03-22 16:58:23,352 - inf_mac - INFO - job id: python_job_chenxw__Fr3DqimE
+2023-03-22 16:58:23,352 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:58:23,636 - inf_mac - INFO - working dir size: 9.21875 MB
+2023-03-22 16:58:23,636 - inf_mac - INFO - upload working dir...
+2023-03-22 16:58:37,214 - inf_mac - INFO - submitting job...
+2023-03-22 16:58:38,304 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:58:39,412 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 16:58:39,412 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__Fr3DqimE
+magw-logs
+2023-03-22 16:58:42,075 - inf_mac - INFO - job id: python_job_chenxw__LNbEKYki
+2023-03-22 16:58:42,075 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 16:58:42,381 - inf_mac - INFO - working dir size: 9.21875 MB
+2./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+^C
+Aborted!
+^C
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[17:00:07] C:[31m130[00m
+[1m[31m$ [00m[K[?1h=[?200./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+^C
+Aborted!
+^C
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[17:00:07] C:[31m130[00m
+[1m[31m$ [00m[K[?1h=[?2004h[?2004l
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00mscripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 17:01:17,000 - inf_mac - INFO - job id: python_job_chenxw__bA8bo64N
+2023-03-22 17:01:17,000 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:01:17,344 - inf_mac - INFO - working dir size: 9.21875 MB
+2023-03-22 17:01:17,344 - inf_mac - INFO - upload working dir...
+^C
+Aborted!
+^C
+[1m[3m%[23m[1m[0m                                                                                                                                                                        scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 17:01:17,000 - inf_mac - INFO - job id: python_job_chenxw__bA8bo64N
+2023-03-22 17:01:17,000 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:01:17,344 - inf_mac - INFO - working dir size: 9.21875 MB
+2023-03-22 17:01:17,344 - inf_mac - INFO - upload working dir...
+^C
+Aborted!
+^C
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[17:01:20] C:[31m130[00m
+[1m[31m$ [00m[K[?1h=[?2004h[?2004l
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 17:01:41,553 - inf_mac - INFO - job id: python_job_chenxw__CvaxqWBz
+2023-03-22 17:01:41,553 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:01:42,038 - inf_mac - INFO - working dir size: 9.21875 MB
+2023-03-22 17:01:42,038 - inf_mac - INFO - upload working dir...
+2023-03-22 17:01:56,771 - inf_mac - INFO - submitting job...
+2023-03-22 17:01:59,013 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:02:00,236 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:02:00,237 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__CvaxqWBz
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[17:02:00] 
+[1m[31m$ [00m[K[?1h=[?2004h./scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 17:02:06,493 - inf_mac - INFO - job id: python_job_chenxw__cJZGGpvD
+2023-03-22 17:02:06,493 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:02:06,816 - inf_mac - INFO - working dir size: 9.21875 MB
+2023-03-22 17:02:06,816 - inf_mac - INFO - upload working dir...
+2023-03-22 17:02:19,406 - inf_mac - INFO - submitting job...
+2023-03-22 17:02:20,492 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:02:21,585 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:02:21,586 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__cJZGGpvD
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[17:02:21] 
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-22 17:33:44,059 - inf_mac - INFO - job id: python_job_chenxw__tVttfdPn
+2023-03-22 17:33:44,059 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:33:44,866 - inf_mac - INFO - working dir size: 9.228515625 MB
+2023-03-22 17:33:44,867 - inf_mac - INFO - upload working dir...
+2023-03-22 17:33:56,340 - inf_mac - INFO - submitting job...
+2023-03-22 17:33:57,550 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:33:58,657 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:33:58,657 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__tVttfdPn
+magw-logs
+2023-03-22 17:34:01,908 - inf_mac - INFO - job id: python_job_chenxw__scJz28Tz
+2023-03-22 17:34:01,908 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:34:02,230 - inf_mac - INFO - working dir size: 9.228515625 MB
+2023-03-22023-03-22 17:33:56,340 - inf_mac - INFO - submitting job...
+2023-03-22 17:33:57,550 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:33:58,657 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:33:58,657 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__tVttfdPn
+magw-logs
+2023-03-22 17:34:01,908 - inf_mac - INFO - job id: python_job_chenxw__scJz28Tz
+2023-03-22 17:34:01,908 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:34:02,230 - inf_mac - INFO - working dir size: 9.228515625 MB
+2023-03-22 17:34:02,230 - inf_mac - INFO - upload working dir...
+2023-03-22 17:34:14,245 - inf_mac - INFO - submitting job2023-03-22 17:34:28,995 - inf_mac - INFO - submitting job...
+2023-03-22 17:34:30,182 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:34:31,287 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:34:31,287 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__tFGtnt6z
+magw-logs
+2023-03-22 17:34:33,730 - inf_mac - INFO - job id: python_job_chenxw__RyTzyaiD
+2023-03-22 17:34:33,731 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:34:34,008 - inf_mac - INFO - working dir size: 9.228515625 MB
+2023-03-22023-03-22 17:34:28,995 - inf_mac - INFO - submitting job...
+2023-03-22 17:34:30,182 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:34:31,287 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:34:31,287 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__tFGtnt6z
+magw-logs
+2023-03-22 17:34:33,730 - inf_mac - INFO - job id: python_job_chenxw__RyTzyaiD
+2023-03-22 17:34:33,731 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:34:34,008 - inf_mac - INFO - working dir size: 9.228515625 MB
+2023-03-22 17:34:34,008 - inf_mac - INFO - upload working2023-03-22 17:34:52,050 - inf_mac - INFO - upload working dir...
+2023-03-22 17:35:03,986 - inf_mac - INFO - submitting job...
+2023-03-22 17:35:05,218 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:35:06,332 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:35:06,333 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__QezzKxTx
+magw-logs
+2023-03-22 17:35:09,017 - inf_mac - INFO - job id: python_job_chenxw__oVv9nNQA
+2023-03-22 17:35:09,017 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-22 17:35:09,2023-03-22 17:34:52,050 - inf_mac - INFO - upload working dir...
+2023-03-22 17:35:03,986 - inf_mac - INFO - submitting job2023-03-22 17:35:23,984 - inf_mac - INFO - submitting job...
+2023-03-22 17:35:25,230 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:35:26,525 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:35:26,525 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__oVv9nNQA
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/2023-03-22 17:35:23,984 - inf_mac - INFO - submitting job...
+2023-03-22 17:35:25,230 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:35:26,525 - inf_mac - INFO - allocation status: 1/1...
+2023-03-22 17:3ggit push[?1l>[?2004l
+kgit\Enumerating objects: 121, done.
+Counting objects:   0% (1/121)Counting objects:   1% (2/121)Counting objects:   2% (3/121)Counting objects:   3% (4/121)Counting objects:   4% (5/121)Counting objects:   5% (7/121)Counting objects:   6% (8/121)Counting objects:   7% (9/121)Counting objects:   8% (10/121)Counting objects:   9% (11/121)Counting objects:  10% (13/121)Counting objects:  11% (14/121)Counting objects:  12% (15/121)Counting objects:  13% (16/121)Counting objects:  14% (17/121)Counting objects:  15% (19/121)Counting ggit push[?1l>[?2004l
+kgit\Enumerating objects: 121, done.
+Counting objects:   0% (1/121)Counting objects:   1% (2/121)Counting objects:   2% (3/121)Counting objects:   3% (4/121)Counting objects:   4% (5/121)Counting objects:   5% (7/121)Counting objects:   6% (8/121)Counting objects:   7% (9/121)Counting objects:   8% (10/121)Counting objects:   9% (11/121)Counting objects:  10% (13/121)Counting objects:  11% (14/121)Counting objects:  12% (15/121)Counting objects:  13% (16/121)Counting objects:  14% (17/121)Counting objects:  15% (19/121)Counting objects:  16% (20/121)Counting objects:  17% (21/121)Counting objects:  18% (22/121)Counting objects:  19% (23/121)Counting objects:  20% (25/121)Counting objects:  21% (26/121)Counting objects:  22% (27/121)Counting objects:  23% (28/121)Counting objects:  24% (30/121)Counting objects:  25% (31/121)Counting objects:  26% (32/121)Counting objects:  27% (33/121)Counting objects:  28% (34/121)Counting objects:  29% (36/121)Counting objects:  30% (37/121)Counting objects:  31% (38/121)Counting objects:  32% (39/121)Counting objects:  33% (40/121)Counting objects:  34% (42/121)Counting objects:  35% (43/121)Counting objects:  36% (44/121)Counting objects:  37% (45/121)Counting objects:  38% (46/121)Counting objects:  39% (48/121)Counting objects:  40% (49/121)Counting objects:  41% (50/121)Counting objects:  42% (51/121)Counting objects:  43% (53/121)Counting objects:  44% (54/121)Counting objects:  45% (55/121)Counting objects:  46% (56/121)Counting objects:  47% (57/121)Counting objects:  48% (59/121)Counting objects:  49% (60/121)Counting objects:  50% (61/121)Counting objects:  51% (62/121)Counting objects:  52% (63/121)Counting objects:  53% (65/121)Counting objects:  54% (66/121)Counting objects:  55% (67/121)Counting objects:  56% (68/121)Counting objects:  57% (69/121)Counting objects:  58% (71/121)Counting objects:  59% (72/121)Counting objects:  60% (73/121)Counting objects:  61% (74/121)Counting objects:  62% (76/121)Counting objects:  63% (77/121)Counting objects:  64% (78/121)Counting objects:  65% (79/121)Counting objects:  66% (80/121)Counting objects:  67% (82/121)Counting objects:  68% (83/121)Counting objects:  69% (84/121)Counting objects:  70% (85/121)Counting objects:  71% (86/121)Counting objects:  72% (88/121)Counting objects:  73% (89/121)Counting objects:  74% (90/121)Counting objects:  75% (91/121)Counting objects:  76% (92/121)Counting objects:  77% (94/121)Counting objects:  78% (95/121)Counting objects:  79% (96/121)Counting objects:  80% (97/121)Counting objects:  81% (99/121)Counting objects:  82% (100/121)Counting objects:  83% (101/121)Counting objects:  84% (102/121)Counting objects:  85% (103/121)Counting objects:  86% (105/121)Counting objects:  87% (106/121)Counting objects:  88% (107/121)Counting objects:  89% (108/121)Counting objects:  90% (109/121)Counting objects:  91% (111/121)Counting objects:  92% (112/121)Counting objects:  93% (113/121)Counting objects:  94% (114/121)Counting objects:  95% (115/121)Counting objects:  96% (117/121)Counting objects:  97% (118/121)Counting objects:  98% (119/121)Counting objects:  99% (120/121)Counting objects: 100% (121/121)Counting objects: 100% (121/121), done.
+Delta compression using up to 8 threads
+Compressing objects:   1% (1/68)Compressing objects:   2% (2/68)Compressing objects:   4% (3/68)Compressing objects:   )Compressing objects:  32% (22/68)Compressing objects:  33% (23/68)Compressing objects:  35% (24/68)Compressing objects:  36% (25/68)Compressing objects:  38% (26/68)Compressing objects:  39% (27/68)Compressing objects:  41% (28/68)Compressing objects:  42% (29/68)Compressing objects:  44% (30/68)Compressing objects:  45% (31/68)Compressing objects:  47% (32/68)Compressing objects:  48% (33/68)Compressing objects:  50% (34/68)Compressing objects:  51% (35/68)Compressing objects:  52% (36/68)Compressing objects:  54% (37/68)Compressing objects:  55% (38/68)C)Compressing objects:  32% (22/68)Compressing objects:  33% (23/68)Compressing objects:  35% (24/68)Compressing objects:  36% (25/68)Compressing objects:  38% (26/68)Compressing objects:  39% (27/68)Compressing objects:  41% (28/68)Compressing objects:  42% (29/68)Compressing objects:  44% (30/68)Compressing objects:  45% (31/68)Compressing objects:  47% (32/68)Compressing objects:  48% (33/68)Compressing objects:  50% (34/68)Compressing objects:  51% (35/68)Compressing objects:  52% (36/68)Compressing objects:  54% (37/68)Compressing objects:  55% (38/68)Compressing objects:  57% (39/68)Compressing objects:  58% (40/68)Compressing objects:  60% (41/68)Compressing objects:  61% (42/68)Compressing objects:  63% (43/68)Compressing objects:  64% (44/68)Compressing objects:  66% (45/68)Compressing objects:  67% (46/68)Compressing objects:  69% (47/68)Compressing objects:  70% (48/68)Compressing objects:  72% (49/68)Compressing objects:  73% (50/68)Compressing objects:  75% (51/68)Compressing objects:  76% (52/68)Compressing objects:  77% (53/68)Compressing objects:  79% (54/68)Compressing objects:  80% (55/68)Compressing objects:  82% (56/68)Compressing objects:  83% (57/68)Compressing objects:  85% (58/68)Compressing objects:  86% (59/68)Compressing objects:  88% (60/68)Compressing objects:  89% (61/68)Compressing objects:  91% (62/68)Compressing objects:  92% (63/68)Compressing objects:  94% (64/68)Compressing objects:  95% (65/68)Compressing objects:  97% (66/68)Compressing objects:  98% (67/68)Compressing objects: 100% (68/68)Compressing objects: 100% (68/68), done.
+Writing objects:   1% (1/68)Writing objects:   2% (2/68)Writing objects:   4% (3/68)Writing objects:   5% (4/68)Writing objects:   7% (5/68)Writing objects:  10% (7/68)Writing objects:  11% (8/68)Writing objects:  13% (9/68)Writing objects:  14% (10/68)Writing objects:  16% (11/68)Writing objects:  17% (12/68)Writing objects:  19% (13/68)Writing objects:  20% (14/68)Writing objects:  22% (15/68)Writing objects:  23% (16/68)Writing objects:  25% (17/68)Writing objects:  32% (22/68)Writing objects:  33% (23/68)Writing objects:  35% (24/68)Writing objects:  36% (25/68)Writing objects:  38% (26/68)Writing objects:  39% (27/68)Writing objects:  41% (28/68)Writing objects:  42% (29/68)Writing objects:  44% (30/68)Writing objects:  45% (31/68)Writing objects:  47% (32/68)Writing objects:  48% (33/68)Writing objects:  50% (34/68)Writing objects:  51% (35/68)Writing objects:  52% (36/68)Writing objects:  54% (37/68)Writing objects:  55% (38/68)Writing objects:  57% (39/68)Writing objects:  58% (40/68)Writing objects:  60% (41/68)Writing objects:  61% (42/68)Writing objects:  63% (43/68)Writing objects:  64% (44/68)Writing objects:  66% (45/68)Writing objects:  67% (46/68)Writing objects:  69% (47/68)Writing objects:  70% (48/68)Writing objects:  72% (49/68)Writing objects:  73% (50/68)Writing objects:  75% (51/68)Writing objects:  76% (52/68)Writing objects:  77% (53/68)Writing objects:  79% (54/68)Writing objects:  80% (55/68)Writing objects:  82% (56/68)Writing objects:  83% (57/68)Writing objects:  85% (58/68)Writing objects:  86% (59/68)Writing objects:  88% (60/68)Writing objects:  89% (61/68)Writing objects:  91% (62/68)Writing objects:  92% (63/68)Writing objects:  94% (64/68)Writing objects:  95% (65/68)Writing objects:  97% (66/68)Writing objects:  98% (67/68)Writing objects: 100%mote: Resolving deltas:  20% (11/53)[Kremote: Resolving deltas:  22% (12/53)[Kremote: Resolving deltas:  24% (13/53)[Kremote: Resolving deltas:  26% (14/53)[Kremote: Resolving deltas:  28% (15/53)[Kremote: Resolving deltas:  30% (16/53)[Kremote: Resolving deltas:  32% (17/53)[Kremote: Resolving deltas:  33% (18/53)[Kremote: Resolving deltas:  35% (19/53)[Kremote: Resolving deltas:  37% (20/53)[Kremote: Resolving deltas:  39% (21/53)[Kremote: Resolving deltas:  41% (22/53)[Kremote: Resolving deltas:  43% (23/53)[Kremote: Resolving deltas:  45% (24/53mote: Resolving deltas:  20% (11/53)[Kremote: Resolving deltas:  22% (12/53)[Kremote: Resolving deltas:  24% (13/53)[Kremote: Resolving deltas:  26% (14/53)[Kremote: Resolving deltas:  28% (15/53)[Kremote: Resolving deltas:  30% (16/53)[Kremote: Resolving deltas:  32% (17/53)[Kremote: Resolving deltas:  33% (18/53)[Kremote: Resolving deltas:  35% (19/53)[Kremote: Resolving deltas:  37% (20/53)[Kremote: Resolving deltas:  39% (21/53)[Kremote: Resolving deltas:  41% (22/53)[Kremote: Resolving deltas:  43% (23/53)[Kremote: Resolving deltas:  45% (24/53)[Kremote: Resolving deltas:  47% (25/53)[Kremote: Resolving deltas:  49% (26/53)[Kremote: Resolving deltas:  50% (27/53)[Kremote: Resolving deltas:  52% (28/53)[Kremote: Resolving deltas:  54% (29/53)[Kremote: Resolving deltas:  56% (30/53)[Kremote: Resolving deltas:  58% (31/53)[Kremote: Resolving deltas:  60% (32/53)[Kremote: Resolving deltas:  62% (33/53)[Kremote: Resolving deltas:  64% (34/53)[Kremote: Resolving deltas:  66% (35/53)[Kremote: Resolving deltas:  67% (36/53)[Kremote: Resolving deltas:  69% (37/53)[Kremote: Resolving deltas:  71% (38/53)[Kremote: Resolving deltas:  73% (39/53)[Kremote: Resolving deltas:  75% (40/53)[Kremote: Resolving deltas:  77% (41/53)[Kremote: Resolving deltas:  79% (42/53)[Kremote: Resolving deltas:  81% (43/53)[Kremote: Resolving deltas:  83% (44/53)[Kremote: Resolving deltas:  84% (45/53)[Kremote: Resolving deltas:  86% (46/53)[Kremote: Resolving deltas:  88% (47/53)[Kremote: Resolving deltas:  90% (48/53)[Kremote: Resolving deltas:  92% (49/53)[Kremote: Resolving deltas:  94% (50/53)[Kremote: Resolving deltas:  96% (51/53)[Kremote: Resolving deltas:  98% (52/53)[Kremote: Resolving deltas: 100% (53/53)[Kremote: Resolving deltas: 100% (53/53), completed withggit pull[?1l>[?2004l
+kgit\Updating fde11259..dc85af5b
+Fast-forward
+ .vscode/launch.json            |  3 [32m++[m[31m-[m
+ algo/happo/configs/smac.yaml   | 18 [32m+++++++++[m[31m---------[m
+ algo/happo/elements/trainer.py |  6 [32m+++[m[31m---[m
+ algo/ppo/elements/utils.py     |  2 [32m+[m[31m-[m
+ code_debug2                    |  2 [32m+[m[31m-[m
+ core/elements/buffer.py        |  4 [32m++[m[31m--[m
+ env/func.py                    |  3 [32m++[m[31m-[m
+ env/make.py                    |  5 [32m+++[m[31m--[m
+ env/smac_env/__initggit pull[?1l>[?2004l
+kgit\Updating fde11259..dc85af5b
+Fast-forward
+ .vscode/launch.json            |  3 [32m++[m[31m-[m
+ algo/happo/configs/smac.yaml   | 18 [32m+++++++++[m[31m---------[m
+ algo/happo/elements/trainer.py |  6 [32m+++[m[31m---[m
+ algo/ppo/elements/utils.py     |  2 [32m+[m[31m-[m
+ code_debug2                    |  2 [32m+[m[31m-[m
+ core/elements/buffer.py        |  4 [32m++[m[31m--[m
+ env/func.py                    |  3 [32m++[m[31m-[m
+ env/make.py                    |  5 [32m+++[m[31m--[m
+ env/smac_env/__init__.py       |  1 [32m+[m
+ env/smac_env/smac.py           | 36 [32m+++++++++++++++++++[m[31m-----------------[m
+ model_test                     | 30 [32m++++++++++++++++[m[31m--------------[m
+ run_magw                       | 73 [31m-------------------------------------------------------------------------[m
+ run_mpe                        | 78 [31m------------------------------------------------------------------------------[m
+ update.md                      |  2 [32m++[m
+ 14 files changed, 61 insertions(+), 202 deletions(-)
+ create mode 100644 env/smac_env/__in../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 09:03:24,968 - inf_mac - INFO - job id: python_job_chenxw__5MmJNAMu
+2023-03-23 09:03:24,968 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 09:03:25,793 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 09:03:25,793 - inf_mac - INFO - upload working dir...
+2023-03-23 09:03:27,136 - inf_mac - INFO - submitting job...
+2023-03-23 09:03:28,221 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 09:03:29,314 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 09:03:29,315 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__5MmJNAMu
+magw-logs
+2023-03-23 09:03:31,521 - inf_mac - INFO - job id: python_job_chenxw__E4bYw87E
+2023-03-23 09:03:31,521 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 09:03:32,452 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 09:03:32,452 - inf_mac - INFO - upload working dir...
+2023-03-23 09:03:33,758 - inf_mac - INFO - submitting job...
+2023-03-23 09:03:34,858 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 09:03:35,947 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 09:03:35,947 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__E4bYw87E
+magw-logs
+2023-03-23 09:03:38,245 - inf_mac - INFO - job id: python_job_chenxw__bQohMc5A
+2023-03-23 09:03:38,245 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 09:03:38,584 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 09:03:38,584 - inf_mac - INFO - upload working dir...
+2023-03-23 09:03:39,850 - inf_mac - INFO - submitting job...
+2023-03-23 09:03:40,934 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 09:03:42,034 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 09:03:42,034 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__bQohMc5A
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[9:03:42] 
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 10:42:38,348 - inf_mac - INFO - job id: python_job_chenxw__b6yMtcZp
+2023-03-23 10:42:38,348 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:42:39,221 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:42:39,221 - inf_mac - INFO - upload working dir...
+2023-03-23 10:42:40,984 - inf_mac - INFO - submitting job...
+2023-03-23 10:42:42,076 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:42:43,204 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:42:4[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 10:42:38,348 - inf_mac - INFO - job id: python_job_chenxw__b6yMtcZp
+2023-03-23 10:42:38,348 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:42:39,221 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:42:39,221 - inf_mac - INFO - upload working dir...
+2023-03-23 10:42:40,984 - inf_mac - INFO - submitting job...
+2023-03-23 10:42:42,076 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:42:43,204 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:42:43,204 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__b6yMtcZp
+magw-logs
+2023-03-23 10:42:45,742 - inf_mac - INFO - job id: pytho2023-03-23 10:42:52,719 - inf_mac - INFO - job id: python_job_chenxw__ecHaJZum
+2023-03-23 10:42:52,719 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:42:53,082 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:42:53,082 - inf_mac - INFO - upload working dir...
+2023-03-23 10:42:54,914 - inf_mac - INFO - submitting job...
+2023-03-23 10:42:56,002 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:42:57,101 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:42:57,101 - inf_mac - INFO - job url: http://172.16.112023-03-23 10:42:52,719 - inf_mac - INFO - job id: python_job_chenxw__ecHaJZum
+2023-03-23 10:42:52,719 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:42:53,082 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:42:53,082 - inf_mac - INFO - upload working dir...
+2023-03-23 10:42:54,914 - inf_mac - INFO - submitting job...
+2023-03-23 10:42:56,002 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:42:57,101 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:42:57,101 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__ecHaJZum
+magw-logs
+2023-03-23 10:42:59,451 - inf_mac - INFO - job id: python_job_chenxw__MztvKhbA
+2023-03-23 10:42:59,451 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:42:59,882 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:42:59,883 - inf_mac - INFO - upload working dir...
+2023-03-23 10:43:01,984 - inf_mac - INFO - submitting job...
+2023-03-23 10:43:03,093 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:43:04,190 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:4../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 10:45:12,292 - inf_mac - INFO - job id: python_job_chenxw__E2Dugrod
+2023-03-23 10:45:12,292 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:45:13,202 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:45:13,202 - inf_mac - INFO - upload working dir...
+2023-03-23 10:45:15,462 - inf_mac - INFO - submitting job...
+2023-03-23 10:45:16,565 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:45:17,680 - inf_mac - INFO - allocation status: 1/1...../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 10:45:12,292 - inf_mac - INFO - job id: python_job_chenxw__E2Dugrod
+2023-03-23 10:45:12,292 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:45:13,202 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:45:13,202 - inf_mac - INFO - upload working dir...
+2023-03-23 10:45:15,462 - inf_mac - INFO - submitting job...
+2023-03-23 10:45:16,565 - inf_mac - INFO - allocation st2023-03-23 10:45:23,401 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:45:24,529 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:45:24,529 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__m3iKkMni
+magw-logs
+2023-03-23 10:45:27,331 - inf_mac - INFO - job id: python_job_chenxw__C8nXvXyJ
+2023-03-23 10:45:27,332 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:45:27,846 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:45:27,846 - inf_mac - INFO - upload working dir...
+2023-02023-03-23 10:45:23,401 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:45:24,529 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:45:24,529 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__m3iKkMni
+magw-logs
+2023-03-23 10:45:27,331 - inf_mac - INFO - job id: python_job_chenxw__C8nXvXyJ
+2023-03-23 10:45:27,332 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:45:27,846 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:45:27,846 - inf_mac - INFO - upload working dir...
+2023-03-23 10:45:29,915 - inf_mac - INFO - submitting job...
+2023-03-23 10:45:31,002 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:45:32,117 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:45:32,118 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__C8nXvXyJ
+magw-logs
+2023-03-23 10:45:34,403 - inf_mac - INFO - job id: python_job_chenxw__XPqn7M9C
+2023-03-23 10:45:34,403 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:45:34,741 - inf_mac - INFO - working dir size: 9.23828125 MB
+2023-03-23 10:45:34,741 - inf_mac - INFO - upload working dir...
+2023-03-23 10:45:36,366 - inf_mac - INFO - submitting job...
+2023-03-23 10:45:37,451 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:45:38,546 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:4../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 10:46:34,096 - inf_mac - INFO - job id: python_job_chenxw__LWiH836f
+2023-03-23 10:46:34,097 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:46:34,972 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 10:46:34,973 - inf_mac - INFO - upload working dir...
+2023-03-23 10:46:36,570 - inf_mac - INFO - submitting job...
+2023-03-23 10:46:37,667 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:46:38,781 - inf_mac - INFO - allocation status: 1/1...../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 10:46:34,096 - inf_mac - INFO - job id: python_job_chenxw__LWiH836f
+2023-03-23 10:46:34,097 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:46:34,972 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 10:46:34,973 - inf_mac - INFO - upload working dir...
+2023-03-23 10:46:36,570 - inf_mac - INFO - submitting job...
+2023-03-23 10:46:37,667 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:46:38,781 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:46:38,781 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__LWiH836f
+magw-logs
+2023-03-23 10:46:40,930 - inf_mac - INFO - job id: python_job_chenxw__dJBfD3nw
+2023-03-23 10:46:40,930 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:46:41,272 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 10:46:41,272 - inf_mac - INFO - upload working dir...
+2023-03-23 10:46:42,611 - inf_mac - INFO - submitting job...
+2023-03-23 10:46:43,706 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:46:44,803 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:46:44,804 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__dJBfD3nw
+magw-logs
+2023-03-23 10:46:46,838 - inf_mac - INFO - job id: python2023-03-23 10:46:52,794 - inf_mac - INFO - job id: python_job_chenxw__PZUx3GK5
+2023-03-23 10:46:52,794 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:46:53,126 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 10:46:53,126 - inf_mac - INFO - upload working dir...
+2023-03-23 10:46:54,658 - inf_mac - INFO - submitting job...
+2023-03-23 10:46:55,740 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:46:56,846 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:46:56,846 - inf_mac - INFO - job url: http://172.16.12023-03-23 10:46:52,794 - inf_mac - INFO - job id: python_job_chenxw__PZUx3GK5
+2023-03-23 10:46:52,794 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 10:46:53,126 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 10:46:53,126 - inf_mac - INFO - upload working dir...
+2023-03-23 10:46:54,658 - inf_mac - INFO - submitting job...
+2023-03-23 10:46:55,740 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:46:56,846 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 10:4../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 11:11:36,845 - inf_mac - INFO - job id: python_job_chenxw__GnpngFwd
+2023-03-23 11:11:36,846 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 11:11:37,701 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 11:11:37,701 - inf_mac - INFO - upload working dir...
+2023-03-23 11:11:41,172 - inf_mac - INFO - submitting job...
+2023-03-23 11:11:42,289 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 11:11:43,471 - inf_mac - INFO - allocation status: 1/1...../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 11:11:36,845 - inf_mac - INFO - job id: python_job_chenxw__GnpngFwd
+2023-03-23 11:11:36,846 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 11:11:37,701 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 11:11:37,701 - inf_mac - INFO - upload working dir...
+2023-03-23 11:11:41,172 - inf_mac - INFO - submitting job...
+2023-03-23 11:11:42,289 - inf_mac - INFO - allocation sta2023-03-23 11:11:52,162 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 11:11:53,285 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 11:11:53,285 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__Z2MEyAHe
+magw-logs
+2023-03-23 11:11:55,785 - inf_mac - INFO - job id: python_job_chenxw__owq4t2mh
+2023-03-23 11:11:55,785 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 11:11:56,154 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 11:11:56,154 - inf_mac - INFO - upload working dir...
+2023-2023-03-23 11:11:52,162 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 11:11:53,285 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 11:11:53,285 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__Z2MEyAHe
+magw-logs
+2023-03-23 11:11:55,785 - inf_mac - INFO - job id: python_job_chenxw__owq4t2mh
+2023-03-23 11:11:55,785 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 11:11:56,154 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 11:11:56,154 - inf_mac - INFO - upload working dir...
+2023-03-23 11:11:59,883 - inf_mac - INFO - submitting job...
+2023-03-23 11:12:01,001 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 11:12:02,102 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 11:1../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 11:28:22,185 - inf_mac - INFO - job id: python_job_chenxw__4eBUvk7t
+2023-03-23 11:28:22,185 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 11:28:23,137 - inf_mac - INFO - working dir size: 9.248046875 MB
+2023-03-23 11:28:23,137 - inf_mac - INFO - upload working dir...
+2023-03-23 11:28:24,454 - inf_mac - INFO - submitting job...
+2023-03-23 11:28:25,554 - inf_mac - INFO - allocation status: 0/1...
+2023-03-23 11:28:26,573 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 11:28:27,673 - inf_mac - INFO - allocation status: 2/2...
+2023-03-23 11:28:27,673 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__4eBUvk7t
+[1m[3m%[23m[1m[0m                                                                                                                                                                              2023-03-23 11:28:24,454 - inf_mac - INFO - submitting job...
+2023-03-23 11:28:25,554 - inf_mac - INFO - allocation status: 0/1...
+2023-03-23 11:28:26,573 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 11:28:27,673 - inf_mac - INFO - allocation status: 2/2...
+2023-03-23 11:2ggit pull[?1l>[?2004l
+kgit\Updating dc85af5b..4ca77a4e
+Fast-forward
+ env/smac_env/smac.py |  4 [32m++[m[31m--[m
+ model_test           | 71 [32m+++++++++++++++++++++++++++++++++++++++[m[31m--------------------------------[m
+ 2 files changed, 41 insertions(+), 34 deletions(-)
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[13:37:08] 
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 18:13:55,554 - inf_mac - INFO - job id: python_job_chenxw__dtrQ2h4X
+2023-03-23 18:13:55,555 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:13:56,625 - inf_mac - INFO - working dir size: 9.267578125 MB
+2023-03-23 18:13:56,625 - inf_mac - INFO - upload working dir...
+2023-03-23 18:13:59,846 - inf_mac - INFO - submitting job...
+2023-03-23 18:14:00,957 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:14:02,080 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:14:02,080 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__dtrQ2h4X
+magw-logs
+^CTraceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/bin/inf_mac", line 5, in <module>
+    from inf_mac.inf_mac import main
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 16, in <module>
+    import paramiko
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/paramiko/__init__.py", line 22, in <module>
+    from paramiko.transport import Sec2023-03-23 18:14:02,080 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__dtrQ2h4X
+magw-logs
+^CTraceback (most recent call last):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/bin/inf_mac", line 5, in <module>
+    from inf_mac.inf_mac import main
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/inf_mac/inf_mac.py", line 16, in <module>
+    import paramiko
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/paramiko/__init__.py", line 22, in <module>
+    from paramiko.transport import SecurityOptions, Transport
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/paramiko/transport.py", line 132, in <module>
+    class Transport(threading.Thread, ClosingContextManager):
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/paramiko/transport.py", line 206, in Transport
+    if KexCurve25519.is_available():
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/paramiko/kex_curve25519.py", line 30, in is_available
+    X25519PrivateKey.generate()
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/cryptography/hazmat/primitives/asymmetric/x25519.py", line 39, in generate
+    from cryptography.hazmat.backends.openssl.backend import backend
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/cryptography/hazmat/backends/openssl/__init__.py", line 6, in <module>
+    from cryptography.hazmat.backends.openssl.backend import backend
+  File "/Users/aptx4869/opt/anaconda3/envs/inf/lib/python3.10/site-packages/cryptography/hazmat/backends/openssl/backend.py", line 17, in <module>
+    from cryptography.hazmat.backends.openssl.cmac import _CMACContext
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 975, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1074, in get_data
+KeyboardInterrupt
+^C
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\^C[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 18:18:36,377 - inf_mac - INFO - job id: python_job_chenxw__cUvgwzxa
+2023-03-23 18:18:36,378 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:18:37,267 - inf_mac - INFO - working dir size: 9.267578125 MB
+2023-03-23 18:18:37,267 - inf_mac - INFO - upload working dir...
+2023-03-23 18:18:38,712 - inf_mac - INFO - submitting job...
+2023-03-23 18:18:39,802 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:18:40,905 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:18:40,905 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__cUvgwzxa
+magw-logs
+2023-03-23 18:18:43,601 - inf_mac - INFO - job id: python_job_chenxw__EaXcJQLj
+2023-03-23 18:18:43,601 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:18:43,995 - inf_mac - INFO - working dir size: 9.267578125 MB
+2023-03-23 18:18:43,995 - inf_mac - INFO - upload working dir...
+2023-03-23 18:18:45,680 - inf_mac - INFO - submitting job...
+2023-03-23 18:18:46,765 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:18:47,861 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:18:47,861 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__EaXcJQLj
+magw-logs
+2023-03-23 18:18:50,514 - inf_mac - INFO - job id: python_job_chenxw__maz7mGdg
+2023-03-23 18:18:50,514 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:18:50,882 - inf_mac - INFO - working dir size: 9.267578125 MB
+2023-03-23 18:18:50,883 - inf_mac - INFO - upload working dir...
+2023-03-23 18:18:52,268 - inf_mac - INFO - submitting job...
+2023-03-23 18:18:53,355 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:18:54,449 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:18:54,450 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__maz7mGdg
+magw-logs
+2023-03-23 18:18:56,884 - inf_mac - INFO - job id: python_job_chenxw__WQXp7cFY
+2023-03-23 18:18:56,884 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:18:57,294 - inf_mac - INFO - working dir size: 9.267578125 MB
+2023-03-23 18:18:57,294 - inf_mac - INFO - upload working dir...
+2023-03-23 18:18:58,681 - inf_mac - INFO - submitting job...
+2023-03-23 18:18:59,792 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:19:00,895 - inf_mac - INFO - allocation status: 2/2...
+2023-03-23 18:19:00,895 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__WQXp7cFY
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[18:19:01] 
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 18:26:09,491 - inf_mac - INFO - job id: python_job_chenxw__Dx49JS6W
+2023-03-23 18:26:09,491 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:26:09,784 - inf_mac - INFO - working dir size: 9.267578125 MB
+2023-03-23 18:26:09,784 - inf_mac - INFO - upload working dir...
+2023-03-23 18:26:13,697 - inf_mac - INFO - submitting job...
+2023-03-23 18:26:14,841 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:26:15,997 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:26:15,997 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__Dx49JS6W
+magw-logs
+2023-03-23 18:26:18,405 - inf_mac - INFO - job id: python_job_chenxw__F4z99BBw
+2023-03-23 18:26:18,405 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:26:18,700 - inf_mac - INFO - working dir size: 9.267578125 MB
+2023-03-23 18:26:18,700 - inf_mac - INFO - upload working dir...
+2023-03-23 18:26:20,301 - inf_mac - INFO - submitting job...
+2023-03-23 18:26:21,436 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:26:22,602 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:26:22,604 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__F4z99BBw
+magw-logs
+2023-03-23 18:26:24,957 - inf_mac - INFO - job id: python_job_chenxw__Aq5FXWJV
+2023-03-23 18:26:24,958 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:26:25,269 - inf_mac - INFO - working dir size: 9.267578125 MB
+2023-03-23 18:26:25,269 - inf_mac - INFO - upload working dir...
+2023-03-23 18:26:28,194 - inf_mac - INFO - submitting job...
+2023-03-23 18:26:29,313 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:26:30,404 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:26:30,405 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__Aq5FXWJV
+magw-logs
+2023-03-23 18:26:32,718 - inf_mac - INFO - job id: python_job_chenxw__CZyzNXP3
+2023-03-23 18:26:32,719 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:26:33,051 - inf_mac - INFO - working dir size: 9.27734375 MB
+2023-03-23 18:26:33,051 - inf_mac - INFO - upload working dir...
+2023-03-23 18:26:36,094 - inf_mac - INFO - submitting job...
+2023-03-23 18:26:37,190 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:26:38,284 - inf_mac - INFO - allocation status: 2/2...
+2023-03-23 18:26:38,285 - inf_mac - INFO - job url: http://172.16.112023-03-23 18:26:32,718 - inf_mac - INFO - job id: python_job_chenxw__CZyzNXP3
+2023-03-23 18:26:32,719 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 18:26:33,051 - inf_mac - INFO - working dir size: 9.27734375 MB
+2023-03-23 18:26:33,051 - inf_mac - INFO - upload working dir...
+2023-03-23 18:26:36,094 - inf_mac - INFO - submitting job...
+2023-03-23 18:26:37,190 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 18:26:38,284 - inf_mac - INFO - allocation status: 2/2...
+2023-03-23 18:2ggit push[?1l>[?2004l
+kgit\Everything up-to-date
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[19:12:39] 
+[1m[31m$ [00m[K[?1h=[?2004hgit push[?1l>[?2004l
+kgit\Enumeraggit push[?1l>[?2004l
+kgit\Everything up-to-date
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[19:12:39] 
+[1m[31m$ [00m[K[?1h=[?2004hgit push[?1l>[?2004l
+kgit\Enumerating objects: 125, done.
+Counting objects:   0% (1/125)Counting objects:   1% (2/125)Counting objects:   2% (3/125)Counting objects:   3% (4/125)Counting objects:   4% (5/125)Counting objects:   5% (7/125)Counting objects:   6% (8/125)Counting objects:   7% (9/125)Counting objects:   8% (10/125)Counting objects:   9% (12/125)Counting objects:  10% (13/125)Counting objects:  11% (14/125)Counting objects:  12% (15/125)Counting objects:  13% (17/125)Counting objects:  14% (18/125)Counting objects:  15% (19/125)Counting objects:  16% (20/125)Counting objects:  17% (22/125)Counting objects:  18% (23/125)Counting objects:  19% (24/125)Counting objects:  20% (25/125)Counting objects:  21% (27/125)Counting objects:  22% (28/125)Counting objects:  23% (29/125)Counting objects:  24% (30/125)Counting objects:  25% (32/125)Counting objects:  26% (33/125)Counting objects:  27% (34/125)Counting objects:  28% (35/125)Counting objects:  29% (37/125)Counting objects:  30% (38/125)Counting objects:  31% (39/125)Counting objects:  32% (40/125)Counting objects:  33% (42/125)Counting objects:  34% (43/125)Counting objects:  35% (44/125)Counting objects:  36% (45/125)Counting objects:  37% (47/125)Counting objects:  38% (48/125)Counting objects:  39% (49/125)Counting objects:  40% (50/125)Counting objects:  41% (52/125)Counting objects:  42% (53/125)Counting objects:  43% (54/125)Counting objects:  44% (55/125)Counting objects:  45% (57/125)Counting objects:  46% (58/125)Counting objects:  47% (59/125)Counting objects:  48% (60/125)Counting objects:  49% (62/125)Counting objects:  50% (63/125)Counting objects:  51% (64/125)Counting objects:  52% (65/125)Counting objects:  53% (67/125)Counting objects:  54% (68/125)Counting objects:  55% (69/125)Counting objects:  56% (70/125)Counting objects:  57% (72/125)Counting objects:  58% (73/125)Counting objects:  59% (74/125)Counting objects:  60% (75/125)Counting objects:  61% (77/125)Counting objects:  62% (78/125)Counting objects:  63% (79/125)Counting objects:  64% (80/125)Counting objects:  65% (82/125)Counting objects:  66% (83/125)Counting objects:  67% (84/125)Counting objects:  68% (85/125)Counting objects:  69% (87/125)Counting objects:  70% (88/125)Counting objects:  71% (89/125)Counting objects:  72% (90/125)Counting objects:  73% (92/125)Counting objects:  74% (93/125)Counting objects:  75% (94/125)Counting objects:  76% (95/125)Counting objects:  77% (97/125)Counting objects:  78% (98/125)Counting objects:  79% (99/125)Counting objects:  80% (100/125)Counting objects:  81% (102/125)Counting objects:  82% (103/125)Counting objects:  83% (104/125)Counting objects:  84% (105/125)Counting objects:  85% (107/125)Counting objects:  86% (108/125)Counting objects:  87% (109/125)Counting objects:  88% (110/125)Counting objects:  89% (112/125)Counting objects:  90% (118)Compressing objects:   8% (6/68)Compressing objects:  10% (7/68)Compressing objects:  11% (8/68)Compressing objects:  13% (9/68)Compressing objects:  14% (10/68)Compressing objects:  16% (11/68)Compressing objects:  17% (12/68)Compressing objects:  19% (13/68)Compressing objects:  20% (14/68)Compressing objects:  22% (15/68)Compressing objects:  23% (16/68)Compressing objects:  25% (17/68)Compressing objects:  26% (18/68)Compressing objects:  27% (19/68)Compressing objects:  29% (20/68)Compressing objects:  30% (21/68)Compressing objects:  32% (22/68)Comp8)Compressing objects:   8% (6/68)Compressing objects:  10% (7/68)Compressing objects:  11% (8/68)Compressing objects:  13% (9/68)Compressing objects:  14% (10/68)Compressing objects:  16% (11/68)Compressing objects:  17% (12/68)Compressing objects:  19% (13/68)Compressing objects:  20% (14/68)Compressing objects:  22% (15/68)Compressing objects:  23% (16/68)Compressing objects:  25% (17/68)Compressing objects:  26% (18/68)Compressing objects:  27% (19/68)Compressing objects:  29% (20/68)Compressing objects:  30% (21/68)Compressing objects:  32% (22/68)Compressing objects:  33% (23/68)Compressing objects:  35% (24/68)Compressing objects:  36% (25/68)Compressing objects:  38% (26/68)Compressing objects:  39% (27/68)Compressing objects:  41% (28/68)Compressing objects:  42% (29/68)Compressing objects:  44% (30/68)Compressing objects:  45% (31/68)Compressing objects:  47% (32/68)Compressing objects:  48% (33/68)Compressing objects:  50% (34/68)Compressing objects:  51% (35/68)Compressing objects:  52% (36/68)Compressing objects:  54% (37/68)Compressing objects:  55% (38/68)Compressing objects:  57% (39/68)Compressing objects:  58% (40/68)Compressing objects:  60% (41/68)Compressing objects:  61% (42/68)Compressing objects:  63% (43/68)Compressing objects:  64% (44/68)Compressing objects:  66% (45/68)Compressing objects:  67% (46/68)Compressing objects:  69% (47/68)Compressing objects:  70% (48/68)Compressing objects:  72% (49/68)Compressing objects:  73% (50/68)Compressing objects:  75% (51/68)Compressing objects:  76% (52/68)Compressing objects:  77% (53/68)Compressing objects:  79% (54/68)Compressing objects:  80% (55/68)Compressing objects:  82% (56/68)Compressing objects:  83% (57/68)Compressing objects:  85% (58/68)Compressing objects:  86% (59/68)Compressing objects:  88% (60/68)Compressing objects:  89% (61/68)Compressing objects:  91% (62/68)Compressing objects:  92% (63/68)Compressing objects:  94% (64/68)Compressing objects:  95% (65/68)Compressing objects:  97% (66/68)Compressing objects:  98% (67/68)Compressing objects: 100% (68/68)Compressing objects: 100% (68/68), done.
+Writing objects:   1% (1/70)Writing objects:   2% (2/70)Writing objects:   4% (3/70)Writing objects:   5% (4/70)Writing objects:   7% (5/70)Writing objects:   8% (6/70)Writing objects:  10% (7/70)Writing objects:  11% (8/70)Writing objects:  12% (9/70)Writing objects:  14% (10/70)Writing objects:  15% (11/70)Writing objects:  17% (12/70)Writing objects:  18% (13/70)Writing objects:  21% (15/70)Writing objects:  22% (16/70)Writing objects:  24% (17/70)Writing objects:  25% (18/70)Writing objects:  27% (19/70)Writing objects:  28% (20/70)Writing objects:  31% (22/70)Writing objects:  32% (23/70)Writing objects:  34% (24/70)Writing objects:  35% (25/70)Writing objects:  37% (26/70)Writing objects:  38% (27/70)Writing objects:  40% (28/70)Writing objects:  41% (29/70)Writing objects:  42% (30/70)Writing objects:  44% (31/70)Writing objects:  47% (33/70)Writing objects:  48% (34/70)Writing objects:  50% (35/70)Writing objects:  51% (36/70)Writing objects:  52% (37/70)Writing objects:  54% (38/70)Writing objects:  55% (39/70)Writing objects:  57% (40/70)Writing objects:  58% (41/70)Writing objects:  60% (42/70)Writing objects:  61% (43/70)Writing objects:  62% (44/70)Writing objects:  64% (45/70)Writing objects:  65% (46/70)Writing objects:  67% (47/70)Writing objects:  68%iting objects:  97% (68/70)Writing objects:  98% (69/70)Writing objects: 100% (70/70)Writing objects: 100% (70/70), 15.90 KiB | 1.99 MiB/s, done.
+Total 70 (delta 50), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas:   0% (0/50)[Kremote: Resolving deltas:   2% (1/50)[Kremote: Resolving deltas:   4% (2/50)[Kremote: Resolving deltas:   6% (3/50)[Kremote: Resolving deltas:   8% (4/50)[Kremote: Resolving deltas:  10% (5/50)[Kremote: Resolving deltas:  12% (6/50)[Kremote: Resolving deltas:  14% (7/50)[Kremote: Resolving deltas:  16% (8/50)[Kremoteiting objects:  97% (68/70)Writing objects:  98% (69/70)Writing objects: 100% (70/70)Writing objects: 100% (70/70), 15.90 KiB | 1.99 MiB/s, done.
+Total 70 (delta 50), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas:   0% (0/50)[Kremote: Resolving deltas:   2% (1/50)[Kremote: Resolving deltas:   4% (2/50)[Kremote: Resolving deltas:   6% (3/50)[Kremote: Resolving deltas:   8% (4/50)[Kremote: Resolving deltas:  10% (5/50)[Kremote: Resolving deltas:  12% (6/50)[Kremote: Resolving deltas:  14% (7/50)[Kremote: Resolving deltas:  16% (8/50)[Kremote: Resolving deltas:  18% (9/50)[Kremote: Resolving deltas:  20% (10/50)[Kremote: Resolving deltas:  22% (11/50)[Kremote: Resolving deltas:  24% (12/50)[Kremote: Resolving deltas:  26% (13/50)[Kremote: Resolving deltas:  28% (14/50)[Kremote: Resolving deltas:  30% (15/50)[Kremote: Resolving deltas:  32% (16/50)[Kremote: Resolving deltas:  34% (17/50)[Kremote: Resolving deltas:  36% (18/50)[Kremote: Resolving deltas:  38% (19/50)[Kremote: Resolving deltas:  40% (20/50)[Kremote: Resolving deltas:  42% (21/50)[Kremote: Resolving deltas:  44% (22/50)[Kremote: Resolving deltas:  46% (23/50)[Kremote: Resolving deltas:  48% (24/50)[Kremote: Resolving deltas:  50% (25/50)[Kremote: Resolving deltas:  52% (26/50)[Kremote: Resolving deltas:  54% (27/50)[Kremote: Resolving deltas:  56% (28/50)[Kremote: Resolving deltas:  58% (29/50)[Kremote: Resolving deltas:  60% (30/50)[Kremote: Resolving deltas:  62% (31/50)[Kremote: Resolving deltas:  64% (32/50)[Kremote: Resolving deltas:  66% (33/50)[Kremote: Resolving deltas:  68% (34/50)[Kremote: Resolving deltas:  70% (35/50)[Kremote: Resolving deltas:  72% (36/50)[Kremote: Resolving deltas:  74% (37/50)[Kremote: Resolving deltas:  76% (38/50)[Kremote: Resolving deltas:  78% (39/50)[Kremote: Resolving deltas:  80% (40/50)[Kremote: Resolving deltas:  82% (41/50)[Kremote: Resolving deltas:  84% (42/50)[Kremote: Resolving deltas:  86% (43/50)[Kremote: Resolving deltas:  88% (44/50)[Kremote: Resolving deltas:  90% (45/50)[Kremote: Resolving deltas:  92% (46/50)[Kremote: Resolving deltas:  94% (47/50)[Kremote: Resolving deltas:  96% (48/50)[Kremote: Resolving deltas:  98% (49/50)[Kremote: Resolving deltas: 100% (50/50)[Kremote: Resolving deltas: 100% (50/50), completed with../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 20:43:05,647 - inf_mac - INFO - job id: python_job_chenxw__6Z5neyKC
+2023-03-23 20:43:05,647 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 20:43:06,467 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-23 20:43:06,467 - inf_mac - INFO - upload working dir...
+2023-03-23 20:43:09,707 - inf_mac - INFO - submitting job...
+2023-03-23 20:43:10,820 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 20:43:11,941 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 20:43:[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 20:43:05,647 - inf_mac - INFO - job id: python_job_chenxw__6Z5neyKC
+2023-03-23 20:43:05,647 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 20:43:06,467 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-23 20:43:06,467 - inf_mac - INFO - upload working dir...
+2023-03-23 20:43:09,707 - inf_mac - INFO - submitting job...
+2023-03-23 20:43:10,820 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 20:43:11,941 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 20:4../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 20:46:05,532 - inf_mac - INFO - job id: python_job_chenxw__mnNXEEFh
+2023-03-23 20:46:05,533 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 20:46:06,332 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-23 20:46:06,333 - inf_mac - INFO - upload working dir...
+2023-03-23 20:46:08,983 - inf_mac - INFO - submitting job...
+2023-03-23 20:46:10,094 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 20:46:11,223 - inf_mac - INFO - allocation status: 1/1...../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 20:46:05,532 - inf_mac - INFO - job id: python_job_chenxw__mnNXEEFh
+2023-03-23 20:46:05,533 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 20:46:06,332 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-23 20:46:06,333 - inf_mac - INFO - upload working dir...
+2023-03-23 20:46:08,983 - inf_mac - INFO - submitting job...
+2023-03-23 20:46:10,094 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 20:46:11,223 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 20:4../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-23 21:27:00,133 - inf_mac - INFO - job id: python_job_chenxw__oKK2PSd5
+2023-03-23 21:27:00,133 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 21:27:00,997 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-23 21:27:00,997 - inf_mac - INFO - upload working dir...
+2023-03-23 21:27:03,682 - inf_mac - INFO - submitting job...
+2023-03-23 21:27:04,817 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 21:27:05,940 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 21:27:05,940 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__oKK2PSd5
+magw-logs
+2023-03-23 21:27:07,994 - inf_mac - INFO - job id: python_job_chenxw__gNBozE3G
+2023-03-23 21:27:07,994 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 21:27:08,278 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-23 21:27:08,279 - inf_mac - INFO - upload working dir...
+2023-03-23 21:27:10,831 - inf_mac - INFO - submitting job...
+2023-03-23 21:27:11,966 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 21:27:13,088 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 21:27:13,088 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__gNBozE3G
+magw-logs
+2023-03-23 21:27:15,202 - inf_mac - INFO - job id: python_job_chenxw__UFqBrsvJ
+2023-03-23 21:27:15,202 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-23 21:27:15,498 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-23 21:27:15,498 - inf_mac - INFO - upload working dir...
+2023-03-23 21:27:18,020 - inf_mac - INFO - submitting job...
+2023-03-23 21:27:19,153 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 21:27:20,378 - inf_mac - INFO - allocation status: 1/1...
+2023-03-23 21:27:20,378 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__UFqBrsvJ
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[21:27:20] 
+[1m[31m$ [00m[K[?1h=[?2004h222222[?2004l
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[6:10:21] C:[31m130[00m
+[1m[31m$ [00m[K[?1h=[?2004h../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023[?2004l
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(2023-03-24 06:10:32,772 - inf_mac - INFO - submitting job...
+2023-03-24 06:10:33,917 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:10:35,040 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:10:35,041 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__rb5KYStu
+magw-logs
+2023-03-24 06:10:38,651 - inf_mac - INFO - job id: python_job_chenxw__Xfiuf7qt
+2023-03-24 06:10:38,652 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 06:10:39,640 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-22023-03-24 06:10:32,772 - inf_mac - INFO - submitting job...
+2023-03-24 06:10:33,917 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:10:35,040 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:10:35,041 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__rb5KYStu
+magw-logs
+2023-03-24 06:10:38,651 - inf_mac - INFO - job id: python_job_chenxw__Xfiuf7qt
+2023-03-24 06:10:38,652 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 06:10:39,640 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-24 06:10:39,640 - inf_mac - INFO - upload working dir...
+2023-03-24 06:10:42,600 - inf_mac - INFO - submitting job...
+2023-03-24 06:10:43,805 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:10:44,907 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:10:44,907 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__Xfiuf7qt
+magw-logs
+2023-03-24 06:10:48,511 - inf_mac - INFO - job id: python_job_chenxw__4Czd3Cpb
+2023-03-24 06:10:48,512 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 06:10:49,588 - inf_mac - INFO - working dir size: 9.287109375 MB
+2023-03-24 06:10:49,588 - inf_mac - INFO - upload working dir...
+2023-03-24 06:10:52,221 - inf_mac - INFO - submitting job2023-03-24 06:11:04,224 - inf_mac - INFO - submitting job...
+2023-03-24 06:11:05,345 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:06,454 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:06,454 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__EFC7AiRG
+magw-logs
+2023-03-24 06:11:09,534 - inf_mac - INFO - job id: python_job_chenxw__6AjY9EXq
+2023-03-24 06:11:09,534 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 06:11:10,298 - inf_mac - INFO - working dir size: 9.296875 MB
+2023-03-24 02023-03-24 06:11:04,224 - inf_mac - INFO - submitting job...
+2023-03-24 06:11:05,345 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:06,454 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:06,454 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__EFC7AiRG
+magw-logs
+2023-03-24 06:11:09,534 - inf_mac - INFO - job id: python_job_chenxw__6AjY9EXq
+2023-03-24 06:11:09,534 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 06:11:10,298 - inf_mac - INFO - working dir size: 9.296875 MB
+2023-03-24 06:11:10,298 - inf_mac - INFO - upload working dir...
+2023-03-24 06:11:13,784 - inf_mac - INFO - submitting job...
+2023-03-24 06:11:14,931 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:16,164 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:16,165 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__6AjY9EXq
+magw-logs
+2023-03-24 06:11:18,457 - inf_mac - INFO - job id: python_job_chenxw__AbBuELuk
+2023-03-24 06:11:18,458 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 06:11:18,772 - inf_mac - INFO - working dir size: 9.296875 MB
+2023-03-24 06:11:18,772 - inf_mac - INFO - upload working dir...
+2023-03-24 06:11:23,163 - inf_mac - INFO - submitting job...
+2023-03-24 06:11:24,288 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:25,405 - inf_mac - INFO - allocation 2023-03-24 06:11:33,174 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:33,174 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__mHb7NqG4
+magw-logs
+2023-03-24 06:11:36,265 - inf_mac - INFO - job id: python_job_chenxw__CSbPNrSy
+2023-03-24 06:11:36,265 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 06:11:36,636 - inf_mac - INFO - working dir size: 9.296875 MB
+2023-03-24 06:11:36,636 - inf_mac - INFO - upload working dir...
+2023-03-24 06:11:39,389 - inf_mac - INFO - submitting job...
+2023-03-24 06:112023-03-24 06:11:33,174 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:33,174 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__mHb7NqG4
+magw-logs
+2023-03-24 06:11:36,265 - inf_mac - INFO - job id: python_job_chenxw__CSbPNrSy
+2023-03-24 06:11:36,265 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 06:11:36,636 - inf_mac - INFO - working dir size: 9.296875 MB
+2023-03-24 06:11:36,636 - inf_mac - INFO - upload working dir...
+2023-03-24 06:11:39,389 - inf_mac - INFO - submitting job...
+2023-03-24 06:11:40,507 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:11:41,612 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 06:../scripts/run_inf[?1l>[?2004l
+k./scripts/run_inf\magw-logs
+2023-03-24 16:48:08,150 - inf_mac - INFO - job id: python_job_chenxw__SGtbyvsr
+2023-03-24 16:48:08,150 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 16:48:09,254 - inf_mac - INFO - working dir size: 9.384765625 MB
+2023-03-24 16:48:09,254 - inf_mac - INFO - upload working dir...
+2023-03-24 16:48:13,538 - inf_mac - INFO - submitting job...
+2023-03-24 16:48:14,872 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:48:15,987 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:48:15,987 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__SGtbyvsr
+magw-logs
+2023-03-24 16:48:20,671 - inf_mac - INFO - job id: python_job_chenxw__6HatNXYo
+2023-03-24 16:48:20,671 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 16:48:21,643 - inf_mac - INFO - working dir size: 9.384765625 MB
+2023-03-24 16:48:21,643 - inf_mac - INFO - upload working dir...
+2023-03-24 16:48:25,463 - inf_mac - INFO - submitting job...
+2023-03-24 162023-03-24 16:48:15,987 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:48:15,987 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__SGtbyvsr
+magw-logs
+2023-03-24 16:48:20,671 - inf_mac - INFO - job id: python_job_chenxw__6HatNXYo
+2023-03-24 16:48:20,671 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 16:48:21,643 - inf_mac - INFO - working dir size: 9.384765625 MB
+2023-03-24 16:48:21,643 - inf_mac - INFO - upload working dir...
+2023-03-24 16:48:25,463 - inf_mac - INFO - submitting job...
+2023-03-24 16:48:26,579 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:48:27,700 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:48:27,700 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__6HatNXYo
+magw-logs
+2023-03-24 16:48:30,862 - inf_mac - INFO - job id: python_job_chenxw__Cu9d6dvB
+2023-03-24 16:48:30,863 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 16:48:31,369 - inf_mac - INFO - working dir size: 9.384765625 MB
+2023-03-24 16:48:31,370 - inf_mac - INFO - upload working dir...
+2023-03-24 16:48:36,462 - inf_mac - INFO - submitting job2023-03-24 16:48:48,622 - inf_mac - INFO - submitting job...
+2023-03-24 16:48:49,759 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:48:51,050 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:48:51,051 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__V9hGusr8
+magw-logs
+2023-03-24 16:48:54,762 - inf_mac - INFO - job id: python_job_chenxw__kBvnLtXz
+2023-03-24 16:48:54,762 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 16:48:55,895 - inf_mac - INFO - working dir size: 9.384765625 MB
+2023-03-22023-03-24 16:48:48,622 - inf_mac - INFO - submitting job...
+2023-03-24 16:48:49,759 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:48:51,050 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:48:51,051 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__V9hGusr8
+magw-logs
+2023-03-24 16:48:54,762 - inf_mac - INFO - job id: python_job_chenxw__kBvnLtXz
+2023-03-24 16:48:54,762 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 16:48:55,895 - inf_mac - INFO - working dir size: 9.384765625 MB
+2023-03-24 16:48:55,895 - inf_mac - INFO - upload working dir...
+2023-03-24 16:48:59,258 - inf_mac - INFO - submitting job...
+2023-03-24 16:49:00,580 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:49:01,734 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:49:01,734 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__kBvnLtXz
+magw-logs
+2023-03-24 16:49:05,408 - inf_mac - INFO - job id: python2023-03-24 16:49:15,868 - inf_mac - INFO - job id: python_job_chenxw__LgqT7Jnk
+2023-03-24 16:49:15,868 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 16:49:16,325 - inf_mac - INFO - working dir size: 9.384765625 MB
+2023-03-24 16:49:16,325 - inf_mac - INFO - upload working dir...
+2023-03-24 16:49:20,263 - inf_mac - INFO - submitting job...
+2023-03-24 16:49:21,560 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:49:22,687 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:49:22,687 - inf_mac - INFO - job url: http://172.16.12023-03-24 16:49:15,868 - inf_mac - INFO - job id: python_job_chenxw__LgqT7Jnk
+2023-03-24 16:49:15,868 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 16:49:16,325 - inf_mac - INFO - working dir size: 9.384765625 MB
+2023-03-24 16:49:16,325 - inf_mac - INFO - upload working dir...
+2023-03-24 16:49:20,263 - inf_mac - INFO - submitting job...
+2023-03-24 16:49:21,560 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:49:22,687 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:49:22,687 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__LgqT7Jnk
+magw-logs
+2023-03-24 16:49:25,590 - inf_mac - INFO - job id: python_job_chenxw__UW5iT7kN
+2023-03-24 16:49:25,590 - inf_mac - INFO - pack working dir: /Users/aptx4869/github/grl
+2023-03-24 16:49:26,024 - inf_mac - INFO - working dir size: 9.384765625 MB
+2023-03-24 16:49:26,024 - inf_mac - INFO - upload working dir...
+2023-03-24 16:49:29,513 - inf_mac - INFO - submitting job...
+2023-03-24 16:49:30,621 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:49:31,718 - inf_mac - INFO - allocation status: 1/1...
+2023-03-24 16:49:31,718 - inf_mac - INFO - job url: http://172.16.11.1:4646/ui/jobs/python_job_chenxw__UW5iT7kN
+[1m[3m%[23m[1m[0m                                                                                                                                                                                                                                              k~/github/grl\[0m[23m[24m[J(base) 
+[1m[34m#[00m [36maptx4869 [37m@ [32mAiMacbook [37min [1m[33m~/github/grl[00m [37mon[00m git:[36mmain [31mx[00m [37m[16:49:32] 
+[1m[31m$ [00m[K[?1h=[?2004h

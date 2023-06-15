@@ -16,7 +16,9 @@ do
     # tda=$(date -v-3d "+%m%d")
     # fda=$(date -v-4d "+%m%d")
 
-    python run/config_html_plt.py
+    py_script="python run/config_html_plt.py"
+    echo $py_script
+    eval $py_script
     # rm -rf html-logs
     py_script="python run/html_plt.py $dir -ln a0 dynamics -d tomorrow today yesterday dby $@ "
     echo $py_script

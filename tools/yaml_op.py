@@ -15,7 +15,7 @@ def default_path(path):
         return Path('.') / path
 
 # load arguments from config.yaml
-def load_config(path='config', to_attrdict=True):
+def load_config(path='config', to_attrdict=True, to_eval=True):
     if not path.endswith(YAML_SUFFIX):
         path = path + YAML_SUFFIX
     path = default_path(path)
@@ -25,7 +25,8 @@ def load_config(path='config', to_attrdict=True):
     with open(path, 'r') as f:
         try:
             config = yaml.load(f, Loader=yaml.FullLoader)
-            config = eval_config(config)
+            if to_eval:
+                config = eval_config(config)
             if to_attrdict:
                 return dict2AttrDict(config)
             else:

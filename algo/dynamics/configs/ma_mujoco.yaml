@@ -43,8 +43,8 @@ strategy:
     train_loop:
         ergodic: False
         training_data_size: &ds 1e5
-        valid_data_size: 4000
-        n_wp_epochs: 10
+        valid_data_size: 1000
+        n_wp_epochs: 30
         n_epochs: &nepochs 1000
 
 model:

@@ -26,7 +26,7 @@ routine:
     size: [256, 256]
 
     n_lka_steps: 1
-    n_simulated_envs: &nse 400
+    n_simulated_envs: &nse 1000
     n_simulated_steps: &nss 15
     model_rollout_type: sim
     compute_return_at_once: False
@@ -34,21 +34,43 @@ routine:
     ignore_ratio_for_lookahead: False
     perm: null
     restore_state: False
-    switch_model_at_every_step: True
+    switch_model_at_every_step: False
     quantify_dynamics_errors: False
     rollout_type: lka
-    same_order: False
+    concise_mode: True
+    same_order: True
 
 env:
-    env_name: &env_name ma_mujoco-HalfCheetah_2x3
-    n_runners: &nrunners 1
-    n_envs: &nenvs 40
-    max_episode_steps: 1000
-    timeout_done: &td False
-    env_args:
-        agent_obsk: 0
-    norm_obs: False
+    env_name: &env_name grf-academy_3_vs_1_with_keeper
+    representation: simple115v2
+    rewards: scoring,checkpoints
+    render: False
+    write_full_episode_dumps: False
+    write_video: False
+    dump_frequency: 1000
+    logdir: results/grf
+    extra_players: null
+    number_of_left_players_agent_controls: 3
+    number_of_right_players_agent_controls: 0
+    add_role_to_obs: False
+    shared_ckpt_reward: False
+    shared_reward: True
+    selected_agents: True
+
+    max_episode_steps: 200
+    use_action_mask: False
+    uid2aid: null
+    shared_policy: False
+
+    n_runners: &nrunners 10
+    n_envs: &nenvs 10
+
     use_sample_mask: True
+    use_idx: False
+    use_hidden: False
+    use_event: False
+    agentwise_global_state: False
+    timeout_done: &td False
 
 agent: {}
 
@@ -61,29 +83,23 @@ strategy:
 
 model:
     aid: 0
-    joint_log_prob: False
     gamma: &gamma .99
 
     policy:
         nn_id: policy
         units_list: [64, 64]
         w_init: orthogonal
-        activation: tanh
+        activation: relu
         norm: null
         out_scale: .01
         rnn_type: &prnn null
         rnn_units: 64
-        out_act: tanh
-        init_std: .2
-        sigmoid_scale: True
-        std_x_coef: 1.
-        std_y_coef: .5
         use_feature_norm: False
     value:
         nn_id: value
         units_list: [64, 64]
         w_init: orthogonal
-        activation: tanh
+        activation: relu
         norm: null
         rnn_type: &vrnn null
         rnn_units: 64
@@ -96,8 +112,7 @@ loss:
     rho_clip: 1
     adv_type: gae
     norm_adv: False
-    zero_center: True
-    popart: &popart True
+    adv_horizon: null
 
     prnn_bptt: 10
     vrnn_bptt: 10
@@ -111,7 +126,7 @@ loss:
     rescaled_by_mu: False
     threshold: 2.
     reg_clip: .2
-    reg_type: wasserstein
+    reg_type: kl_reverse
     sample_reg_type: log
     reg_coef: 0
     sample_reg_coef: 0
@@ -121,8 +136,7 @@ loss:
     policy_sample_mask: True
 
     # hyperparams for value learning
-    value_loss: clip_huber
-    huber_threshold: 10
+    value_loss: clip
     value_clip_range: .2
     value_sample_mask: False
 
@@ -139,7 +153,7 @@ loss:
         gamma: *gamma
         lam: &lam .95
         pg_coef: 1
-        entropy_coef: .01
+        entropy_coef: 5e-3
         lka_entropy_coef: 0
         value_coef: 1
 
@@ -148,26 +162,21 @@ trainer:
     aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
-    n_epochs: &nepochs 10
-    n_mbs: &nmbs 5
+    n_epochs: &nepochs 15
+    n_mbs: &nmbs 1
     n_steps: *nsteps
     update_scheme: whole
+
     n_simulated_envs: *nse
     n_simulated_steps: *nss
-    n_lka_epochs: *nepochs
+    n_lka_epochs: 30
     n_lka_mbs: *nmbs
+    ignore_lka_value_update: False
     debug: False
 
-    popart: *popart
-
-    policy_opt:
+    theta_opt:
         opt_name: adam
-        lr: 3e-4
-        clip_norm: 10
-        eps: 1e-5
-    value_opt:
-        opt_name: adam
-        lr: 3e-4
+        lr: 5e-4
         clip_norm: 10
         eps: 1e-5
 
@@ -176,7 +185,7 @@ actor:
     update_obs_at_execution: False
     obs_rms:
         obs_names: [obs, global_state]
-        obs_normalized_axis: [0, 1]    # obs_at_execution has no axis of time-sequential
+        obs_normalized_axis: [0, 1]    # obs is normalized at once with the sequential dimension
         obs_normalized_ndim: 2
         normalize_obs: True
         obs_clip: 10
@@ -195,21 +204,20 @@ buffer:
     n_steps: *nsteps
     queue_size: 2
     timeout_done: *td
-    max_wait_time: .01
 
     gamma: *gamma
     lam: *lam
 
     sample_keys: 
         - obs
+        - global_state
         - action
         - value
         - reward
         - discount
         - reset
         - mu_logprob
-        - mu_loc
-        - mu_scale
+        - mu_logits
         - state_reset
         - state
         - sample_mask

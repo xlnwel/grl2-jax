@@ -236,8 +236,8 @@ class MujocoMulti(MultiAgentEnv):
     def close(self):
         pass
 
-    def seed(self, args):
-        pass
+    def seed(self, seed=None):
+        self.env.seed(seed)
 
     def get_env_info(self):
 

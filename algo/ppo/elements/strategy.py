@@ -1,10 +1,7 @@
-import functools
-import jax
-import jax.numpy as jnp
+from functools import partial
 
-from core.elements.strategy import Strategy as StrategyBase, create_strategy
 from core.typing import AttrDict
-from algo.ma_common.elements.strategy import Strategy as StrategyBase, create_strategy
+from algo.lka_common.elements.strategy import Strategy as StrategyBase, create_strategy
 
 
 class Strategy(StrategyBase):
@@ -18,18 +15,21 @@ class Strategy(StrategyBase):
         self._memory.set_states(state)
         return out
 
-    def compute_value(self, env_output):
-        inp = AttrDict(global_state=env_output.obs['global_state'])
-        inp = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), inp)
-        inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
-        if isinstance(inp.state, dict) and 'value' in inp.state:
-            inp['state'] = inp.state['value']
-        value = self.model.compute_value(inp)
-        value = jnp.squeeze(value, 1)
+    def compute_value(self, env_output, states=None):
+        if isinstance(env_output.obs, list):
+            inps = [AttrDict(
+                global_state=o.get('global_state', o['obs'])
+            ) for o in env_output.obs]
+            resets = env_output.reset
+        else:
+            inps = [AttrDict(
+                global_state=env_output.obs.get('global_state', env_output.obs['obs'])[:, uids]
+            ) for uids in self.aid2uids]
+            resets = [env_output.reset[:, uids] for uids in self.aid2uids]
+        inps = self._memory.add_memory_state_to_input(inps, resets, states)
+        value = self.actor.compute_value(inps)
+
         return value
 
-    def lookahead_train(self, **kwargs):
-        return self.train_loop.lookahead_train(**kwargs)
 
-
-create_strategy = functools.partial(create_strategy, strategy_cls=Strategy)
+create_strategy = partial(create_strategy, strategy_cls=Strategy)

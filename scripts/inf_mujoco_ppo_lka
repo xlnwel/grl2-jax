@@ -31,7 +31,7 @@ args3=(
     1
 )
 dynamics=(
-    "dynamics_tx"
+    "dynamics"
 )
 date=$(date +"%m%d")
 info=""
@@ -69,7 +69,7 @@ idx=$(($INF_MAC_NODE_RANK % $la3))
 a3=${args3[$idx]}
 
 commands=()
-kws=$@
+kws="target_type=gae 0#n_lka_epochs=$1 0#n_simulated_envs=$2 0#n_simulated_steps=$3 1#reward_coef=$4"
 for e in "${envs[@]}"; do
     env="${suite}-${e}"
     for s in {0..4}; do

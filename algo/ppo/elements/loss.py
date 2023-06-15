@@ -97,26 +97,35 @@ class Loss(LossBase):
             data, 
             stats, 
             act_dist=act_dist, 
+            entropy_coef=stats.entropy_coef
         )
 
         stats = compute_regularization(
             stats, 
             data, 
             self.config.reg_type, 
-            self.config.pos_reg_coef, 
             self.config.reg_coef, 
-            self.config.rescaled_by_adv, 
-            self.config.rescaled_by_abs_adv, 
-            self.config.lower_threshold, 
-            self.config.upper_threshold, 
         )
+        stats = compute_sample_regularization(
+            stats, 
+            data, 
+            reg_type=self.config.sample_reg_type, 
+            pos_reg_coef=self.config.sample_pos_reg_coef, 
+            reg_coef=self.config.sample_reg_coef, 
+            rescaled_by_adv=self.config.rescaled_by_adv, 
+            rescaled_by_mu=self.config.rescaled_by_mu, 
+            threshold=self.config.threshold, 
+            clip_range=self.config.reg_clip, 
+        )
+
         value_loss, stats = compute_vf_loss(
             self.config, 
             data, 
             stats, 
         )
         stats = summarize_adv_ratio(stats, data)
-        loss = actor_loss + value_loss + stats.pos_reg_loss + stats.reg_loss
+        loss = actor_loss + value_loss + stats.reg_loss \
+            + stats.pos_sample_reg_loss + stats.sample_reg_loss
         stats.loss = loss
 
         return loss, stats
@@ -241,18 +250,25 @@ class Loss(LossBase):
             data, 
             stats, 
             act_dist=act_dist, 
+            entropy_coef=stats.entropy_coef
         )
 
         stats = compute_regularization(
             stats, 
             data, 
             self.config.reg_type, 
-            self.config.pos_reg_coef, 
             self.config.reg_coef, 
-            self.config.rescaled_by_adv, 
-            self.config.rescaled_by_abs_adv, 
-            self.config.lower_threshold, 
-            self.config.upper_threshold, 
+        )
+        stats = compute_sample_regularization(
+            stats, 
+            data, 
+            reg_type=self.config.sample_reg_type, 
+            pos_reg_coef=self.config.sample_pos_reg_coef, 
+            reg_coef=self.config.sample_reg_coef, 
+            rescaled_by_adv=self.config.rescaled_by_adv, 
+            rescaled_by_mu=self.config.rescaled_by_mu, 
+            threshold=self.config.threshold, 
+            clip_range=self.config.reg_clip, 
         )
         stats = summarize_adv_ratio(stats, data)
         loss = actor_loss + stats.pos_reg_loss + stats.reg_loss

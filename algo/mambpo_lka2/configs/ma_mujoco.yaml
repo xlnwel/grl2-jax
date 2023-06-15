@@ -55,7 +55,7 @@ monitor:
 strategy:
     algorithm: *algo
     train_loop:
-        n_wp_epochs: 10
+        n_wp_epochs: 30
         n_epochs: 400
         n_lka_epochs: 200
 

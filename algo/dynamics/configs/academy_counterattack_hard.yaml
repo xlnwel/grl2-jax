@@ -66,7 +66,7 @@ strategy:
         ergodic: False
         training_data_size: &ds 1e5
         valid_data_size: 1000
-        n_wp_epochs: 50
+        n_wp_epochs: 30
         n_epochs: &nepochs 800
 
 model:
@@ -85,7 +85,7 @@ model:
         nn_id: edynamics
         n_models: &n 1
         repr_config:
-            units_list: [1024, 1024, 1024, 1024]
+            units_list: [512, 512, 512, 512]
             activation: relu
             norm: null
         model_out_config:
@@ -134,7 +134,7 @@ buffer:
     n_envs: *nenvs
     max_size: *ds
     min_size: 1e3
-    batch_size: 1024
+    batch_size: 256
     sample_size: 1
     max_steps: 1
 

@@ -351,6 +351,7 @@ class Trainer(TrainerBase):
                 reg_loss=stats.reg_loss, 
                 pos_sample_reg_loss=stats.pos_sample_reg_loss, 
                 sample_reg_loss=stats.sample_reg_loss, 
+                raw_sample_reg_grads=stats.raw_sample_reg_grads, 
                 reg_below_threshold=stats.reg_below_threshold, 
                 reg_above_threshold=stats.reg_above_threshold, 
                 inverse_mu=inverse_mu, 

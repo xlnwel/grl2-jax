@@ -394,14 +394,16 @@ def compute_sample_regularization(
     if reg_type is None:
         return stats
     elif reg_type == 'log':
-        reg_grads = stats.pi_logprob - data.mu_logprob
+        pos_reg = lax.log(1 + stats.delta/stats.mu)
+        neg_reg = -lax.log(1 - stats.delta/stats.mu)
+        reg_grads = jnp.where(stats.delta > 0, pos_reg, neg_reg)
         stats.reg_below_threshold = reg_grads < -threshold
         stats.reg_above_threshold = reg_grads > threshold
         stats.pos_sample_reg_grads = jnp.clip(
             reg_grads, -threshold, jnp.log(1+clip_range)
         )
-        stats.neg_sample_reg_grads = jnp.clip(
-            reg_grads, jnp.log(1-clip_range), threshold
+        stats.neg_sample_reg_grads = -jnp.clip(
+            reg_grads, -jnp.log(1+clip_range), threshold
         )
     elif reg_type == 'exp':
         ratio = lax.exp(stats.pi_logprob - data.mu_logprob)
@@ -415,7 +417,7 @@ def compute_sample_regularization(
         stats.pos_sample_reg_grads = jnp.clip(
             reg_grads, -threshold, lax.exp(clip_range) - 1
         )
-        stats.neg_sample_reg_grads = jnp.clip(
+        stats.neg_sample_reg_grads = -jnp.clip(
             reg_grads, 1 - lax.exp(1/(1-clip_range) - 1), threshold
         )
     else:
@@ -424,11 +426,11 @@ def compute_sample_regularization(
     stats.raw_sample_reg_grads = lax.stop_gradient(jnp.where(
         stats.advantage > 0, stats.pos_sample_reg_grads, stats.neg_sample_reg_grads
     ))
-    stats.sample_reg = stats.pi * stats.raw_sample_reg_grads
     if rescaled_by_adv:
-        stats.sample_reg = lax.abs(stats.advantage) * stats.sample_reg
+        stats.raw_sample_reg_grads = lax.abs(stats.advantage) * stats.raw_sample_reg_grads
     if rescaled_by_mu:
-        stats.sample_reg = stats.sample_reg / stats.mu
+        stats.raw_sample_reg_grads = stats.raw_sample_reg_grads / stats.mu
+    stats.sample_reg = stats.pi * stats.raw_sample_reg_grads
     stats.pos_sample_reg = jnp.where(stats.advantage > 0, stats.sample_reg, 0)
     stats.raw_pos_sample_reg_loss, stats.pos_sample_reg_loss = jax_loss.to_loss(
         stats.pos_sample_reg, 

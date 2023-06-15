@@ -1,4 +1,3 @@
 #!/bin/bash
 
-
-inf_mac job list --user chenxw | grep chenxw | awk -F '|' '{print $2}' | xargs inf_mac job kill --job-id
+inf_mac job list --user chenxw | grep running | grep inf_mujoco | awk -F '|' '{print $2}' | xargs -n 1 inf_mac job kill --job-id 

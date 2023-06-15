@@ -2,7 +2,9 @@ import argparse
 import os, sys
 from pathlib import Path
 import json
+import functools
 import subprocess
+import multiprocessing
 import numpy as np
 import pandas as pd
 
@@ -33,23 +35,25 @@ def parse_args():
                         default='~/Documents/html-logs')
     parser.add_argument('--env', '-e', 
                         type=str, 
-                        default=None, 
+                        default=[], 
                         nargs='*')
     parser.add_argument('--algo', '-a', 
                         type=str, 
-                        default=None, 
+                        default=[], 
                         nargs='*')
     parser.add_argument('--date', '-d', 
                         type=str, 
-                        default=None, 
+                        default=[], 
                         nargs='*')
     parser.add_argument('--model', '-m', 
                         type=str, 
-                        default=None, 
+                        default=[], 
                         nargs='*')
-    parser.add_argument('--n_processes', '-np', 
-                        type=int, 
-                        default=16)
+    parser.add_argument('--plt_config', '-pc', 
+                        type=str, 
+                        default=None)
+    parser.add_argument('--multiprocessing', '-mp', 
+                        action='store_true')
     parser.add_argument('--sync', 
                         action='store_true')
     parser.add_argument('--ignore', '-i',
@@ -98,7 +102,7 @@ def rename_env(config: dict):
     return config
 
 
-def process_data(data, name):
+def process_data(data, plt_config):
     if 'model_error/ego&train-trans' in data:
         k1_err = data[f'model_error/ego-trans']
         train_err = data[f'model_error/train-trans']
@@ -117,13 +121,13 @@ def process_data(data, name):
             new_key = ''.join(new_key)
             new_data[new_key] = data[k2] - data[k]
     data = pd.concat([data, pd.DataFrame(new_data)], axis=1)
-                # print(name)
-                # print(k, data.loc[0, k])
-                # print(k2, data.loc[0, k2])
-                # print(new_key, data.loc[0, new_key])
-    # if 'lka_ego_score_diff' in list(data):
-    #     data.loc[:, 'lka_ego_score_sign'] = np.sign(data['lka_ego_score_diff'])
-    return data
+    rename = plt_config.rename
+    final_data = data[[k for k in rename.keys() if k in data]]
+    final_data = final_data.rename(columns=rename)
+    final_data['steps'] = data['steps']
+    final_data = pd.DataFrame(final_data)
+    return final_data
+
 
 def to_csv(env_name, v):
     SCORE = 'metrics/score'
@@ -142,17 +146,80 @@ def to_csv(env_name, v):
         data.to_csv(csv_path)
 
 
-if __name__ == '__main__':
-    args = parse_args()
-    
+def convert_data(d, directory, target, plt_config):
     config_name = 'config.yaml' 
     player0_config_name = 'config_p0.yaml' 
     js_name = 'parameter.json'
     record_name = 'record'
     progress_name = 'progress.csv'
+
+    # load config
+    yaml_path = '/'.join([d, config_name])
+    if not os.path.exists(yaml_path):
+        new_yaml_path = '/'.join([d, player0_config_name])
+        if os.path.exists(new_yaml_path):
+            yaml_path = new_yaml_path
+        else:
+            do_logging(f'{yaml_path} does not exist', color='magenta')
+            return
+    config = yaml_op.load_config(yaml_path)
+    root_dir = config.root_dir
+    model_name = config.model_name
+    strs = f'{root_dir}/{model_name}'.split('/')
+    for s in strs[::-1]:
+        if s.endswith('logs'):
+            directory = directory.removesuffix(f'/{s}')
+            break
+        if directory.endswith(s):
+            directory = directory.removesuffix(f'/{s}')
+
+    target_dir = d.replace(directory, target)
+    do_logging(f'Copy from {d} to {target_dir}')
+    if not os.path.isdir(target_dir):
+        Path(target_dir).mkdir(parents=True)
+    assert os.path.isdir(target_dir), target_dir
+    
+    # define paths
+    json_path = '/'.join([target_dir, js_name])
+    record_filename = '/'.join([d, record_name])
+    record_path = record_filename + '.txt'
+    csv_path = '/'.join([target_dir, progress_name])
+    # do_logging(f'yaml path: {yaml_path}')
+    if not is_nonempty_file(record_path):
+        do_logging(f'Bypass {record_path} due to its non-existence', color='magenta')
+        return
+    # save config
+    to_remove_keys = ['root_dir', 'seed']
+    seed = config.get('seed', 0)
+    config = recursively_remove(config, to_remove_keys)
+    config['seed'] = seed
+    config = remove_lists(config)
+    config = flatten_dict(config)
+    config = rename_env(config)
+    config = remove_redundancies(config)
+    config = {k: str(v) for k, v in config.items()}
+    # config['model_name'] = config['model_name'].split('/')[1]
+    config['buffer/sample_keys'] = []
+
+    # save stats
+    data = merge_data(record_filename, '.txt')
+    data = process_data(data, plt_config)
+    for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
+        if k not in data.keys():
+            try:
+                data[k] = (data[f'{k}1'] + data[f'{k}2']) / 2
+            except:
+                pass
+
+    with open(json_path, 'w') as json_file:
+        json.dump(config, json_file)
+    data.to_csv(csv_path, index=False)
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    
     name = args.name
-    date = get_date(args.date)
-    do_logging(f'Loading logs on date: {date}')
 
     directory = os.path.abspath(args.directory)
     target = os.path.expanduser(args.target)
@@ -181,79 +248,58 @@ if __name__ == '__main__':
     level = get_level(search_dir, args.last_name)
     print('Search directory level:', level)
 
-    for d in fixed_pattern_search(
-        search_dir, 
-        level=level, 
-        env=args.env, 
-        algo=args.algo, 
-        date=date, 
-        model=args.model
-    ):
-        last_name = d.split('/')[-1]
-        if not any([last_name.startswith(p) for p in args.last_name]):
-            continue
-        # load config
-        yaml_path = '/'.join([d, config_name])
-        if not os.path.exists(yaml_path):
-            new_yaml_path = '/'.join([d, player0_config_name])
-            if os.path.exists(new_yaml_path):
-                yaml_path = new_yaml_path
-            else:
-                do_logging(f'{yaml_path} does not exist', color='magenta')
-                continue
-        config = yaml_op.load_config(yaml_path)
-        root_dir = config.root_dir
-        model_name = config.model_name
-        strs = f'{root_dir}/{model_name}'.split('/')
-        for s in strs[::-1]:
-            if s.endswith('logs'):
-                directory = directory.removesuffix(f'/{s}')
-                break
-            if directory.endswith(s):
-                directory = directory.removesuffix(f'/{s}')
+    date = get_date(args.date)
+    env = set(args.env)
+    algo = set(args.algo)
+    model = set(args.model)
+    if args.plt_config:
+        plt_config = yaml_op.load_config(args.plt_config, to_eval=False)
+        for data in plt_config.data:
+            if 'date' in data:
+                date.add(data.date)
+            if 'env_suite' in data:
+                env.add(f'{data.env_suite}-{data.raw_env_name}' if 'raw_env_name' in data else data.env_suite)
+            if 'name' in data:
+                algo.add(data.name)
+            if 'model' in data:
+                model.add(data.model)
+    else:
+        plt_config = yaml_op.load_config('run/plt_config', to_eval=False)
+        # we apply plt_config.data if args.plt_config is not specified explicitly
+    do_logging(f'Loading logs with')
+    do_logging(f'\tdate={date}')
+    do_logging(f'\tenv={env}\n\talgo={algo}\n\tmodel={model}')
+    do_logging(f'\talgo={algo}\n\tmodel={model}')
+    do_logging(f'\tmodel={model}')
+    if args.multiprocessing:
+        files = [
+            d for d in fixed_pattern_search(
+            search_dir, 
+            level=level, 
+            env=env, 
+            algo=algo, 
+            date=date, 
+            model=model, 
+            final_name=args.last_name
+        )]
+        pool = multiprocessing.Pool()
+        func = functools.partial(convert_data, 
+            directory=directory, target=target, plt_config=plt_config)
+        pool.map(func, files)
+        pool.close()
+        pool.join()
+    else:
+        for d in fixed_pattern_search(
+            search_dir, 
+            level=level, 
+            env=args.env, 
+            algo=args.algo, 
+            date=date, 
+            model=args.model
+        ):
+            print('before processing', d)
+            convert_data(d, directory, target=target, plt_config=plt_config)
 
-        target_dir = d.replace(directory, target)
-        do_logging(f'Copy from {d} to {target_dir}')
-        if not os.path.isdir(target_dir):
-            Path(target_dir).mkdir(parents=True)
-        assert os.path.isdir(target_dir), target_dir
-        
-        # define paths
-        json_path = '/'.join([target_dir, js_name])
-        record_filename = '/'.join([d, record_name])
-        record_path = record_filename + '.txt'
-        csv_path = '/'.join([target_dir, progress_name])
-        # do_logging(f'yaml path: {yaml_path}')
-        if not is_nonempty_file(record_path):
-            do_logging(f'Bypass {record_path} due to its non-existence', color='magenta')
-            continue
-        # save config
-        to_remove_keys = ['root_dir', 'seed']
-        seed = config.get('seed', 0)
-        config = recursively_remove(config, to_remove_keys)
-        config['seed'] = seed
-        config = remove_lists(config)
-        config = flatten_dict(config)
-        config = rename_env(config)
-        config = remove_redundancies(config)
-        config = {k: str(v) for k, v in config.items()}
-        # config['model_name'] = config['model_name'].split('/')[1]
-        config['buffer/sample_keys'] = []
-
-        # save stats
-        data = merge_data(record_filename, '.txt')
-        data = process_data(data, config['name'])
-        for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
-            if k not in data.keys():
-                try:
-                    data[k] = (data[f'{k}1'] + data[f'{k}2']) / 2
-                except:
-                    pass
-
-        with open(json_path, 'w') as json_file:
-            json.dump(config, json_file)
-        data.to_csv(csv_path, index=False)
-        
     if process is not None:
         do_logging('Waiting for rsync to complete...')
         process.wait()
