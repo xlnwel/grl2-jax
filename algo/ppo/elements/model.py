@@ -3,12 +3,11 @@ import logging
 import jax
 from jax import random
 import jax.numpy as jnp
-import haiku as hk
 
-from core.typing import AttrDict, dict2AttrDict
-from jax_tools import jax_dist
+from core.typing import AttrDict
 from tools.file import source_file
-from algo.lka_common.elements.model import *
+from tools.utils import batch_dicts
+from algo.ma_common.elements.model import *
 
 
 # register ppo-related networks 
@@ -16,193 +15,133 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 logger = logging.getLogger(__name__)
 
 
-def construct_fake_data(env_stats, batch_size=1, aid=None):
-    if aid is None:
-        all_data = []
-        for i, uids in enumerate(env_stats.aid2uids):
-            shapes = env_stats.obs_shape[i]
-            dtypes = env_stats.obs_dtype[i]
-            action_dim = env_stats.action_dim[i]
-            action_dtype = env_stats.action_dtype[i]
-            basic_shape = (batch_size, 1, len(env_stats.aid2uids[i]))
-            data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
-                for k, v in shapes.items()}
-            data = dict2AttrDict(data)
-            data.setdefault('global_state', data.obs)
-            data.action = jnp.zeros((*basic_shape, action_dim), action_dtype)
-            data.joint_action = jnp.zeros((*basic_shape, env_stats.n_units*action_dim), action_dtype)
-            data.state_reset = jnp.zeros(basic_shape, jnp.float32)
-            all_data.append(data)
-
-        return all_data
-    else:
-        shapes = env_stats.obs_shape[0]
-        dtypes = env_stats.obs_dtype[0]
-        action_dim = env_stats.action_dim[0]
-        action_dtype = env_stats.action_dtype[0]
-        basic_shape = (batch_size, 1, len(env_stats.aid2uids[0]))
-        data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
-            for k, v in shapes.items()}
-        data = dict2AttrDict(data)
-        data.setdefault('global_state', data.obs)
-        data.action = jnp.zeros((*basic_shape, action_dim), action_dtype)
-        data.joint_action = jnp.zeros((*basic_shape[:2], 1, env_stats.n_units*action_dim), action_dtype)
-        data.state_reset = jnp.zeros(basic_shape, jnp.float32)
-
-        return data
-
-
 class Model(MAModelBase):
-    def build_nets(self):
-        aid = self.config.get('aid', 0)
-        data = construct_fake_data(self.env_stats, aid)
+  def build_nets(self):
+    aid = self.config.get('aid', 0)
+    data = construct_fake_data(self.env_stats, aid=aid)
 
-        self.params.policy, self.modules.policy = self.build_net(
-            data.obs, data.state_reset, data.state, data.action_mask, name='policy')
-        self.params.value, self.modules.value = self.build_net(
-            data.global_state, data.state_reset, data.state, name='value')
+    self.params.policy, self.modules.policy = self.build_net(
+      data.obs, data.state_reset, data.state, data.action_mask, name='policy')
+    self.params.value, self.modules.value = self.build_net(
+      data.global_state, data.state_reset, data.state, name='value')
 
-    def compile_model(self):
-        self.jit_action = jax.jit(
-            self.raw_action, static_argnames=('evaluation'))
+  def compile_model(self):
+    self.jit_action = jax.jit(
+      self.raw_action, static_argnames=('evaluation'))
 
-    def raw_action(
-        self, 
+  def action(self, data, evaluation):
+    if 'global_state' not in data:
+      data.global_state = data.obs
+    return super().action(data, evaluation)
+
+  def raw_action(
+    self, 
+    params, 
+    rng, 
+    data, 
+    evaluation=False, 
+  ):
+    rngs = random.split(rng, 3)
+    state = data.pop('state', AttrDict())
+    # add the sequential dimension
+    if self.has_rnn:
+      data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
+    act_out, state = self.forward_policy(params.policy, rngs[0], data, state)
+    act_dist = self.policy_dist(act_out, evaluation)
+
+    if evaluation:
+      action = act_dist.mode()
+      stats = AttrDict()
+    else:
+      stats = act_dist.get_stats('mu')
+      action, logprob = act_dist.sample_and_log_prob(seed=rngs[1])
+      value, state.value = self.modules.value(
+        params.value, 
+        rngs[2], 
+        data.global_state, 
+        data.state_reset, 
+        state.value
+      )
+      stats.update({'mu_logprob': logprob, 'value': value})
+    if self.has_rnn:
+      action, stats = jax.tree_util.tree_map(
+        lambda x: jnp.squeeze(x, 1), (action, stats))
+    if state.policy is None and state.value is None:
+      state = None
+    
+    return action, stats, state
+
+  def compute_value(self, data):
+    @jax.jit
+    def comp_value(params, rng, data):
+      state = data.pop('state', AttrDict())
+      if self.has_rnn:
+        data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , data)
+      v, _ = self.modules.value(
         params, 
         rng, 
-        data, 
-        evaluation=False, 
-    ):
-        rngs = random.split(rng, 3)
-        state = data.pop('state', AttrDict())
-        data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
-        act_out, state.policy = self.modules.policy(
-            params.policy, 
-            rngs[0], 
-            data.obs, 
-            data.state_reset, 
-            state.policy, 
-            action_mask=data.action_mask, 
-        )
-        act_dist = self.policy_dist(act_out, evaluation)
+        data.global_state, 
+        data.state_reset, 
+        state.value
+      )
+      if self.has_rnn:
+        v = jnp.squeeze(v, 1)
+      return v
+    self.act_rng, rng = random.split(self.act_rng)
+    value = comp_value(self.params.value, rng, data)
+    return value
 
-        if evaluation:
-            action = act_dist.mode()
-            stats = {}
-        else:
-            stats = act_dist.get_stats('mu')
-            action, logprob = act_dist.sample_and_log_prob(seed=rngs[1])
-            value, state.value = self.modules.value(
-                params.value, 
-                rngs[2], 
-                data.global_state, 
-                data.state_reset, 
-                state.value
-            )
-            stats.update({'mu_logprob': logprob, 'value': value})
-        action, stats = jax.tree_util.tree_map(
-            lambda x: jnp.squeeze(x, 1), (action, stats))
-        if state.policy is None and state.value is None:
-            state = None
-        
-        return action, stats, state
+  """ RNN Operators """
+  def get_initial_state(self, batch_size, name='default'):
+    name = f'{name}_{batch_size}'
+    if name in self._initial_states:
+      return self._initial_states[name]
+    if not self.has_rnn:
+      return None
+    data = construct_fake_data(self.env_stats, batch_size)
+    data = batch_dicts(data, lambda x: jnp.concatenate(x, axis=2))
+    state = AttrDict()
+    _, state.policy = self.modules.policy(
+      self.params.policy, 
+      self.act_rng, 
+      data.obs, 
+      data.state_reset
+    )
+    _, state.value = self.modules.value(
+      self.params.value, 
+      self.act_rng, 
+      data.global_state, 
+      data.state_reset
+    )
+    self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, state)
 
-    def compute_value(self, data):
-        @jax.jit
-        def comp_value(params, rng, global_state, state_reset=None, state=None):
-            v, _ = self.modules.value(
-                params.value, rng, 
-                global_state, state_reset, state
-            )
-            return v
-        self.act_rng, rng = random.split(self.act_rng)
-        value = comp_value(self.params, rng, **data)
-        return value
-
-    def policy_dist(self, act_out, evaluation=False):
-        if self.is_action_discrete:
-            if evaluation and self.config.get('eval_act_temp', 0) > 0:
-                act_out = act_out / self.config.eval_act_temp
-            dist = jax_dist.Categorical(logits=act_out)
-        else:
-            loc, scale = act_out
-            if evaluation and self.config.get('eval_act_temp', 0) > 0:
-                scale = scale * self.config.eval_act_temp
-            dist = jax_dist.MultivariateNormalDiag(
-                loc, scale, joint_log_prob=self.config.joint_log_prob)
-
-        return dist
-
-    """ RNN Operators """
-    def get_initial_state(self, batch_size, name='default'):
-        name = f'{name}_{batch_size}'
-        if name in self._initial_states:
-            return self._initial_states[name]
-        if not self.has_rnn:
-            return None
-        data = construct_fake_data(self.env_stats, batch_size)
-        states = []
-        for p, v, d in zip(self.params.policies, self.params.vs, data):
-            state = AttrDict()
-            p = p.copy()
-            p.pop(LOOKAHEAD)
-            _, state.policy = self.modules.policy(
-                p, 
-                self.act_rng, 
-                d.obs, 
-                d.state_reset
-            )
-            _, state.value = self.modules.value(
-                v, 
-                self.act_rng, 
-                d.global_state, 
-                d.state_reset
-            )
-            states.append(state)
-        states = tuple(states)
-        self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, states)
-
-        return self._initial_states[name]
-
-
-def setup_config_from_envstats(config, env_stats):
-    if 'aid' in config:
-        aid = config['aid']
-        config.policy.action_dim = env_stats.action_dim[aid]
-        config.policy.is_action_discrete = env_stats.is_action_discrete[aid]
-    else:
-        config.policy.action_dim = env_stats.action_dim
-        config.policy.is_action_discrete = env_stats.is_action_discrete
-        config.policy.action_low = env_stats.action_low
-        config.policy.action_high = env_stats.action_high
-
-    return config
+    return self._initial_states[name]
 
 
 def create_model(
-    config, 
-    env_stats, 
-    name='zero', 
-    **kwargs
+  config, 
+  env_stats, 
+  name='ppo', 
+  **kwargs
 ): 
-    config = setup_config_from_envstats(config, env_stats)
+  config = setup_config_from_envstats(config, env_stats)
 
-    return Model(
-        config=config, 
-        env_stats=env_stats, 
-        name=name, 
-        **kwargs
-    )
+  return Model(
+    config=config, 
+    env_stats=env_stats, 
+    name=name, 
+    **kwargs
+  )
 
 
 # if __name__ == '__main__':
-#     from tools.yaml_op import load_config
-#     from env.func import create_env
-#     from tools.display import pwc
-#     config = load_config('algo/zero_mr/configs/magw_a2c')
-    
-#     env = create_env(config.env)
-#     model = create_model(config.model, env.stats())
-#     data = construct_fake_data(env.stats(), 0)
-#     print(model.action(model.params, data))
-#     pwc(hk.experimental.tabulate(model.raw_action)(model.params, data), color='yellow')
+#   from tools.yaml_op import load_config
+#   from env.func import create_env
+#   from tools.display import pwc
+#   config = load_config('algo/zero_mr/configs/magw_a2c')
+  
+#   env = create_env(config.env)
+#   model = create_model(config.model, env.stats())
+#   data = construct_fake_data(env.stats(), 0)
+#   print(model.action(model.params, data))
+#   pwc(hk.experimental.tabulate(model.raw_action)(model.params, data), color='yellow')

@@ -1,1 +1,1 @@
-from algo.lka_common.elements.trainloop import *
+from core.elements.trainloop import *

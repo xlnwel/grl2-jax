@@ -4,7 +4,7 @@ export PYTHONPATH=.
 
 suite=grf
 algos=(
-    happo_lka2
+    happo_mb2
 )
 envs=(
     # $1
@@ -45,6 +45,7 @@ else
     n="$date-$info"
 fi
 
+dynamics=dynamics
 le=${#envs[@]}
 idx=$(($INF_MAC_NODE_RANK % $le))
 e=${envs[$idx]}
@@ -88,7 +89,7 @@ config="${e}"
 #     done
 # fi
 for s in {0..4}; do
-    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
+    py_script="python run/train.py -a ${a} $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
     commands+=("$py_script")
     echo $py_script
 done

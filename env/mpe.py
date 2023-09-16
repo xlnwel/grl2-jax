@@ -3,9 +3,9 @@ from env import wrappers
 
 
 def make_mpe(config):
-    assert 'mpe' in config['name'], config['name']
-    env = MPEEnv(config)
-    env = wrappers.DataProcess(env)
-    env = wrappers.MASimEnvStats(env)
+  assert 'mpe' in config['name'], config['name']
+  env = MPEEnv(config)
+  env = wrappers.DataProcess(env)
+  env = wrappers.MASimEnvStats(env)
 
-    return env
+  return env

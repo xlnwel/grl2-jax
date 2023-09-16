@@ -3,4 +3,6 @@
 export PYTHONPATH=.
 
 # python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs/grf-academy_corner/happo_mb/0510 -nr grf-logs
-python run/mv_dir.py -cp /System/Volumes/Data/mnt/公共区/cxw/grf-logs -nd 0602 -e grf -a happo_mb -d 0601
+python run/mv_dir.py -cp mujoco-logs/mujoco-Ant/happo/0619 -nr /System/Volumes/Data/mnt/公共区/cxw/mujoco-logs
+python run/mv_dir.py -cp mujoco-logs/mujoco-HalfCheetah/happo/0619 -nr /System/Volumes/Data/mnt/公共区/cxw/mujoco-logs
+python run/mv_dir.py -cp mujoco-logs/mujoco-Walker2d/happo/0619 -nr /System/Volumes/Data/mnt/公共区/cxw/mujoco-logs

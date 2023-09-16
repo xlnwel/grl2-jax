@@ -1,7 +1,7 @@
 ---
-algorithm: &algo happo
-name: happo
-info: happo
+algorithm: &algo sync-ppo
+name: sync-ppo
+info: sync-ppo
 
 precision: 32
 
@@ -14,190 +14,195 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 1e6
-    restart_runners_priod: null
-    max_version_iterations: 1
-    max_steps_per_iteration: 2e8
-    initialize_rms: &irms True
+  store_period: 5e4
+  restart_runners_period: null
+  max_version_iterations: 1
+  max_steps_per_iteration: &ms 5e6
+  initialize_rms: &irms True
 
 parameter_server:
-    root_dir: *algo
-    model_name: *algo
+  root_dir: *algo
+  model_name: *algo
 
-    train_from_scratch_frac: 1
-    online_frac: .2
+  train_from_scratch_frac: 1
+  online_frac: .2
 
-    payoff:
-        step_size: 1e-2     # step size towards the most recent data, 0 or null average payoff over the entire history
-        update_interval: 180
-        sampling_strategy:
-            type: pfsp
-            p: 1
+  payoff:
+    step_size: 1e-2   # step size towards the most recent data, 0 or null average payoff over the entire history
+    update_interval: 180
+    sampling_strategy:
+      type: pfsp
+      p: 1
 
-    # rule_strategies:
-    #     # agent name / config
-    #     random:
-    #         aid: 1
-    #         vid: 1
-    #         path: rule/random   # path to the file that defines Strategy
-    #         # other configs
+  # rule_strategies:
+  #   # agent name / config
+  #   random:
+  #     aid: 1
+  #     vid: 1
+  #     path: rule/random   # path to the file that defines Strategy
+  #     # other configs
 
 ray_config:
-    runner:
-        num_cpus: 1
-    agent:
-        num_gpus: 1
+  runner:
+    num_cpus: 1
+  agent:
+    num_gpus: 0
 
-monitor: {}
+monitor: 
+  max_steps: *ms
 
 runner:
-    n_runners: &nrunners 2
-    n_steps: &nsteps 64
-    push_every_episode: False
+  n_runners: &nrunners 10
+  n_steps: &nsteps 100
+  push_every_episode: False
 
 env:
-    env_name: &env_name grf-11_vs_11_hard_stochastic
-    representation: simple115v2
-    rewards: scoring,checkpoints
-    render: False
-    write_full_episode_dumps: False
-    write_video: False
-    dump_frequency: 1000
-    logdir: results/grf
-    extra_players: null
-    number_of_left_players_agent_controls: 11
-    number_of_right_players_agent_controls: 0
-    add_role_to_obs: False
-    shared_ckpt_reward: False
+  env_name: &env_name grf-academy_pass_and_shoot_with_keeper
+  representation: simple115v2
+  render: False
+  write_full_episode_dumps: False
+  write_video: False
+  dump_frequency: 1000
+  logdir: results/grf
+  extra_players: null
+  control_left: True
+  control_right: False
+  shared_policy: True
+  score_reward_scale: 1
 
-    max_episode_steps: 3000
-    use_action_mask: False
-    uid2aid: null
+  max_episode_steps: 200
+  use_action_mask: False
+  uid2aid: null
 
-    n_envs: &nenvs 1
+  n_envs: &nenvs 10
 
-    use_idx: False
-    use_hidden: False
-    use_event: False
-    agentwise_global_state: False
-    timeout_done: &td True
+  use_idx: False
+  timeout_done: &td True
 
 agent: {}
 
 strategy:
-    algorithm: *algo
-    train_loop: {}
+  algorithm: *algo
+  train_loop: {}
 
 model:
-    aid: 0
-    gamma: &gamma .995
+  aid: 0
+  gamma: &gamma .99
 
-    policy:
-        nn_id: policy
-        units_list: [256, 256, 256]
-        w_init: orthogonal
-        activation: relu
-        norm: layer
-        out_scale: .01
-        rnn_type: null
-        rnn_units: 256
-    value:
-        nn_id: value
-        units_list: [256, 256, 256]
-        w_init: orthogonal
-        activation: relu
-        norm: layer
-        rnn_type: null
-        rnn_units: 256
+  policy:
+    nn_id: policy
+    units_list: [64, 64]
+    w_init: orthogonal
+    activation: relu
+    norm: null
+    out_scale: .01
+    rnn_type: &prnn null
+    rnn_units: 64
+    use_feature_norm: False
+  value:
+    nn_id: value
+    units_list: [64, 64]
+    w_init: orthogonal
+    activation: relu
+    norm: null
+    rnn_type: &vrnn null
+    rnn_units: 64
+    use_feature_norm: False
 
 loss:
-    # hyperparams for value target and advantage
-    target_type: vtrace
-    c_clip: 1
-    rho_clip: 1
-    adv_type: gae
-    norm_adv: True
+  # hyperparams for value target and advantage
+  target_type: gae
+  c_clip: 1
+  rho_clip: 1
+  adv_type: gae
+  norm_adv: False
 
-    prnn_bptt: 64
-    vrnn_bptt: 64
+  prnn_bptt: 10
+  vrnn_bptt: 10
 
-    lka_prnn_bptt: 64
-    lka_vrnn_bptt: 64
+  # hyperparams for policy optimization
+  pg_type: ppo
+  opt_pg: False
+  ppo_clip_range: .2
+  teammate_ratio_clip: .2
+  rescaled_by_adv: False
+  rescaled_by_mu: False
+  threshold: 2.
+  reg_clip: .2
+  reg_type: kl_reverse
+  sample_reg_type: log
+  reg_coef: 0
+  sample_reg_coef: 0
+  sample_pos_reg_coef: 0
+  actor_sil_coef: 0
+  value_sil_coef: 0
+  policy_sample_mask: True
 
-    # hyperparams for policy optimization
-    pg_type: ppo
-    ppo_clip_range: .2
-    reg_type: kl_reverse
-    reg_coef: 0
-    policy_sample_mask: True
+  # hyperparams for value learning
+  value_loss: clip
+  value_clip_range: .2
+  value_sample_mask: False
 
-    # hyperparams for value learning
-    value_loss: clip
-    value_clip_range: .2
-    value_sample_mask: False
-
-    stats:
-        gamma: *gamma
-        lam: &lam .95
-        pg_coef: 1
-        entropy_coef: 5e-4
-        value_coef: 1
+  stats:
+    gamma: *gamma
+    lam: &lam .95
+    pg_coef: 1
+    entropy_coef: 5e-3
+    value_coef: 1
 
 trainer:
-    algorithm: *algo
-    aid: 0
-    n_runners: *nrunners
-    n_envs: *nenvs
-    n_epochs: &nepochs 5
-    n_mbs: &nmbs 1
-    n_steps: *nsteps
-    update_scheme: whole
+  algorithm: *algo
+  aid: 0
+  n_runners: *nrunners
+  n_envs: *nenvs
+  n_epochs: &nepochs 5
+  n_mbs: &nmbs 1
+  n_steps: *nsteps
 
-    n_simulated_envs: *nse
-    n_simulated_steps: *nss
-    n_lka_epochs: *nepochs
-    n_lka_mbs: *nmbs
-
-    theta_opt:
-        opt_name: adam
-        lr: 1e-4
-        clip_norm: .5
-        eps: 1e-5
+  theta_opt:
+    opt_name: adam
+    lr: 5e-4
+    clip_norm: 10
+    eps: 1e-5
 
 actor:
-    update_obs_rms_at_execution: False
-    update_obs_at_execution: False
-    rms:
-        obs_names: [obs, global_state]
-        obs_normalized_axis: [0, 1, 2]
-        reward_normalized_axis: [0, 1, 2]
-        normalize_obs: False
-        obs_clip: 10
-        normalize_reward: False
-        update_reward_rms_in_time: False
-        gamma: *gamma
+  update_obs_rms_at_execution: False
+  update_obs_at_execution: False
+  rms:
+    obs:
+      obs_names: [obs, global_state]
+      obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
+      obs_normalized_ndim: 2
+      normalize_obs: True
+      obs_clip: 10
+    reward:
+      reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
+      reward_normalized_ndim: 1
+      normalize_reward: False
+      update_reward_rms_in_time: False
+      gamma: *gamma
 
 buffer:
-    type: ac
+  type: ac
 
-    n_runners: *nrunners
-    n_envs: *nenvs
-    n_steps: *nsteps
-    queue_size: 2
-    timeout_done: *td
+  n_runners: *nrunners
+  n_envs: *nenvs
+  n_steps: *nsteps
+  queue_size: 2
+  timeout_done: *td
 
-    gamma: *gamma
-    lam: *lam
+  gamma: *gamma
+  lam: *lam
 
-    sample_keys: 
-        - obs
-        - global_state
-        - action
-        - value
-        - reward
-        - discount
-        - reset
-        - mu_logprob
-        - mu_logits
-        - state_reset
-        - state
+  sample_keys: 
+    - obs
+    - global_state
+    - action
+    - value
+    - reward
+    - discount
+    - reset
+    - mu_logprob
+    - mu_logits
+    - state_reset
+    - state

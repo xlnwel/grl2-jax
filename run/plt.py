@@ -18,137 +18,137 @@ DataPath = collections.namedtuple('data_path', 'path data')
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('directory',
-                        type=str,
-                        default='.')
-    parser.add_argument('--target_dir', '-td', 
-                        type=str, 
-                        default='~/Documents/plots')
-    parser.add_argument('--title', '-t', 
-                        type=str, 
-                        default=None)
-    parser.add_argument('--last_name', '-ln', 
-                        type=str, 
-                        default='seed')
-    parser.add_argument('--x', '-x', 
-                        type=str, 
-                        nargs='*', 
-                        default=['steps'])
-    parser.add_argument('--y', '-y', 
-                        type=str, 
-                        default='metrics/score')
-    parser.add_argument('--env', '-e', 
-                        type=str, 
-                        default=None, 
-                        nargs='*')
-    parser.add_argument('--algo', '-a', 
-                        type=str, 
-                        default=None, 
-                        nargs='*')
-    parser.add_argument('--date', '-d', 
-                        type=str, 
-                        default=None, 
-                        nargs='*')
-    parser.add_argument('--model', '-m', 
-                        type=str, 
-                        default=None, 
-                        nargs='*')
-    parser.add_argument('--figsize', '-f', 
-                        type=int, 
-                        default=None, 
-                        nargs='*')
-    args = parser.parse_args()
+  parser = argparse.ArgumentParser()
+  parser.add_argument('directory',
+            type=str,
+            default='.')
+  parser.add_argument('--target_dir', '-td', 
+            type=str, 
+            default='~/Documents/plots')
+  parser.add_argument('--title', '-t', 
+            type=str, 
+            default=None)
+  parser.add_argument('--last_name', '-ln', 
+            type=str, 
+            default='seed')
+  parser.add_argument('--x', '-x', 
+            type=str, 
+            nargs='*', 
+            default=['steps'])
+  parser.add_argument('--y', '-y', 
+            type=str, 
+            default='metrics/score')
+  parser.add_argument('--env', '-e', 
+            type=str, 
+            default=None, 
+            nargs='*')
+  parser.add_argument('--algo', '-a', 
+            type=str, 
+            default=None, 
+            nargs='*')
+  parser.add_argument('--date', '-d', 
+            type=str, 
+            default=None, 
+            nargs='*')
+  parser.add_argument('--model', '-m', 
+            type=str, 
+            default=None, 
+            nargs='*')
+  parser.add_argument('--figsize', '-f', 
+            type=int, 
+            default=None, 
+            nargs='*')
+  args = parser.parse_args()
 
-    return args
+  return args
 
 
 def load_dataset(search_dir, args, date):
-    level = get_level(search_dir, args.last_name)
-    record_name = 'record'
-    print('Search directory level:', level)
+  level = get_level(search_dir, args.last_name)
+  record_name = 'record'
+  print('Search directory level:', level)
 
-    dataset = collections.defaultdict(list)
-    levels = collections.defaultdict(set)
-    for d in fixed_pattern_search(
-        search_dir, 
-        level=level, 
-        env=args.env, 
-        algo=args.algo, 
-        date=date, 
-        model=args.model, 
-        final_level=DirLevel.MODEL
+  dataset = collections.defaultdict(list)
+  levels = collections.defaultdict(set)
+  for d in fixed_pattern_search(
+    search_dir, 
+    level=level, 
+    env=args.env, 
+    algo=args.algo, 
+    date=date, 
+    model=args.model, 
+    final_level=DirLevel.MODEL
+  ):
+    env, _, _, model = d.split('/')[-4:]
+    for dd in fixed_pattern_search(
+      d, 
+      level=DirLevel.MODEL, 
+      env=args.env, 
+      algo=args.algo, 
+      date=date, 
+      model=args.model, 
+      final_name=args.last_name
     ):
-        env, _, _, model = d.split('/')[-4:]
-        for dd in fixed_pattern_search(
-            d, 
-            level=DirLevel.MODEL, 
-            env=args.env, 
-            algo=args.algo, 
-            date=date, 
-            model=args.model, 
-            final_name=args.last_name
-        ):
-            print('directory', dd)
-            # load config
-            yaml_path = '/'.join([dd, config_name])
-            if not os.path.exists(yaml_path):
-                do_logging(f'{yaml_path} does not exist', color='magenta')
-                continue
-            config = yaml_op.load_config(yaml_path)
+      print('directory', dd)
+      # load config
+      yaml_path = '/'.join([dd, config_name])
+      if not os.path.exists(yaml_path):
+        do_logging(f'{yaml_path} does not exist', color='magenta')
+        continue
+      config = yaml_op.load_config(yaml_path)
 
-            # define paths
-            record_filename = '/'.join([dd, record_name])
-            record_path = record_filename + '.txt'
-            # do_logging(f'yaml path: {yaml_path}')
-            if not is_nonempty_file(record_path):
-                do_logging(f'Bypass {record_path} due to its non-existence', color='magenta')
-                continue
+      # define paths
+      record_filename = '/'.join([dd, record_name])
+      record_path = record_filename + '.txt'
+      # do_logging(f'yaml path: {yaml_path}')
+      if not is_nonempty_file(record_path):
+        do_logging(f'Bypass {record_path} due to its non-existence', color='magenta')
+        continue
 
-            do_logging(f'Loading dataset from {record_path}')
-            # save stats
-            data = merge_data(record_filename, '.txt')
-            if data is not None:
-                data['legend'] = [config.model_info] * len(data.index)
-                dataset[env].append(data)
-                levels['model'].add(model)
-    for env in dataset:
-        dataset[env] = pd.concat(dataset[env])
+      do_logging(f'Loading dataset from {record_path}')
+      # save stats
+      data = merge_data(record_filename, '.txt')
+      if data is not None:
+        data['legend'] = [config.model_info] * len(data.index)
+        dataset[env].append(data)
+        levels['model'].add(model)
+  for env in dataset:
+    dataset[env] = pd.concat(dataset[env])
 
-    return dataset, levels
+  return dataset, levels
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    
-    config_name = 'config.yaml' 
-    date = get_date(args.date)
-    do_logging(f'Loading logs on date: {date}')
+  args = parse_args()
+  
+  config_name = 'config.yaml' 
+  date = get_date(args.date)
+  do_logging(f'Loading logs on date: {date}')
 
-    directory = os.path.abspath(args.directory)
-    target_dir = os.path.expanduser(args.target_dir)
-    do_logging(f'Directory: {directory}')
-    do_logging(f'Target: {target_dir}')
+  directory = os.path.abspath(args.directory)
+  target_dir = os.path.expanduser(args.target_dir)
+  do_logging(f'Directory: {directory}')
+  do_logging(f'Target: {target_dir}')
 
-    while directory.endswith('/'):
-        directory = directory[:-1]
+  while directory.endswith('/'):
+    directory = directory[:-1]
 
-    dataset, levels = load_dataset(directory, args, date)
-    envs = list(dataset.keys())
-    fig, axs = plot.setup_figure(n=len(envs))
-    if len(envs) == 1:
-        axs = [axs]
-    else:
-        axs = axs.flat
-    for i, (env, ax) in enumerate(zip(envs, axs)):
-        data = dataset[env]
-        plot.lineplot_dataframe(
-            data=data, title=env, y=args.y, fig=fig, ax=ax)
-        ax.get_legend().remove()
-    fig.legend(labels=levels['model'], loc='lower left', bbox_to_anchor=(.1, .9))
-    mkdir(target_dir)
-    fig_path = '/'.join([target_dir, f'{args.title}.png'])
-    fig.savefig(fig_path, bbox_inches='tight')
-    print(f'File saved at "{fig_path}"')
+  dataset, levels = load_dataset(directory, args, date)
+  envs = list(dataset.keys())
+  fig, axs = plot.setup_figure(n=len(envs))
+  if len(envs) == 1:
+    axs = [axs]
+  else:
+    axs = axs.flat
+  for i, (env, ax) in enumerate(zip(envs, axs)):
+    data = dataset[env]
+    plot.lineplot_dataframe(
+      data=data, title=env, y=args.y, fig=fig, ax=ax)
+    ax.get_legend().remove()
+  fig.legend(labels=levels['model'], loc='lower left', bbox_to_anchor=(.1, .9))
+  mkdir(target_dir)
+  fig_path = '/'.join([target_dir, f'{args.title}.png'])
+  fig.savefig(fig_path, bbox_inches='tight')
+  print(f'File saved at "{fig_path}"')
 
-    do_logging('Plotting completed')
+  do_logging('Plotting completed')

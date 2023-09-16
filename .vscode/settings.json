@@ -1,8 +1,15 @@
 {
-    "python.pythonPath": "/Users/aptx4869/anaconda3/envs/drl/bin/python",
+    "python.pythonPath": "/Users/aptx4869/anaconda3/envs/grl/bin/python3",
     "latex-workshop.view.pdf.external.viewer.command": "/Applications/Skim.app/Contents/SharedSupport/displayline",
     "latex-workshop.view.pdf.external.viewer.args": [
         "0",
         "%PDF%"
-    ]
+    ],
+    "editor.tabSize": 2,
+    "launch": {
+      "editor.tabSize": 2,
+      "configurations": [],
+      "compounds": []
+    },
+    "files.autoSave": "onFocusChange"
 }

@@ -11,45 +11,45 @@ from env.mpe_env.scenario import BaseScenario
 
 
 class CryptoAgent(Agent):
-    def __init__(self):
-        super(CryptoAgent, self).__init__()
-        self.key = None
+  def __init__(self):
+    super(CryptoAgent, self).__init__()
+    self.key = None
 
 class Scenario(BaseScenario):
 
-    def make_world(self,config):
-        world = World()
-        # set any world properties first
-        n_units = config['n_units']#3
-        num_adversaries = 1
-        num_landmarks = config['num_landmarks']#2
-        world.dim_c = 4
-        # add agents
-        world.agents = [CryptoAgent() for i in range(n_units)]
-        for i, agent in enumerate(world.agents):
-            agent.name = 'agent %d' % i
-            agent.collide = False
-            agent.adversary = True if i < num_adversaries else False
-            agent.speaker = True if i == 2 else False
-            agent.movable = False
-        # add landmarks
-        world.landmarks = [Landmark() for i in range(num_landmarks)]
-        for i, landmark in enumerate(world.landmarks):
-            landmark.name = 'landmark %d' % i
-            landmark.collide = False
-            landmark.movable = False
-        # make initial conditions
-        self.reset_world(world)
-        return world
+  def make_world(self,config):
+    world = World()
+    # set any world properties first
+    n_units = config['n_units']#3
+    num_adversaries = 1
+    num_landmarks = config['num_landmarks']#2
+    world.dim_c = 4
+    # add agents
+    world.agents = [CryptoAgent() for i in range(n_units)]
+    for i, agent in enumerate(world.agents):
+      agent.name = 'agent %d' % i
+      agent.collide = False
+      agent.adversary = True if i < num_adversaries else False
+      agent.speaker = True if i == 2 else False
+      agent.movable = False
+    # add landmarks
+    world.landmarks = [Landmark() for i in range(num_landmarks)]
+    for i, landmark in enumerate(world.landmarks):
+      landmark.name = 'landmark %d' % i
+      landmark.collide = False
+      landmark.movable = False
+    # make initial conditions
+    self.reset_world(world)
+    return world
 
 
-    def reset_world(self, world):
-        # random properties for agents
-        world.assign_agent_colors()
-        for agent in world.agents:
-            if agent.speaker:
-                agent.color = np.array([0.25, 0.75, 0.25])
-            agent.key = None
+  def reset_world(self, world):
+    # random properties for agents
+    world.assign_agent_colors()
+    for agent in world.agents:
+      if agent.speaker:
+        agent.color = np.array([0.25, 0.75, 0.25])
+        agent.key = None
         # random properties for landmarks
         world.assign_landmark_colors()
         # random properties for landmarks

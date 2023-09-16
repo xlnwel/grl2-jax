@@ -8,7 +8,7 @@ algos=(
 )
 envs=(
     # $1
-    # academy_3_vs_1_with_keeper
+    academy_3_vs_1_with_keeper
     academy_corner
     academy_counterattack_hard
     # academy_custom_counterattack_hard
@@ -17,11 +17,6 @@ envs=(
 configs=$envs
 args1=(
     10
-    # 5
-    # 15
-    # 300
-    # 800
-    # 4096
 )
 args2=(
     # $1
@@ -105,10 +100,10 @@ else
     idx=$(($INF_MAC_NODE_RANK % $la4))
     a4=${args4[$idx]}
 
-    kws="compute_return_at_once=True target_type=gae max_episode_steps=1000 0#n_lka_epochs=$1 0#n_simulated_envs=$2 0#n_simulated_steps=$3 1#n_epochs=$4 debug=True"
+    # kws=""
     env="${suite}-${e}"
     config="${e}"
-    # kws=$@
+    kws=$@
     for s in {0..4}; do
         py_script="python run/train.py -a $a $dynamics -e $env -c $config -ld $ld -n $n -te train_grf -kw $kws -s $s"
         commands+=("$py_script")

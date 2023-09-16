@@ -5,136 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: 当前文件",
+            "name": "Python: My File",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "run/train.py",
+            "args": [
+              "-a", "sync-ppo", 
+              "-e", "grf-academy_pass_and_shoot_with_keeper", 
+              // "--task", "smac_5m_vs_6m", 
+              // "--task", "grf_academy_counterattack_hard", 
+              "-c", "grf"],
+            "python": "/home/ubuntu/.conda/envs/grl/bin/python3",
             "console": "integratedTerminal",
-            "justMyCode": true,
-            "args": [
-                // "-a", "dreamer", "-e=magw-escalation", "-c=escalation", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-na=2",
-                // "-a", "masac_lka2", "dynamics", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "ma_mujoco-logs", "-n", "new_buffer", "-s", "3",
-                // "-a", "masac_lka", "dynamics", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "ma_mujoco-logs", "-n", "debug", "-s", "3", "-kw", "0#quantify_dynamics_errors=False", "0#model_warm_up=False",
-                // "-a", "happo_mb", "dynamics", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "ma_mujoco-logs", "-n", "debug", "-s", "3", "-na", "2", "--gpu=0", "-kw", "0#quantify_dynamics_errors=False", "0#model_warm_up=False", "1#model_loss_type=mse", "1#deterministic_trans=True"
-                // "-a", "happo", "-e", "smac-2s3z", "-c", "smac", "-ld", "debug-logs", "-n", "debug2", "-s", "4",
-                // "-a", "happo_mb", "sdynamics", "-e", "smac-2s3z", "-c", "smac", "-ld", "debug-logs", "-n", "debug2", "-s", "4",
-                // "-a", "happo", "-e", "grf-11_vs_11_hard_stochastic", "-c", "grf", "-ld", "debug-logs", "-n", "debug2", "-s", "4",
-                // "-a", "happo", "-e", "smac-5m_vs_6m", "-c", "smac", "-ld", "debug-logs", "-n", "debug", "-s", "4", "-te", "train_smac",
-                // "-a", "happo", "-e", "ma_mujoco-Walker2d_2x3", "-c", "ma_mujoco", "-ld", "debug-logs", "-n", "debug", "-s", "4",
-                // "-a", "happo", "-e", "grf-academy_3_vs_1_with_keeper", "-c", "grf", "-ld", "debug-logs", "-n", "debug", "-s", "4",
-                "-a", "happo_mb", "dynamics", "-e", "grf-academy_3_vs_1_with_keeper", "-c", "academy_3_vs_1_with_keeper", "-ld", "debug-logs", "-n", "debug", "-s", "4",
-                // "-a", "happo_mb", "happo_mb", "dynamics", "-e=ma_mujoco-Ant_2x4", "-c=ma_mujoco", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-ki=2",
-                // "-a", "happo_mb", "happo_mb", "dynamics", "-e=magw-escalation", "-c=escalation", "-ld=debug", "-n=debug", "-s=0", "--gpu=0", "-ki=2",
-            ]
-        },
-        {
-            "name": "Python: Train",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/run/train.py",
-            "args": ["-a=ppo"]
-        },
-        {
-            "name": "Python: Attach",
-            "type": "python",
-            "request": "attach",
-            "localRoot": "${workspaceFolder}",
-            "remoteRoot": "${workspaceFolder}",
-            "port": 3000,
-            "secret": "my_secret",
-            "host": "localhost"
-        },
-        {
-            "name": "Python: Terminal (integrated)",
-            "type": "python",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Python: Terminal (external)",
-            "type": "python",
-            "request": "launch",
-            "program": "${file}",
-            "console": "externalTerminal"
-        },
-        {
-            "name": "Python: Django",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/manage.py",
-            "args": [
-                "runserver",
-                "--noreload",
-                "--nothreading"
-            ],
-            "debugOptions": [
-                "RedirectOutput",
-                "Django"
-            ]
-        },
-        {
-            "name": "Python: Flask (0.11.x or later)",
-            "type": "python",
-            "request": "launch",
-            "module": "flask",
-            "env": {
-                "FLASK_APP": "${workspaceFolder}/app.py"
-            },
-            "args": [
-                "run",
-                "--no-debugger",
-                "--no-reload"
-            ]
-        },
-        {
-            "name": "Python: Module",
-            "type": "python",
-            "request": "launch",
-            "module": "module.name"
-        },
-        {
-            "name": "Python: Pyramid",
-            "type": "python",
-            "request": "launch",
-            "args": [
-                "${workspaceFolder}/development.ini"
-            ],
-            "debugOptions": [
-                "RedirectOutput",
-                "Pyramid"
-            ]
-        },
-        {
-            "name": "Python: Watson",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/console.py",
-            "args": [
-                "dev",
-                "runserver",
-                "--noreload=True"
-            ]
-        },
-        {
-            "name": "Python: All debug Options",
-            "type": "python",
-            "request": "launch",
-            "python": "${command:python.interpreterPath}",
-            "program": "${file}",
-            "module": "module.name",
-            "env": {
-                "VAR1": "1",
-                "VAR2": "2"
-            },
-            "envFile": "${workspaceFolder}/.env",
-            "args": [
-                "arg1",
-                "arg2"
-            ],
-            "debugOptions": [
-                "RedirectOutput"
-            ]
+            "justMyCode": true, 
         }
     ]
 }

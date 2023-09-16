@@ -1,0 +1,85 @@
+---
+config:
+  old: base
+  # new: 0601-mujoco
+  new: 0628-grf
+rename:
+  metrics/score: score
+  agent_first_epoch/entropy: entropy
+  agent_first_epoch/clip_frac: first_epoch/clip_frac
+  agent_last_epoch/clip_frac: last_epoch/clip_frac
+  clip_frac_diff: clip_frac_diff
+  agent_first_epoch/adv_ratio_pp: first_epoch/adv_ratio_pp
+  agent_first_epoch/adv_ratio_np: first_epoch/adv_ratio_np
+  agent_first_epoch/adv_ratio_pn: first_epoch/adv_ratio_pn
+  agent_first_epoch/adv_ratio_nn: first_epoch/adv_ratio_nn
+  agent_last_epoch/adv_ratio_pp: last_epoch/adv_ratio_pp
+  agent_last_epoch/adv_ratio_np: last_epoch/adv_ratio_np
+  agent_last_epoch/adv_ratio_pn: last_epoch/adv_ratio_pn
+  agent_last_epoch/adv_ratio_nn: last_epoch/adv_ratio_nn
+  adv_ratio_pp_diff: adv_ratio_pp_diff
+  adv_ratio_np_diff: adv_ratio_np_diff
+  adv_ratio_pn_diff: adv_ratio_pn_diff
+  adv_ratio_nn_diff: adv_ratio_nn_diff
+  sample_reg_loss_diff: sample_reg_loss_diff
+  # agent_first_epoch/pos_sample_reg_grads/max: first_epoch/pos_sample_reg_grads/max
+  # agent_first_epoch/pos_sample_reg_grads/min: first_epoch/pos_sample_reg_grads/min
+  cos_mu_pi: cos_mu_pi
+  cos_mu_lka: cos_mu_lka
+  cos_lka_pi: cos_lka_pi
+  cos_lka_mu_diff: cos_lka_mu_diff
+  agent_last_epoch/reg_above_threshold: last_epoch/reg_above_threshold
+  agent_last_epoch/reg_below_threshold: last_epoch/reg_below_threshold
+  agent_last_epoch/raw_sample_reg_grads: last_epoch/raw_sample_reg_grads
+  agent_last_epoch/sample_reg_loss: last_epoch/sample_reg_loss
+  dynamics/model_mae: model_mae
+  dynamics/reward_mae: reward_mae
+
+data:
+  # - date: '615'
+  #   env_suite: mujoco
+  #   name: happo
+  # - date: '616'
+  #   env_suite: mujoco
+  #   name: happo
+  # - date: '617'
+  #   env_suite: grf
+  #   name: happo
+  - date: '628'
+    env_suite: grf
+    name: ppo
+  - date: '630'
+    env_suite: grf
+    name: ppo
+  - date: '630'
+    env_suite: grf
+    name: happo
+  # - date: '617'
+  #   env_suite: grf
+  #   name: happo_lka2
+  # - date: '617'
+  #   env_suite: mujoco
+  #   name: happo
+  # - date: '615'
+  #   env_suite: mujoco
+  #   name: happo
+  # - date: '614'
+  #   env_suite: mujoco
+  #   name: happo
+  # - date: '609'
+  #   env_suite: grf
+  # - date: '602'
+  #   env_suite: grf
+  #   name: happo_mb
+  # - date: '602'
+  #   env_suite: grf
+  #   name: happo
+  #   model_info: happo-target_type=gae
+
+  # - date: '601'
+  #   env_suite: ma_mujoco
+  #   name: happo
+  # - date: '601'
+  #   env_suite: ma_mujoco
+  #   name: happo_mb
+

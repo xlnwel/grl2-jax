@@ -15,252 +15,252 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 1e4
-    restart_runners_priod: null
-    max_version_iterations: 1
-    max_steps_per_iteration: 2e5
-    initialize_rms: &irms False
+  store_period: 1e4
+  restart_runners_period: null
+  max_version_iterations: 1
+  max_steps_per_iteration: 2e5
+  initialize_rms: &irms False
 
 parameter_server:
-    root_dir: *algo
-    model_name: *algo
+  root_dir: *algo
+  model_name: *algo
 
-    train_from_scratch_frac: 1
-    online_frac: .2
+  train_from_scratch_frac: 1
+  online_frac: .2
 
-    payoff:
-        step_size: 1e-2     # step size towards the most recent data, 0 or null average payoff over the entire history
-        update_interval: 180
-        sampling_strategy:
-            type: pfsp
-            p: 1
+  payoff:
+    step_size: 1e-2   # step size towards the most recent data, 0 or null average payoff over the entire history
+    update_interval: 180
+    sampling_strategy:
+      type: pfsp
+      p: 1
 
-    # rule_strategies:
-    #     # agent name / config
-    #     random:
-    #         aid: 1
-    #         vid: 1
-    #         path: rule/random   # path to the file that defines Strategy
-    #         # other configs
+  # rule_strategies:
+  #   # agent name / config
+  #   random:
+  #     aid: 1
+  #     vid: 1
+  #     path: rule/random   # path to the file that defines Strategy
+  #     # other configs
 
 ray_config:
-    runner:
-        num_cpus: 1
-    agent:
-        num_gpus: 1
+  runner:
+    num_cpus: 1
+  agent:
+    num_gpus: 1
 
 monitor: {}
 
 runner:
-    n_runners: &nrunners 1
-    n_steps: &nsteps 32
-    push_every_episode: False
+  n_runners: &nrunners 1
+  n_steps: &nsteps 32
+  push_every_episode: False
 
 env:
-    env_name: &env_name matrix-ipd
-    n_envs: &nenvs 8
-    max_episode_steps: 150
-    uid2aid: [0, 1]
+  env_name: &env_name matrix-ipd
+  n_envs: &nenvs 8
+  max_episode_steps: 150
+  uid2aid: [0, 1]
 
 agent: {}
 
 strategy:
-    train_loop:
-        use_dataset: &dataset False
-        K: &K null
-        L: &L 0
-        extra_meta_step: &ems 1 # 0/1
+  train_loop:
+    use_dataset: &dataset False
+    K: &K null
+    L: &L 0
+    extra_meta_step: &ems 1 # 0/1
 
 model:
-    rnn_type: &rnn null
-    sample_size: &ss 32
-    K: *K
-    L: *L
-    extra_meta_step: *ems
+  rnn_type: &rnn null
+  sample_size: &ss 32
+  K: *K
+  L: *L
+  extra_meta_step: *ems
 
-    encoder: 
-        nn_id: mlp
-        units_list: []
-        kernel_initializer: orthogonal
-        activation: relu
-        norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1e-5
-    rnn:
-        nn_id: *rnn
-        units: 256
-        kernel_initialiszer: orthogonal
-        recurrent_initializer: orthogonal
-        use_ln: True
-    policy:
-        nn_id: policy
-        units_list: []
-        kernel_initializer: orthogonal
-        activation: relu
-        norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1.e-5
-        eval_act_temp: 1
-        out_gain: .01
-    value:
-        nn_id: value
-        units_list: []
-        kernel_initializer: orthogonal
-        activation: relu
-        norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1.e-5
-    embed: null
-        # nn_id: hpembed
-        # out_size: 16
-    meta:
-        nn_id: meta
-        pg_coef:
-            outer: 1
-            default: 1
-            init: null
-            act: sigmoid
-        entropy_coef:
-            outer: 1e-5
-            default: 1e-5
-            scale: 5e-4
-            bias: 5e-4
-            init: null
-            act: tanh
-        value_coef:
-            outer: 1
-            default: 1
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
-        gamma: 
-            outer: &gamma .99
-            default: *gamma
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
-        lam:
-            outer: &lam .95
-            default: *lam
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
+  encoder: 
+    nn_id: mlp
+    units_list: []
+    kernel_initializer: orthogonal
+    activation: relu
+    norm: layer
+    norm_after_activation: True
+    norm_kwargs:
+      epsilon: 1e-5
+  rnn:
+    nn_id: *rnn
+    units: 256
+    kernel_initialiszer: orthogonal
+    recurrent_initializer: orthogonal
+    use_ln: True
+  policy:
+    nn_id: policy
+    units_list: []
+    kernel_initializer: orthogonal
+    activation: relu
+    norm: layer
+    norm_after_activation: True
+    norm_kwargs:
+      epsilon: 1.e-5
+    eval_act_temp: 1
+    out_gain: .01
+  value:
+    nn_id: value
+    units_list: []
+    kernel_initializer: orthogonal
+    activation: relu
+    norm: layer
+    norm_after_activation: True
+    norm_kwargs:
+      epsilon: 1.e-5
+  embed: null
+    # nn_id: hpembed
+    # out_size: 16
+  meta:
+    nn_id: meta
+    pg_coef:
+      outer: 1
+      default: 1
+      init: null
+      act: sigmoid
+    entropy_coef:
+      outer: 1e-5
+      default: 1e-5
+      scale: 5e-4
+      bias: 5e-4
+      init: null
+      act: tanh
+    value_coef:
+      outer: 1
+      default: 1
+      scale: 1
+      bias: 0
+      init: null
+      act: sigmoid
+    gamma: 
+      outer: &gamma .99
+      default: *gamma
+      scale: 1
+      bias: 0
+      init: null
+      act: sigmoid
+    lam:
+      outer: &lam .95
+      default: *lam
+      scale: 1
+      bias: 0
+      init: null
+      act: sigmoid
 
 loss:
-    rl:
-        # hyperparams for value target and advantage
-        target_type: vtrace
-        c_clip: 1
-        rho_clip: 1
-        adv_type: vtrace
-        norm_adv: False
+  rl:
+    # hyperparams for value target and advantage
+    target_type: vtrace
+    c_clip: 1
+    rho_clip: 1
+    adv_type: vtrace
+    norm_adv: False
 
-        # hyperparams for policy optimization
-        pg_type: ppo
-        ppo_clip_range: .2
-        use_dice: False
-        dice_axis: null
-        dice_lam: 1
-        kl: reverse
-        kl_coef: 1
+    # hyperparams for policy optimization
+    pg_type: ppo
+    ppo_clip_range: .2
+    use_dice: False
+    dice_axis: null
+    dice_lam: 1
+    kl: reverse
+    kl_coef: 1
 
-        # hyperparams for value learning
-        value_loss: clip
-        value_clip_range: .2
-        sample_mask: False
-    meta:
-        # hyperparams for value target and advantage
-        target_type: vtrace
-        c_clip: 1
-        rho_clip: 1
-        adv_type: vtrace
-        norm_adv: False
+    # hyperparams for value learning
+    value_loss: clip
+    value_clip_range: .2
+    sample_mask: False
+  meta:
+    # hyperparams for value target and advantage
+    target_type: vtrace
+    c_clip: 1
+    rho_clip: 1
+    adv_type: vtrace
+    norm_adv: False
 
-        # hyperparams for policy optimization
-        pg_type: ppo
-        ppo_clip_range: .2
-        use_dice: False
-        dice_axis: null
-        dice_lam: 1
-        kl: reverse
-        kl_coef: 1
+    # hyperparams for policy optimization
+    pg_type: ppo
+    ppo_clip_range: .2
+    use_dice: False
+    dice_axis: null
+    dice_lam: 1
+    kl: reverse
+    kl_coef: 1
 
-        # hyperparams for value learning
-        value_loss: clip
-        value_clip_range: .2
-        sample_mask: False
+    # hyperparams for value learning
+    value_loss: clip
+    value_clip_range: .2
+    sample_mask: False
 
 trainer:
-    algorithm: *algo
-    n_runners: *nrunners
-    n_envs: *nenvs
-    n_epochs: &nepochs 1
-    n_mbs: &nmbs 1
-    sample_size: *ss         # BPTT length
-    timeout_done: &td True
-    meta_type: plain
-    K: *K
-    L: *L
-    extra_meta_step: *ems
-    store_state: True
+  algorithm: *algo
+  n_runners: *nrunners
+  n_envs: *nenvs
+  n_epochs: &nepochs 1
+  n_mbs: &nmbs 1
+  sample_size: *ss     # BPTT length
+  timeout_done: &td True
+  meta_type: plain
+  K: *K
+  L: *L
+  extra_meta_step: *ems
+  store_state: True
 
-    optimizer:
-        opt_name: adam
-        schedule_lr: False
-        lr: 1e-1
-        clip_norm: null
-        epsilon: 1.e-5
-        weight_decay: 0
-    meta_opt:
-        opt_name: adam
-        schedule_lr: False
-        lr: 1e-3
-        clip_norm: .5
-        epsilon: 1.e-5
+  optimizer:
+    opt_name: adam
+    schedule_lr: False
+    lr: 1e-1
+    clip_norm: null
+    epsilon: 1.e-5
+    weight_decay: 0
+  meta_opt:
+    opt_name: adam
+    schedule_lr: False
+    lr: 1e-3
+    clip_norm: .5
+    epsilon: 1.e-5
 
 actor:
-    algorithm: *algo
+  algorithm: *algo
 
-    rms:
-        obs_names: [obs]
-        normalize_obs: *irms
-        normalize_reward: False
-        obs_normalized_axis: [0, 1]
-        reward_normalized_axis: [0, 1]
-        update_reward_rms_in_time: True
-        gamma: *gamma
+  rms:
+    obs_names: [obs]
+    normalize_obs: *irms
+    normalize_reward: False
+    obs_normalized_axis: [0, 1]
+    reward_normalized_axis: [0, 1]
+    update_reward_rms_in_time: True
+    gamma: *gamma
 
 buffer:
-    type: ac
-    use_dataset: *dataset
+  type: ac
+  use_dataset: *dataset
 
-    n_runners: *nrunners
-    n_envs: *nenvs
-    n_steps: *nsteps
-    fragment_size: null
-    sample_size: *ss
-    K: *K
-    L: *L
-    extra_meta_step: *ems
-    queue_size: 2
-    timeout_done: *td
-    rnn_type: *rnn
+  n_runners: *nrunners
+  n_envs: *nenvs
+  n_steps: *nsteps
+  fragment_size: null
+  sample_size: *ss
+  K: *K
+  L: *L
+  extra_meta_step: *ems
+  queue_size: 2
+  timeout_done: *td
+  rnn_type: *rnn
 
-    sample_keys: 
-        - obs
-        - action
-        - value
-        - reward
-        - discount
-        - reset
-        - mu_logprob
-        - mu
-        - mask
-        - h
-        - c
+  sample_keys: 
+    - obs
+    - action
+    - value
+    - reward
+    - discount
+    - reset
+    - mu_logprob
+    - mu
+    - mask
+    - h
+    - c

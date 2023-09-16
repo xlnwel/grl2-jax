@@ -21,17 +21,11 @@ configs=(
 )
 # shift
 args1=(
-    # $2
-    15
-    15
-    10
-    10
+    exp
+    log
 )
 args2=(
     1
-    5
-    1
-    5
 )
 args3=(
     True
@@ -43,7 +37,6 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-date="0617"
 info=""
 ld="${suite}-logs"
 gpus=$(nvidia-smi -L | wc -l)
@@ -77,6 +70,24 @@ a3=${args3[$idx]}
 
 commands=()
 kws=$@
+# for a in "${algos[@]}"; do
+#     for e in "${envs[@]}"; do
+#         env="${suite}-${e}"
+#         for a1 in "${args1[@]}"; do
+#             for a2 in "${args2[@]}"; do
+#                 for a3 in "${args3[@]}"; do
+#                     kws="sample_reg_type=$a1 sample_reg_coef=$a2 rescaled_by_adv=$a3"
+#                     for s in {0..4}; do
+#                         py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+#                         commands+=("$py_script")
+#                         echo $py_script
+#                     done
+#                 done
+#             done
+#         done
+#     done
+# done
+kws="happo-sample_reg_type=log-rescaled_by_adv=False-sample_reg_coef=1-reg_clip=0"
 for a in "${algos[@]}"; do
     for e in "${envs[@]}"; do
         env="${suite}-${e}"

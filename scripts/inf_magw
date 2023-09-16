@@ -12,19 +12,16 @@ envs=(
 )
 configs=$envs
 args1=(
-    True
-    True
-    False
-    False
+    exp
+    exp
+    log
+    log
 )
 args2=(
-    simple
-    kl_reverse
+    1
 )
 args3=(
     True
-    True
-    False
     False
 )
 args4=(
@@ -33,7 +30,6 @@ args4=(
     # .1
 )
 date=$(date +"%m%d")
-# date="0331"
 info=""
 ld="${suite}-logs"
 

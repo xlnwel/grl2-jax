@@ -9,41 +9,40 @@ from tools import yaml_op
 
 
 def save_config(config, name='config.yaml'):
-    yaml_op.save_config(
-        config.asdict(), 
-        path='/'.join([
-            config['root_dir'], 
-            config['model_name'], 
-            name
-        ])
-    )
+  yaml_op.save_config(
+    config.asdict(), 
+    path='/'.join([
+      config['root_dir'], 
+      config['model_name'], 
+      name
+    ])
+  )
 
 def save_configs(configs):
-    for i, config in enumerate(configs):
-        config.n_agents = len(configs)
-        save_config(config, name=f'config_p{i}.yaml')
+  for i, config in enumerate(configs):
+    config.n_agents = len(configs)
+    save_config(config, name=f'config_p{i}.yaml')
 
 def main(configs):
-    configure_gpu(None)
-    if ray.is_initialized():
-        ray.shutdown()
-    ray.init()
-    sigint_shutdown_ray()
-
-    if len(configs) == 1:
-        configs = [dict2AttrDict(configs[0], to_copy=True) 
-            for _ in range(configs[0].n_agents)]
-        for i, c in enumerate(configs):
-            modify_config(c, overwrite_existed_only=True, aid=i)
-
-    config = configs[0]
-    save_configs(configs)
-    
-    seed = config.get('seed')
-    set_seed(seed)
-
-    controller = Controller(configs[0])
-    controller.build_managers(configs)
-    controller.pbt_train()
-
+  configure_gpu(None)
+  if ray.is_initialized():
     ray.shutdown()
+  ray.init()
+  sigint_shutdown_ray()
+
+  if len(configs) == 1:
+    configs = [dict2AttrDict(configs[0], to_copy=True) 
+      for _ in range(configs[0].n_agents)]
+    for i, c in enumerate(configs):
+      modify_config(c, overwrite_existed_only=True, aid=i)
+  config = configs[0]
+  save_configs(configs)
+  
+  seed = config.get('seed')
+  set_seed(seed)
+
+  controller = Controller(configs[0])
+  controller.build_managers(configs)
+  controller.pbt_train()
+
+  ray.shutdown()

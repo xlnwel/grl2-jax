@@ -8,7 +8,7 @@
     "privateKeyPath": null,
     "passphrase": null,
     "passive": true, 
-    "interactiveAuth": false,
+    "interactiveAuth": false,       
     "remotePath": "/Users/chenxw/documents/grl",
     "uploadOnSave": true,
     "syncMode": "update",
@@ -50,7 +50,7 @@
     "passphrase": null,
     "passive": true, 
     "interactiveAuth": false,
-    "remotePath": "/home/ubuntu/grl",
+    "remotePath": "/home/ubuntu/chenxinwei/grl",
     "uploadOnSave": true,
     "syncMode": "update",
 

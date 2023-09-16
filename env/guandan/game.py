@@ -11,344 +11,344 @@ from .infoset import InfoSet
 
 
 def com_cards(same_cards, cards, n, name):
-    """
-    使用游标选择指定的数量的相同点数的卡牌（即用于选择两对、三张、炸弹等牌型）
-    TEST  如左所示，采用游标法（也可视做二进制法）来生成指定元素个数的组合，1表示所指向的元素
-    1101
-    :param same_cards: 相同点数的卡牌的列表
-    :param cards: 包含相同点数的卡牌列表
-    :param n: 指定数量
-    :param name: 牌型名称
-    :return: List[list[Card]]
-    """
-    inx_ptr = [0 for _ in range(n)]
-    for i in range(n - 1):
-        inx_ptr[i] = i
+  """
+  使用游标选择指定的数量的相同点数的卡牌（即用于选择两对、三张、炸弹等牌型）
+  TEST  如左所示，采用游标法（也可视做二进制法）来生成指定元素个数的组合，1表示所指向的元素
+  1101
+  :param same_cards: 相同点数的卡牌的列表
+  :param cards: 包含相同点数的卡牌列表
+  :param n: 指定数量
+  :param name: 牌型名称
+  :return: List[list[Card]]
+  """
+  inx_ptr = [0 for _ in range(n)]
+  for i in range(n - 1):
+    inx_ptr[i] = i
 
-    inx_ptr[n - 1] = len(cards) - 1
-    flag = True
-    while inx_ptr[0] <= len(cards) - n and flag:
-        foo = []
-        for inx in inx_ptr:
-            foo.append(str(cards[inx]))
+  inx_ptr[n - 1] = len(cards) - 1
+  flag = True
+  while inx_ptr[0] <= len(cards) - n and flag:
+    foo = []
+    for inx in inx_ptr:
+      foo.append(str(cards[inx]))
 
-        same_cards.append([name, foo[0][1], foo])
-        if cards[(inx_ptr[(n - 1)] - 1)] == cards[inx_ptr[(n - 1)]]:
-            inx_ptr[(n - 1)] -= 2
+    same_cards.append([name, foo[0][1], foo])
+    if cards[(inx_ptr[(n - 1)] - 1)] == cards[inx_ptr[(n - 1)]]:
+      inx_ptr[(n - 1)] -= 2
+    else:
+      inx_ptr[(n - 1)] -= 1
+    if inx_ptr[(n - 1)] <= inx_ptr[(n - 2)]:
+      inx_ptr[n - 1] = len(cards) - 1
+      i = n - 2
+      while i >= 0:
+        inx_ptr[i] += 1
+        if inx_ptr[i] == inx_ptr[(i + 1)]:
+          inx_ptr[i] -= 1
+          if i == 0:
+            flag = False
+          i -= 1
+          continue
         else:
-            inx_ptr[(n - 1)] -= 1
-        if inx_ptr[(n - 1)] <= inx_ptr[(n - 2)]:
-            inx_ptr[n - 1] = len(cards) - 1
-            i = n - 2
-            while i >= 0:
-                inx_ptr[i] += 1
-                if inx_ptr[i] == inx_ptr[(i + 1)]:
-                    inx_ptr[i] -= 1
-                    if i == 0:
-                        flag = False
-                    i -= 1
-                    continue
-                else:
-                    if cards[inx_ptr[i]] == cards[(inx_ptr[i] - 1)]:
-                        inx_ptr[i] += 1
-                        if inx_ptr[i] == inx_ptr[(i + 1)]:
-                            inx_ptr[i] -= 1
-                            if i == 0:
-                                flag = False
-                            i -= 1
-                            continue
-                        else:
-                            for j in range(i + 1, n - 1):
-                                inx_ptr[j] = inx_ptr[(j - 1)] + 1
+          if cards[inx_ptr[i]] == cards[(inx_ptr[i] - 1)]:
+            inx_ptr[i] += 1
+            if inx_ptr[i] == inx_ptr[(i + 1)]:
+              inx_ptr[i] -= 1
+              if i == 0:
+                flag = False
+              i -= 1
+              continue
+            else:
+              for j in range(i + 1, n - 1):
+                inx_ptr[j] = inx_ptr[(j - 1)] + 1
 
-                            break
-                    else:
-                        for j in range(i + 1, n - 1):
-                            inx_ptr[j] = inx_ptr[(j - 1)] + 1
+              break
+          else:
+            for j in range(i + 1, n - 1):
+              inx_ptr[j] = inx_ptr[(j - 1)] + 1
 
-                        break
+            break
 
 
 class Game(object):
-    def __init__(self,  
-                 skip_players=(1, 3), 
-                 agent='random', 
-                 other='reyn', 
-                 max_card=13, 
-                 test=False,
-                 evaluation=False,
-                 **kwargs):
-        self.over_order = OverOrder() #出完牌的顺序和进贡关系
-        self.skip_players = skip_players
-        self.players = [Player(f'{i}', other) if i in skip_players else Player(f'{i}', agent) 
-            for i in range(4)]
-        self.max_card = max_card
-        self.test = test
-        self.evaluation = evaluation
+  def __init__(self,  
+         skip_players=(1, 3), 
+         agent='random', 
+         other='reyn', 
+         max_card=13, 
+         test=False,
+         evaluation=False,
+         **kwargs):
+    self.over_order = OverOrder() #出完牌的顺序和进贡关系
+    self.skip_players = skip_players
+    self.players = [Player(f'{i}', other) if i in skip_players else Player(f'{i}', agent) 
+      for i in range(4)]
+    self.max_card = max_card
+    self.test = test
+    self.evaluation = evaluation
 
-        self.r_order_default = {'2':2,
-         '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'A':14,
-         'B':16,  'R':17}
-        self.r_order = {'2':2,
-         '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'A':14,
-         'B':16,  'R':17}
-        # p_order表示在顺子、三连对等里的rank大小，用于比较
-        self.p_order = {'A':1,
-         '2':2,  '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'B':16,
-         'R':17}
-        self.end = False
-        
-        # obs info
-        self.numbers_shape = (13, 6 * 4 + 1)    # (6, 13, 5)
-        self.jokers_shape = (6 * 4,)
-        self.left_cards_shape = (3 * 27,)
-        self.is_last_teammate_move_shape = (1,)
-        self.is_first_move_shape = ()
-        self.last_valid_action_type_shape = (9,)
-        self.rank_shape = (13,)
-        self.bombs_dealt_shape = (14,)
-        self.last_action_numbers_shape = (4, 13, 5)
-        self.last_action_jokers_shape = (4, 4)
-        self.last_action_types_shape = (4, *self.last_valid_action_type_shape)
-        self.last_action_rel_pids_shape = (4, 4)
-        self.last_action_filters_shape = (4,)
-        self.last_action_first_move_shape = (4,)
-        self.action_type_mask_shape = (NUM_ACTION_TYPES,)
-        self.card_rank_mask_shape = (NUM_ACTION_TYPES, NUM_CARD_RANKS)
-        self.others_numbers_shape = (13, 13)
-        self.others_jokers_shape = (12,)
-        self.obs_shape = dict(
-            numbers=self.numbers_shape,
-            jokers=self.jokers_shape,
-            left_cards=self.left_cards_shape,
-            is_last_teammate_move=self.is_last_teammate_move_shape,
-            is_first_move=self.is_first_move_shape,
-            last_valid_action_type=self.last_valid_action_type_shape,
-            rank=self.rank_shape,
-            bombs_dealt=self.bombs_dealt_shape,
-            last_action_numbers=self.last_action_numbers_shape,
-            last_action_jokers=self.last_action_jokers_shape,
-            last_action_types=self.last_action_types_shape,
-            last_action_rel_pids=self.last_action_rel_pids_shape,
-            last_action_filters=self.last_action_filters_shape,
-            last_action_first_move=self.last_action_first_move_shape,
-            action_type_mask=self.action_type_mask_shape,
-            card_rank_mask=self.card_rank_mask_shape,
-            mask=(),
-        )
-        self.obs_dtype = dict(
-            numbers=np.float32,
-            jokers=np.float32,
-            left_cards=np.float32,
-            is_last_teammate_move=np.float32,
-            is_first_move=bool,
-            last_valid_action_type=np.float32,
-            rank=np.float32,
-            bombs_dealt=np.float32,
-            last_action_numbers=np.float32,
-            last_action_jokers=np.float32,
-            last_action_types=np.float32,
-            last_action_rel_pids=np.float32,
-            last_action_filters=bool,
-            last_action_first_move=np.float32,
-            action_type_mask=bool,
-            card_rank_mask=bool,
-            mask=np.float32,
-        )
+    self.r_order_default = {'2':2,
+     '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'A':14,
+     'B':16,  'R':17}
+    self.r_order = {'2':2,
+     '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'A':14,
+     'B':16,  'R':17}
+    # p_order表示在顺子、三连对等里的rank大小，用于比较
+    self.p_order = {'A':1,
+     '2':2,  '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'B':16,
+     'R':17}
+    self.end = False
+    
+    # obs info
+    self.numbers_shape = (13, 6 * 4 + 1)  # (6, 13, 5)
+    self.jokers_shape = (6 * 4,)
+    self.left_cards_shape = (3 * 27,)
+    self.is_last_teammate_move_shape = (1,)
+    self.is_first_move_shape = ()
+    self.last_valid_action_type_shape = (9,)
+    self.rank_shape = (13,)
+    self.bombs_dealt_shape = (14,)
+    self.last_action_numbers_shape = (4, 13, 5)
+    self.last_action_jokers_shape = (4, 4)
+    self.last_action_types_shape = (4, *self.last_valid_action_type_shape)
+    self.last_action_rel_pids_shape = (4, 4)
+    self.last_action_filters_shape = (4,)
+    self.last_action_first_move_shape = (4,)
+    self.action_type_mask_shape = (NUM_ACTION_TYPES,)
+    self.card_rank_mask_shape = (NUM_ACTION_TYPES, NUM_CARD_RANKS)
+    self.others_numbers_shape = (13, 13)
+    self.others_jokers_shape = (12,)
+    self.obs_shape = dict(
+      numbers=self.numbers_shape,
+      jokers=self.jokers_shape,
+      left_cards=self.left_cards_shape,
+      is_last_teammate_move=self.is_last_teammate_move_shape,
+      is_first_move=self.is_first_move_shape,
+      last_valid_action_type=self.last_valid_action_type_shape,
+      rank=self.rank_shape,
+      bombs_dealt=self.bombs_dealt_shape,
+      last_action_numbers=self.last_action_numbers_shape,
+      last_action_jokers=self.last_action_jokers_shape,
+      last_action_types=self.last_action_types_shape,
+      last_action_rel_pids=self.last_action_rel_pids_shape,
+      last_action_filters=self.last_action_filters_shape,
+      last_action_first_move=self.last_action_first_move_shape,
+      action_type_mask=self.action_type_mask_shape,
+      card_rank_mask=self.card_rank_mask_shape,
+      mask=(),
+    )
+    self.obs_dtype = dict(
+      numbers=np.float32,
+      jokers=np.float32,
+      left_cards=np.float32,
+      is_last_teammate_move=np.float32,
+      is_first_move=bool,
+      last_valid_action_type=np.float32,
+      rank=np.float32,
+      bombs_dealt=np.float32,
+      last_action_numbers=np.float32,
+      last_action_jokers=np.float32,
+      last_action_types=np.float32,
+      last_action_rel_pids=np.float32,
+      last_action_filters=bool,
+      last_action_first_move=np.float32,
+      action_type_mask=bool,
+      card_rank_mask=bool,
+      mask=np.float32,
+    )
 
-        if not self.evaluation:
-            self.obs_shape.update(dict(
-                others_numbers=self.others_numbers_shape,
-                others_jokers=self.others_jokers_shape,
-                others_h=(3, 128),
-            ))
-            self.obs_dtype.update(dict(
-                others_numbers=np.float32,
-                others_jokers=np.float32,
-                others_h=np.float32,
-            ))
+    if not self.evaluation:
+      self.obs_shape.update(dict(
+        others_numbers=self.others_numbers_shape,
+        others_jokers=self.others_jokers_shape,
+        others_h=(3, 128),
+      ))
+      self.obs_dtype.update(dict(
+        others_numbers=np.float32,
+        others_jokers=np.float32,
+        others_h=np.float32,
+      ))
 
-        # action info
-        self.action_type_shape = ()
-        self.card_rank_shape = ()
-        self.action_shape = dict(
-            action_type=self.action_type_shape,
-            card_rank=self.card_rank_shape,
-        )
-        self.action_dim = dict(
-            action_type=NUM_ACTION_TYPES,
-            card_rank=NUM_CARD_RANKS,
-        )
-        self.action_dtype = dict(
-            action_type=np.int32,
-            card_rank=np.int32,
-        )
+    # action info
+    self.action_type_shape = ()
+    self.card_rank_shape = ()
+    self.action_shape = dict(
+      action_type=self.action_type_shape,
+      card_rank=self.card_rank_shape,
+    )
+    self.action_dim = dict(
+      action_type=NUM_ACTION_TYPES,
+      card_rank=NUM_CARD_RANKS,
+    )
+    self.action_dtype = dict(
+      action_type=np.int32,
+      card_rank=np.int32,
+    )
 
-        self.reward_shape = (4,)
+    self.reward_shape = (4,)
 
-    def game_over(self):
-        return self.end
+  def game_over(self):
+    return self.end
 
-    def __cmp2cards(self, card, other, flag):
-        """
-        比较两张卡牌，如果前者小于后者，返回True，反之False
-        :param card: 卡牌a
-        :param other: 卡牌b
-        :param flag: 是否忽略花色
-        :return: True or False
-        """
+  def __cmp2cards(self, card, other, flag):
+    """
+    比较两张卡牌，如果前者小于后者，返回True，反之False
+    :param card: 卡牌a
+    :param other: 卡牌b
+    :param flag: 是否忽略花色
+    :return: True or False
+    """
 
-        card_point = 15 if card.rank == self.rank else card.digital & 255
-        other_point = 15 if other.rank == self.rank else other.digital & 255
-        if card_point < other_point:
-            return True
+    card_point = 15 if card.rank == self.rank else card.digital & 255
+    other_point = 15 if other.rank == self.rank else other.digital & 255
+    if card_point < other_point:
+      return True
+    else:
+      if card_point == other_point:
+        if flag:
+          return False
         else:
-            if card_point == other_point:
-                if flag:
-                    return False
-                else:
-                    return card.digital & 65280 < other.digital & 65280
-            return False
+          return card.digital & 65280 < other.digital & 65280
+      return False
 
-    def __cmp2rank(self, rank_a, rank_b):
-        """
-        比较两个rank，如果前者<后者返回1，前者>后者返回-1，相等返回0
-        """
-        if self.r_order[rank_a] < self.r_order[rank_b]:
-            return 1
-        else:
-            if self.r_order[rank_a] > self.r_order[rank_b]:
-                return -1
-            return 0
+  def __cmp2rank(self, rank_a, rank_b):
+    """
+    比较两个rank，如果前者<后者返回1，前者>后者返回-1，相等返回0
+    """
+    if self.r_order[rank_a] < self.r_order[rank_b]:
+      return 1
+    else:
+      if self.r_order[rank_a] > self.r_order[rank_b]:
+        return -1
+      return 0
 
-    def next_pos(self):
-        """
-        获得下一位有牌的玩家的座位号
-        """
-        for i in range(1, 4):
-            pid = (self.current_pid + i) % 4
-            if len(self.players[pid].hand_cards) > 0:
-                return pid
-            else:
-                self._skip_player(pid)
+  def next_pos(self):
+    """
+    获得下一位有牌的玩家的座位号
+    """
+    for i in range(1, 4):
+      pid = (self.current_pid + i) % 4
+      if len(self.players[pid].hand_cards) > 0:
+        return pid
+      else:
+        self._skip_player(pid)
 
-    def update_player_message(self, pos, legal_actions):
-        """
-        不用网络传输，修改为直接update指定玩家的信息
-        :param pos: 玩家座位号
-        :param legal_actions: 动作列表
-        :return:
-        """
-        self.players[pos].public_info = [player.get_public_info() for player in self.players]
-        self.players[pos].last_pid = self.last_pid
-        self.players[pos].last_action = self.last_action
-        self.players[pos].last_valid_pid = self.last_valid_pid
-        self.players[pos].last_valid_action = self.last_valid_action
-        self.players[pos].legal_actions = legal_actions
-        self.legal_actions.update(legal_actions)
+  def update_player_message(self, pos, legal_actions):
+    """
+    不用网络传输，修改为直接update指定玩家的信息
+    :param pos: 玩家座位号
+    :param legal_actions: 动作列表
+    :return:
+    """
+    self.players[pos].public_info = [player.get_public_info() for player in self.players]
+    self.players[pos].last_pid = self.last_pid
+    self.players[pos].last_action = self.last_action
+    self.players[pos].last_valid_pid = self.last_valid_pid
+    self.players[pos].last_valid_action = self.last_valid_action
+    self.players[pos].legal_actions = legal_actions
+    self.legal_actions.update(legal_actions)
 
-    def reset(self, deal=True, rank=None):
-        self.over_order = OverOrder() #出完牌的顺序和进贡关系
-        self.deck = []
-        self.last_action = Action()
-        self.is_last_action_first_move = False
-        self.last_valid_action = Action()
-        self.current_pid = -1
-        self.last_pid = -1
-        self.last_valid_pid = -1
-        self.legal_actions = ActionList()
-        self.end = False
-        self.played_action_seq = [Action() for _ in range(4)]
-        if rank is None:
-            self.rank = random.choice(['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'][:self.max_card])
-        else:
-            self.rank = rank
-        if self.test:
-            print('rank:', self.rank)
-        self.current_pid = random.choice([0, 1, 2, 3])
-        self.first_pid = self.current_pid
-        self.r_order = self.r_order_default.copy()
-        self.r_order[self.rank] = 15
-        self.bombs_dealt = np.zeros(self.bombs_dealt_shape, dtype=np.float32)
-        [p.reset() for p in self.players]
-        self.initialize()
-        if deal:
-            self.deal()
+  def reset(self, deal=True, rank=None):
+    self.over_order = OverOrder() #出完牌的顺序和进贡关系
+    self.deck = []
+    self.last_action = Action()
+    self.is_last_action_first_move = False
+    self.last_valid_action = Action()
+    self.current_pid = -1
+    self.last_pid = -1
+    self.last_valid_pid = -1
+    self.legal_actions = ActionList()
+    self.end = False
+    self.played_action_seq = [Action() for _ in range(4)]
+    if rank is None:
+      self.rank = random.choice(['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'][:self.max_card])
+    else:
+      self.rank = rank
+    if self.test:
+      print('rank:', self.rank)
+    self.current_pid = random.choice([0, 1, 2, 3])
+    self.first_pid = self.current_pid
+    self.r_order = self.r_order_default.copy()
+    self.r_order[self.rank] = 15
+    self.bombs_dealt = np.zeros(self.bombs_dealt_shape, dtype=np.float32)
+    [p.reset() for p in self.players]
+    self.initialize()
+    if deal:
+      self.deal()
 
-    def initialize(self):
-        """
-        初始化牌堆
-        :return: None
-        """
-        for i in range(2):
-            digital_form = 257
-            for s in Card.ALL_SUITS:
-                for r in Card.ALL_RANKS[:-1]:
-                    digital_form += 1
-                    if Card.RANK2DIGIT[r] <= self.max_card:
-                        self.deck.append(Card(s, r, digital_form))
+  def initialize(self):
+    """
+    初始化牌堆
+    :return: None
+    """
+    for i in range(2):
+      digital_form = 257
+      for s in Card.ALL_SUITS:
+        for r in Card.ALL_RANKS[:-1]:
+          digital_form += 1
+          if Card.RANK2DIGIT[r] <= self.max_card:
+            self.deck.append(Card(s, r, digital_form))
 
-                digital_form = digital_form & 3841
-                digital_form += 257
+        digital_form = digital_form & 3841
+        digital_form += 257
 
-        for i in range(2):
-            self.deck.append(Card('S', 'B', 272))
-            self.deck.append(Card('H', 'R', 529))
+    for i in range(2):
+      self.deck.append(Card('S', 'B', 272))
+      self.deck.append(Card('H', 'R', 529))
 
-        random.shuffle(self.deck)
+    random.shuffle(self.deck)
 
-    def deal(self):
-        """
-        分发卡牌给四位玩家
-        :return: None
-        """
-        count = len(self.deck) - 1
-        for i in range(4):
-            if len(self.players[i].hand_cards) != 0:
-                self.players[i].hand_cards = []
-            self.players[i].uni_count = 0
-            for j in range(2*self.max_card+1):
-                if self.deck[count].rank == self.rank:
-                    if self.deck[count].suit == 'H':
-                        self.players[i].uni_count += 1
-                self.add_card(i, self.deck[count])
+  def deal(self):
+    """
+    分发卡牌给四位玩家
+    :return: None
+    """
+    count = len(self.deck) - 1
+    for i in range(4):
+      if len(self.players[i].hand_cards) != 0:
+        self.players[i].hand_cards = []
+      self.players[i].uni_count = 0
+      for j in range(2*self.max_card+1):
+        if self.deck[count].rank == self.rank:
+          if self.deck[count].suit == 'H':
+            self.players[i].uni_count += 1
+        self.add_card(i, self.deck[count])
 
-                count -= 1
-                self.deck.pop()
+        count -= 1
+        self.deck.pop()
 
-    def start(self):
-        legal_actions = self.first_action(self.current_pid)   #可选动作集合
-        self.update_player_message(pos=self.current_pid, legal_actions=legal_actions)
-        self.check_skip_player()
-        # print("游戏开始，本小局打{}, {}号位先手".format(self.rank, self.current_pid))
+  def start(self):
+    legal_actions = self.first_action(self.current_pid)   #可选动作集合
+    self.update_player_message(pos=self.current_pid, legal_actions=legal_actions)
+    self.check_skip_player()
+    # print("游戏开始，本小局打{}, {}号位先手".format(self.rank, self.current_pid))
 
-    def random_action(self):
-        infoset = self.get_infoset()
-        action_index = self.players[self.current_pid].play_choice(infoset)
-        action = self.legal_actions[action_index]
-        return action
+  def random_action(self):
+    infoset = self.get_infoset()
+    action_index = self.players[self.current_pid].play_choice(infoset)
+    action = self.legal_actions[action_index]
+    return action
 
-    def random_step(self):
-        action = self.random_action()
-        self.play(action)
+  def random_step(self):
+    action = self.random_action()
+    self.play(action)
 
-    def play(self, action):
-        assert len(self.players[self.current_pid].hand_cards) > 0, len(self.players[self.current_pid].hand_cards)
-        if not isinstance(action, Action):
-            action = self.legal_actions[action]
-        if self.current_pid == self.first_pid:
-            assert len(self.players[0].history) == len(self.players[1].history), (self.players[0].history, self.players[1].history)
-            assert len(self.players[1].history) == len(self.players[2].history), (self.players[1].history, self.players[2].history)
-            assert len(self.players[2].history) == len(self.players[3].history), (self.players[2].history, self.players[3].history)
-        assert action.type is not None, action
-        if action.type == BOMB or action.type == STRAIGHT_FLUSH:
-            self.bombs_dealt[Rank2Num[action.rank]] += 1
-        if self.players[self.current_pid].first_round:
-            assert self.players[self.current_pid].history == [], 0
-        self.players[self.current_pid].first_round = False
-        self.last_pid = self.current_pid
-        self.last_action = action
-        self.is_last_action_first_move = self.last_valid_pid == -1
+  def play(self, action):
+    assert len(self.players[self.current_pid].hand_cards) > 0, len(self.players[self.current_pid].hand_cards)
+    if not isinstance(action, Action):
+      action = self.legal_actions[action]
+    if self.current_pid == self.first_pid:
+      assert len(self.players[0].history) == len(self.players[1].history), (self.players[0].history, self.players[1].history)
+      assert len(self.players[1].history) == len(self.players[2].history), (self.players[1].history, self.players[2].history)
+      assert len(self.players[2].history) == len(self.players[3].history), (self.players[2].history, self.players[3].history)
+    assert action.type is not None, action
+    if action.type == BOMB or action.type == STRAIGHT_FLUSH:
+      self.bombs_dealt[Rank2Num[action.rank]] += 1
+    if self.players[self.current_pid].first_round:
+      assert self.players[self.current_pid].history == [], 0
+    self.players[self.current_pid].first_round = False
+    self.last_pid = self.current_pid
+    self.last_action = action
+      self.is_last_action_first_move = self.last_valid_pid == -1
         if self.is_last_action_first_move:
             assert action.type != PASS, action
         if self.test:

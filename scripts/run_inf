@@ -1,4 +1,8 @@
-# ./scripts/inf magw 1 inf_magw sample_reg_coef=1 rescaled_by_adv=False rescaled_by_mu=False reg_clip=0
+# ./scripts/inf magw 1 inf_magw
+# ./scripts/inf magw 1 inf_magw sample_reg_type=log sample_reg_coef=1 rescaled_by_adv=False
+# ./scripts/inf magw 1 inf_magw sample_reg_type=exp sample_reg_coef=1 rescaled_by_adv=False
+# ./scripts/inf magw 1 inf_magw sample_reg_type=log sample_reg_coef=1 rescaled_by_adv=True
+# ./scripts/inf magw 1 inf_magw sample_reg_type=exp sample_reg_coef=1 rescaled_by_adv=True
 # ./scripts/inf magw 1 inf_magw sample_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=False reg_clip=.2
 # ./scripts/inf magw 1 inf_magw sample_pos_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=True reg_clip=.2
 # ./scripts/inf magw 1 inf_magw sample_pos_reg_coef=1 rescaled_by_adv=True rescaled_by_mu=False reg_clip=.2
@@ -10,11 +14,18 @@
 # ./scripts/inf magw 1 inf_magw_mb n_simulated_envs=400 lka_entropy_coef=0
 
 # mujoco
-# ./scripts/inf mujoco 1 inf_mujoco nepochs=5 
+./scripts/inf grf 1 inf_grf
+# ./scripts/inf grf 3 inf_grf_lka
+# ./scripts/inf grf 3 inf_grf_lka2
+# ./scripts/inf grf 2 inf_grf rnn_type=gru n_mbs=2
+# ./scripts/inf grf 2 inf_grf sample_reg_type=exp rescaled_by_adv=True sample_pos_reg_coef=1 reg_clip=0 debug=True
+# ./scripts/inf grf 2 inf_grf sample_reg_type=log rescaled_by_adv=True sample_pos_reg_coef=1 reg_clip=0 debug=True
+# ./scripts/inf grf 2 inf_grf sample_reg_type=exp rescaled_by_adv=False sample_pos_reg_coef=1 reg_clip=0 debug=True
+# ./scripts/inf grf 2 inf_grf sample_reg_type=log rescaled_by_adv=False sample_pos_reg_coef=1 reg_clip=0 debug=True
 # ./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=exp rescaled_by_adv=True sample_reg_coef=1
-./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=exp rescaled_by_adv=True sample_pos_reg_coef=1
+# ./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=exp rescaled_by_adv=True sample_pos_reg_coef=1
 # ./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=log rescaled_by_adv=True sample_reg_coef=1
-./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=log rescaled_by_adv=True sample_pos_reg_coef=1
+# ./scripts/inf mujoco 1 inf_mujoco nepochs=5 sample_reg_type=log rescaled_by_adv=True sample_pos_reg_coef=1
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_type=exp sample_pos_reg_coef=1
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo sample_reg_type=exp sample_reg_coef=1
@@ -34,11 +45,14 @@
 # ./scripts/inf ma_mujoco 1 inf_mujoco_ppo_lka 5 1200 10 5
 # ./scripts/inf mujoco 1 inf_mujoco happo_lka2
 # ./scripts/inf mujoco 1 inf_mujoco happo_lka2 n_lka_epochs=5
-# ./scripts/inf mujoco 1 inf_mujoco happo_lka2 n_lka_epochs=5 sample_reg_type=exp rescaled_by_adv=True sample_reg_coef=1 debug=True
-# ./scripts/inf mujoco 1 inf_mujoco happo_lka2 n_lka_epochs=5 sample_reg_type=exp rescaled_by_adv=True sample_reg_coef=.5 debug=True
-# ./scripts/inf mujoco 1 inf_mujoco happo_lka2 n_lka_epochs=5 sample_reg_type=exp rescaled_by_adv=True sample_reg_coef=.1 debug=True
 
-# ./scripts/inf grf 3 inf_grf
+# ./scripts/inf grf 2 inf_grf
+# ./scripts/inf grf 2 inf_grf_lka2 n_lka_epochs=10
+# ./scripts/inf grf 2 inf_grf_lka2 n_lka_epochs=10 sample_reg_type=exp rescaled_by_adv=True sample_pos_reg_coef=1 debug=True
+# ./scripts/inf grf 2 inf_grf_lka2 n_lka_epochs=10 sample_reg_type=log rescaled_by_adv=True sample_pos_reg_coef=1 debug=True
+
+# ./scripts/inf grf 2 inf_grf_lka2 n_epochs=5
+# ./scripts/inf grf 2 inf_grf_lka2 n_epochs=10
 # ./scripts/inf grf 3 inf_grf sample_reg_type=log sample_reg_coef=1
 # ./scripts/inf grf 3 inf_grf sample_reg_type=exp sample_reg_coef=1
 # ./scripts/inf grf 2 inf_grf compute_return_at_once=True target_type=gae max_episode_steps=1000
