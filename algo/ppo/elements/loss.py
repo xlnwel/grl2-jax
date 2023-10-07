@@ -36,8 +36,6 @@ class Loss(LossBase):
       seq_axis=1, 
     )
 
-    for k, v in data.items():
-      print(k, v.shape)
     act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
       compute_policy(
         self.model, 
@@ -82,7 +80,6 @@ class Loss(LossBase):
           v_target, data.popart_mean, data.popart_std)
       stats.v_target = lax.stop_gradient(v_target)
     stats = record_target_adv(stats)
-
     stats.advantage = norm_adv(
       self.config, 
       stats.raw_adv, 
@@ -143,15 +140,12 @@ class Loss(LossBase):
       policy_theta, 
       rngs[1], 
       data.obs, 
-      data.next_obs, 
       data.action, 
       data.mu_logprob, 
       data.state_reset[:, :-1] if 'state_reset' in data else None, 
       None if data.state is None else data.state.policy, 
-      action_mask=data.action_mask, 
-      next_action_mask=data.next_action_mask, 
+      # action_mask=data.action_mask, 
       bptt=self.config.prnn_bptt, 
-      seq_axis=1, 
     )
 
     if 'advantage' in data:
@@ -216,15 +210,12 @@ class Loss(LossBase):
         theta, 
         rngs[1], 
         data.obs, 
-        data.next_obs, 
         data.action, 
         data.mu_logprob, 
         data.state_reset[:, :-1] if 'state_reset' in data else None, 
         None if data.state is None else data.state.policy, 
-        action_mask=data.action_mask, 
-        next_action_mask=data.next_action_mask, 
+        # action_mask=data.action_mask, 
         bptt=self.config.prnn_bptt, 
-        seq_axis=1, 
       )
     stats = record_policy_stats(data, stats, act_dist)
 
@@ -242,7 +233,7 @@ class Loss(LossBase):
     return loss, stats
 
 
-def create_loss(config, model, name='zero'):
+def create_loss(config, model, name='ppo'):
   loss = Loss(config=config, model=model, name=name)
 
   return loss

@@ -11,7 +11,7 @@ class AttrDict(collections.defaultdict):
   def __init__(self, default=None, *args, dict=None, **kwargs):
     self._default = default
     if default is None and dict is None:
-      super().__init__(*args, **kwargs)
+      super().__init__(None,  *args, **kwargs)
     elif default is None and dict is not None:
       super().__init__(default, dict, **kwargs)
     else:

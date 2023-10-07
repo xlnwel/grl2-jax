@@ -95,7 +95,7 @@ def eval_str_list(x):
 
 def eval_config(config):
   for k, v in config.items():
-    if k == 'model_name':
+    if hasattr(v, '_fields'):
       continue
     if isinstance(v, dict):
       config[k] = eval_config(v)
@@ -105,10 +105,7 @@ def eval_config(config):
       config[k] = str2int(v)
   return config
 
-def add_attr(
-  obj, 
-  attrs,
-):
+def add_attr(obj, attrs):
   for k, v in attrs.items():
     setattr(obj, k, v)
 
@@ -129,9 +126,8 @@ def config_attr(
       private attributes
     filter_dict: whether to omit dictionaries
     config_as_attr: whether to set the config as an attribute
-    config_as_attr: whether to take configurations as private attributes
+    private_attr: whether to take configurations as private attributes
   """
-  config = eval_config(config)
   config = dict2AttrDict(config)
   if config_as_attr:
     setattr(obj, 'config', config)
@@ -459,10 +455,13 @@ def yield_from_tree(tree):
   for v in zip(*vals):
     yield jax.tree_util.tree_unflatten(keys, v)
 
-def yield_from_tree_with_indices(tree, indices, axis):
+def yield_from_tree_with_indices(tree, indices, axis, keep_none=False):
   vals, keys = jax.tree_util.tree_flatten(tree)
   for idx in indices:
-    v = [v.take(indices=idx, axis=axis) for v in vals]
+    if keep_none:
+      v = [v if v is None else v.take(indices=idx, axis=axis) for v in vals]
+    else:
+      v = [v.take(indices=idx, axis=axis) for v in vals]
     yield jax.tree_util.tree_unflatten(keys, v)
 
 def product_flatten_dict(**kwargs):
@@ -584,16 +583,16 @@ def convert_batch_with_func(data, func=np.stack):
       data = list(data)
   return data
 
-def prefix_name(terms, name, filter=[]):
+def prefix_name(data, name, filter=[]):
   if name is not None:
-    new_terms = AttrDict()
-    for k, v in terms.items():
+    new_data = AttrDict()
+    for k, v in data.items():
       if k in filter:
-        new_terms[k] = v
+        new_data[k] = v
       else:
-        new_terms[f'{name}/{k}'] = v
-    return new_terms
-  return terms
+        new_data[f'{name}/{k}'] = v
+    return new_data
+  return data
 
 def get_frame(backtrack):
   frame = inspect.currentframe()

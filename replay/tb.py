@@ -54,6 +54,8 @@ class TurnBasedLocalBuffer(Buffer):
     self.n_steps = self.config.n_steps
     self.n_envs = self.config.n_envs
     self.maxlen = self.n_envs * self.n_steps
+    self.compute_return_at_once = self.config.get('compute_return_at_once', True)
+    self.extract_next_info = self.config.get('extract_next_info', False)
 
     self.reset()
 
@@ -114,14 +116,24 @@ class TurnBasedLocalBuffer(Buffer):
     for k, v in episode.items():
       assert v.shape[0] == epslen, (k, v.shape, epslen)
 
-    episode['advantage'], episode['v_target'] = compute_gae(
-      reward=episode['reward'], 
-      discount=episode['discount'],
-      value=episode['value'],
-      gamma=self.config.gamma,
-      gae_discount=self.config.gamma * self.config.lam,
-      next_value=np.array([0], np.float32), 
-    )
+    if self.compute_return_at_once:
+      episode['advantage'], episode['v_target'] = compute_gae(
+        reward=episode['reward'], 
+        discount=episode['discount'],
+        value=episode['value'],
+        gamma=self.config.gamma,
+        gae_discount=self.config.gamma * self.config.lam,
+        next_value=np.array([0], np.float32), 
+      )
+    if self.extract_next_info:
+      new_eps = {}
+      for k, v in episode.items():
+        if k in ['obs', 'global_state', 'action_mask', 'state_reset']:
+          new_eps[f'next_{k}'] = v[1:]
+        else:
+          new_eps[k] = v[:-1]
+      episode = new_eps
+      epslen -= 1
 
     self._memory.append(episode)
     self._size += epslen
@@ -131,7 +143,7 @@ class TurnBasedLocalBuffer(Buffer):
   def retrieve_all_data(self):
     data = batch_dicts(self._memory, np.concatenate)
     for k, v in data.items():
-      assert v.shape[0] == self._size, (v.shape, self._size)
+      assert v.shape[0] == self._size, (k, v.shape, self._size)
       v = v[-self.maxlen:]
       data[k] = np.reshape(v, (self.n_envs, self.n_steps, *v.shape[1:]))
     self.reset()

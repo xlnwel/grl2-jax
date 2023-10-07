@@ -1,10 +1,10 @@
 from typing import Tuple, Dict
-import numpy as np
 import jax
 
 from core.elements.model import Model
 from core.mixin.actor import RMS
 from core.typing import ModelPath, AttrDict, dict2AttrDict
+from tools.run import concat_along_unit_dim
 from tools.utils import set_path, batch_dicts
 
 
@@ -34,17 +34,17 @@ class Actor:
     self.config = config
     self.model = model
 
-    self.rms: RMS = self.config.get('rms', None)
+    self.rms: RMS = self.config.rms
     self.setup_checkpoint()
     
-    self.post_init()
+    self._post_init()
 
   @property
   def name(self):
     return self._name
 
-  def post_init(self):
-    pass
+  def _post_init(self):
+    self.gid2uids = self.model.gid2uids
 
   def reset_model_path(self, model_path: ModelPath):
     self._model_path = model_path
@@ -52,9 +52,18 @@ class Actor:
     self.setup_checkpoint()
 
   def setup_checkpoint(self):
-    if self.rms:
-      self.config.rms.model_path = self._model_path
-      self.rms = RMS(self.config.rms)
+    if self.config.rms is None:
+      self.config.rms = AttrDict(obs=AttrDict(), reward=AttrDict())
+
+    self.config.rms.model_path = self._model_path
+    self.config.rms.print_for_debug = self.config.get('print_for_debug', True)
+    self.rms = RMS(self.config.rms, n_obs=self.model.n_groups)
+
+  def get_raw_rms(self):
+    return RMS(self.config.rms, n_obs=self.model.n_groups)
+
+  def get_rms(self):
+    return self.rms
 
   def __getattr__(self, name):
     # Do not expose the interface of independent elements here. 
@@ -66,11 +75,7 @@ class Actor:
     else:
       raise AttributeError(f"no attribute '{name}' is found")
 
-  def __call__(
-    self, 
-    inp: dict,
-    evaluation: bool=False, 
-  ):
+  def __call__(self, inp: dict, evaluation: bool=False):
     """ The interface to interact with the environment
     
     Args:
@@ -88,11 +93,7 @@ class Actor:
     return out
 
   """ Overwrite the following methods if necessary """
-  def _process_input(
-    self, 
-    inp: dict, 
-    evaluation: bool
-  ):
+  def _process_input(self, inp: dict, evaluation: bool):
     """ Processes input to Model at the algorithmic level 
     
     Args:
@@ -101,14 +102,12 @@ class Actor:
     Returns: 
       processed input to <model.action>
     """
-    if isinstance(inp, (list, tuple)):
-      inp = batch_dicts(inp, lambda x: np.concatenate(x, axis=1))
     inp = self.process_obs_with_rms(inp)
     return inp
 
   def _process_output(
     self, 
-    inp: dict, 
+    inp: Dict, 
     out: Tuple[Dict[str, jax.Array]], 
     evaluation: bool
   ):
@@ -122,6 +121,8 @@ class Actor:
     """
     action, stats, state = out
     if state is not None and not evaluation:
+      if isinstance(inp, (list, tuple)):
+        inp = batch_dicts(inp, concat_along_unit_dim)
       stats.update({
         'state_reset': inp.state_reset, 
         'state': inp.state, 
@@ -129,6 +130,8 @@ class Actor:
     if self.config.get('update_obs_at_execution', True) \
       and not evaluation and self.rms is not None \
         and self.config.rms.obs.normalize_obs:
+      if isinstance(inp, (list, tuple)):
+        inp = batch_dicts(inp, concat_along_unit_dim)
       stats.update({k: inp[k] 
         for k in self.config.rms.obs.obs_names})
     return action, stats, state
@@ -136,16 +139,30 @@ class Actor:
   def process_obs_with_rms(self, obs, update_rms=None):
     if update_rms is None:
       update_rms = self.config.get('update_obs_rms_at_execution', False)
+    if self.rms is not None and self.rms.is_obs_normalized:
+      if isinstance(obs, (list, tuple)):
+        assert len(obs) == len(self.rms.obs_rms), (len(obs), len(self.rms.obs_rms))
+        obs = [apply_rms_to_inp(
+          o, rms, update_rms
+        ) for o, rms in zip(obs, self.rms.obs_rms)]
+      else:
+        obs = apply_rms_to_inp(
+          obs, self.rms.obs_rms[0], update_rms=update_rms
+        )
+    return obs
+
+  def normalize_obs(self, obs, is_next=False):
     if self.rms is not None:
-      obs = apply_rms_to_inp(
-        obs, self.rms.obs_rms, update_rms=update_rms
-      )
+      return self.rms.normalize_obs(obs, is_next=is_next)
     return obs
 
   def normalize_reward(self, reward):
     if self.rms is not None:
       return self.rms.normalize_reward(reward)
     return reward
+
+  def update_obs_rms(self, obs, mask=None):
+    self.rms.update_obs_rms(obs, self.gid2uids, split_axis=2, mask=mask)
 
   def get_weights(self):
     weights = {

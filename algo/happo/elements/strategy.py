@@ -41,17 +41,17 @@ class Strategy(StrategyBase):
     self.memory_cls = Memory
 
   def _post_init(self):
-    self.aid2uids = self.env_stats.aid2uids
+    self.gid2uids = self.model.gid2uids
 
   def _prepare_input_to_actor(self, env_output):
     if isinstance(env_output.obs, list):
       inps = [dict2AttrDict(o, to_copy=True) for o in env_output.obs]
       resets = env_output.reset
     else:
-      inps = [env_output.obs.slice(indices=uids, axis=1) for uids in self.aid2uids]
-      resets = [env_output.reset[:, uids] for uids in self.aid2uids]
+      inps = [env_output.obs.slice(indices=uids, axis=1) for uids in self.gid2uids]
+      resets = [env_output.reset[:, uids] for uids in self.gid2uids]
     inps = self._memory.add_memory_state_to_input(inps, resets)
-  
+
     return inps
 
   def _record_output(self, out):
@@ -68,8 +68,8 @@ class Strategy(StrategyBase):
     else:
       inps = [AttrDict(
         global_state=env_output.obs.get('global_state', env_output.obs['obs'])[:, uids]
-      ) for uids in self.aid2uids]
-      resets = [env_output.reset[:, uids] for uids in self.aid2uids]
+      ) for uids in self.gid2uids]
+      resets = [env_output.reset[:, uids] for uids in self.gid2uids]
     inps = self._memory.add_memory_state_to_input(inps, resets, states)
     value = self.actor.compute_value(inps)
 

@@ -38,6 +38,7 @@ env:
   env_args:
     agent_obsk: 0
   norm_obs: False
+  single_agent: False
 
 agent: {}
 

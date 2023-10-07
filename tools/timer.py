@@ -97,7 +97,7 @@ class Timer:
       if duration > self._min_duration:
         aggregator.add(duration)
       if self._period is not None:
-        name = self._summary_name.capitalize()
+        name = self._summary_name
         if self._period == 1:
           do_logging(f'{name} duration: "{time2str(duration)}"',backtrack=3)
         elif self._mode == 'average':

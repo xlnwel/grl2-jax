@@ -2,19 +2,18 @@ import collections
 import itertools
 import os
 import random
-from typing import Dict, List, Union
+from typing import Dict, List
 import numpy as np
 import ray
 
-from ..common.typing import ModelWeights
 from core.ckpt import pickle
 from core.elements.builder import ElementsBuilderVC
-from core.elements.strategy import Strategy
 from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
   get_aid, get_basic_model_name
+from distributed.common.typing import ModelWeights
 from distributed.sync.remote.payoff import PayoffManager
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
@@ -63,9 +62,8 @@ class ParameterServer(RayBase):
     # fraction of runners devoted to the play of the most recent strategies 
     self.online_frac = self.config.get('online_frac', .2)
     self.online_scheduler = PiecewiseSchedule(self.online_frac, interpolation='stage')
-    self.self_play = self.config.get('self_play', True)
-    if self.self_play:
-      assert self.n_agents == 2, self.n_agents
+    self.self_play = self.config.get('self_play', False)
+    assert not self.self_play, self.self_play
 
     model_name = get_basic_model_name(config.model_name)
     self._dir = f'{config.root_dir}/{model_name}'
@@ -93,7 +91,7 @@ class ParameterServer(RayBase):
       self.config.payoff, self.n_agents, self._dir, self_play=self.self_play)
 
     succ = self.restore(to_restore_params)
-    self.update_runner_distribution()
+    self._update_runner_distribution()
 
     if self.config.get('rule_strategies'):
       self.add_rule_strategies(self.config.rule_strategies, local=succ)
@@ -152,13 +150,13 @@ class ParameterServer(RayBase):
     return dists
 
   def get_runner_stats(self):
-    self.update_runner_distribution()
+    self._update_runner_distribution()
     if self._iteration == 1:
       stats = AttrDict(
         iteration=self._iteration, 
         online_frac=1,
-        n_online_runners=self.n_runners, 
-        n_agent_runners=0, 
+        n_online_runners=self.n_online_runners, 
+        n_agent_runners=self.n_agent_runners, 
       )
     else:
       stats = AttrDict(
@@ -193,10 +191,10 @@ class ParameterServer(RayBase):
     assert len(models) == self.n_agents, models
     self.payoff_manager.add_strategies(models)
 
-  def update_active_model(self, aid, model: ModelPath):
+  def _update_active_model(self, aid, model: ModelPath):
     self._active_models[aid] = model
 
-  def update_active_models(self, models: List[ModelPath]):
+  def _update_active_models(self, models: List[ModelPath]):
     assert len(models) == self.n_agents, models
     self._active_models = models
 
@@ -324,17 +322,21 @@ class ParameterServer(RayBase):
         strategies.append(model_weights)
       models = [s.model for s in strategies]
       self.add_strategies_to_payoff(models)
-      self.update_active_models(models)
-      self.save_active_models()
+      self._update_active_models(models)
+      self._save_active_models()
       self.save()
 
     return strategies, is_raw_strategy
 
-  def update_runner_distribution(self):
-    online_frac = self.online_scheduler(self._iteration)
-    self.n_online_runners, self.n_agent_runners = _divide_runners(
-      self.n_agents, self.n_runners, online_frac
-    )
+  def _update_runner_distribution(self):
+    if self._iteration == 1:
+      self.n_online_runners = self.n_runners
+      self.n_agent_runners = 0
+    else:
+      online_frac = self.online_scheduler(self._iteration)
+      self.n_online_runners, self.n_agent_runners = _divide_runners(
+        self.n_agents, self.n_runners, online_frac
+      )
 
   def _restore_active_strategies(self):
     # restore active strategies 
@@ -380,12 +382,12 @@ class ParameterServer(RayBase):
       level='print', time=True, color='blue')
     for aid, model in enumerate(self._active_models):
       self.save_params(model)
-      self.update_active_model(aid, None)
+      self._update_active_model(aid, None)
       if model in self._opp_dist:
         del self._opp_dist[model]
     self._iteration += 1
     self._reset_ready()
-    self.update_runner_distribution()
+    self._update_runner_distribution()
     self.save()
 
   """ Strategy Sampling """
@@ -455,7 +457,7 @@ class ParameterServer(RayBase):
     self._params[aid][model]['env_step'] = env_step
     self.save_params(model)
 
-  def save_active_models(self):
+  def _save_active_models(self):
     for m in self._active_models:
       self.save_active_model(m, 0, 0)
 
@@ -500,14 +502,14 @@ class ParameterServer(RayBase):
       for aid, model in enumerate(config.pop('active_models')):
         if model is not None:
           model = ModelPath(*model)
-        self.update_active_model(aid, model)
+        self._update_active_model(aid, model)
       config_attr(self, config, config_as_attr=False, private_attr=True)
       if to_restore_params:
         for models in model_paths:
           for m in models:
             m = ModelPath(*m)
             if not is_rule_strategy(m):
-              self.restore_params(ModelPath(*m))
+              self.restore_params(m)
       return True
     else:
       return False

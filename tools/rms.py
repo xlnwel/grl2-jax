@@ -174,6 +174,8 @@ class RunningMeanStd:
       axis = self._axis
       shape_slice = self._shape_slice
     else:
+      if isinstance(axis, int):
+        axis = (axis,)
       shape_slice = np.s_[:max(axis)+1]
     if axis is None:
       assert mask is None, mask

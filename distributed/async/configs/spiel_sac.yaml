@@ -1,0 +1,162 @@
+---
+# NOTE: root_dir and model_name will be specified to all configs in run.train.py
+algorithm: &algo async-sac
+name: async-sac
+info: async-sac
+version: 0
+
+precision: 32
+
+n_agents: 2
+self_play: True
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be re-specified in the entry point
+root_dir: *algo
+model_name: *algo
+
+controller:
+  store_period: 5e4
+  restart_runners_period: null
+  eval_period: null
+  max_version_iterations: 30
+  max_steps_per_iteration: 1e6
+    # - [0, 1e6]
+    # - [20, 3e6]
+  initialize_rms: &irms False
+
+parameter_server:
+  root_dir: *algo
+  model_name: *algo
+
+  score_metric: dense_score   # stats recorded in payoff tables
+  train_from_scratch_frac: 1
+  online_frac: .25
+    # - [1, 1]
+    # - [5, .75]
+    # - [10, .5]
+    # - [20, .25]
+  update_interval: 1000
+
+  payoff:
+    step_size: 1e-1
+    sampling_strategy:
+      type: pfsp
+      p: 1
+      threshold: .3
+
+  # rule_strategies:
+  #   # agent name / config
+  #   random:
+  #     aid: 1
+  #     vid: 1
+  #     path: rule/random   # path to the file that defines Strategy
+  #     # other configs
+
+ray_config:
+  runner:
+    num_cpus: 1
+  agent:
+    num_gpus: 0
+
+monitor: {}
+
+runner:
+  n_runners: &nrunners 8
+  n_steps: &nsteps 2
+  push_every_episode: False
+
+env:
+  env_name: &env_name spiel-leduc_poker
+  uid2aid: [0, 1]
+  n_envs: &nenvs 4
+  timeout_done: &td True
+
+agent: {}
+
+strategy:
+  algorithm: *algo
+  train_loop: {}
+
+model:
+  aid: 0
+  gamma: &gamma .99
+  polyak: .995
+  n_Qs: 2
+
+  policy:
+    nn_id: policy
+    units_list: [256, 256]
+    w_init: orthogonal
+    activation: relu
+    norm: null
+    rnn_type: &prnn null
+    rnn_units: 64
+  Q:
+    nn_id: Q
+    units_list: [256, 256]
+    w_init: orthogonal
+    activation: relu
+    norm: null
+    rnn_type: &vrnn null
+    rnn_units: 64
+  temp:
+    nn_id: temp
+    type: constant
+    value: .2
+
+loss:
+  prnn_bptt: 10
+  vrnn_bptt: 10
+
+  stats:
+    gamma: *gamma
+    policy_coef: 1
+    q_coef: 1
+    temp_coef: 1
+
+trainer:
+  algorithm: *algo
+  aid: 0
+
+  policy_opt:
+    opt_name: adam
+    lr: 1e-3
+    clip_norm: 10
+    eps: 1e-5
+  Q_opt:
+    opt_name: adam
+    lr: 1e-3
+    clip_norm: 10
+    eps: 1e-5
+  temp_opt:
+    opt_name: adam
+    lr: 1e-3
+    clip_norm: 10
+    eps: 1e-5
+
+actor: {}
+
+buffer:
+  type: uniform
+  compute_return_at_once: False
+  extract_next_info: True
+
+  n_runners: *nrunners
+  n_envs: *nenvs
+  max_size: 1e6
+  min_size: 1e3
+  batch_size: 100
+  sample_size: 1
+
+  max_steps: 1
+  gamma: *gamma
+
+  n_steps: *nsteps
+  sample_keys: &sk
+    - obs
+    - action
+    - reward
+    - discount
+    - steps

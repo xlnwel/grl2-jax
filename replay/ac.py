@@ -7,7 +7,7 @@ from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
-from tools.utils import stack_data_with_state, batch_dicts
+from tools.utils import stack_data_with_state
 from replay import replay_registry
 
 logger = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ class ACBuffer(Buffer):
 
   def reset(self):
     self._buffers = collections.defaultdict(lambda: collections.defaultdict(list))
-    self._queue = collections.deque(maxlen=1)
+    self._queue = collections.deque(maxlen=self.config.get('queue_len', 1))
     self._memory = []
     self._current_size = 0
 
@@ -156,7 +156,7 @@ class ACBuffer(Buffer):
         [np.concatenate(b[k]) for b in self._buffers.values() if b]
         )[-self.batch_size:] for k in self.sample_keys if k in keys
       })
-      assert len(self._queue) == 0 or data.used, list(self._queue[0])
+      # assert len(self._queue) == 0 or data.used, list(self._queue[0])
       self._queue.append(data)
       self._buffers = collections.defaultdict(lambda: collections.defaultdict(list))
       self._current_size = 0

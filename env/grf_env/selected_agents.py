@@ -47,17 +47,33 @@ class SelectedAgents(gym.Wrapper):
           self._right_controlled_units = [0, 1]
           n_right_units = 2
       elif env_name == 'academy_run_pass_and_shoot_with_keeper':
-          self._controlled_units = [1, 2]
+        if control_left:
+          self._left_controlled_units = [1, 2]
           n_left_units = 3
+        if control_right:
+          self._right_controlled_units = [0, 1]
+          n_left_units = 2
       elif env_name == 'academy_3_vs_1_with_keeper':
-          self._controlled_units = [1, 2, 3]
+        if control_left:
+          self._left_controlled_units = [1, 2, 3]
           n_left_units = 4
+        if control_right:
+          self._right_controlled_units = [0, 1]
+          n_right_units = 2
       elif env_name == 'academy_corner':
-          self._controlled_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        if control_left:
+          self._left_controlled_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
           n_left_units = 11
+        if control_right:
+          self._right_controlled_units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+          n_right_units = 11
       else:
-          self._controlled_units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        if control_left:
+          self._left_controlled_units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
           n_left_units = 11
+        if control_right:
+          self._right_controlled_units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+          n_right_units = 11
     self.env_name = env_name
 
     other_config_options = {'action_set':'v2'}

@@ -31,8 +31,24 @@ def compute_aid2uids(uid2aid):
 
   return aid2uids
 
+
+def compute_aid2gids(uid2aid, uid2gid):
+  """ Compute aid2gids from uid2aid and uid2gid """
+  aid2gids = []
+  for aid, gid in zip(uid2aid, uid2gid):
+    if aid == len(aid2gids):
+      aid2gids.append((gid,))
+    elif aid2gids[aid][-1] == gid:
+      continue
+    else:
+      aid2gids[aid] += (gid,)
+  aid2gids = [np.array(gids, np.int32) for gids in aid2gids]
+  return aid2gids
+
+
 def compute_relative_position(center, x):
   return x - center
+
 
 def compute_angle_cos_sin(center, x):
   diff = x - center

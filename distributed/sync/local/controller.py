@@ -11,17 +11,18 @@ from .agent_manager import AgentManager
 from .runner_manager import RunnerManager
 from ..remote.monitor import Monitor
 from ..remote.parameter_server import ParameterServer
+from ..remote.parameter_server_sp import SPParameterServer
 from core.ckpt.base import YAMLCheckpointBase
 from core.log import do_logging
 from core.typing import ModelPath, get_basic_model_name, AttrDict, dict2AttrDict
 from core.utils import save_code
 from env.func import get_env_stats
-from gt.alpharank import AlphaRank
+from game.alpharank import AlphaRank
 from run.utils import search_for_all_configs, search_for_config
 from tools.process import run_ray_process
 from tools.schedule import PiecewiseSchedule
 from tools.timer import Every, Timer, timeit
-from tools.utils import batch_dicts, eval_config, modify_config
+from tools.utils import batch_dicts, eval_config, modify_config, prefix_name
 from tools import yaml_op
 
 
@@ -102,8 +103,12 @@ class Controller(YAMLCheckpointBase):
 
   """ Manager Building """
   def build_managers_for_evaluation(self, config: AttrDict):
-    self.parameter_server: ParameterServer = \
-      ParameterServer.as_remote().remote(
+    if config.self_play:
+      ParameterServerCls = SPParameterServer
+    else:
+      ParameterServerCls = ParameterServer
+    self.parameter_server: ParameterServerCls = \
+      ParameterServerCls.as_remote().remote(
         config=config.asdict(),
         to_restore_params=False, 
       )
@@ -139,9 +144,13 @@ class Controller(YAMLCheckpointBase):
     self.n_envs = config.env.n_envs
     self.steps_per_run = self.n_runners * self.n_envs * self.n_steps
 
+    if config.self_play:
+      ParameterServerCls = SPParameterServer
+    else:
+      ParameterServerCls = ParameterServer
     do_logging('Building Parameter Server...', logger=logger)
-    self.parameter_server: ParameterServer = \
-      ParameterServer.as_remote().remote(
+    self.parameter_server: ParameterServerCls = \
+      ParameterServerCls.as_remote().remote(
         config=config.asdict(),
         to_restore_params=True, 
       )
@@ -305,11 +314,7 @@ class Controller(YAMLCheckpointBase):
     self._log_stats(runner_stats, self._iteration)
     return configs
 
-  def _initialize_rms(
-      self, 
-      models: List[ModelPath], 
-      is_raw_strategy: List[bool]
-  ):
+  def _initialize_rms(self, models: List[ModelPath], is_raw_strategy: List[bool]):
     if self.config.initialize_rms and any(is_raw_strategy):
       aids = [i for i, is_raw in enumerate(is_raw_strategy) if is_raw]
       do_logging(f'Initializing RMS for Agents: {aids}', logger=logger)
@@ -368,12 +373,7 @@ class Controller(YAMLCheckpointBase):
     self._steps = 0
 
   """ Statistics Logging """
-  def _log_stats(
-    self, 
-    stats: dict, 
-    step: int, 
-    record: bool=False
-  ):
+  def _log_stats(self, stats: dict, step: int, record: bool=False):
     self.monitor.store_stats.remote(
       stats=stats, 
       step=step, 
@@ -407,6 +407,7 @@ class Controller(YAMLCheckpointBase):
     if pids:
       stats_list = ray.get(pids)
       stats = batch_dicts(stats_list)
+      stats = prefix_name(stats, name='eval')
       for m in models:
         self.monitor.store_stats_for_model.remote(
           m, stats, step=step, record=record)
@@ -436,7 +437,7 @@ class Controller(YAMLCheckpointBase):
   def _eval(self, step):
     if self.suite == 'spiel':
       pid = self.compute_nash_conv(
-        step, avg=False, latest=True, 
+        step, avg=True, latest=True, 
         write_to_disk=False, configs=self.active_configs
       )
     return pid

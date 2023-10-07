@@ -10,7 +10,6 @@ from tools.utils import batch_dicts
 from algo.ma_common.elements.model import *
 
 
-# register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
@@ -30,7 +29,7 @@ class Model(MAModelBase):
       name='policy', return_init=True)
     self.rng, policy_rng, value_rng = random.split(self.rng, 3)
     self.act_rng = self.rng
-    for rng in random.split(policy_rng, self.n_agents):
+    for rng in random.split(policy_rng, self.n_groups):
       self.params.policies.append(policy_init(
         rng, data.obs, data.state_reset, data.state, data.action_mask
       ))
@@ -38,16 +37,15 @@ class Model(MAModelBase):
     self.params.vs = []
     value_init, self.modules.value = self.build_net(
       name='value', return_init=True)
-    for rng in random.split(value_rng, self.n_agents):
+    for rng in random.split(value_rng, self.n_groups):
       self.params.vs.append(value_init(
         rng, data.global_state, data.state_reset, data.state
       ))
 
   def compile_model(self):
-    self.jit_action = jax.jit(
-      self.raw_action, static_argnames=('evaluation'))
+    self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
     self.jit_forward_policy = jax.jit(
-      self.forward_policy, static_argnames=('return_state', 'evaluation'))
+      self.forward_policy, static_argnames=('return_state'))
     self.jit_action_logprob = jax.jit(self.action_logprob)
 
   def action(self, data, evaluation):
@@ -63,13 +61,13 @@ class Model(MAModelBase):
     data, 
     evaluation=False, 
   ):
-    rngs = random.split(rng, self.n_agents)
+    rngs = random.split(rng, self.n_groups)
     all_actions = []
     all_stats = []
     all_states = []
-    for aid, (p, v, rng) in enumerate(zip(params.policies, params.vs, rngs)):
+    for gid, (p, v, rng) in enumerate(zip(params.policies, params.vs, rngs)):
       agent_rngs = random.split(rng, 3)
-      d = data[aid]
+      d = data[gid]
       state = d.pop('state', AttrDict())
       if self.has_rnn:
         d = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , d)
@@ -156,19 +154,10 @@ class Model(MAModelBase):
     states = []
     for p, v, d in zip(self.params.policies, self.params.vs, data):
       state = AttrDict()
-      p = p.copy()
       _, state.policy = self.modules.policy(
-        p, 
-        self.act_rng, 
-        d.obs, 
-        d.state_reset
-      )
+        p, self.act_rng, d.obs, d.state_reset)
       _, state.value = self.modules.value(
-        v, 
-        self.act_rng, 
-        d.global_state, 
-        d.state_reset
-      )
+        v, self.act_rng, d.global_state, d.state_reset)
       states.append(state)
     states = tuple(states)
     self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, states)

@@ -31,7 +31,7 @@ class Model(ParamsCheckpointBase):
 
     self._initial_states = AttrDict()
 
-    self.add_attributes()
+    self.post_init()
     self.build_nets()
     self.print_params()
     self.compile_model()
@@ -41,11 +41,17 @@ class Model(ParamsCheckpointBase):
       if self.config.seed is None:
         self.config.seed = 42
       seed = self.config.seed
-    do_logging(f'Model({self.name}) seed: {seed}')
+    do_logging(f'Model({self.name}) seed: {seed}', level='debug')
     return jax.random.PRNGKey(seed)
 
-  def add_attributes(self):
-    pass
+  def post_init(self):
+    self.aid = self.config.get('aid', 0)
+    self.gids = self.env_stats.aid2gids[self.aid]
+    self.n_groups = len(self.gids)
+    gid2uids = [self.env_stats.gid2uids[i] for i in self.gids]
+    min_uid = gid2uids[0][0]
+    self.gid2uids = [uid - min_uid for uid in gid2uids] # starts uids from zero
+    self.is_action_discrete = self.env_stats.is_action_discrete[self.aid]
 
   def build_net(self, *args, name, return_init=False, **kwargs):
     def build(*args, **kwargs):
@@ -63,12 +69,13 @@ class Model(ParamsCheckpointBase):
     raise NotImplementedError
 
   def print_params(self):
-    for k, v in self.params.items():
-      do_logging(f'Module: {k}')
-      print_dict_info(v, prefix='\t')
-      n = summarize_arrays(v)
-      n = int2str(n)
-      do_logging(f'Total number of params of {k}: {n}')
+    if self.config.get('print_for_debug', True):
+      for k, v in self.params.items():
+        do_logging(f'Module: {k}')
+        print_dict_info(v, prefix='\t')
+        n = summarize_arrays(v)
+        n = int2str(n)
+        do_logging(f'Total number of params of {k}: {n}')
 
   @property
   def theta(self):

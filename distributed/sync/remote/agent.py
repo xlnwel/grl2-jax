@@ -9,7 +9,7 @@ from core.log import do_logging
 from core.remote.base import RayBase
 from .monitor import Monitor
 from .parameter_server import ParameterServer
-from ..common.typing import ModelStats, ModelWeights
+from distributed.common.typing import ModelStats, ModelWeights
 
 
 class Agent(RayBase):
@@ -38,8 +38,6 @@ class Agent(RayBase):
     self.strategy: Strategy = elements.strategy
     self.buffer = elements.buffer
 
-    self.train_signal = True
-
   """ Model Management """
   def get_model_path(self):
     return self.strategy.get_model_path()
@@ -66,8 +64,13 @@ class Agent(RayBase):
 
   """ Training """
   def start_training(self):
+    self.train_signal = True
     self._training_thread = threading.Thread(target=self._training, daemon=True)
     self._training_thread.start()
+
+  def stop_training(self):
+    self.train_signal = False
+    self._training_thread.join()
 
   def _training(self):
     while self.train_signal:
@@ -79,10 +82,6 @@ class Agent(RayBase):
       self._send_train_stats(stats)
 
     do_logging('Training terminated')
-
-  def stop_training(self):
-    self.train_signal = False
-    self._training_thread.join()
 
   def _send_train_stats(self, stats):
     stats['train_step'] = self.strategy.get_train_step()

@@ -70,16 +70,11 @@ class UniformReplay(Buffer):
 
   def add(self, idxes=None, **data):
     trajs = []
-    if self.n_envs > 1:
-      for i, d in enumerate(yield_from_tree(data)):
-        if i >= len(self._tmp_bufs):
-          self._tmp_bufs.append(NStepBuffer(
-            self.config, self.env_stats, self.model, self.aid, 0))
-        traj = self._tmp_bufs[i].add(**d)
-        if traj is not None:
-          trajs.append(traj)
-    else:
-      traj = self._tmp_bufs[0].add(**data)
+    for i, d in enumerate(yield_from_tree(data)):
+      if i >= len(self._tmp_bufs):
+        self._tmp_bufs.append(NStepBuffer(
+          self.config, self.env_stats, self.model, self.aid, 0))
+      traj = self._tmp_bufs[i].add(**d)
       if traj is not None:
         trajs.append(traj)
     self.merge(trajs)
@@ -120,6 +115,9 @@ class UniformReplay(Buffer):
       self._memory.append(traj)
     self._update_obs_rms(trajs)
     return popped_data
+
+  def merge_data(self, rid: int, data: dict, n: int):
+    self.merge(data)
 
   """ Sampling """
   @timeit

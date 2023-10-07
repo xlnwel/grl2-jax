@@ -22,6 +22,7 @@ class TrainerBase(ParamsCheckpointBase):
     name: str
   ):
     super().__init__(config, name=f'{name}_trainer')
+    self.aid = config.get('aid', 0)
     self.env_stats = env_stats
 
     self.loss = loss

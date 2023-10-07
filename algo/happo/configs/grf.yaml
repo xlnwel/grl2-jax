@@ -41,6 +41,7 @@ env:
   control_left: True
   control_right: False
   shared_policy: False
+  shared_reward: True
   score_reward_scale: 1
 
   max_episode_steps: 200

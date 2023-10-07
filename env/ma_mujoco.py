@@ -5,6 +5,7 @@ import numpy as np
 
 from core.typing import AttrDict
 from env.ma_mujoco_env.multiagent_mujoco.mujoco_multi import MujocoMulti
+from env.utils import *
 
 
 class MAMujoco(gym.Wrapper):
@@ -25,14 +26,27 @@ class MAMujoco(gym.Wrapper):
 
     if self.single_agent:
       self.n_agents = 1
+      self.n_groups = 1
       self.n_units = self.env.n_agents
       self.uid2aid = [0] * self.n_units
+      self.uid2gid = [0] * self.n_units
+      self.aid2uids = compute_aid2uids(self.uid2aid)
+      self.gid2uids = compute_aid2uids(self.uid2gid)
+      self.aid2gids = compute_aid2gids(self.uid2aid, self.uid2gid)
     else:
-      self.n_agents = self.env.n_agents
-      self.uid2aid = list(range(self.n_agents))
-      self.n_units = self.n_agents
+      self.n_agents = 1
+      self.n_groups = self.env.n_agents
+      self.n_units = self.n_groups
+      self.uid2aid = [0] * self.n_units
+      self.uid2gid = list(range(self.n_groups))
+      self.aid2uids = compute_aid2uids(self.uid2aid)
+      self.gid2uids = compute_aid2uids(self.uid2gid)
+      self.aid2gids = compute_aid2gids(self.uid2aid, self.uid2gid)
 
-    self.observation_space = [Box(low=np.array([-10]*self.n_agents), high=np.array([10]*self.n_agents)) for _ in range(self.n_agents)]
+    self.observation_space = [
+      Box(low=np.array([-10]*self.n_agents), high=np.array([10]*self.n_agents)) 
+      for _ in range(self.n_agents)
+    ]
 
     self.obs_shape = [{
       'obs': (self.env.obs_size, ), 
@@ -74,25 +88,25 @@ class MAMujoco(gym.Wrapper):
       'game_over': done or self._epslen == self.max_episode_steps
     }
 
-    reward = np.split(reward, self.n_agents)
+    reward = np.split(reward, self.n_groups)
     if done and self._epslen == self.max_episode_steps:
       done = [np.zeros(self.n_units)] if self.single_agent else \
-        [np.zeros(1) for _ in range(self.n_agents)]
+        [np.zeros(1) for _ in range(self.n_groups)]
     else:
       done = [np.ones(self.n_units) * done] if self.single_agent else \
-        [np.ones(1) * done for _ in range(self.n_agents)]
-    assert len(obs) == self.n_agents, (obs, self.n_agents)
-    assert len(reward) == self.n_agents, (reward, self.n_agents)
-    assert len(done) == self.n_agents, (done, self.n_agents)
+        [np.ones(1) * done for _ in range(self.n_groups)]
+    assert len(obs) == self.n_groups, (obs, self.n_groups)
+    assert len(reward) == self.n_groups, (reward, self.n_groups)
+    assert len(done) == self.n_groups, (done, self.n_groups)
     return obs, reward, done, info
 
   def reset(self):
     obs, state, _ = self.env.reset()
     obs = get_obs(obs, state, self.single_agent)
-    assert len(obs) == self.n_agents, (obs, self.n_agents)
+    assert len(obs) == self.n_groups, (obs, self.n_groups)
 
-    self._score = np.zeros(self.n_agents)
-    self._dense_score = np.zeros(self.n_agents)
+    self._score = np.zeros(self.n_groups)
+    self._dense_score = np.zeros(self.n_groups)
     self._epslen = 0
 
     return obs

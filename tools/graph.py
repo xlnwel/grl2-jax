@@ -28,7 +28,7 @@ def construct_df(matrix, col_name='y', row_name='x', col_labels=None, row_labels
     df[col_name].replace(col, col_labels, inplace=True)
   if row_labels:
     df[row_name].replace(row, row_labels, inplace=True)
-  df = df.pivot(col_name, row_name, 'val')
+  df = df.pivot(columns=col_name, index=row_name, values='val')
   return df
 
 

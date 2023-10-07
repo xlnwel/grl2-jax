@@ -44,7 +44,7 @@ def set_seed(seed: int=None):
   if seed is not None:
     random.seed(seed)
     np.random.seed(seed)
-  do_logging(f'seed={seed}', backtrack=3)
+  do_logging(f'seed={seed}', backtrack=3, level='debug')
 
 def save_code(model_path: ModelPath, backtrack=3):
   """ Saves the code so that we can check the chagnes latter """

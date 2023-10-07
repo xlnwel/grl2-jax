@@ -18,13 +18,13 @@ from algo.ppo.elements.trainer import construct_fake_data
 
 class Trainer(TrainerBase):
   def add_attributes(self):
+    self.gids = self.model.gids
     self.popart = [
       RunningMeanStd((0, 1), name=f'popart{i}', ndim=1) 
-      for i, _ in enumerate(self.model.aid2uids)
+      for i, _ in enumerate(self.gids)
     ]
     self.indices = np.arange(self.config.n_runners * self.config.n_envs)
-    self.n_agents = self.env_stats.n_agents
-    self.aid2uids = self.env_stats.aid2uids
+    self.gid2uids = self.model.gid2uids
 
     self.n_epochs = self.config.n_epochs
     self.n_mbs = self.config.n_mbs
@@ -55,7 +55,7 @@ class Trainer(TrainerBase):
 
   def compile_train(self):
     _jit_train = jax.jit(self.theta_train, 
-      static_argnames=['aid', 'compute_teammate_log_ratio', 'return_stats'])
+      static_argnames=['gid', 'compute_teammate_log_ratio', 'return_stats'])
     def jit_train(*args, **kwargs):
       self.rng, rng = random.split(self.rng)
       return _jit_train(*args, rng=rng, **kwargs)
@@ -63,7 +63,7 @@ class Trainer(TrainerBase):
     
     self.haiku_tabulate()
 
-  def train(self, data: AttrDict, aids=None):
+  def train(self, data: AttrDict, gids=None):
     if self.config.n_runners * self.config.n_envs < self.config.n_mbs:
       self.indices = np.arange(self.config.n_mbs)
       data = jax.tree_util.tree_map(
@@ -77,7 +77,7 @@ class Trainer(TrainerBase):
         self.stepwise_sequential_opt(
           theta, opt_state, data, self.n_epochs, 
           self.n_mbs, self.indices, 
-          self.jit_train, aids=aids, 
+          self.jit_train, gids=gids, 
           return_stats=True, name=None
         )
     elif self.config.update_scheme == 'whole':
@@ -85,7 +85,7 @@ class Trainer(TrainerBase):
         self.sequential_opt(
           theta, opt_state, data, self.n_epochs, 
           self.n_mbs, self.indices, 
-          self.jit_train, aids=aids, 
+          self.jit_train, gids=gids, 
           return_stats=True, name=None
         )
     else:
@@ -95,8 +95,8 @@ class Trainer(TrainerBase):
     self.params.theta = opt_state
 
     if self.config.popart:
-      for aid, uids in enumerate(self.env_stats.aid2uids):
-        self.popart[aid].update(np.take(stats.v_target, indices=uids, axis=2))
+      for gid, uids in enumerate(self.gid2uids):
+        self.popart[gid].update(np.take(stats.v_target, indices=uids, axis=2))
       stats['theta/popart/mean'] = [rms.mean for rms in self.popart]
       stats['theta/popart/std'] = [rms.std for rms in self.popart]
 
@@ -107,18 +107,18 @@ class Trainer(TrainerBase):
     return stats
 
   def sequential_opt(self, theta, opt_state, data, 
-      n_epochs, n_mbs, indices, train_fn, aids=None, 
+      n_epochs, n_mbs, indices, train_fn, gids=None, 
       return_stats=True, name=None):
     teammate_log_ratio = jnp.zeros((*data.mu_logprob.shape[:2], 1))
 
-    v_target = [None for _ in self.aid2uids]
+    v_target = [None for _ in self.gids]
     all_stats = AttrDict()
-    if aids is None:
-      aids = np.random.permutation(self.n_agents)
-    for aid in aids:
-      aid = int(aid)
-      uids = self.aid2uids[aid]
-      agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, aid)
+    if gids is None:
+      gids = np.random.permutation(self.gids)
+    for gid in gids:
+      gid = int(gid)
+      uids = self.gid2uids[gid]
+      agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, gid)
       agent_data = data.slice(indices=uids, axis=2)
       for e in range(n_epochs):
         vts = []
@@ -127,8 +127,8 @@ class Trainer(TrainerBase):
         for i, d in enumerate(yield_from_tree_with_indices(
             agent_data, _indices, axis=0)):
           if self.config.popart:
-            d.popart_mean = self.popart[aid].mean
-            d.popart_std = self.popart[aid].std
+            d.popart_mean = self.popart[gid].mean
+            d.popart_std = self.popart[gid].std
           tlr = teammate_log_ratio[_indices[i]]
           agent_theta, agent_opt_state, stats = \
             train_fn(
@@ -136,7 +136,7 @@ class Trainer(TrainerBase):
               opt_state=agent_opt_state, 
               data=d, 
               teammate_log_ratio=tlr, 
-              aid=aid, 
+              gid=gid, 
               compute_teammate_log_ratio=False, 
               return_stats=self.config.get('debug', False)
             )
@@ -149,17 +149,17 @@ class Trainer(TrainerBase):
           #     stats.adv_ratio_pp + stats.adv_ratio_pn + stats.adv_ratio_np + stats.adv_ratio_nn, 1, 2)
           vts.append(stats.pop('v_target'))
           if e == 0 and i == 0:
-            all_stats.update(**prefix_name(stats, name=f'agent{aid}_first_epoch'))
+            all_stats.update(**prefix_name(stats, name=f'agent{gid}_first_epoch'))
         if e == n_epochs-1:
-          all_stats.update(**prefix_name(stats, name=f'agent{aid}_last_epoch'))
+          all_stats.update(**prefix_name(stats, name=f'agent{gid}_last_epoch'))
       teammate_log_ratio = self.compute_teammate_log_ratio(
         agent_theta.policy, self.rng, teammate_log_ratio, agent_data
       )
       
-      v_target[aid] = np.concatenate(vts)
-      all_stats[f'agent{aid}/teammate_log_ratio'] = teammate_log_ratio
+      v_target[gid] = np.concatenate(vts)
+      all_stats[f'agent{gid}/teammate_log_ratio'] = teammate_log_ratio
       theta, opt_state = set_params_and_opt(
-        theta, opt_state, aid, agent_theta, agent_opt_state)
+        theta, opt_state, gid, agent_theta, agent_opt_state)
     
     if return_stats:
       all_stats.v_target = np.concatenate(v_target, 2)
@@ -169,7 +169,7 @@ class Trainer(TrainerBase):
     return theta, opt_state
 
   def stepwise_sequential_opt(self, theta, opt_state, data, 
-      n_epochs, n_mbs, indices, train_fn, aids=None, 
+      n_epochs, n_mbs, indices, train_fn, gids=None, 
       return_stats=True, name=None):
     all_stats = AttrDict()
 
@@ -179,38 +179,38 @@ class Trainer(TrainerBase):
       _indices = np.split(indices, n_mbs)
       v_target = []
       for i, data_slice in enumerate(yield_from_tree_with_indices(data, _indices, axis=0)):
-        vts = [None for _ in self.aid2uids]
+        vts = [None for _ in self.gid2uids]
         teammate_log_ratio = jnp.zeros((*data_slice.mu_logprob.shape[:2], 1))
-        if aids is None:
-          aids = np.random.permutation(self.n_agents)
-        uids = [self.aid2uids[aid] for aid in aids]
-        for aid, agent_data in zip(aids, 
+        if gids is None:
+          gids = np.random.permutation(self.gids)
+        uids = [self.gid2uids[gid] for gid in gids]
+        for gid, agent_data in zip(gids, 
             yield_from_tree_with_indices(data_slice, uids, axis=2)):
-          agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, aid)
+          agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, gid)
           if self.config.popart:
-            agent_data.popart_mean = self.popart[aid].mean
-            agent_data.popart_std = self.popart[aid].std
+            agent_data.popart_mean = self.popart[gid].mean
+            agent_data.popart_std = self.popart[gid].std
           agent_theta, agent_opt_state, stats = \
             train_fn(
               agent_theta, 
               opt_state=agent_opt_state, 
               data=agent_data, 
               teammate_log_ratio=teammate_log_ratio, 
-              aid=aid,
+              gid=gid,
               compute_teammate_log_ratio=True, 
               return_stats=self.config.get('debug', False)
             )
           teammate_log_ratio = stats.teammate_log_ratio
 
           theta, opt_state = set_params_and_opt(
-            theta, opt_state, aid, agent_theta, agent_opt_state)
+            theta, opt_state, gid, agent_theta, agent_opt_state)
           
           if return_stats:
-            vts[aid] = stats.pop('v_target')
+            vts[gid] = stats.pop('v_target')
             if e == n_epochs-1 and i == n_mbs - 1:
-              all_stats.update(**prefix_name(stats, name=f'agent{aid}_last_epoch'))
+              all_stats.update(**prefix_name(stats, name=f'agent{gid}_last_epoch'))
             elif e == 0 and i == 0:
-              all_stats.update(**prefix_name(stats, name=f'agent{aid}_first_epoch'))
+              all_stats.update(**prefix_name(stats, name=f'agent{gid}_first_epoch'))
         v_target.append(vts)
 
     if return_stats:
@@ -228,7 +228,7 @@ class Trainer(TrainerBase):
     opt_state, 
     data, 
     teammate_log_ratio, 
-    aid, 
+    gid, 
     compute_teammate_log_ratio=True, 
     return_stats=True
   ):
@@ -244,7 +244,7 @@ class Trainer(TrainerBase):
           'data': data, 
           'teammate_log_ratio': teammate_log_ratio,
         }, 
-        opt=self.opts.theta[aid], 
+        opt=self.opts.theta[gid], 
         name='opt/theta', 
         debug=return_stats
       )
@@ -259,7 +259,7 @@ class Trainer(TrainerBase):
           'data': data, 
           'teammate_log_ratio': teammate_log_ratio
         }, 
-        opt=self.opts.vs[aid], 
+        opt=self.opts.vs[gid], 
         name='opt/value', 
         debug=return_stats
       )
@@ -272,7 +272,7 @@ class Trainer(TrainerBase):
           'data': data, 
           'stats': stats,
         }, 
-        opt=self.opts.policies[aid], 
+        opt=self.opts.policies[gid], 
         name='opt/policy', 
         debug=return_stats
       )
@@ -366,25 +366,25 @@ class Trainer(TrainerBase):
   #   ))
   #   breakpoint()
 
-def get_params_and_opt(params, opt_state, aid):
+def get_params_and_opt(params, opt_state, gid):
   agent_params = AttrDict(
-    policy=params.policies[aid], value=params.vs[aid])
+    policy=params.policies[gid], value=params.vs[gid])
   if isinstance(opt_state, list):
-    agent_opt_state = opt_state[aid]
+    agent_opt_state = opt_state[gid]
   else:
     agent_opt_state = AttrDict(
-      policy=opt_state.policies[aid], value=opt_state.vs[aid])
+      policy=opt_state.policies[gid], value=opt_state.vs[gid])
   
   return agent_params, agent_opt_state
 
-def set_params_and_opt(params, opt_state, aid, agent_params, agent_opt_state):
-  params.policies[aid] = agent_params.policy
-  params.vs[aid] = agent_params.value
+def set_params_and_opt(params, opt_state, gid, agent_params, agent_opt_state):
+  params.policies[gid] = agent_params.policy
+  params.vs[gid] = agent_params.value
   if isinstance(opt_state, list):
-    opt_state[aid] = agent_opt_state
+    opt_state[gid] = agent_opt_state
   else:
-    opt_state.policies[aid] = agent_opt_state.policy
-    opt_state.vs[aid] = agent_opt_state.value
+    opt_state.policies[gid] = agent_opt_state.policy
+    opt_state.vs[gid] = agent_opt_state.value
 
   return params, opt_state
 

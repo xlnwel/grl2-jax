@@ -10,7 +10,8 @@ class OpenSpiel:
   def __init__(
     self, 
     env_name, 
-    uid2aid=None, 
+    uid2aid=[0, 1], 
+    uid2gid=[0, 1], 
     **kwargs, 
   ):
     self.env = env = rl_environment.Environment(
@@ -20,7 +21,10 @@ class OpenSpiel:
     self.env.seed(kwargs['seed'])
     self.game = self.env.game
     self.uid2aid = uid2aid
+    self.uid2gid = uid2gid
     self.aid2uids = compute_aid2uids(self.uid2aid)
+    self.gid2uids = compute_aid2uids(self.uid2gid)
+    self.aid2gids = compute_aid2gids(uid2aid, uid2gid)
     self.n_units = len(self.uid2aid)
     self.n_agents = len(self.aid2uids)
 

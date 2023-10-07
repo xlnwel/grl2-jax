@@ -10,7 +10,6 @@ from tools.utils import batch_dicts
 from algo.ma_common.elements.model import *
 
 
-# register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 logger = logging.getLogger(__name__)
 

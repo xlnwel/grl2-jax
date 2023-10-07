@@ -14,7 +14,7 @@
 # ./scripts/inf magw 1 inf_magw_mb n_simulated_envs=400 lka_entropy_coef=0
 
 # mujoco
-./scripts/inf grf 1 inf_grf
+# ./scripts/inf grf 1 inf_grf
 # ./scripts/inf grf 3 inf_grf_lka
 # ./scripts/inf grf 3 inf_grf_lka2
 # ./scripts/inf grf 2 inf_grf rnn_type=gru n_mbs=2
@@ -74,3 +74,6 @@
 # ./scripts/inf grf 1 inf_grf_lka 5 2000 15 1200 10
 # ./scripts/inf grf 1 inf_grf_lka 10 1000 15 1200 10
 # ./scripts/inf grf 1 inf_grf_lka 10 2000 15 1200 10
+
+./scripts/inf spiel 1 inf_spiel sampling_strategy:type=pfsp
+./scripts/inf spiel 1 inf_spiel sampling_strategy:type=fsp

@@ -127,9 +127,14 @@ def compute_updates(
       if is_empty(v):
         continue
       updates_norm = compute_norms(v)
-      updates_norm = flatten_dict(
-        updates_norm, prefix=k, suffix='updates/norm')
-      stats.update(updates_norm)
+      if isinstance(updates_norm, list):
+        for i, un in enumerate(updates_norm):
+          un = flatten_dict(un, prefix=k, suffix='updates/norm')
+          stats.update(un)
+      else:
+        updates_norm = flatten_dict(
+          updates_norm, prefix=k, suffix='updates/norm')
+        stats.update(updates_norm)
     global_norm = optax.global_norm(v)
     stats[f'{k}/total_updates/norm'] = global_norm
 
@@ -152,8 +157,8 @@ def optimize(
 ):
   grads, stats = compute_gradients(
     loss_fn=loss_fn, params=params, 
-    kwargs=kwargs, name=name, 
-    debug=debug)
+    kwargs=kwargs, name=name, debug=debug
+  )
   updates, state, stats = compute_updates(
     grads, state, params, opt, stats, name=name, debug=debug)
   params = apply_updates(params, updates)
@@ -163,9 +168,15 @@ def optimize(
 def _record_grads(stats, grads, name, debug):
   if debug:
     grads_norm = compute_norms(grads)
-    grads_norm = flatten_dict(
-      grads_norm, prefix=name, suffix='grads/norm')
-    stats.update(grads_norm)
+    if isinstance(grads_norm, list):
+      for i, gn in enumerate(grads_norm):
+        gn = flatten_dict(
+          gn, prefix=f'{name}{i}', suffix='grads/norm')
+        stats.update(gn)
+    else:
+      grads_norm = flatten_dict(
+        grads_norm, prefix=name, suffix='grads/norm')
+      stats.update(grads_norm)
   global_norm = optax.global_norm(grads)
   k = add_prefix('total_grads/norm', name)
   stats[k] = global_norm

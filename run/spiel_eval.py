@@ -170,8 +170,7 @@ def build_policies(configs, env):
   builder = ElementsBuilder(configs[0], env.stats())
   for config in configs:
     agent = build_agent(builder, config, env)
-    policies[config.aid].append(RLPolicy(
-      env, agent, config.aid))
+    policies[config.aid].append(RLPolicy(env, agent, config.aid))
   probs = [np.ones(len(pls)) for pls in policies]
   pol_agg = policy_aggregator.PolicyAggregator(env.game)
   aggr_policy = pol_agg.aggregate([0, 1], policies, probs)
@@ -187,6 +186,17 @@ def main(
   write_to_disk=True, 
 ):
   configs = [dict2AttrDict(c) for c in configs]
+  if configs[0].self_play:
+    assert configs[0].n_agents == 2, configs[0].n_agents
+    new_configs = []
+    for c in configs:
+      c = dict2AttrDict(c, to_copy=True)
+      c.aid = 0
+      new_configs.append(c)
+      c = dict2AttrDict(c, to_copy=True)
+      c.aid = 1
+      new_configs.append(c)
+    configs = new_configs
   for config in configs:
     config.runner.n_runners = 1
     config.env.n_runners = 1
@@ -254,7 +264,7 @@ if __name__ == '__main__':
     configs = search_for_all_configs(args.directory[0])
   else:
     configs = [search_for_config(d) for d in args.directory]
-  config = configs[0]
 
+  assert len(configs) == 2, configs
   nash_conv = main(configs, 0)
   print(nash_conv)

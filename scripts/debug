@@ -15,17 +15,32 @@ algo=happo
 # python run/train.py -a $algo -e mujoco-HalfCheetah -c mujoco -ld logs -s 2 &
 # python run/train.py -a $algo -e ma_mujoco-HalfCheetah_3x2 -c ma_mujoco -ld logs -s 1 &
 # python run/train.py -a $algo -e ma_mujoco-HalfCheetah_3x2 -c ma_mujoco -ld logs -s 2 &
-python run/train.py -a $algo -e grf-academy_pass_and_shoot_with_keeper -c grf -ld logs -s 1 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_pass_and_shoot_with_keeper -c grf -ld logs -s 2 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_pass_and_shoot_with_keeper -c grf -ld logs -s 3 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_pass_and_shoot_with_keeper -c grf -ld logs -s 4 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_run_pass_and_shoot_with_keeper -c grf -ld logs -s 1 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_run_pass_and_shoot_with_keeper -c grf -ld logs -s 2 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_run_pass_and_shoot_with_keeper -c grf -ld logs -s 3 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_run_pass_and_shoot_with_keeper -c grf -ld logs -s 4 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_3_vs_1_with_keeper -c grf -ld logs -s 1 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_3_vs_1_with_keeper -c grf -ld logs -s 2 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_3_vs_1_with_keeper -c grf -ld logs -s 3 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
-python run/train.py -a $algo -e grf-academy_3_vs_1_with_keeper -c grf -ld logs -s 4 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_pass_and_shoot_with_keeper -c grf -ld logs -s 1 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_pass_and_shoot_with_keeper -c grf -ld logs -s 2 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_pass_and_shoot_with_keeper -c grf -ld logs -s 3 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_pass_and_shoot_with_keeper -c grf -ld logs -s 4 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_run_pass_and_shoot_with_keeper -c grf -ld logs -s 1 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_run_pass_and_shoot_with_keeper -c grf -ld logs -s 2 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_run_pass_and_shoot_with_keeper -c grf -ld logs -s 3 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_run_pass_and_shoot_with_keeper -c grf -ld logs -s 4 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_3_vs_1_with_keeper -c grf -ld logs -s 1 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_3_vs_1_with_keeper -c grf -ld logs -s 2 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_3_vs_1_with_keeper -c grf -ld logs -s 3 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+# python run/train.py -a $algo -e grf-academy_3_vs_1_with_keeper -c grf -ld logs -s 4 -kw n_runners=10 n_envs=10 n_epochs=15 n_mbs=2 score_reward_scale=10 &
+python run/train.py -a masac -e mujoco-HalfCheetah -c mujoco -s 1 &
+python run/train.py -a masac -e mujoco-HalfCheetah -c mujoco -s 2 &
+python run/train.py -a masac -e mujoco-HalfCheetah -c mujoco -s 3 &
+python run/train.py -a masac -e mujoco-HalfCheetah -c mujoco -s 4 &
+python run/train.py -a masac -e mujoco-HalfCheetah -c mujoco -s 5 &
+python run/train.py -a masac -e mujoco-Walker2d -c mujoco -s 1 &
+python run/train.py -a masac -e mujoco-Walker2d -c mujoco -s 2 &
+python run/train.py -a masac -e mujoco-Walker2d -c mujoco -s 3 &
+python run/train.py -a masac -e mujoco-Walker2d -c mujoco -s 4 &
+python run/train.py -a masac -e mujoco-Walker2d -c mujoco -s 5 &
+python run/train.py -a masac -e mujoco-Hopper -c mujoco -s 1 &
+python run/train.py -a masac -e mujoco-Hopper -c mujoco -s 2 &
+python run/train.py -a masac -e mujoco-Hopper -c mujoco -s 3 &
+python run/train.py -a masac -e mujoco-Hopper -c mujoco -s 4 &
+python run/train.py -a masac -e mujoco-Hopper -c mujoco -s 5 &
 wait
 echo "Script completed"

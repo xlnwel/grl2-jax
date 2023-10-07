@@ -46,8 +46,8 @@ class Loss(LossBase):
         data.action, 
         data.mu_logprob, 
         data.state_reset[:, :-1] if 'state_reset' in data else None, 
-        None if data.state is None else data.state.policy, 
-        action_mask=data.action_mask, 
+        state=None if data.state is None else data.state.policy, 
+        # action_mask=data.action_mask, 
         bptt=self.config.prnn_bptt, 
       )
     stats = record_policy_stats(data, stats, act_dist)
@@ -104,7 +104,6 @@ class Loss(LossBase):
       data, 
       stats, 
     )
-
     stats = summarize_adv_ratio(stats, data)
     loss = actor_loss + value_loss
     stats.loss = loss
@@ -145,15 +144,12 @@ class Loss(LossBase):
       policy_theta, 
       rngs[1], 
       data.obs, 
-      data.next_obs, 
       data.action, 
       data.mu_logprob, 
       data.state_reset[:, :-1] if 'state_reset' in data else None, 
       None if data.state is None else data.state.policy, 
-      action_mask=data.action_mask, 
-      next_action_mask=data.next_action_mask, 
+      # action_mask=data.action_mask, 
       bptt=self.config.prnn_bptt, 
-      seq_axis=1, 
     )
 
     if 'advantage' in data:
@@ -199,7 +195,6 @@ class Loss(LossBase):
       n=data.n, 
       epsilon=self.config.get('epsilon', 1e-5)
     )
-
     loss = value_loss
 
     return loss, stats
@@ -220,15 +215,12 @@ class Loss(LossBase):
         theta, 
         rngs[1], 
         data.obs, 
-        data.next_obs, 
         data.action, 
         data.mu_logprob, 
         data.state_reset[:, :-1] if 'state_reset' in data else None, 
         None if data.state is None else data.state.policy, 
-        action_mask=data.action_mask, 
-        next_action_mask=data.next_action_mask, 
+        # action_mask=data.action_mask, 
         bptt=self.config.prnn_bptt, 
-        seq_axis=1, 
       )
     stats = record_policy_stats(data, stats, act_dist)
 
@@ -242,303 +234,6 @@ class Loss(LossBase):
 
     stats = summarize_adv_ratio(stats, data)
     loss = actor_loss
-
-    return loss, stats
-
-  def lka_loss(
-    self, 
-    theta, 
-    rng, 
-    data,
-    teammate_log_ratio,
-    name='train', 
-  ):
-    rngs = random.split(rng, 2)
-    stats = dict2AttrDict(self.config.stats, to_copy=True)
-
-    if data.action_mask is not None:
-      stats.n_avail_actions = jnp.sum(data.action_mask, -1)
-    if data.sample_mask is not None:
-      stats.n_alive_units = jnp.sum(data.sample_mask, -1)
-
-    stats.value, next_value = compute_values(
-      self.modules.value, 
-      theta.value, 
-      rngs[0], 
-      data.global_state, 
-      data.next_global_state, 
-      data.state_reset, 
-      None if data.state is None else data.state.value, 
-      bptt=self.config.lka_vrnn_bptt, 
-      seq_axis=1, 
-    )
-
-    act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
-      compute_policy(
-        self.model, 
-        theta.policy, 
-        rngs[1], 
-        data.obs, 
-        data.next_obs, 
-        data.action, 
-        data.mu_logprob, 
-        data.state_reset[:, :-1] if 'state_reset' in data else None, 
-        None if data.state is None else data.state.policy, 
-        action_mask=data.action_mask, 
-        next_action_mask=data.next_action_mask, 
-        bptt=self.config.lka_prnn_bptt, 
-        seq_axis=1, 
-      )
-    stats = record_policy_stats(data, stats, act_dist)
-
-    if 'advantage' in data:
-      stats.raw_adv = data.pop('advantage')
-      stats.v_target = data.pop('v_target')
-    else:
-      if self.config.popart:
-        value = lax.stop_gradient(denormalize(
-          stats.value, data.popart_mean, data.popart_std))
-        next_value = denormalize(
-          next_value, data.popart_mean, data.popart_std)
-      else:
-        value = lax.stop_gradient(stats.value)
-
-      v_target, stats.raw_adv = compute_target_adv(
-        config=self.config, 
-        reward=data.reward, 
-        discount=data.discount, 
-        reset=data.reset, 
-        value=value, 
-        next_value=next_value, 
-        ratio=lax.stop_gradient(stats.ratio), 
-        gamma=stats.gamma, 
-        lam=stats.lam, 
-        axis=1
-      )
-      if self.config.popart:
-        v_target = normalize(
-          v_target, data.popart_mean, data.popart_std)
-      stats.v_target = lax.stop_gradient(v_target)
-    stats = record_target_adv(stats)
-
-    stats.norm_adv, stats.advantage = norm_adv(
-      self.config, 
-      stats.raw_adv, 
-      teammate_log_ratio, 
-      sample_mask=data.sample_mask, 
-      n=data.n, 
-      epsilon=self.config.get('epsilon', 1e-5)
-    )
-
-    actor_loss, stats = compute_actor_loss(
-      self.config, 
-      data, 
-      stats, 
-      act_dist=act_dist, 
-      entropy_coef=stats.lka_entropy_coef or stats.entropy_coef
-    )
-
-    stats = compute_regularization(
-      stats, 
-      data, 
-      self.config.reg_type, 
-      self.config.lka_reg_coef, 
-    )
-    stats = compute_sample_regularization(
-      stats, 
-      data, 
-      reg_type=self.config.sample_reg_type, 
-      pos_reg_coef=self.config.lka_sample_pos_reg_coef, 
-      reg_coef=self.config.lka_sample_reg_coef, 
-      rescaled_by_adv=self.config.rescaled_by_adv, 
-      rescaled_by_mu=self.config.rescaled_by_mu, 
-      threshold=self.config.threshold, 
-      clip_range=self.config.reg_clip, 
-    )
-    value_loss, stats = compute_vf_loss(
-      self.config, 
-      data, 
-      stats, 
-    )
-    actor_sil_loss, stats = compute_actor_sil_loss(
-      stats, 
-      data, 
-      self.config.lka_actor_sil_coef, 
-      clip_range=self.config.ppo_clip_range
-    )
-    value_sil_loss, stats = compute_value_sil_loss(
-      stats, 
-      data, 
-      self.config.lka_value_sil_coef
-    )
-    stats = summarize_adv_ratio(stats, data)
-    loss = actor_loss + value_loss + stats.reg_loss \
-      + stats.pos_sample_reg_loss + stats.sample_reg_loss \
-      + actor_sil_loss + value_sil_loss
-    stats.loss = loss
-
-    return loss, stats
-
-  def lka_value_loss(
-    self, 
-    theta, 
-    rng, 
-    policy_theta, 
-    data, 
-    teammate_log_ratio, 
-    name='train/value', 
-  ):
-    rngs = random.split(rng, 2)
-    stats = dict2AttrDict(self.config.stats, to_copy=True)
-
-    if data.action_mask is not None:
-      stats.n_avail_actions = jnp.sum(data.action_mask, -1)
-    if data.sample_mask is not None:
-      stats.n_alive_units = jnp.sum(data.sample_mask, -1)
-
-    stats.value, next_value = compute_values(
-      self.modules.value, 
-      theta, 
-      rngs[0], 
-      data.global_state, 
-      data.next_global_state, 
-      data.state_reset, 
-      None if data.state is None else data.state.value, 
-      bptt=self.config.lka_vrnn_bptt, 
-      seq_axis=1, 
-    )
-
-    _, _, _, ratio = compute_policy(
-      self.model, 
-      policy_theta, 
-      rngs[1], 
-      data.obs, 
-      data.next_obs, 
-      data.action, 
-      data.mu_logprob, 
-      data.state_reset[:, :-1] if 'state_reset' in data else None, 
-      None if data.state is None else data.state.policy, 
-      action_mask=data.action_mask, 
-      next_action_mask=data.next_action_mask, 
-      bptt=self.config.prnn_bptt, 
-      seq_axis=1, 
-    )
-
-    if 'advantage' in data:
-      stats.raw_adv = data.pop('advantage')
-      stats.v_target = data.pop('v_target')
-    else:
-      if self.config.popart:
-        value = lax.stop_gradient(denormalize(
-          stats.value, data.popart_mean, data.popart_std))
-        next_value = denormalize(
-          next_value, data.popart_mean, data.popart_std)
-      else:
-        value = lax.stop_gradient(stats.value)
-
-      v_target, stats.raw_adv = compute_target_adv(
-        config=self.config, 
-        reward=data.reward, 
-        discount=data.discount, 
-        reset=data.reset, 
-        value=value, 
-        next_value=next_value, 
-        ratio=lax.stop_gradient(ratio), 
-        gamma=stats.gamma, 
-        lam=stats.lam, 
-        axis=1
-      )
-      if self.config.popart:
-        v_target = normalize(
-          v_target, data.popart_mean, data.popart_std)
-      stats.v_target = lax.stop_gradient(v_target)
-    stats = record_target_adv(stats)
-
-    value_loss, stats = compute_vf_loss(
-      self.config, 
-      data, 
-      stats, 
-    )
-    stats.norm_adv, stats.advantage = norm_adv(
-      self.config, 
-      stats.raw_adv, 
-      teammate_log_ratio, 
-      sample_mask=data.sample_mask, 
-      n=data.n, 
-      epsilon=self.config.get('epsilon', 1e-5)
-    )
-    value_sil_loss, stats = compute_value_sil_loss(
-      stats, 
-      data, 
-      self.config.lka_value_sil_coef
-    )
-    loss = value_loss + value_sil_loss
-
-    return loss, stats
-
-  def lka_policy_loss(
-    self, 
-    theta, 
-    rng, 
-    data, 
-    stats,
-    name='train/policy', 
-  ):
-    rngs = random.split(rng, 2)
-
-    act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
-      compute_policy(
-        self.model, 
-        theta, 
-        rngs[1], 
-        data.obs, 
-        data.next_obs, 
-        data.action, 
-        data.mu_logprob, 
-        data.state_reset[:, :-1] if 'state_reset' in data else None, 
-        None if data.state is None else data.state.policy, 
-        action_mask=data.action_mask, 
-        next_action_mask=data.next_action_mask, 
-        bptt=self.config.lka_prnn_bptt, 
-        seq_axis=1, 
-      )
-    stats = record_policy_stats(data, stats, act_dist)
-
-    actor_loss, stats = compute_actor_loss(
-      self.config, 
-      data, 
-      stats, 
-      act_dist=act_dist, 
-      entropy_coef=stats.lka_entropy_coef or stats.entropy_coef
-    )
-
-    stats = compute_regularization(
-      stats, 
-      data, 
-      self.config.reg_type, 
-      self.config.lka_reg_coef, 
-    )
-    stats = compute_sample_regularization(
-      stats, 
-      data, 
-      reg_type=self.config.sample_reg_type, 
-      pos_reg_coef=self.config.lka_sample_pos_reg_coef, 
-      reg_coef=self.config.lka_sample_reg_coef, 
-      rescaled_by_adv=self.config.rescaled_by_adv, 
-      rescaled_by_mu=self.config.rescaled_by_mu, 
-      threshold=self.config.threshold, 
-      clip_range=self.config.reg_clip, 
-    )
-    actor_sil_loss, stats = compute_actor_sil_loss(
-      stats, 
-      data, 
-      self.config.lka_actor_sil_coef, 
-      clip_range=self.config.ppo_clip_range
-    )
-    stats = summarize_adv_ratio(stats, data)
-    loss = actor_loss + stats.reg_loss \
-      + stats.pos_sample_reg_loss + stats.sample_reg_loss \
-      + actor_sil_loss
 
     return loss, stats
 

@@ -1,4 +1,3 @@
-import numpy as np
 import ray
 
 from core.elements.builder import ElementsBuilder
@@ -30,14 +29,15 @@ def init_running_stats(agent, runner: Runner, n_steps=None):
 
 
 @timeit
-def env_run(agent, runner: Runner, routine_config, prepare_buffer, name='real'):
+def env_run(agent, runner: Runner, routine_config, prepare_buffer=None, name='real'):
   env_output = runner.run(
     agent, 
     n_steps=routine_config.n_steps, 
     name=name, 
     store_info=True
   )
-  prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
+  if prepare_buffer is not None:
+    prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
 
   env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
   agent.add_env_step(env_steps_per_run)
@@ -93,10 +93,14 @@ def log_agent(agent, env_step, train_step, error_stats={}):
   tps = 0 if train_time == 0 else agent.get_train_step_intervals() / train_time
   rms = agent.actor.get_auxiliary_stats()
   rms_dict = {}
-  for i, v in enumerate(rms):
-    rms_dict[f'aux/obs{i}'] = v
-  rms_dict[f'aux/reward'] = rms[-1]
-  rms_dict = flatten_dict(rms_dict)
+  if rms is not None:
+    if isinstance(rms[0], list):
+      for i, v in enumerate(rms[0]):
+        rms_dict[f'aux/obs{i}'] = v
+    else:
+      rms_dict[f'aux/obs'] = rms[0]
+    rms_dict[f'aux/reward'] = rms[-1]
+    rms_dict = flatten_dict(rms_dict)
 
   agent.store(**{
       'stats/train_step': train_step, 

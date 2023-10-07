@@ -1,5 +1,3 @@
-from functools import partial
-import jax
 import jax.numpy as jnp
 import haiku as hk
 
@@ -8,38 +6,21 @@ from core.typing import AttrDict, dict2AttrDict, tree_slice
 from jax_tools import jax_dist
 
 
-def construct_fake_data(env_stats, batch_size=1, aid=None):
-  if aid is None:
-    all_data = []
-    for i, uids in enumerate(env_stats.aid2uids):
-      shapes = env_stats.obs_shape[i]
-      dtypes = env_stats.obs_dtype[i]
-      action_dim = env_stats.action_dim[i]
-      action_dtype = env_stats.action_dtype[i]
-      basic_shape = (batch_size, 1, len(env_stats.aid2uids[i]))
-      data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
-        for k, v in shapes.items()}
-      data = dict2AttrDict(data)
-      data.setdefault('global_state', data.obs)
-      data.action = jnp.zeros((*basic_shape, action_dim), action_dtype)
-      data.joint_action = jnp.zeros((*basic_shape, env_stats.n_units*action_dim), action_dtype)
-      data.state_reset = jnp.zeros(basic_shape, jnp.float32)
-      all_data.append(data)
-    return all_data
-  else:
-    shapes = env_stats.obs_shape[aid]
-    dtypes = env_stats.obs_dtype[aid]
-    action_dim = env_stats.action_dim[aid]
-    action_dtype = env_stats.action_dtype[aid]
-    basic_shape = (batch_size, 1, len(env_stats.aid2uids[aid]))
-    data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
-      for k, v in shapes.items()}
-    data = dict2AttrDict(data)
-    data.setdefault('global_state', data.obs)
-    data.action = jnp.zeros((*basic_shape, action_dim), action_dtype)
-    data.joint_action = jnp.zeros((*basic_shape[:2], 1, env_stats.n_units*action_dim), action_dtype)
-    data.state_reset = jnp.zeros(basic_shape, jnp.float32)
-    return data
+def construct_fake_data(env_stats, aid, batch_size=1):
+  shapes = env_stats.obs_shape[aid]
+  dtypes = env_stats.obs_dtype[aid]
+  action_dim = env_stats.action_dim[aid]
+  action_dtype = env_stats.action_dtype[aid]
+  n_units = len(env_stats.aid2uids[aid])
+  basic_shape = (batch_size, 1, n_units)
+  data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
+    for k, v in shapes.items()}
+  data = dict2AttrDict(data)
+  data.setdefault('global_state', data.obs)
+  data.action = jnp.zeros((*basic_shape, action_dim), action_dtype)
+  data.joint_action = jnp.zeros((*basic_shape[:2], 1, n_units*action_dim), action_dtype)
+  data.state_reset = jnp.zeros(basic_shape, jnp.float32)
+  return data
 
 
 def setup_config_from_envstats(config, env_stats):
@@ -57,20 +38,10 @@ def setup_config_from_envstats(config, env_stats):
 
 
 class MAModelBase(ModelCore):
-  def add_attributes(self):
-    self.n_agents = self.env_stats.n_agents
-    self.aid2uids = self.env_stats.aid2uids
-    aid = self.config.get('aid', 0)
-    self.is_action_discrete = self.env_stats.is_action_discrete[aid]
-
   def forward_policy(self, params, rng, data, state=AttrDict(), return_state=True):
     act_out, state.policy = self.modules.policy(
-      params, 
-      rng, 
-      data.obs, 
-      data.state_reset, 
-      state.policy, 
-      action_mask=data.action_mask, 
+      params, rng, data.obs, data.state_reset, 
+      state.policy, action_mask=data.action_mask, 
     )
 
     if return_state:
@@ -88,7 +59,6 @@ class MAModelBase(ModelCore):
         scale = scale * self.config.eval_act_temp
       dist = jax_dist.MultivariateNormalDiag(
         loc, scale, joint_log_prob=self.config.joint_log_prob)
-
     return dist
 
   """ RNN Operators """

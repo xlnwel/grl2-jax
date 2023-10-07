@@ -7,5 +7,6 @@ class Actor(ActorBase):
     value = self.model.compute_value(inps)
     return value
 
+
 def create_actor(config, model, name='actor'):
   return Actor(config=config, model=model, name=name)

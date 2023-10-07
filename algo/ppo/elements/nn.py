@@ -51,6 +51,7 @@ class Policy(hk.Module):
       if action_mask is not None:
         jax_assert.assert_shape_compatibility([x, action_mask])
         x = jnp.where(action_mask, x, -float('inf'))
+        x = jnp.where(jnp.all(action_mask == 0, axis=-1, keepdims=True), 1, x)
       return x, state
     else:
       if self.out_act == 'tanh':

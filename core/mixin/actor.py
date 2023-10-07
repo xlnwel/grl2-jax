@@ -6,7 +6,8 @@ from typing import Dict, List, Tuple, Union
 from core.ckpt.pickle import save, restore
 from core.typing import ModelPath, AttrDict
 from tools.display import print_dict, print_dict_info
-from tools.rms import RunningMeanStd, combine_rms, StatsWithVarCount
+from tools.rms import RunningMeanStd, combine_rms, normalize, StatsWithVarCount
+from tools.utils import yield_from_tree_with_indices, batch_dicts
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +16,12 @@ RMSStats = collections.namedtuple('RMSStats', 'obs reward')
 
 
 def combine_rms_stats(rms_stats1: RMSStats, rms_stats2: RMSStats):
-  obs_rms = {}
-  for k in rms_stats1.obs.keys():
-    obs_rms[k] = combine_rms(rms_stats1.obs[k], rms_stats2.obs[k])
-    # for n, rms in zip([f'{k}_before', f'{k}_new', f'{k}_after'], [rms_stats1.obs[k], rms_stats2.obs[k], obs_rms[k]]):
-    #   for i, (m, v) in enumerate(zip(*rms[:2])):
-    #     do_logging('combine rms stats: {n}, {i}, mean, {m}, var, {v}', logger=logger)
+  obs_rms = []
+  for rms1, rms2 in zip(rms_stats1.obs, rms_stats2.obs):
+    rms = {}
+    for k in rms1.keys():
+      rms[k] = combine_rms(rms1[k], rms2[k])
+    obs_rms.append(rms)
   if rms_stats1.reward:
     reward_rms = combine_rms(rms_stats1.reward, rms_stats2.reward)
   else:
@@ -31,9 +32,10 @@ def combine_rms_stats(rms_stats1: RMSStats, rms_stats2: RMSStats):
 def rms2dict(rms: RMSStats):
   stats = {}
   if rms.obs:
-    for k, v in rms.obs.items():
-      for kk, vv in v._asdict().items():
-        stats[f'aux/{k}/{kk}'] = vv
+    for i, obs_rms in enumerate(rms.obs):
+      for k, v in obs_rms.items():
+        for kk, vv in v._asdict().items():
+          stats[f'aux/{k}/{kk}{i}'] = vv
   if rms.reward:
     for k, v in rms.reward._asdict().items():
       stats[f'aux/reward/{k}'] = v
@@ -62,7 +64,8 @@ class RewardRunningMeanStd:
       name=name, 
       ndim=config.setdefault("reward_normalized_ndim", 0)
     )
-    print_dict(config, prefix=name)
+    if config.get('print_for_debug', True):
+      print_dict(config, prefix=name)
 
     self.reset_return()
 
@@ -197,6 +200,7 @@ class ObsRunningMeanStd:
     self._obs_normalized_axis = tuple(
       config.get('obs_normalized_axis', (0,)))
     self._normalize_obs = config.get('normalize_obs', False)
+    self._clip = config.setdefault('obs_clip', 10)
 
     self._obs_names = config.get('obs_names', ['obs'])
     self._masked_names = config.get('masked_names', self._obs_names)
@@ -206,11 +210,12 @@ class ObsRunningMeanStd:
       for k in self._obs_names:
         self.rms[k] = RunningMeanStd(
           self._obs_normalized_axis, 
-          clip=config.setdefault('obs_clip', 10), 
+          clip=self._clip, 
           name=f'{k}_rms', 
           ndim=config.setdefault("obs_normalized_ndim", 1)
         )
-    print_dict(config, prefix=name)
+    if config.get('print_for_debug', True):
+      print_dict(config, prefix=name)
 
   @property
   def obs_names(self):
@@ -219,6 +224,10 @@ class ObsRunningMeanStd:
   @property
   def is_normalized(self):
     return self._normalize_obs
+  
+  @property
+  def clip(self):
+    return self._clip
 
   """ Processing Data with RMS """
   def update(self, obs, name=None, mask=None, axis=None):
@@ -266,7 +275,7 @@ class ObsRunningMeanStd:
   def process(
     self, 
     inp: Union[dict, Tuple[str, np.ndarray]], 
-    name: str=None,
+    name: str=None, 
     update_rms: bool=False, 
     mask=None
   ):
@@ -300,7 +309,7 @@ class ObsRunningMeanStd:
 
     return rms
 
-  def set_rms_stats(self, rms_stats: StatsWithVarCount):
+  def set_rms_stats(self, rms_stats: Dict[str, StatsWithVarCount]):
     if rms_stats:
       for k, v in rms_stats.items():
         self.rms[k].set_rms_stats(*v)
@@ -329,31 +338,69 @@ class ObsRunningMeanStd:
 
 
 class RMS:
-  def __init__(self, config: dict, name='rms'):
+  def __init__(self, config: dict, n_obs: int=1, name='rms'):
     config.obs.model_path = config.model_path
     config.reward.model_path = config.model_path
-    self.obs_rms = ObsRunningMeanStd(config.obs, name=f'obs_{name}')
+    config.obs.print_for_debug = config.print_for_debug
+    config.reward.print_for_debug = config.print_for_debug
+    self.n_obs = n_obs
+    if n_obs == 1:
+      self.obs_rms = [ObsRunningMeanStd(config.obs, name=f'obs_{name}')]
+    else:
+      self.obs_rms = [
+        ObsRunningMeanStd(config.obs, name=f'obs_{name}{i}')
+        for i in range(n_obs)
+      ]
+    assert len(self.obs_rms) == self.n_obs, (len(self.obs_rms), self.n_obs)
     self.reward_rms = RewardRunningMeanStd(config.reward, name=f'reward_{name}')
 
   @property
+  def is_obs_normalized(self):
+    return self.obs_rms[0].is_normalized
+
+  @property
+  def is_reward_normalized(self):
+    return self.reward_rms.is_normalized
+
+  @property
   def is_obs_or_reward_normalized(self):
-    return self.obs_rms.is_normalized or self.reward_rms.is_normalized
+    return self.is_obs_normalized or self.is_reward_normalized
 
   def get_obs_names(self):
-    return self.obs_rms.obs_names
-  
-  def get_obs_rms(self, with_count=False, return_std=True):
-    return self.obs_rms.get_rms_stats(
-      with_count=with_count, return_std=return_std) 
+    return self.obs_rms[0].obs_names
 
-  def update_obs_rms(self, obs, name=None, mask=None, axis=None):
-    self.obs_rms.update(obs, name, mask, axis)
-  
+  def get_obs_rms(self, with_count=False, return_std=True):
+    return [
+      rms.get_rms_stats(with_count=with_count, return_std=return_std) 
+      for rms in self.obs_rms
+    ]
+
+  def update_obs_rms(self, obs, indices=None, split_axis=None, 
+                    name=None, mask=None, axis=None):
+    if self.n_obs == 1:
+      self.obs_rms[0].update(obs, name, mask, axis)
+    else:
+      assert indices is not None and len(indices) == self.n_obs, (indices, self.n_obs)
+      for rms, (o, m) in zip(self.obs_rms, 
+          yield_from_tree_with_indices(
+            (obs, mask), indices, split_axis, keep_none=True)):
+        rms.update(o, name, m, axis)
+
   def normalize_obs(self, obs, is_next=False):
-    for name in self.obs_rms.obs_names:
-      _name = f'next_{name}' if is_next else name
-      obs[_name] = self.obs_rms.normalize(obs[_name], name=name)
-    return obs
+    new_obs = obs.copy()
+    if self.is_obs_normalized:
+      for name in self.get_obs_names():
+        if self.n_obs == 1:
+          _name = f'next_{name}' if is_next else name
+          new_obs[_name] = self.obs_rms[0].normalize(obs[_name], name=name)
+        else:
+          rms = [rms.get_rms_stats(with_count=False, return_std=True) for rms in self.obs_rms]
+          rms = batch_dicts(rms, np.concatenate)
+          for k, v in rms.items():
+            key = f'next_{k}' if is_next else k
+            val = obs[key]
+            new_obs[key] = normalize(val, *v, clip=self.obs_rms[0].clip)
+    return new_obs
 
   def reset_reward_rms_return(self):
     self.reward_rms.reset_return()
@@ -369,14 +416,16 @@ class RMS:
 
   """ RMS Access & Override """
   def reset_rms_stats(self):
-    self.obs_rms.reset_rms_stats()
+    [rms.reset_rms_stats() for rms in self.obs_rms]
     self.reward_rms.reset_rms_stats()
 
   def get_rms_stats(self):
-    return RMSStats(self.obs_rms.get_rms_stats(), self.reward_rms.get_rms_stats())
+    obs_rms_stats = [rms.get_rms_stats() for rms in self.obs_rms]
+    return RMSStats(obs_rms_stats, self.reward_rms.get_rms_stats())
 
   def set_rms_stats(self, rms_stats: RMSStats):
-    self.obs_rms.set_rms_stats(rms_stats.obs)
+    for rms, stats in zip(self.obs_rms, rms_stats.obs):
+      rms.set_rms_stats(stats)
     self.reward_rms.set_rms_stats(rms_stats.reward)
 
   """ RMS Update """
@@ -391,29 +440,35 @@ class RMS:
 
   def update_from_stats(self, rms_stats: RMSStats):
     if rms_stats.obs is not None:
-      self.obs_rms.update_from_stats(rms_stats.obs)
+      assert len(rms_stats.obs) == self.n_obs, (len(rms_stats.obs), self.n_obs)
+      for rms, stats in zip(self.obs_rms, rms_stats.obs):
+        rms.update_from_stats(stats)
     if rms_stats.reward is not None:
       self.reward_rms.update_from_stats(rms_stats.reward)
 
   """ Checkpoint Operations """
   def restore_rms(self):
-    self.obs_rms.restore_rms()
+    for rms in self.obs_rms:
+      rms.restore_rms()
     self.reward_rms.restore_rms()
 
   def restore_auxiliary_stats(self):
     self.restore_rms()
 
   def save_rms(self):
-    self.obs_rms.save_rms()
+    for rms in self.obs_rms:
+      rms.save_rms()
     self.reward_rms.save_rms()
 
   def save_auxiliary_stats(self):
     self.save_rms()
 
   def reset_path(self, model_path: ModelPath):
-    self.obs_rms.reset_path(model_path)
+    for rms in self.obs_rms:
+      rms.reset_path(model_path)
     self.reward_rms.reset_path(model_path)
 
   def print_rms(self):
-    self.obs_rms.print_rms()
+    for rms in self.obs_rms:
+      rms.print_rms()
     self.reward_rms.print_rms()

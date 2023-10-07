@@ -6,8 +6,7 @@ import gym
 import cv2
 
 from core.log import do_logging
-from env.utils import compute_aid2uids
-from tools.display import print_dict, print_dict_info
+from env.utils import compute_aid2uids, compute_aid2gids
 from tools.feature import one_hot
 from tools.utils import infer_dtype, convert_dtype, batch_dicts
 from core.typing import AttrDict, dict2AttrDict
@@ -553,35 +552,23 @@ class Single2MultiAgent(gym.Wrapper):
       self.action_dim=[env.action_dim]
       self.is_action_discrete = [env.is_action_discrete]
       self.action_dtype = [env.action_dtype]
-    self.n_agents = getattr(env, 'n_agents', 1)
     self.n_units = getattr(env, 'n_units', 1)
     self.uid2aid = getattr(env, 'uid2aid', [0])
     self.aid2uids = getattr(env, 'aid2uids', [np.zeros(1, np.int32)])
-    self._stats = AttrDict(
-      obs_shape=self.obs_shape,
-      obs_dtype=self.obs_dtype,
-      action_shape=self.action_shape,
-      action_dim=self.action_dim,
-      action_low=[getattr(env, 'action_low', None)], 
-      action_high=[getattr(env, 'action_high', None)], 
-      is_action_discrete=self.is_action_discrete,
-      action_dtype=self.action_dtype,
-      n_agents=self.n_agents,
-      n_units=self.n_units,
-      uid2aid=self.uid2aid,
-      aid2uids=self.aid2uids,
-      use_sample_mask=[getattr(env, 'use_sample_mask', False)],
-      use_action_mask=[getattr(env, 'use_action_mask', False)],
-      is_multi_agent=True,
-      is_simultaneous_move=True,
-    )
+    self.n_agents = getattr(env, 'n_agents', len(self.aid2uids))
+    self.gid2uids = getattr(env, 'gid2uids', [np.zeros(1, np.int32)])
+    self.n_groups = getattr(env, 'n_groups', len(self.gid2uids))
+    self.aid2gids = getattr(env, 'aid2gids', [np.zeros(1, np.int32)])
+    self.action_low = [getattr(env, 'action_low', None)]
+    self.action_high = [getattr(env, 'action_high', None)]
+    self.use_sample_mask=[getattr(env, 'use_sample_mask', False)]
+    self.use_action_mask=[getattr(env, 'use_action_mask', False)]
+    self.is_multi_agent=True
+    self.is_simultaneous_move=True
 
     self._score = np.zeros(self.n_units)
     self._dense_score = np.zeros(self.n_units)
     self._epslen = 0
-
-  def stats(self):
-    return self._stats
 
   def random_action(self):
     action = self.env.random_action()
@@ -882,10 +869,14 @@ class EnvStatsBase(gym.Wrapper):
     if hasattr(self.env, 'stats'):
       self._stats = dict2AttrDict(self.env.stats())
     else:
-      self.n_agents = getattr(self.env, 'n_agents', 1)
       self.n_units = getattr(self.env, 'n_units', 1)
       self.uid2aid = getattr(self.env, 'uid2aid', [0 for _ in range(self.n_units)])
+      self.uid2gid = getattr(self.env, 'uid2gid', [0 for _ in range(self.n_units)])
       self.aid2uids = getattr(self.env, 'aid2uids', compute_aid2uids(self.uid2aid))
+      self.n_agents = getattr(self.env, 'n_agents', len(self.aid2uids))
+      self.gid2uids = getattr(self.env, 'gid2uids', compute_aid2uids(self.uid2gid))
+      self.n_groups = getattr(self.env, 'n_groups', len(self.gid2uids))
+      self.aid2gids = getattr(self.env, 'aid2gids', compute_aid2gids(self.uid2aid, self.uid2gid))
       self._stats = AttrDict(
         obs_shape=env.obs_shape,
         obs_dtype=env.obs_dtype,
@@ -898,7 +889,10 @@ class EnvStatsBase(gym.Wrapper):
         n_agents=self.n_agents,
         n_units=self.n_units,
         uid2aid=self.uid2aid,
+        uid2gid=self.uid2gid, 
         aid2uids=self.aid2uids,
+        gid2uids=self.gid2uids, 
+        aid2gids=self.aid2gids, 
         use_sample_mask=getattr(env, 'use_sample_mask', False),
         use_action_mask=getattr(env, 'use_action_mask', False),
         is_multi_agent=getattr(env, 'is_multi_agent', len(self.uid2aid) > 1),
@@ -1094,12 +1088,12 @@ class MASimEnvStats(EnvStatsBase):
   """
   manual_reset_warning = True
   def __init__(self, 
-         env, 
-         max_episode_steps=None, 
-         timeout_done=False, 
-         auto_reset=True, 
-         seed=None
-         ):
+    env, 
+    max_episode_steps=None, 
+    timeout_done=False, 
+    auto_reset=True, 
+    seed=None
+  ):
     super().__init__(
       env, 
       max_episode_steps=max_episode_steps, 
@@ -1123,9 +1117,9 @@ class MASimEnvStats(EnvStatsBase):
 
   def _reset(self):
     obs = super()._reset()
-    reward = self._get_agent_wise_zeros()
-    discount = self._get_agent_wise_ones()
-    reset = self._get_agent_wise_ones()
+    reward = self._get_group_wise_zeros()
+    discount = self._get_group_wise_ones()
+    reset = self._get_group_wise_ones()
     self._prev_output = EnvOutput(obs, reward, discount, reset)
     self._output = EnvOutput(obs, reward, discount, reset)
 
@@ -1135,9 +1129,9 @@ class MASimEnvStats(EnvStatsBase):
     if self.game_over():
       assert self.auto_reset == False
       # step after the game is over
-      reward = self._get_agent_wise_zeros()
-      discount = self._get_agent_wise_zeros()
-      reset = self._get_agent_wise_zeros()
+      reward = self._get_group_wise_zeros()
+      discount = self._get_group_wise_zeros()
+      reset = self._get_group_wise_zeros()
       self._output = EnvOutput(self._output.obs, reward, discount, reset)
       return self._output
 
@@ -1153,11 +1147,11 @@ class MASimEnvStats(EnvStatsBase):
     if self._epslen >= self.max_episode_steps:
       self._game_over = True
       if self.timeout_done:
-        done = self._get_agent_wise_ones()
+        done = self._get_group_wise_ones()
     discount = [np.array(1-d, self.float_dtype) for d in done]
 
     # store previous env output for later retrieval
-    reset = self._get_agent_wise_zeros()
+    reset = self._get_group_wise_zeros()
     self._prev_output = EnvOutput(obs, reward, discount, reset)
 
     # reset env
@@ -1178,25 +1172,26 @@ class MASimEnvStats(EnvStatsBase):
   def observation(self, obs):
     if isinstance(obs, dict):
       obs = [obs]
-    assert isinstance(obs, list) and len(obs) == self.n_agents, (self.n_agents, obs)
+    assert isinstance(obs, list) and len(obs) == self.n_groups, (self.n_groups, obs)
     assert isinstance(obs[0], dict), obs[0]
     return obs
 
-  def _get_agent_wise_zeros(self):
-    return [np.zeros(len(uids), self.float_dtype) for uids in self.aid2uids]
+  def _get_group_wise_zeros(self):
+    return [np.zeros(len(uids), self.float_dtype) for uids in self.gid2uids]
   
-  def _get_agent_wise_ones(self):
-    return [np.ones(len(uids), self.float_dtype) for uids in self.aid2uids]
+  def _get_group_wise_ones(self):
+    return [np.ones(len(uids), self.float_dtype) for uids in self.gid2uids]
 
 
 class MATurnBasedEnvStats(EnvStatsBase):
   manual_reset_warning = True
   def __init__(self, 
-         env, 
-         max_episode_steps=None, 
-         timeout_done=False, 
-         auto_reset=True, 
-         seed=None):
+    env, 
+    max_episode_steps=None, 
+    timeout_done=False, 
+    auto_reset=True, 
+    seed=None
+  ):
     super().__init__(
       env, 
       max_episode_steps=max_episode_steps, 

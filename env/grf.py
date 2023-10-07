@@ -35,22 +35,22 @@ class GRF:
     control_right=False,
     # custom grf configs
     shared_policy=False, 
+    shared_policy_among_agents=True, 
     score_reward_scale=1, 
     # required configs for grl
     max_episode_steps=3000,
     use_action_mask=False,
     use_sample_mask=False, 
     uid2aid=None,
+    uid2gid=None, 
     seed=None, 
     use_idx=False, 
-    selected_agents=False, 
     **kwargs,
   ):
     self.name = env_name
     self.representation = representation
     self.to_render = render
     self.score_reward_scale = score_reward_scale
-    self.selected_agents = selected_agents
 
     rewards = 'scoring'
     # print('other config options', other_config_options)
@@ -72,23 +72,26 @@ class GRF:
     self.n_left_units = self.env.n_left_controlled_units
     self.n_right_units = self.env.n_right_controlled_units
     self.n_units = self.env.n_controlled_units
-    if uid2aid is None:
+    if uid2gid is None:
       if shared_policy:
+        uid2gid = tuple(np.zeros(self.n_left_units, dtype=np.int32)) \
+          + tuple(np.ones(self.n_right_units, dtype=np.int32))
+      else:
+        uid2gid = tuple(np.arange(self.n_units, dtype=np.int32))
+
+    if uid2aid is None:
+      if shared_policy_among_agents:
         uid2aid = tuple(np.zeros(self.n_left_units, dtype=np.int32)) \
           + tuple(np.ones(self.n_right_units, dtype=np.int32))
       else:
         uid2aid = tuple(np.arange(self.n_units, dtype=np.int32))
 
+    self.uid2gid = uid2gid
     self.uid2aid = uid2aid
     self.aid2uids = compute_aid2uids(self.uid2aid)
+    self.gid2uids = compute_aid2uids(self.uid2gid)
+    self.aid2gids = compute_aid2gids(uid2aid, uid2gid)
     self.n_agents = len(self.aid2uids)
-
-    self.aid2side = np.zeros(self.n_agents, dtype=np.int32)
-    for uid, aid in enumerate(uid2aid):
-      if uid < self.n_left_units:
-        self.aid2side[aid] = 0
-      else:
-        self.aid2side[aid] = 1
 
     self.max_episode_steps = max_episode_steps
 
@@ -103,7 +106,7 @@ class GRF:
       for _ in range(self.n_agents)
     ]
     self.action_shape = [() for _ in self.action_space]
-    self.action_dim = [19 for a in self.env.action_space.nvec]
+    self.action_dim = [19 for _ in range(self.n_agents)]
     self.action_dtype = [np.int32 for _ in self.action_space]
     self.is_action_discrete = [True for _ in self.action_space]
 
@@ -131,39 +134,6 @@ class GRF:
     self._num_checkpoints = 10
     self._collected_checkpoints = [0, 0]
 
-  def _get_observation_shape(self):
-    obs_shape = self.env.observation_space.shape \
-        if self.n_units == 1 else self.env.observation_space.shape[1:]
-    shape = []
-    obs_shape = (self.get_state().shape[-1],)
-    for i in range(self.n_agents):
-      s = dict(
-        obs=obs_shape, 
-        global_state=obs_shape, 
-      )
-      if self.use_action_mask:
-        s['action_mask'] = (self.action_space[i].n,)
-      if self.use_idx:
-        s['idx'] = (self.n_units,)
-      shape.append(s)
-
-    return shape
-
-  def _get_observation_dtype(self):
-    dtype = []
-    for _ in range(self.n_agents):
-      d = dict(
-        obs=f32, 
-        global_state=f32, 
-      )
-      if self.use_action_mask:
-        d['action_mask'] = bool
-      if self.use_idx:
-        d['idx'] = f32
-      dtype.append(d)
-
-    return dtype
-
   def random_action(self):
     action = self.env.random_action()
 
@@ -183,7 +153,8 @@ class GRF:
     self._consecutive_action = np.zeros(self.n_units, bool)
     self._collected_checkpoints = [0, 0]
 
-    return self._get_obs(obs)
+    # return [{'obs': o[None], 'global_state': o[None]} for o in obs]
+    return self._get_obs()
 
   def step(self, action):
     obs, reward, done, info = self.env.step(action)
@@ -191,7 +162,7 @@ class GRF:
     reward = self._get_reward(reward, info)
 
     self._epslen += 1
-    self._dense_score += reward if self.n_right_units == 0 else np.concatenate(reward)
+    self._dense_score += reward
     self._left_score += 1 if info['score_reward'] == 1 else 0
     self._right_score += 1 if info['score_reward'] == -1 else 0
     diff_score = self._left_score - self._right_score
@@ -205,12 +176,8 @@ class GRF:
       self._score[self.n_left_units:] *= -1
     else:
       self._score = diff_score > 0
-    dones = np.tile(done, self.n_units) if self.n_right_units == 0 else [
-      np.tile(done, self.n_left_units), np.tile(done, self.n_right_units)
-    ]
+    dones = np.tile(done, self.n_units)
 
-    self._consecutive_action = np.array(
-      [pa == a for pa, a in zip(self._prev_action, action)], bool)
     self._prev_action = action
     info = {
       'score': self._score,
@@ -220,27 +187,17 @@ class GRF:
       'diff_score': diff_score,
       'win_score': diff_score > 0,
       # 'non_loss_score': diff_score >= 0,
-      # 'consecutive_action': self._consecutive_action, 
-      'checkpoint_score': self._ckpt_score, 
+      # 'consecutive_action': self._consecutive_action,
+      'checkpoint_score': self._ckpt_score,
       'epslen': self._epslen,
       'game_over': done
     }
 
-    agent_obs = self._get_obs(obs)
-    if self.n_right_units == 0:
-      agent_rewards = [np.reshape(reward[uids], -1) for uids in self.aid2uids]
-      agent_dones = [np.reshape(dones[uids], -1) for uids in self.aid2uids]
-    else:
-      agent_rewards = []
-      agent_dones = []
-      for aid, uids in enumerate(self.aid2uids):
-        side = self.aid2side[aid]
-        if side == 0:
-          agent_rewards.append(reward[side][uids])
-          agent_dones.append(dones[side][uids])
-        else:
-          agent_rewards.append(reward[side][uids - self.n_left_units])
-          agent_dones.append(dones[side][uids - self.n_left_units])
+    agent_obs = self._get_obs()
+    # agent_obs = [{'obs': o[None], 'global_state': o[None]} for o in obs]
+    agent_rewards = [np.reshape(reward[uids], -1) for uids in self.gid2uids]
+    agent_dones = [np.reshape(dones[uids], -1) for uids in self.gid2uids]
+
     return agent_obs, agent_rewards, agent_dones, info
 
   def render(self):
@@ -253,15 +210,13 @@ class GRF:
   def close(self):
     return self.env.close()
 
-  def _get_obs(self, obs):
-    if self.n_units == 1:
-      obs = np.expand_dims(obs, 0)
+  def _get_obs(self):
     agent_obs = [dict(
-      obs=np.concatenate([self.get_state(self.aid2side[aid], u) for u in uids], 0), 
-      global_state=np.tile(self.get_state(), (len(uids), 1)), 
-    ) for aid, uids in enumerate(self.aid2uids)]
+      obs=np.concatenate([self.get_state(u >= self.n_left_units, u) for u in uids], 0), 
+      global_state=np.concatenate([self.get_state(u >= self.n_left_units) for u in uids], 0), 
+    ) for uids in self.gid2uids]
     if self.use_idx:
-      for o, uids in zip(agent_obs, self.aid2uids):
+      for o, uids in zip(agent_obs, self.gid2uids):
         o['idx'] = np.eye(len(uids), dtype=f32)
 
     return agent_obs
@@ -323,8 +278,7 @@ class GRF:
         self._collected_checkpoints[side] = self._num_checkpoints
       else:
         o = self.raw_state(side)[0]
-        bot = 1 if side == 0 else -1
-        if 'ball_owned_team' not in o or o['ball_owned_team'] != bot:
+        if 'ball_owned_team' not in o or o['ball_owned_team'] != side:
           return reward
         d = ((o['ball'][0] - 1) ** 2 + o['ball'][1] ** 2) ** 0.5
         while self._collected_checkpoints[side] < self._num_checkpoints:
@@ -339,21 +293,22 @@ class GRF:
 
     if self.n_right_units == 0:
       reward = ckpt_reward(0)
-      reward += info['score_reward'] * self.score_reward_scale
-      np.testing.assert_equal(reward, np.mean(reward))
-      self._ckpt_score += reward - info['score_reward'] * self.score_reward_scale
+      self._ckpt_score += reward
+      reward = reward + info['score_reward'] * self.score_reward_scale
+      np.testing.assert_allclose(reward, np.mean(reward))
     else:
       reward = [None, None]
       left_ckpt = ckpt_reward(0)
       right_ckpt = ckpt_reward(1)
       reward[0] = left_ckpt
       reward[1] = right_ckpt
-      reward[0] += info['score_reward'] * self.score_reward_scale
-      reward[1] -= info['score_reward'] * self.score_reward_scale
-      np.testing.assert_equal(reward[0], np.mean(reward[0]))
-      np.testing.assert_equal(reward[1], np.mean(reward[1]))
-      self._ckpt_score[:self.n_left_units] += reward[0] - info['score_reward'] * self.score_reward_scale
-      self._ckpt_score[self.n_left_units:] += reward[1] + info['score_reward'] * self.score_reward_scale
+      self._ckpt_score[:self.n_left_units] += reward[0]
+      self._ckpt_score[self.n_left_units:] += reward[1]
+      reward[0] = reward[0] + info['score_reward'] * self.score_reward_scale
+      reward[1] = reward[1] - info['score_reward'] * self.score_reward_scale
+      np.testing.assert_allclose(reward[0], np.mean(reward[0]))
+      np.testing.assert_allclose(reward[1], np.mean(reward[1]))
+      reward = np.concatenate(reward)
 
     return reward
 
