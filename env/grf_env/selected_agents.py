@@ -31,49 +31,49 @@ class SelectedAgents(gym.Wrapper):
     self._left_controlled_units = []
     self._right_controlled_units = []
     if env_name.endswith('single_agent'):
+      n_left_units = 1
+      n_right_units = 1
       if control_left:
-        n_left_units = 1
         self._left_controlled_units = [0]
       if control_right:
-        n_right_units = 1
         self._right_controlled_units = [0]
       env_name = env_name.replace('_single_agent', '')
     else:
       if env_name == 'academy_pass_and_shoot_with_keeper':
+        n_left_units = 3
+        n_right_units = 2
         if control_left:
           self._left_controlled_units = [1, 2]
-          n_left_units = 3
         if control_right:
           self._right_controlled_units = [0, 1]
-          n_right_units = 2
       elif env_name == 'academy_run_pass_and_shoot_with_keeper':
+        n_left_units = 3
+        n_left_units = 2
         if control_left:
           self._left_controlled_units = [1, 2]
-          n_left_units = 3
         if control_right:
           self._right_controlled_units = [0, 1]
-          n_left_units = 2
       elif env_name == 'academy_3_vs_1_with_keeper':
+        n_left_units = 4
+        n_right_units = 2
         if control_left:
           self._left_controlled_units = [1, 2, 3]
-          n_left_units = 4
         if control_right:
           self._right_controlled_units = [0, 1]
-          n_right_units = 2
       elif env_name == 'academy_corner':
+        n_left_units = 11
+        n_right_units = 11
         if control_left:
           self._left_controlled_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-          n_left_units = 11
         if control_right:
           self._right_controlled_units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-          n_right_units = 11
       else:
+        n_left_units = 11
+        n_right_units = 11
         if control_left:
           self._left_controlled_units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-          n_left_units = 11
         if control_right:
           self._right_controlled_units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-          n_right_units = 11
     self.env_name = env_name
 
     other_config_options = {'action_set':'v2'}

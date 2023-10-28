@@ -8,7 +8,11 @@ from tools.display import print_dict
 
 if __name__ == '__main__':
   config = dict(
-    name='gd',
+    env_name='spiel-leduc_poker',
+    uid2aid=[0, 1], 
+    n_envs=1, 
+    timeout_done=True, 
+    seed=0
     # n_envs=10,
     # max_episode_steps=100,
     # n_units=2,
@@ -26,7 +30,17 @@ if __name__ == '__main__':
   if config.get('n_runners', 1) > 1:
     ray.init()
   env = create_env(config)
-  print_dict(env.stats())
+  print(env)
+  for i in range(10):
+    a = env.random_action()
+    
+    out = env.step(a)
+    if out[0].obs:
+      o, r, d, re = out[0]
+    else:
+      o, r, d, re = out[1]
+    info = env.info()
+    print(r, d, info)
     
   # print(env.shared_state_space)
 

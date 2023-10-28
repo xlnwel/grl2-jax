@@ -46,7 +46,10 @@
 # ./scripts/inf mujoco 1 inf_mujoco happo_lka2
 # ./scripts/inf mujoco 1 inf_mujoco happo_lka2 n_lka_epochs=5
 
-# ./scripts/inf grf 2 inf_grf
+./scripts/inf grf 4 inf_grf units_list=64,64 n_epochs=15
+./scripts/inf grf 4 inf_grf units_list=512,512 n_epochs=15
+# ./scripts/inf grf 4 inf_grf units_list=1024,1024 n_epochs=15
+# ./scripts/inf grf 2 inf_grf units_list=2048,2048
 # ./scripts/inf grf 2 inf_grf_lka2 n_lka_epochs=10
 # ./scripts/inf grf 2 inf_grf_lka2 n_lka_epochs=10 sample_reg_type=exp rescaled_by_adv=True sample_pos_reg_coef=1 debug=True
 # ./scripts/inf grf 2 inf_grf_lka2 n_lka_epochs=10 sample_reg_type=log rescaled_by_adv=True sample_pos_reg_coef=1 debug=True
@@ -75,5 +78,5 @@
 # ./scripts/inf grf 1 inf_grf_lka 10 1000 15 1200 10
 # ./scripts/inf grf 1 inf_grf_lka 10 2000 15 1200 10
 
-./scripts/inf spiel 1 inf_spiel sampling_strategy:type=pfsp
-./scripts/inf spiel 1 inf_spiel sampling_strategy:type=fsp
+# ./scripts/inf spiel 1 inf_spiel sampling_strategy:type=pfsp
+# ./scripts/inf spiel 1 inf_spiel sampling_strategy:type=fsp

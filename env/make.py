@@ -201,6 +201,7 @@ def make_ma_mujoco(config):
 
   return env
 
+
 def make_ma_minigrid(config):
   from env.ma_minigrid.environment import MAMiniGrid
   config = _change_env_name(config)
@@ -211,6 +212,7 @@ def make_ma_minigrid(config):
 
   return env
 
+
 def make_lbf(config):
   from env.lbf_env.environment import LBFEnv
   config = _change_env_name(config)
@@ -220,6 +222,7 @@ def make_lbf(config):
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 
   return env 
+
 
 def make_overcooked(config):
   assert 'overcooked' in config['env_name'], config['env_name']
@@ -233,6 +236,7 @@ def make_overcooked(config):
   
   return env
 
+
 def make_matrix(config):
   assert 'matrix' in config['env_name'], config['env_name']
   from env.matrix import env_map
@@ -243,6 +247,7 @@ def make_matrix(config):
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 
   return env
+
 
 def make_magw(config):
   assert 'magw' in config['env_name'], config['env_name']
@@ -257,15 +262,6 @@ def make_magw(config):
 
   return env
 
-def make_smarts(config):
-  assert 'smarts' in config['env_name'], config['env_name']
-  from env.hn_smarts import make
-  config = _change_env_name(config)
-  env = make(config)
-  env = wrappers.DataProcess(env)
-  env = wrappers.MASimEnvStats(env, seed=config.seed)
-
-  return env
 
 def make_grf(config):
   assert 'grf' in config['env_name'], config['env_name']
@@ -276,6 +272,17 @@ def make_grf(config):
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 
   return env
+
+
+def make_aircombat(config):
+  from env.aircombat1v1 import AerialCombat
+  config = _change_env_name(config)
+  env = AerialCombat(**config)
+  env = wrappers.DataProcess(env)
+  env = wrappers.MASimEnvStats(env, seed=config.seed)
+
+  return env
+
 
 def make_unity(config):
   from env.unity import Unity
@@ -291,6 +298,7 @@ def make_unity(config):
   env = wrappers.UnityEnvStats(env, seed=config.seed)
 
   return env
+
 
 if __name__ == '__main__':
   import numpy as np

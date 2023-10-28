@@ -9,7 +9,7 @@ from core.log import do_logging
 from core.remote.base import RayBase
 from .monitor import Monitor
 from .parameter_server import ParameterServer
-from distributed.common.typing import ModelStats, ModelWeights
+from core.typing import ModelStats, ModelWeights
 
 
 class Agent(RayBase):
@@ -74,9 +74,7 @@ class Agent(RayBase):
 
   def _training(self):
     while self.train_signal:
-      print('before train step', self.strategy.step_counter.get_train_step())
       stats = self.strategy.train_record()
-      print('after train step', self.strategy.step_counter.get_train_step())
       if stats is None:
         # print('Training stopped due to no data being received in time')
         continue

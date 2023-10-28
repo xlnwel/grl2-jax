@@ -41,7 +41,7 @@ class OpenSpiel:
     self.obs_shape = [dict(
       obs=(state_size, ), 
       global_state=(state_size, ), 
-      action_mask=(ad,)
+      action_mask=(ad, )
     ) for ad in self.action_dim]
     self.obs_dtype = [dict(
       obs=np.float32, 

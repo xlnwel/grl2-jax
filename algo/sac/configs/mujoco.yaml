@@ -119,7 +119,7 @@ buffer:
   gamma: *gamma
 
   n_steps: *nsteps
-  sample_keys: &sk
+  sample_keys:
     - obs
     - action
     - reward

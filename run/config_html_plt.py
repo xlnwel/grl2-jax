@@ -58,8 +58,8 @@ def plot_data(config, plt_config):
 
 def generate_config(args, f):
   plt_config = yaml_op.load_config(f, to_eval=False)
-  old_config = plt_config.config.old if args.config is None else args.config
-  new_config = plt_config.config.new if args.target is None else args.target
+  old_config = str(plt_config.config.old if args.config is None else args.config)
+  new_config = str(plt_config.config.new if args.target is None else args.target)
   config_path = os.path.join(args.directory, old_config) 
   with open(config_path, 'r') as f:
     config = json.load(f)

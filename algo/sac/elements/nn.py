@@ -90,6 +90,9 @@ class Q(hk.Module):
       assert len(x) == 2, x
       x, state = x
     if self.is_action_discrete:
+      if a.ndim < x.ndim:
+        a = nn.one_hot(a, self.out_size)
+      assert x.ndim == a.ndim, (x.shape, a.shape)
       x = jnp.sum(x * a, -1)
     else:
       x = jnp.squeeze(x, -1)

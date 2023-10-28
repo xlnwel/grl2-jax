@@ -1,8 +1,20 @@
 ## Overview
 
-This repository is a multi-agent reinforcement learning repository for human-machine coorperation games. 
+This repository is a multi-agent reinforcement learning. 
 
 Currently, we only implement PPO and synchronous training for simultaneous-step environments. Basic algorithms are implemented in folder "algo", and the distributed architectures are implemented in folder "distributed". 
+
+## 概述
+
+这是一个模块化的分布式多智能体强化学习的框架. 它主要由三个模块构成: i) 单/多智能体算法, ii) 分布式训练框架, iii) 博弈. 本文先介绍框架的使用指南, 然后再依次阐述这三个模块设计.
+
+## 使用指南
+
+
+
+## 单/多智能体算法
+
+单/多智能体算法的入口在algo/train.py, 算法由Agent定义, 大部分的交互模块都定义在Runner这个类里.
 
 
 ## <a name="start"></a>Get Started

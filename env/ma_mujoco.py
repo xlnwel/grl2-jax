@@ -57,9 +57,6 @@ class MAMujoco(gym.Wrapper):
       'global_state': np.float32
     } for _ in range(self.n_agents)]
 
-    self.action_space = self.env.action_space[:1] \
-      if self.single_agent else self.env.action_space
-
     self.reward_range = None
     self.metadata = None
     self.max_episode_steps = self.env.episode_limit
@@ -68,7 +65,7 @@ class MAMujoco(gym.Wrapper):
     self._epslen = 0
 
   def random_action(self):
-    action = [a.sample() for a in self.action_space]
+    action = np.array([a.sample() for a in self.action_space])
     return action
 
   def step(self, actions):
@@ -105,8 +102,8 @@ class MAMujoco(gym.Wrapper):
     obs = get_obs(obs, state, self.single_agent)
     assert len(obs) == self.n_groups, (obs, self.n_groups)
 
-    self._score = np.zeros(self.n_groups)
-    self._dense_score = np.zeros(self.n_groups)
+    self._score = np.zeros(self.n_units)
+    self._dense_score = np.zeros(self.n_units)
     self._epslen = 0
 
     return obs

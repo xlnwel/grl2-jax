@@ -1,14 +1,13 @@
 ---
-# NOTE: root_dir and model_name will be specified to all configs in run.train.py
 algorithm: &algo async-sac
 name: async-sac
 info: async-sac
-version: 0
 
 precision: 32
 
-n_agents: 2
-self_play: True
+n_agents: 1
+self_play: False
+is_ma_algo: True
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -19,28 +18,20 @@ model_name: *algo
 controller:
   store_period: 5e4
   restart_runners_period: null
-  eval_period: null
-  max_version_iterations: 30
-  max_steps_per_iteration: 1e6
-    # - [0, 1e6]
-    # - [20, 3e6]
+  max_version_iterations: 1
+  max_steps_per_iteration: &ms 5e6
   initialize_rms: &irms False
 
 parameter_server:
   root_dir: *algo
   model_name: *algo
 
-  score_metric: score   # stats recorded in payoff tables
   train_from_scratch_frac: 1
-  online_frac: .25
-    # - [1, 1]
-    # - [5, .75]
-    # - [10, .5]
-    # - [20, .25]
-  update_interval: 1000
+  online_frac: .2
 
   payoff:
-    step_size: 1e-1
+    step_size: 1e-2   # step size towards the most recent data, 0 or null average payoff over the entire history
+    update_interval: 180
     sampling_strategy:
       type: pfsp
       p: 1
@@ -57,22 +48,38 @@ parameter_server:
 ray_config:
   runner:
     num_cpus: 1
-    num_gpus: 1
   agent:
     num_gpus: 0
 
 monitor: {}
 
 runner:
-  n_runners: &nrunners 4
-  n_steps: &nsteps 2
+  n_runners: &nrunners 10
+  n_steps: &nsteps 10
   push_every_episode: False
   algo_type: offline
 
 env:
-  env_name: &env_name spiel-leduc_poker
-  uid2aid: [0, 1]
-  n_envs: &nenvs 4
+  env_name: &env_name grf-academy_pass_and_shoot_with_keeper
+  representation: simple115v2
+  render: False
+  write_full_episode_dumps: False
+  write_video: False
+  dump_frequency: 1000
+  logdir: results/grf
+  extra_players: null
+  control_left: True
+  control_right: False
+  shared_policy: True
+  score_reward_scale: 1
+
+  max_episode_steps: 200
+  use_action_mask: False
+  uid2aid: null
+
+  n_envs: &nenvs 10
+
+  use_idx: False
   timeout_done: &td True
 
 agent: {}
@@ -90,7 +97,7 @@ model:
 
   policy:
     nn_id: policy
-    units_list: [256, 256]
+    units_list: [512, 512]
     w_init: orthogonal
     activation: relu
     norm: null
@@ -98,7 +105,7 @@ model:
     rnn_units: 64
   Q:
     nn_id: Q
-    units_list: [256, 256]
+    units_list: [512, 512]
     w_init: orthogonal
     activation: relu
     norm: null
@@ -125,17 +132,17 @@ trainer:
 
   policy_opt:
     opt_name: adam
-    lr: 1e-3
+    lr: 5e-4
     clip_norm: 10
     eps: 1e-5
   Q_opt:
     opt_name: adam
-    lr: 1e-3
+    lr: 5e-4
     clip_norm: 10
     eps: 1e-5
   temp_opt:
     opt_name: adam
-    lr: 1e-3
+    lr: 5e-4
     clip_norm: 10
     eps: 1e-5
 
@@ -155,9 +162,9 @@ buffer:
   max_steps: 1
   gamma: *gamma
 
-  n_steps: *nsteps
-  sample_keys: &sk
+  sample_keys:
     - obs
+    - global_state
     - action
     - reward
     - discount

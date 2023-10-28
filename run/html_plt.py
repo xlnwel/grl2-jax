@@ -239,8 +239,8 @@ def generate_data(args, search_dir, level, plt_config=None):
     model = set(args.model)
   do_logging(f'Loading logs with')
   do_logging(f'\tdate={date}')
-  do_logging(f'\tenv={env}\n\talgo={algo}\n\tmodel={model}')
-  do_logging(f'\talgo={algo}\n\tmodel={model}')
+  do_logging(f'\tenv={env}')
+  do_logging(f'\talgo={algo}')
   do_logging(f'\tmodel={model}')
   if args.multiprocessing:
     files = [

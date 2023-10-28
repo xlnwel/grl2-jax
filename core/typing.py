@@ -5,6 +5,10 @@ from typing import Any
 from jax import tree_util
 
 
+ModelWeights = collections.namedtuple('model_weights', 'model weights')
+ModelStats = collections.namedtuple('model_stats', 'model stats')
+
+
 """ Attribute Dictionary """
 @tree_util.register_pytree_node_class
 class AttrDict(collections.defaultdict):

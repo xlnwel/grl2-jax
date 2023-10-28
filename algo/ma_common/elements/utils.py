@@ -308,22 +308,22 @@ def record_policy_stats(data, stats, act_dist):
 
 
 def summarize_adv_ratio(stats, data):
-  if stats.raw_adv.ndim < stats.ratio.ndim:
-    raw_adv = expand_dims_match(stats.raw_adv, stats.ratio)
-  else:
-    raw_adv = stats.raw_adv
-  stats.raw_adv_ratio_pp = jnp.logical_and(raw_adv > 0, stats.ratio > 1)
-  stats.raw_adv_ratio_pn = jnp.logical_and(raw_adv > 0, stats.ratio < 1)
-  stats.raw_adv_ratio_np = jnp.logical_and(raw_adv < 0, stats.ratio > 1)
-  stats.raw_adv_ratio_nn = jnp.logical_and(raw_adv < 0, stats.ratio < 1)
-  stats.raw_adv_zero = raw_adv == 0
-  stats.ratio_one = stats.ratio == 1
-  stats.adv_ratio_pp = jnp.logical_and(stats.advantage > 0, stats.ratio > 1)
-  stats.adv_ratio_pn = jnp.logical_and(stats.advantage > 0, stats.ratio < 1)
-  stats.adv_ratio_np = jnp.logical_and(stats.advantage < 0, stats.ratio > 1)
-  stats.adv_ratio_nn = jnp.logical_and(stats.advantage < 0, stats.ratio < 1)
-  stats.adv_zero = stats.advantage == 0
-  stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 0)
-  stats.np_ratio = jnp.where(stats.adv_ratio_np, stats.ratio, 0)
+  # if stats.raw_adv.ndim < stats.ratio.ndim:
+  #   raw_adv = expand_dims_match(stats.raw_adv, stats.ratio)
+  # else:
+  #   raw_adv = stats.raw_adv
+  # stats.raw_adv_ratio_pp = jnp.logical_and(raw_adv > 0, stats.ratio > 1)
+  # stats.raw_adv_ratio_pn = jnp.logical_and(raw_adv > 0, stats.ratio < 1)
+  # stats.raw_adv_ratio_np = jnp.logical_and(raw_adv < 0, stats.ratio > 1)
+  # stats.raw_adv_ratio_nn = jnp.logical_and(raw_adv < 0, stats.ratio < 1)
+  # stats.raw_adv_zero = raw_adv == 0
+  # stats.ratio_one = stats.ratio == 1
+  # stats.adv_ratio_pp = jnp.logical_and(stats.advantage > 0, stats.ratio > 1)
+  # stats.adv_ratio_pn = jnp.logical_and(stats.advantage > 0, stats.ratio < 1)
+  # stats.adv_ratio_np = jnp.logical_and(stats.advantage < 0, stats.ratio > 1)
+  # stats.adv_ratio_nn = jnp.logical_and(stats.advantage < 0, stats.ratio < 1)
+  # stats.adv_zero = stats.advantage == 0
+  # stats.pn_ratio = jnp.where(stats.adv_ratio_pn, stats.ratio, 0)
+  # stats.np_ratio = jnp.where(stats.adv_ratio_np, stats.ratio, 0)
 
   return stats

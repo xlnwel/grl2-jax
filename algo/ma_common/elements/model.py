@@ -1,3 +1,4 @@
+import numpy as np
 import jax.numpy as jnp
 import haiku as hk
 
@@ -52,7 +53,11 @@ class MAModelBase(ModelCore):
     if self.is_action_discrete:
       if evaluation and self.config.get('eval_act_temp', 0) > 0:
         act_out = act_out / self.config.eval_act_temp
-      dist = jax_dist.Categorical(logits=act_out)
+      if isinstance(self.env_stats.action_dim, int):
+        dist = jax_dist.Categorical(logits=act_out)
+      else:
+        split_indices = np.cumsum(self.env_stats.action_dim[:-1])
+        dist = jax_dist.MultiCategorical(logits=act_out, split_indices=split_indices)
     else:
       loc, scale = act_out
       if evaluation and self.config.get('eval_act_temp', 0) > 0:

@@ -1,5 +1,5 @@
 import collections
-from typing import List
+from typing import Dict
 import numpy as np
 
 from core.ckpt.pickle import save, restore
@@ -9,7 +9,7 @@ from core.log import do_logging
 from core.typing import AttrDict
 from replay.local import NStepBuffer
 from tools.timer import Timer, timeit
-from tools.utils import batch_dicts, yield_from_tree
+from tools.utils import batch_dicts, yield_from_tree, yield_from_tree_with_indices
 from replay import replay_registry
 from replay.mixin.rms import TemporaryRMS
 
@@ -46,10 +46,8 @@ class UniformReplay(Buffer):
 
     if self.config.model_norm_obs:
       self.obs_rms = TemporaryRMS(self.config.get('obs_name', 'obs'), [0])
-    self._tmp_bufs: List[NStepBuffer] = [
-      NStepBuffer(config, env_stats, model, aid, 0) 
-      for _ in range(self.n_envs)
-    ]
+    self._tmp_bufs: Dict[int, NStepBuffer] = collections.defaultdict(
+      lambda: NStepBuffer(config, env_stats, model, aid, 0))
 
   def __len__(self):
     return len(self._memory)
@@ -68,32 +66,21 @@ class UniformReplay(Buffer):
     data = self._prepare_data(**data)
     return self.add_and_pop(idxes=idxes, **data)
 
-  def add(self, idxes=None, **data):
+  def add(self, rid=None, **data):
     trajs = []
     for i, d in enumerate(yield_from_tree(data)):
-      if i >= len(self._tmp_bufs):
-        self._tmp_bufs.append(NStepBuffer(
-          self.config, self.env_stats, self.model, self.aid, 0))
-      traj = self._tmp_bufs[i].add(**d)
+      traj = self._tmp_bufs[(rid, i)].add(**d)
       if traj is not None:
-        trajs.append(traj)
+        trajs.extend(traj)
     self.merge(trajs)
 
-  def add_and_pop(self, idxes=None, **data):
+  def add_and_pop(self, rid=None, **data):
     trajs = []
     popped_data = []
-    if self.n_envs > 1:
-      for i, d in enumerate(yield_from_tree(data)):
-        if i >= len(self._tmp_bufs):
-          self._tmp_bufs.append(NStepBuffer(
-            self.config, self.env_stats, self.model, self.aid, 0))
-        traj = self._tmp_bufs[i].add(**d)
-        if traj is not None:
-          trajs.append(traj)
-    else:
-      traj = self._tmp_bufs[0].add(**data)
+    for i, d in enumerate(yield_from_tree(data)):
+      traj = self._tmp_bufs[(rid, i)].add(**d)
       if traj is not None:
-        trajs.append(traj)
+        trajs.extend(traj)
     popped_data.extend(self.merge_and_pop(trajs))
 
     return popped_data
@@ -117,7 +104,9 @@ class UniformReplay(Buffer):
     return popped_data
 
   def merge_data(self, rid: int, data: dict, n: int):
-    self.merge(data)
+    n_seq = next(iter(data.values())).shape[1]
+    for d in yield_from_tree_with_indices(data, range(n_seq), axis=1):
+      self.add(rid, **d)
 
   """ Sampling """
   @timeit

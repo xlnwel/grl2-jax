@@ -8,7 +8,7 @@ import numpy as np
 import ray
 
 from .parameter_server import ParameterServer
-from distributed.common.typing import ModelStats
+from core.typing import ModelStats
 from core.log import do_logging
 from core.elements.monitor import Monitor as ModelMonitor
 from core.remote.base import RayBase

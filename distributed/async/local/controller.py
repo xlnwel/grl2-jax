@@ -30,10 +30,6 @@ logger = logging.getLogger(__name__)
 timeit = partial(timeit, period=1)
 
 
-def _compute_max_buffer_size(config):
-  return config.n_runners * config.n_envs * config.n_steps
-
-
 def _check_configs_consistency(
   configs: List[AttrDict], 
   keys: List[str], 
@@ -52,7 +48,6 @@ def _setup_configs(
   env_stats: List[AttrDict]
 ):
   configs = [dict2AttrDict(c, to_copy=True) for c in configs]
-  max_size = _compute_max_buffer_size(configs[0].buffer)
   for aid, config in enumerate(configs):
     config.aid = aid
     config.buffer.n_envs = env_stats.n_envs

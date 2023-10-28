@@ -44,13 +44,14 @@ def main(configs):
     for i, c in enumerate(configs):
       modify_config(c, overwrite_existed_only=True, aid=i)
       modify_config(c, overwrite_existed_only=False, print_for_debug=False)
+
   for config in configs:
     config.parameter_server.self_play = config.self_play
     config.runner.self_play = config.self_play
     config.monitor.self_play = config.self_play
     config.runner.is_ma_algo = config.is_ma_algo
   save_configs(configs)
-  
+
   seed = config.get('seed')
   set_seed(seed)
 

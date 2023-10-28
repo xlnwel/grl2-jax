@@ -92,9 +92,9 @@ class NStepBuffer(LocalBuffer):
   def add(self, **data):
     """ Add experience to local memory """
     if self.max_steps == 1:
-      return data
+      return [data]
     if self.is_full():
-      result = self._buffer.popleft()
+      result = [self._buffer.popleft()]
     else:
       result = None
     reward = data['reward']
@@ -106,6 +106,8 @@ class NStepBuffer(LocalBuffer):
           d[k] = v
     data['steps'] = np.ones_like(reward)
     self._buffer.append(data)
+    if data['discount'] == 0:
+      result = self.retrieve_all_data()
     return result
 
 

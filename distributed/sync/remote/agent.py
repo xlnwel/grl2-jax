@@ -9,7 +9,7 @@ from core.log import do_logging
 from core.remote.base import RayBase
 from .monitor import Monitor
 from .parameter_server import ParameterServer
-from distributed.common.typing import ModelStats, ModelWeights
+from core.typing import ModelStats, ModelWeights
 
 
 class Agent(RayBase):

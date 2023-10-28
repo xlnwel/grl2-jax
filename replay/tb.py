@@ -54,8 +54,8 @@ class TurnBasedLocalBuffer(Buffer):
     self.n_steps = self.config.n_steps
     self.n_envs = self.config.n_envs
     self.maxlen = self.n_envs * self.n_steps
-    self.compute_return_at_once = self.config.get('compute_return_at_once', True)
-    self.extract_next_info = self.config.get('extract_next_info', False)
+    self.data_type = self.config.get('data_type', 'seq')
+    assert self.data_type in ['seq', 'step'], self.data_type
 
     self.reset()
 
@@ -116,7 +116,7 @@ class TurnBasedLocalBuffer(Buffer):
     for k, v in episode.items():
       assert v.shape[0] == epslen, (k, v.shape, epslen)
 
-    if self.compute_return_at_once:
+    if self.data_type == 'seq':
       episode['advantage'], episode['v_target'] = compute_gae(
         reward=episode['reward'], 
         discount=episode['discount'],
@@ -125,15 +125,16 @@ class TurnBasedLocalBuffer(Buffer):
         gae_discount=self.config.gamma * self.config.lam,
         next_value=np.array([0], np.float32), 
       )
-    if self.extract_next_info:
+    elif self.data_type == 'step':
       new_eps = {}
       for k, v in episode.items():
         if k in ['obs', 'global_state', 'action_mask', 'state_reset']:
           new_eps[f'next_{k}'] = v[1:]
-        else:
-          new_eps[k] = v[:-1]
+        new_eps[k] = v[:-1]
       episode = new_eps
       epslen -= 1
+    else:
+      raise ValueError(self.data_type)
 
     self._memory.append(episode)
     self._size += epslen
@@ -144,10 +145,14 @@ class TurnBasedLocalBuffer(Buffer):
     data = batch_dicts(self._memory, np.concatenate)
     for k, v in data.items():
       assert v.shape[0] == self._size, (k, v.shape, self._size)
-      v = v[-self.maxlen:]
-      data[k] = np.reshape(v, (self.n_envs, self.n_steps, *v.shape[1:]))
+      if self.data_type == 'seq':
+        v = v[-self.maxlen:]
+        data[k] = np.reshape(v, (self.n_envs, self.n_steps, *v.shape[1:]))
+      else:
+        data[k] = np.expand_dims(v, 0)
+    size = self._size if self.data_type == 'step' else self.maxlen
     self.reset()
-    return self.runner_id, data, self.maxlen
+    return self.runner_id, data, size
 
   def _reset_buffer(self, eid, uid):
     self._buffers[(eid, uid)] = collections.defaultdict(list)

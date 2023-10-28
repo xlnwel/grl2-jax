@@ -36,7 +36,7 @@ libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-python -m pip
 conda activate grl
 
 # yes y | conda install -c "nvidia/label/cuda-11.8.0" cuda-nvcc
-# yes y | conda install -c conda-forge cudatoolkit=11.8.0
+# yes y | conda install -c conda-forge cudatoolkit
 # python -m pip install nvidia-cudnn-cu11==8.6.0.163 "tensorflow==2.12.*"
 # mkdir -p $CONDA_PREFIX/etc/conda/activate.d
 # echo 'CUDNN_PATH=$(dirname $(python -c "import nvidia.cudnn;print(nvidia.cudnn.__file__)"))' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh

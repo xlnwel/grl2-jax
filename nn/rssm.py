@@ -4,7 +4,6 @@ import jax
 from jax import random
 import jax.numpy as jnp
 import haiku as hk
-from tensorflow_probability import distributions as tfd
 
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))

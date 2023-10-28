@@ -1,3 +1,4 @@
+import numpy as np
 from jax import lax, nn
 import jax.numpy as jnp
 import haiku as hk
@@ -74,9 +75,13 @@ class Policy(hk.Module):
 
   @hk.transparent
   def build_net(self):
+    if isinstance(self.action_dim, int):
+      out_size = self.action_dim
+    else:
+      out_size = np.sum(self.action_dim)
     net = MLP(
       **self.config, 
-      out_size=self.action_dim, 
+      out_size=out_size, 
     )
 
     return net

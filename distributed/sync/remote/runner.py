@@ -15,7 +15,7 @@ from core.log import do_logging
 from core.mixin.actor import RMS
 from core.remote.base import RayBase
 from core.typing import ModelPath
-from distributed.common.typing import ModelStats, ModelWeights
+from core.typing import ModelStats, ModelWeights
 from env.func import create_env
 from env.typing import EnvOutput
 from tools.display import print_dict_info
@@ -49,6 +49,7 @@ class MultiAgentSimRunner(RayBase):
 
     self.id = runner_id
     self.evaluation = evaluation
+    self.algo_type = config.get("algo_type", 'online')
 
     env_config = self._setup_env_config(config.env)
     self.env = create_env(env_config, no_remote=True)
@@ -301,7 +302,7 @@ class MultiAgentSimRunner(RayBase):
       #   for a, o in zip(agents, agent_env_outs)])
       action, terms = [], []
       for aid in range(self.n_agents):
-        agent = self.agents[aid]
+        agent = agents[aid]
         env_out = agent_env_outs[aid]
         with Timer(f'a{aid}/infer'):
           a, t = agent(env_out, evaluation=self.evaluation)
@@ -491,7 +492,24 @@ class MultiAgentSimRunner(RayBase):
             for k, v in i.items():
               stats[k].append(v)
           if self.self_play:
-            self.scores += [v[self.aid2uids[0]] for v in stats[self.score_metric]]
+            if self.switch_player:
+              self.scores += [v[self.aid2uids[1]].mean() for v in stats[self.score_metric]]
+              self.agents[1].store(
+                **{
+                  k: [vv[1] for vv in v]
+                  if isinstance(v[0], np.ndarray) else v
+                  for k, v in stats.items() if k.endswith('score')
+                }
+              )
+            else:
+              self.scores += [v[self.aid2uids[0]].mean() for v in stats[self.score_metric]]
+              self.agents[0].store(
+                **{
+                  k: [vv[0] for vv in v]
+                  if isinstance(v[0], np.ndarray) else v
+                  for k, v in stats.items() if k.endswith('score')
+                }
+              )
           else:
             for aid, uids in enumerate(self.aid2uids):
               self.scores[aid] += [
@@ -517,7 +535,7 @@ class MultiAgentSimRunner(RayBase):
               self.remote_buffers[0].merge_data.remote(rid, data, n)
             else:
               self.remote_buffers[aid].merge_data.remote(rid, data, n)
-            assert np.all(np.any(data.action_mask, -1))
+            # assert np.all(np.any(data.action_mask, -1))
 
     step = 0
     n_episodes = 0
@@ -600,8 +618,22 @@ class MultiAgentSimRunner(RayBase):
       if self.self_play:
         if self.switch_player:
           self.scores += [v[self.aid2uids[1]].mean() for v in stats[self.score_metric]]
+          self.agents[1].store(
+            **{
+              k: [vv[0] for vv in v]
+              if isinstance(v[0], np.ndarray) else v
+              for k, v in stats.items()
+            }
+          )
         else:
           self.scores += [v[self.aid2uids[0]].mean() for v in stats[self.score_metric]]
+          self.agents[0].store(
+            **{
+              k: [vv[0] for vv in v]
+              if isinstance(v[0], np.ndarray) else v
+              for k, v in stats.items()
+            }
+          )
       else:
         for aid, uids in enumerate(self.aid2uids):
           self.scores[aid] += [

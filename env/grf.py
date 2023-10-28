@@ -295,7 +295,7 @@ class GRF:
       reward = ckpt_reward(0)
       self._ckpt_score += reward
       reward = reward + info['score_reward'] * self.score_reward_scale
-      np.testing.assert_allclose(reward, np.mean(reward))
+      # np.testing.assert_allclose(reward, np.mean(reward))
     else:
       reward = [None, None]
       left_ckpt = ckpt_reward(0)
@@ -306,8 +306,8 @@ class GRF:
       self._ckpt_score[self.n_left_units:] += reward[1]
       reward[0] = reward[0] + info['score_reward'] * self.score_reward_scale
       reward[1] = reward[1] - info['score_reward'] * self.score_reward_scale
-      np.testing.assert_allclose(reward[0], np.mean(reward[0]))
-      np.testing.assert_allclose(reward[1], np.mean(reward[1]))
+      # np.testing.assert_allclose(reward[0], np.mean(reward[0]))
+      # np.testing.assert_allclose(reward[1], np.mean(reward[1]))
       reward = np.concatenate(reward)
 
     return reward

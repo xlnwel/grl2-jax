@@ -16,3 +16,5 @@ src
 data
 results
 .tmp.driveupload
+env/aircombat
+env/aircombat.py

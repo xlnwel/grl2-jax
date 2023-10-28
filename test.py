@@ -1,14 +1,22 @@
-import numpy as np
+from collections import Counter
+import socket
+import time
 
-from core.ckpt.pickle import save, restore
-from tools.display import print_dict_info
-from tools.utils import batch_dicts
+import ray
 
+ray.init(address='auto')
 
-if __name__ == '__main__':
-  data1 = restore(filedir='data', filename='uniform')
-  data2 = restore(filedir='data/happo_mb-magw-escalation', filename='uniform')
+print(ray.cluster_resources())
 
-  data = batch_dicts([data1, data2], np.concatenate)
-  print_dict_info(data)
-  save(filedir='data', filename='uniform')
+@ray.remote
+def f():
+    time.sleep(0.001)
+    # Return IP address.
+    return socket.gethostbyname(socket.gethostname())
+
+object_ids = [f.remote() for _ in range(20000)]
+ip_addresses = ray.get(object_ids)
+
+print('Tasks executed')
+for ip_address, num_tasks in Counter(ip_addresses).items():
+    print('    {} tasks on {}'.format(num_tasks, ip_address))

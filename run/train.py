@@ -94,13 +94,6 @@ def _grid_search(config, main, cmd_args):
   [p.join() for p in processes]
 
 
-def _setup_n_agents_for_ma_mujoco(cmd_args):
-  suite, env = cmd_args.environment.split('-')
-  if suite == 'ma_mujoco':
-    cmd_args.n_agents = int(float(env.split('_')[-1][0]))
-  return cmd_args
-
-
 def make_info(config, info, model_name):
   """ 
   info = info if config.info is empty else "{config.info}-{info}"
@@ -136,7 +129,7 @@ def setup_configs(cmd_args, algo_env_config):
     date = datetime.now().strftime("%m%d")
     raw_model_name = cmd_args.model_name
 
-  model_name = model_name_from_kw_string(cmd_args.kwargs, raw_model_name)
+  model_name_base = model_name_from_kw_string(cmd_args.kwargs, raw_model_name)
 
   configs = []
   kwidx = cmd_args.kwidx
@@ -144,6 +137,7 @@ def setup_configs(cmd_args, algo_env_config):
     kwidx = list(range(len(algo_env_config)))
   current_time = str(get_current_datetime())
   for i, (algo, env, config) in enumerate(algo_env_config):
+    model_name = model_name_base
     do_logging(f'Setup configs for algo({algo}) and env({env})', color='yellow')
     algo = _get_algo_name(algo)
     config = load_config_with_algo_env(algo, env, config)
@@ -220,5 +214,4 @@ if __name__ == '__main__':
     main = pkg.import_main(cmd_args.train_entry, config=configs[0])
     main(configs)
   else:
-    cmd_args = _setup_n_agents_for_ma_mujoco(cmd_args)
     _run_with_configs(cmd_args)

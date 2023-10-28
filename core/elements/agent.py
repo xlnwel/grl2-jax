@@ -5,8 +5,7 @@ from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.log import do_logging
 from core.elements.monitor import Monitor
-from core.typing import ModelPath, get_algo, AttrDict
-from distributed.sync.common.typing import ModelWeights
+from core.typing import ModelPath, get_algo, AttrDict, ModelWeights
 from run.utils import search_for_config
 
 

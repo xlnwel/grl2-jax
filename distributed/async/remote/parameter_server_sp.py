@@ -13,7 +13,7 @@ from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
   get_aid, get_basic_model_name
-from distributed.common.typing import ModelWeights
+from core.typing import ModelWeights
 from distributed.sync.remote.payoff import PayoffManager
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config

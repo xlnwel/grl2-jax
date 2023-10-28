@@ -2,7 +2,7 @@
 config:
   old: base
   # new: 0601-mujoco
-  new: 0714-grf
+  new: 1008
 rename:
   metrics/score: score
   agent0_first_epoch/entropy: entropy
@@ -42,10 +42,14 @@ data:
   # - date: '616'
   #   env_suite: mujoco
   #   name: happo
-  - date: '724'
+  - date: '1008'
     env_suite: grf
-  - date: '725'
+  - date: '1009'
     env_suite: grf
+  - date: '1010'
+    env_suite: grf
+  # - date: '725'
+  #   env_suite: grf
   # - date: '617'
   #   env_suite: grf
   #   name: happo_lka2

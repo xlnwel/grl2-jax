@@ -485,7 +485,7 @@ class TurnBasedProcess(gym.Wrapper):
     self._dense_score += rewards
     win_score = self._dense_score > 0
     draw_score = self._dense_score == 0
-    score = np.sign(self._dense_score)
+    score = self._dense_score > 0
 
     return dict(
       dense_score=self._dense_score, 

@@ -30,10 +30,6 @@ logger = logging.getLogger(__name__)
 timeit = partial(timeit, period=1)
 
 
-def _compute_max_buffer_size(config):
-  return config.n_runners * config.n_envs * config.n_steps
-
-
 def _check_configs_consistency(
   configs: List[AttrDict], 
   keys: List[str], 
@@ -42,7 +38,7 @@ def _check_configs_consistency(
     for i, c in enumerate(configs):
       c[key].pop('aid')
       for k in c[key].keys():
-        if k != 'root_dir':
+        if k != 'root_dir' and k != 'seed':
           assert configs[0][key][k] == c[key][k], (
             key, i, k, c[key][k], configs[0][key][k])
 
@@ -52,7 +48,6 @@ def _setup_configs(
   env_stats: List[AttrDict]
 ):
   configs = [dict2AttrDict(c, to_copy=True) for c in configs]
-  max_size = _compute_max_buffer_size(configs[0].buffer)
   for aid, config in enumerate(configs):
     config.aid = aid
     config.buffer.n_envs = env_stats.n_envs
@@ -338,7 +333,9 @@ class Controller(YAMLCheckpointBase):
     eval_pids: List[ray.ObjectRef]
   ):
     if to_eval(self._steps):
-      eval_pids.append(self._eval(self._steps))
+      pid = self._eval(self._steps)
+      if pid:
+        eval_pids.append(pid)
     if to_restart_runners(self._steps):
       do_logging('Restarting Runners', logger=logger)
       self.runner_manager.destroy_runners()
@@ -391,12 +388,14 @@ class Controller(YAMLCheckpointBase):
       for stats in stats_list:
         if step is None:
           step = stats.pop('step')
-        self.monitor.store_stats.remote(
-          stats=stats, 
-          step=step, 
-          record=record
-        )
-  
+      stats = batch_dicts(stats_list)
+    else:
+      stats = {}
+    self.monitor.store_stats.remote(
+      stats=stats, 
+      step=step, 
+      record=record
+    )
   def _log_remote_stats_for_models(
     self, 
     pids: List[ray.ObjectRef], 
@@ -408,9 +407,11 @@ class Controller(YAMLCheckpointBase):
       stats_list = ray.get(pids)
       stats = batch_dicts(stats_list)
       stats = prefix_name(stats, name='eval')
-      for m in models:
-        self.monitor.store_stats_for_model.remote(
-          m, stats, step=step, record=record)
+    else:
+      stats = {}
+    for m in models:
+      self.monitor.store_stats_for_model.remote(
+        m, stats, step=step, record=record)
 
   """ Evaluation """
   @timeit
@@ -440,6 +441,8 @@ class Controller(YAMLCheckpointBase):
         step, avg=True, latest=True, 
         write_to_disk=False, configs=self.active_configs
       )
+    else:
+      pid = None
     return pid
 
   def compute_nash_conv(self, step, avg, latest, write_to_disk, configs=None):

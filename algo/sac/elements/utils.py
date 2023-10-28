@@ -44,18 +44,6 @@ def logprob_correction(action, logprob, is_action_squashed):
   return logprob
 
 
-def joint_actions(actions):
-  assert actions.ndim == 4, actions.shape
-  all_actions = [actions]
-  # roll along the unit dimension
-  for _ in range(1, actions.shape[-2]):
-    actions = jnp.roll(actions, 1, -2)
-    all_actions.append(actions)
-  all_actions = jnp.concatenate(all_actions, -1)
-
-  return all_actions
-
-
 def concat_sa(x, a):
   x = jnp.concatenate([x, a], -1)
   return x
@@ -87,11 +75,12 @@ def _compute_action_logprob(
       lambda x: x.reshape(*shape, -1), act_out
     )
   act_dist = model.policy_dist(act_out)
-  raw_action, raw_logprob = act_dist.sample_and_log_prob(
-    seed=rngs[1], joint=True)
   if model.is_action_discrete:
+    raw_action, raw_logprob = act_dist.sample_and_log_prob(seed=rngs[1])
     action, logprob = raw_action, raw_logprob
   else:
+    raw_action, raw_logprob = act_dist.sample_and_log_prob(
+      seed=rngs[1], joint=True)
     action = jnp.tanh(raw_action)
     logprob = logprob_correction(
       raw_action, raw_logprob, is_action_squashed=False)

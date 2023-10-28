@@ -29,23 +29,22 @@ class Loss(LossBase):
       self.model, policy_params, rngs[0], next_data, bptt=self.config.prnn_bptt
     )
 
-    q_data = data.slice((slice(None), slice(None), slice(1)))
-    next_qs_state = None if q_data.next_state is None else q_data.next_state.qs
+    next_qs_state = None if data.next_state is None else data.next_state.qs
     next_q = compute_qs(
       self.modules.Q, 
       target_qs_params, 
       rngs[1], 
-      q_data.next_global_state, 
+      data.next_global_state, 
       next_action, 
-      q_data.next_state_reset, 
+      data.next_state_reset, 
       next_qs_state, 
       bptt=self.config.qrnn_bptt, 
       return_minimum=True
     )
     _, temp = self.modules.temp(temp_params, rngs[2])
     q_target = compute_target(
-      q_data.reward, 
-      q_data.discount, 
+      data.reward, 
+      data.discount, 
       stats.gamma, 
       next_q, 
       temp, 
@@ -54,15 +53,14 @@ class Loss(LossBase):
     q_target = lax.stop_gradient(q_target)
     stats.q_target = q_target
 
-    qs_state = None if q_data.state is None else q_data.state.qs
-    action = data.action.reshape(*data.action.shape[:2], 1, -1)
+    qs_state = None if data.state is None else data.state.qs
     qs = compute_qs(
       self.modules.Q, 
       theta, 
       rngs[3], 
-      q_data.global_state, 
-      action, 
-      q_data.state_reset, 
+      data.global_state, 
+      data.action, 
+      data.state_reset, 
       qs_state, 
       bptt=self.config.qrnn_bptt
     )
@@ -93,15 +91,14 @@ class Loss(LossBase):
     stats.update(act_dist.get_stats('pi'))
     stats.entropy = act_dist.entropy()
 
-    q_data = data.slice((slice(None), slice(None), slice(1)))
-    qs_state = None if q_data.state is None else q_data.state.qs
+    qs_state = None if data.state is None else data.state.qs
     q = compute_qs(
       self.modules.Q, 
       qs_params, 
       rngs[1], 
-      q_data.global_state, 
+      data.global_state, 
       action, 
-      q_data.state_reset, 
+      data.state_reset, 
       qs_state, 
       bptt=self.config.qrnn_bptt, 
       return_minimum=True
