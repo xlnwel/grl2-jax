@@ -275,6 +275,8 @@ class Recorder:
     max_key_len = max(15, max(key_lens))
     max_val_len = max(35, max(val_lens))
     n_slashes = 7 + max_key_len + max_val_len
+    steps = self._current_row['steps']
+    current_time = get_current_datetime()
     if print_terminal_info:
       print("-"*n_slashes)
       env, algo = get_env_algo(self._model_path.root_dir)
@@ -284,8 +286,6 @@ class Recorder:
       print(f'| {"algorithm":>{max_key_len}s} | {algo:>{max_val_len}s} |')
       print(f'| {"model_name":>{max_key_len}s} | {self._model_path.model_name:>{max_val_len}s} |')
     
-      steps = self._current_row['steps']
-      current_time = get_current_datetime()
       elapsed_time = current_time - self._start_time
       print(f'| {"elapsed_time":>{max_key_len}s} | {str(elapsed_time):>{max_val_len}s} |')
       

@@ -12,7 +12,7 @@ from algo.ma_common.run import Runner
 
 def init_running_stats(agent, runner: Runner, n_steps=None):
   if n_steps is None:
-    n_steps = runner.env.max_episode_steps
+    n_steps = min(100, runner.env.max_episode_steps)
   do_logging(f'Pre-training running steps: {n_steps}')
 
   if agent.actor.is_obs_or_reward_normalized:

@@ -5,7 +5,7 @@ import numpy as np
 
 from core.typing import dict2AttrDict
 from tools.store import StateStore
-from tools.utils import batch_dicts
+from tools.utils import batch_dicts, prefix_name
 from env.func import create_env
 
 logger = logging.getLogger(__name__)
@@ -118,6 +118,7 @@ class RunnerWithState:
           info = self.env.info(done_env_ids)
           if info:
             info = batch_dicts(info, list)
+            info = prefix_name(info, 'info')
             agent.store(**info)
       env_output = new_env_output
 

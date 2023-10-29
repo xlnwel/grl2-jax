@@ -62,7 +62,7 @@ class RayVecEnv:
     if isinstance(actions, (tuple, list)):
       actions = list(zip(*[np.split(a, self.n_runners) for a in actions]))
     else:
-      actions = [np.squeeze(a) for a in np.split(actions, self.n_runners)]
+      actions = [a for a in np.split(actions, self.n_runners)]
     if kwargs:
       kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_runners)] 
         for k, v in kwargs.items()}

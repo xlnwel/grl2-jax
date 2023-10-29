@@ -140,13 +140,14 @@ class FrameSkip(gym.Wrapper):
     self.frame_skip = frame_skip
 
   def step(self, action, frame_skip=None, **kwargs):
-    total_reward = 0
+    total_reward = []
     frame_skip = frame_skip or self.frame_skip
     for i in range(1, frame_skip+1):
       obs, reward, done, info = self.env.step(action, **kwargs)
       total_reward += reward
-      if done:
+      if np.all(done):
         break
+    total_reward = [sum(r) for r in zip(*total_reward)]
     info['frame_skip'] = i
     
     return obs, total_reward, done, info
@@ -417,6 +418,32 @@ class ContinuousActionMapper(gym.ActionWrapper):
 
     return action
 
+
+class Continuous2MultiCategorical(gym.ActionWrapper):
+  def __init__(self, env, n_bins):
+    super().__init__(env)
+    ac = self.env.action_space
+    self.n_bins = n_bins
+    if isinstance(ac, (list, tuple)):
+      assert all([isinstance(a, gym.spaces.Box) for a in ac]), ac
+      assert all([a.low == -1 for a in ac]), [a.low for a in ac]
+      assert all([a.high == 1 for a in ac]), [a.high for a in ac]
+      self.action_space = [
+        gym.spaces.MultiDiscrete([n_bins for _ in range(a.shape[0])])
+      for a in ac]
+      self.action_dim = [a.nvec for a in self.action_space]
+      self.action_dtype = [np.int32 for a in self.action_space]
+      self.is_action_discrete = [True for _ in self.action_space]
+    else:
+      assert isinstance(ac, gym.spaces.Box), ac
+      self.action_space = gym.spaces.MultiDiscrete([n_bins for _ in range(ac.shape[0])])
+      self.action_dim = a.nvec
+      self.action_dtype = np.int32
+      self.is_action_discrete = True
+  
+  def action(self, action):
+    action = action * 2 / (self.n_bins - 1) - 1
+    return action
 
 class TurnBasedProcess(gym.Wrapper):
   def __init__(self, env) -> None:
@@ -880,7 +907,8 @@ class EnvStatsBase(gym.Wrapper):
       self._stats = AttrDict(
         obs_shape=env.obs_shape,
         obs_dtype=env.obs_dtype,
-        action_shape=env.action_shape,
+        action_space=env.action_space, 
+        action_shape=env.action_shape, 
         action_dim=env.action_dim,
         action_low=getattr(env, 'action_low', None), 
         action_high=getattr(env, 'action_high', None), 

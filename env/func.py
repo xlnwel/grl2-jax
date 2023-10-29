@@ -51,7 +51,7 @@ def create_env(
     env = EnvType(config, env_fn, agents=agents)
   else:
     from env.ray_env import RayVecEnv
-    EnvType = VecEnv if config.n_envs > 1 else Env
+    EnvType = VecEnv
     env = RayVecEnv(EnvType, config, env_fn)
   return env
 

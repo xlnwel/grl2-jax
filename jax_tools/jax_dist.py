@@ -1,6 +1,8 @@
 import numpy as np
-from jax import lax
+from jax import lax, nn, random
+from jax import numpy as jnp
 import distrax
+from distrax._src.utils import math
 
 EPSILON = 1e-8
 
@@ -189,6 +191,103 @@ class Categorical(distrax.Categorical):
     else:
       return (f'{prefix}_logits',)
 
+
+class MultiCategorical(distrax.Distribution):
+  def __init__(self, logits, split_indices, dtype=int):
+    logits = jnp.split(logits, split_indices, axis=-1)
+    self._logits = [math.normalize(logits=l) for l in logits]
+    self._probs = None
+    self._dtype = dtype
+  
+  @property
+  def logits(self):
+    return self._logits
+  
+  @property
+  def probs(self):
+    if self._probs is None:
+      self._probs = [nn.softmax(logits) for logits in self._logits]
+    return self._probs
+
+  @property
+  def event_shape(self):
+    return (len(self._logits),)
+
+  @property
+  def num_categories(self):
+    return [logits.shape[-1] for logits in self._logits]
+
+  def _sample_n(self, rng, n: int):
+    """See `Distribution._sample_n`."""
+    new_shapes = [(n,) + l.shape[:-1] for l in self.logits]
+    is_valid = [jnp.logical_and(
+      jnp.all(jnp.isfinite(p), axis=-1),
+      jnp.all(p >= 0, axis=-1)
+    ) for p in self.probs]
+    rngs = random.split(rng, len(self.logits))
+    draws = [random.categorical(
+      key=k, logits=l, axis=-1,
+      shape=s).astype(self._dtype)
+      for k, l, s in zip(rngs, self.logits, new_shapes)]
+    return jnp.stack(
+      [jnp.where(v, d, jnp.ones_like(d) * -1) for v, d in zip(is_valid, draws)
+    ], axis=-1)
+
+  def stop_gradient(self):
+    self._logits = lax.stop_gradient(self._logits)
+
+  def log_prob(self, values):
+    values = jnp.split(values, values.shape[-1], axis=-1)
+    values = [jnp.squeeze(v, -1) for v in values]
+    assert len(self._logits) == len(values), (len(self._logits), len(values))
+    values_oh = [nn.one_hot(v, n, dtype=l.dtype) 
+                 for v, n, l in zip(values, self.num_categories, self.logits)]
+    masks_outside_domain = [jnp.logical_or(v < 0, v > n - 1) 
+                           for v, n in (values, self.num_categories)]
+    lps = [jnp.where(m, -jnp.inf, jnp.sum(math.multiply_no_nan(l, v), axis=-1)) 
+           for m, l, v in zip(masks_outside_domain, self.logits, values_oh)]
+    return sum(lps)
+
+  def prob(self, values):
+    lp = self.log_prob(values)
+    return lax.exp(lp)
+
+  def entropy(self):
+    log_probs = [lax.log(p) for p in self.probs]
+    ents = [-jnp.sum(math.mul_exp(lp, lp), axis=-1) for lp in log_probs]
+    return sum(ents)
+  
+  def mode(self):
+    v = jnp.stack([
+      jnp.argmax(l, axis=-1).astype(self._dtype) for l in self._logits
+    ], axis=-1)
+    return v
+  
+  def cdf(self, values):
+    should_be_zero = [v < 0 for v in values]
+    should_be_one = [v >= n for v, n in zip(values, self.num_categories)]
+    values = [jnp.clip(v, 0, n-1) for v, n in zip(values, self.num_categories)]
+    values_one_hot = [nn.one_hot(v, n, dtype=self.logits.dtype) 
+                      for v, n in zip(values, self.num_categories)]
+    cdfs = [jnp.sum(math.multiply_no_nan(
+      jnp.cumsum(p, axis=-1), v), axis=-1
+    ) for p, v in zip(self.probs, values_one_hot)]
+    return [jnp.where(sbz, 0., jnp.where(sbo, 1., cdf)) 
+            for sbz, sbo, cdf in zip(should_be_zero, should_be_one, cdfs)]
+
+  def get_stats(self, prefix=None):
+    logits = jnp.concatenate(self._logits, -1)
+    if prefix is None:
+      return {'logits': logits}
+    else:
+      return {f'{prefix}_logits': logits}
+  
+  @staticmethod
+  def stats_keys(prefix=None):
+    if prefix is None:
+      return ('logits',)
+    else:
+      return (f'{prefix}_logits',)
 
 class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
   def __init__(self, loc, scale=None, joint_log_prob=True):

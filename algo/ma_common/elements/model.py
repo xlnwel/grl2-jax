@@ -1,4 +1,5 @@
 import numpy as np
+from gym.spaces import MultiDiscrete
 import jax.numpy as jnp
 import haiku as hk
 
@@ -18,6 +19,8 @@ def construct_fake_data(env_stats, aid, batch_size=1):
     for k, v in shapes.items()}
   data = dict2AttrDict(data)
   data.setdefault('global_state', data.obs)
+  if isinstance(env_stats.action_space[aid], MultiDiscrete):
+    action_dim = len(action_dim.shape)
   data.action = jnp.zeros((*basic_shape, action_dim), action_dtype)
   data.joint_action = jnp.zeros((*basic_shape[:2], 1, n_units*action_dim), action_dtype)
   data.state_reset = jnp.zeros(basic_shape, jnp.float32)
@@ -53,7 +56,7 @@ class MAModelBase(ModelCore):
     if self.is_action_discrete:
       if evaluation and self.config.get('eval_act_temp', 0) > 0:
         act_out = act_out / self.config.eval_act_temp
-      if isinstance(self.env_stats.action_dim, int):
+      if isinstance(self.config.policy.action_dim, int):
         dist = jax_dist.Categorical(logits=act_out)
       else:
         split_indices = np.cumsum(self.env_stats.action_dim[:-1])

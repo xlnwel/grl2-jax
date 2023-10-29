@@ -216,7 +216,7 @@ class SPParameterServer(RayBase):
         # it's likely that you retrive the latest model 
         # in self.payoff_manager.sample_strategies
         weights = {k: self._params[model][k] 
-          for k in ['model', 'train_step', 'aux']}
+                   for k in ['model', 'train_step', 'aux']}
       mid = ray.put(ModelWeights(model, weights))
       return mid
 
@@ -243,7 +243,7 @@ class SPParameterServer(RayBase):
     def prepare_models(model_weights: ModelWeights):
       model_weights.weights.pop('opt')
       model_weights.weights['aux'] = \
-        self._params[model_weights.model].get('aux', RMSStats({}, None))
+        self._params[model_weights.model].get('aux', RMSStats([], None))
       mid = ray.put(model_weights)
 
       if self._iteration == 1 or self.n_runners == self.n_online_runners:

@@ -200,7 +200,8 @@ class SPParameterServer(RayBase):
         # if error happens here
         # it's likely that you retrive the latest model 
         # in self.payoff_manager.sample_strategies
-        weights = {k: self._params[model][k] for k in ['model', 'train_step', 'aux']}
+        weights = {k: self._params[model][k] 
+                   for k in ['model', 'train_step', 'aux']}
       mid = ray.put(ModelWeights(model, weights))
       return mid
 

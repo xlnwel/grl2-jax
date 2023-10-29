@@ -626,7 +626,7 @@ class MultiAgentSimRunner(RayBase):
           self.scores += [v[self.aid2uids[1]].mean() for v in stats[self.score_metric]]
           self.agents[1].store(
             **{
-              k: [vv[0] for vv in v]
+              f'info/{k}': [vv[0] for vv in v]
               if isinstance(v[0], np.ndarray) else v
               for k, v in stats.items()
             }
@@ -635,7 +635,7 @@ class MultiAgentSimRunner(RayBase):
           self.scores += [v[self.aid2uids[0]].mean() for v in stats[self.score_metric]]
           self.agents[0].store(
             **{
-              k: [vv[0] for vv in v]
+              f'info/{k}': [vv[0] for vv in v]
               if isinstance(v[0], np.ndarray) else v
               for k, v in stats.items()
             }
@@ -646,7 +646,7 @@ class MultiAgentSimRunner(RayBase):
             v[uids].mean() for v in stats[self.score_metric]]
           self.agents[aid].store(
             **{
-              k: [vv[uids] for vv in v]
+              f'info/{k}': [vv[uids] for vv in v]
               if isinstance(v[0], np.ndarray) else v
               for k, v in stats.items()
             }
