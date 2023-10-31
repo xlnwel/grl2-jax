@@ -1,0 +1,7 @@
+#!/bin/bash
+
+source activate grl
+
+ray start --head
+
+python multi_exec.py -c "ray stop"

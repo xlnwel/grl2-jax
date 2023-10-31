@@ -89,7 +89,7 @@ def scalar_summary(writer, stats, prefix=None, step=None):
   prefix = prefix or 'stats'
   with writer.as_default():
     for k, v in stats.items():
-      if isinstance(v, str):
+      if isinstance(v, str) or v is None:
         continue
       if '/' not in k:
         k = f'{prefix}/{k}'

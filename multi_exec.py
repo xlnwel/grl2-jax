@@ -38,7 +38,8 @@ def pack_working_dir(working_dir: str, output_file: str):
 
 
 def process_node(params):
-  node_id, node_name, ip_address, port, username, password, command, sudo = params
+  node_id, node_name, working_dir, conda_activate, \
+    ip_address, port, username, password, command, sudo = params
 
   logger.info('Processing node: {}'.format(node_name))
   ssh = paramiko.SSHClient()
@@ -64,9 +65,9 @@ def process_node(params):
     #   pass
     
     if sudo:
-      cmd = f'cd ~/polixir/grl2 && sudo NODE_ID={node_id} {command}'
+      cmd = f'cd {working_dir} && source {conda_activate} grl && sudo NODE_ID={node_id} {command}'
     else:
-      cmd = f'cd ~/polixir/grl2 && NODE_ID={node_id} {command}'
+      cmd = f'cd {working_dir} && source {conda_activate} grl && NODE_ID={node_id} {command}'
     stdin, stdout, stderr = ssh.exec_command(cmd, get_pty=True)
     
     # for sudo
@@ -90,7 +91,7 @@ def process_node(params):
 
   return True, out, err
 
-def main(inventory_file, node_range, command, num_workers, sudo):
+def main(inventory_file, working_dir, conda_activate, node_range, command, num_workers, sudo):
   with open(inventory_file, 'r') as fin:
     inventory = json.load(fin)
     pass
@@ -112,7 +113,7 @@ def main(inventory_file, node_range, command, num_workers, sudo):
     thread_pool = mp.Pool(num_workers)
 
     params = [
-      (i, k, v['ip_address'], v['port'], v['username'], v['password'], command, sudo)
+      (i, k, working_dir, conda_activate, v['ip_address'], v['port'], v['username'], v['password'], command, sudo)
       for i, (k, v) in enumerate(nodes.items())]
     results = thread_pool.imap(process_node, params)
 
@@ -129,12 +130,20 @@ def main(inventory_file, node_range, command, num_workers, sudo):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('--inventory', type=str, default='inventory.json')
-  parser.add_argument('--node-range', type=str, default=None)
+  parser.add_argument('--inventory', type=str, default='inventory.json',
+                      help='The place where you store the information of nodes')
+  parser.add_argument('--working-dir', '-wd', type=str, default='~',
+                      help='The working directory where you execute the command.')
+  parser.add_argument('--conda-activate', '-ca', type=str, default='activate', 
+                      help='The place where your conda activate is')
+  parser.add_argument('--node-range', type=str, default=None, 
+                      help='The range of nodes in which you execute the command. Format="start,end"')
   parser.add_argument('--command', type=str, required=True)
-  parser.add_argument('--num-workers', type=int, default=8)
-  parser.add_argument('--sudo', action='store_true', default=False)
+  parser.add_argument('--num-workers', type=int, default=8, 
+                      help='The number of workers for execution')
+  parser.add_argument('--sudo', action='store_true', default=False,
+                      help='Executing the command in sudo mode')
 
   args = parser.parse_args()
 
-  main(args.inventory, args.node_range, args.command, args.num_workers, args.sudo)
+  main(args.inventory, args.working_dir, args.conda_activate, args.node_range, args.command, args.num_workers, args.sudo)

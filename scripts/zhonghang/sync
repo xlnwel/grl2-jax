@@ -1,0 +1,9 @@
+#!/bin/bash
+
+while true
+do
+  rsync -avz --exclude logs --exclude aircombat-logs --exclude .git --exclude .gitignore --exclude __pycache__ . 192.168.0.11:~/Documents/grl2
+
+  rsync -avz --exclude src --exclude __pycache__ 192.168.0.11:~/Documents/grl2/*logs .
+
+done

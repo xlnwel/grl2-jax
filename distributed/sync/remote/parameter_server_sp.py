@@ -450,7 +450,10 @@ class SPParameterServer(RayBase):
       config = yaml_op.load(self._path)
       if config is None:
         return
-      self._active_model = ModelPath(*config.pop('active_model'))
+      active_model = config.pop('active_model')
+      if active_model is not None:
+        active_model = ModelPath(*active_model)
+      self._update_active_model(active_model)
       config_attr(self, config, config_as_attr=False, private_attr=True)
       model_paths = config.pop('model_paths')
       if to_restore_params:

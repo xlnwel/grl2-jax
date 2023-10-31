@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def check_key(k):
-  return (k.endswith('score') or k.endswith('epslen')) and not k.startswith('metrics/')
+  return '/' not in k
 
 def add_prefix(k, prefix):
   k = f'{prefix}/{k}'

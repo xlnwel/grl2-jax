@@ -1,0 +1,4 @@
+#!/bin/bash
+
+ps -ef | grep -v grep | grep run/train.py
+ps -ef | grep -v grep | grep run/train.py | awk '{print $2}' | xargs kill -9

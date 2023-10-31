@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# reboot all other services
+python multi_exec.py -c "reboot" --sudo --nr 1,10
+# reboot the current master
+sudo reboot

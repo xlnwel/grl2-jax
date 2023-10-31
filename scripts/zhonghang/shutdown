@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# shutdown all other services
+python multi_exec.py -c "shutdown" --sudo --nr 1,10
+# shutdown the current master
+sudo shutdown
