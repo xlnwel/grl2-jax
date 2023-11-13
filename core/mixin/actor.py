@@ -179,17 +179,17 @@ class RewardRunningMeanStd:
       raise RuntimeError('rms path is not configured.')
     self.rms = restore(
       filedir=self._filedir, 
-      filename=self.name, 
+      filename=f'params/{self.name}', 
       default=self.rms
     )
   
   def save_rms(self):
     if self._filedir is None:
       raise RuntimeError('rms path is not configured.')
-    save(self.rms, filedir=self._filedir, filename=self.name)
+    save(self.rms, filedir=self._filedir, filename=f'params/{self.name}')
 
   def reset_path(self, model_path: ModelPath):
-    self._filedir = '/'.join([*model_path, f'{self.name}.pkl'])
+    self._filedir = '/'.join(model_path)
 
 
 class ObsRunningMeanStd:
@@ -324,17 +324,17 @@ class ObsRunningMeanStd:
       raise RuntimeError('rms path is not configured.')
     self.rms = restore(
       filedir=self._filedir, 
-      filename=self.name, 
+      filename=f'params/{self.name}', 
       default=self.rms
     )
 
   def save_rms(self):
     if self._filedir is None:
       raise RuntimeError('rms path is not configured.')
-    save(self.rms, filedir=self._filedir, filename=self.name)
+    save(self.rms, filedir=self._filedir, filename=f'params/{self.name}')
 
   def reset_path(self, model_path: ModelPath):
-    self._filedir = '/'.join([*model_path, f'{self.name}.pkl'])
+    self._filedir = '/'.join(model_path)
 
 
 class RMS:

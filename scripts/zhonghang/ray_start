@@ -2,6 +2,6 @@
 
 source activate grl
 
-ray start --head
+ray start --head | grep "Local node IP" > ray_ip.txt
 
 python multi_exec.py -c "ray start --address=auto" -nr 1,10

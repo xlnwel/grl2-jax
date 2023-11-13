@@ -17,9 +17,9 @@
 # # yes y | sudo apt-get install mosh
 # yes y | sudo apt-get install -y locales
 
-yes y | sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-dev \
-libsdl2-image-dev libsdl2-ttf-dev libsdl2-gfx-dev \
-libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-python -m pip
+# yes y | sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-dev \
+# libsdl2-image-dev libsdl2-ttf-dev libsdl2-gfx-dev \
+# libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-python -m pip
 
 # # echo "nameserver 114.114.114.114" | sudo tee -a /etc/resolv.conf
 # # echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
@@ -34,7 +34,8 @@ libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-python -m pip
 # # conda config --add envs_dirs $HOME/.conda/envs  # add $HOME/.conda/envs to conda environment directories
 # yes y | conda create -n grl python==3.9.15
 conda activate grl
-
+# install libboost for gfootball
+conda install -c statiskit libboost-dev
 # yes y | conda install -c "nvidia/label/cuda-11.8.0" cuda-nvcc
 # yes y | conda install -c conda-forge cudatoolkit
 # python -m pip install nvidia-cudnn-cu11==8.6.0.163 "tensorflow==2.12.*"
@@ -49,7 +50,7 @@ python -m pip install opencv-python
 python -m pip install gym==0.23.1
 # python -m pip install atari_py procgen mujoco-py mujoco
 python -m pip install jax optax dm-haiku distrax chex
-python -m pip install --upgrade "jax[cuda11_local]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+python -m pip install --upgrade "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 python -m pip install tensorflow_probability
 python -m pip install ray
 python -m pip install scipy pandas Pillow matplotlib plotly seaborn

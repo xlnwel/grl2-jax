@@ -27,6 +27,8 @@ def process_single_agent_env(env, config):
       action_low=config.get('action_low', -1), 
       action_high=config.get('action_high', 1)
     )
+  if config.n_bins:
+    env = wrappers.Continuous2MultiCategorical(env, config.n_bins)
   if config.get('to_multi_agent', False):
     env = wrappers.Single2MultiAgent(env)
     env = wrappers.DataProcess(env)
@@ -53,7 +55,7 @@ def make_bypass(config):
 
 
 def make_mujoco(config):
-  import gym
+  import mujoco
   from env.dummy import DummyEnv
   config = _change_env_name(config)
   if '_' in config['env_name']:

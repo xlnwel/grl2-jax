@@ -7,14 +7,19 @@ from core.log import do_logging
 
 def print_dict(tree, prefix='', level='pwt', backtrack=3):
   if isinstance(tree, tuple) and hasattr(tree, '_asdict'):
-    print_dict(tree._asdict(), prefix+'\t', level=level, backtrack=backtrack+1)
+    print_dict(tree._asdict(), prefix+':\t', level=level, backtrack=backtrack+1)
   elif isinstance(tree, Dict):
     for k, v in tree.items():
-      if isinstance(v, Dict):
-        do_logging(f'{prefix} {k}')
-        print_dict(v, prefix=f'{prefix} {k}\t', level=level, backtrack=backtrack+1)
+      if prefix:
+        new_prefix = prefix + '.'
       else:
-        print_dict(v, prefix=f'{prefix} {k}\t', level=level, backtrack=backtrack+1)
+        new_prefix = prefix
+      new_prefix = new_prefix + k
+      if isinstance(v, Dict):
+        do_logging(new_prefix, backtrack=backtrack)
+        print_dict(v, prefix='\t'+new_prefix, level=level, backtrack=backtrack+1)
+      else:
+        print_dict(v, prefix=new_prefix, level=level, backtrack=backtrack+1)
   else:
     do_logging(f'{prefix}: {tree}', level=level, backtrack=backtrack)
 

@@ -3,7 +3,7 @@ import ray
 
 from tools.timer import Timer
 
-from .local.runner_manager import RunnerManager
+from .sync.local.runner_manager import RunnerManager
 from tools.ray_setup import sigint_shutdown_ray
 
 

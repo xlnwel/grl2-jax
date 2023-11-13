@@ -243,7 +243,7 @@ class MultiCategorical(distrax.Distribution):
     values_oh = [nn.one_hot(v, n, dtype=l.dtype) 
                  for v, n, l in zip(values, self.num_categories, self.logits)]
     masks_outside_domain = [jnp.logical_or(v < 0, v > n - 1) 
-                           for v, n in (values, self.num_categories)]
+                           for v, n in zip(values, self.num_categories)]
     lps = [jnp.where(m, -jnp.inf, jnp.sum(math.multiply_no_nan(l, v), axis=-1)) 
            for m, l, v in zip(masks_outside_domain, self.logits, values_oh)]
     return sum(lps)
@@ -305,15 +305,28 @@ class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
 
   def get_stats(self, prefix=None):
     if prefix is None:
-      return {
+      stats= {
         'loc': self._loc, 
         'scale': self.scale_diag, 
       }
+      stats.update({
+        f'loc{i}': self._loc[..., i] for i in range(self._loc.shape[-1])
+      })
+      stats.update({
+        f'scale{i}': self._scale_diag[..., i] for i in range(self._scale_diag.shape[-1])
+      })
     else:
-      return {
+      stats= {
         f'{prefix}_loc': self._loc, 
         f'{prefix}_scale': self.scale_diag, 
       }
+      stats.update({
+        f'{prefix}_loc{i}': self._loc[..., i] for i in range(self._loc.shape[-1])
+      })
+      stats.update({
+        f'{prefix}_scale{i}': self._scale_diag[..., i] for i in range(self._scale_diag.shape[-1])
+      })
+    return stats
 
   @staticmethod
   def stats_keys(prefix=None):

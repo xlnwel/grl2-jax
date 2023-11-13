@@ -11,12 +11,13 @@ class DirLevel(Enum):
   DATE = 4
   MODEL = 5
   SEED = 6
-  FINAL = 7
-  UNKNOWN = 8
+  AGENT = 7
+  VERSION = 8
+  UNKNOWN = 9
   
   def next(self):
     v = self.value + 1
-    if self.greater(DirLevel.FINAL):
+    if self == DirLevel.UNKNOWN:
       raise ValueError(f'Enumeration ended')
     return DirLevel(v)
 
@@ -27,17 +28,18 @@ class DirLevel(Enum):
     return self.value == other.value
 
 
-def get_level(search_dir, last_prefix=None):
+def get_level(search_dir):
   for d in os.listdir(search_dir):
     if d.endswith('logs'):
       return DirLevel.ROOT
   all_names = search_dir.split('/')
   last_name = all_names[-1]
-  if last_prefix is not None:
-    if not isinstance(last_prefix, (list, tuple)):
-      last_prefix = [last_prefix]
-    if any([last_name.startswith(p) for p in last_prefix]):
-      return DirLevel.FINAL
+  if last_name.startswith('a') and last_name[1:].isdigit():
+    return DirLevel.AGENT
+  if '-' in last_name:
+    names = last_name.split('-')
+    if len(names) == 2 and names[0].startswith('i') and names[1].startswith('v'):
+      return DirLevel.VERSION
   if last_name.endswith('logs'):
     return DirLevel.LOGS
   if last_name.startswith('seed'):
@@ -98,16 +100,14 @@ def fixed_pattern_search(
   algo=None, 
   date=None, 
   model=None, 
-  final_level=DirLevel.FINAL, 
+  final_level=DirLevel.AGENT, 
   final_name=None
 ):
-  if level == final_level:
-    yield search_dir
-  elif not os.path.isdir(search_dir) or level.greater(final_level):
+  if not os.path.isdir(search_dir) or level.greater(final_level):
     return []
   elif level == final_level:
     last_name = search_dir.split('/')[-1]
-    if not isinstance(final_name, (list, tuple)):
+    if final_name is not None and not isinstance(final_name, (list, tuple)):
       final_name = [final_name]
     if final_name is None or any([last_name.startswith(p) for p in final_name]):
       yield search_dir

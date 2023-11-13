@@ -5,6 +5,12 @@ import ray
 from core.log import do_logging
 
 
+def init_ray(**kwargs):
+  if ray.is_initialized():
+    ray.shutdown()
+  ray.init(**kwargs)
+  sigint_shutdown_ray()
+
 def sigint_shutdown_ray():
   """ Shutdown ray when the process is terminated by ctrl+C """
   def handler(sig, frame):

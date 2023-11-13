@@ -3,6 +3,7 @@ import copy
 import collections
 from typing import Any
 from jax import tree_util
+from core.log import do_logging, stringify
 
 
 ModelWeights = collections.namedtuple('model_weights', 'model weights')
@@ -46,6 +47,9 @@ class AttrDict(collections.defaultdict):
         res[k] = copy.deepcopy(v)
 
     return res
+
+  def __str__(self):
+    return '\n'.join(stringify(self))
 
   def __getattr__(self, name):
     if name.startswith('_'):
@@ -151,7 +155,10 @@ def dict2AttrDict(d: dict, shallow=False, to_copy=False):
     if isinstance(v, (dict, list, tuple)):
       res[k] = dict2AttrDict(v, to_copy=to_copy)
     else:
-      res[k] = copy.deepcopy(v)
+      try:
+        res[k] = copy.deepcopy(v)
+      except:
+        res[k] = v
 
   return res
 

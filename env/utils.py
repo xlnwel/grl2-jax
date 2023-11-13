@@ -17,6 +17,10 @@ def batch_ma_env_output(out, func=np.stack):
   return EnvOutput(obs, reward, discount, reset)
 
 
+def divide_env_output(env_output):
+  return [EnvOutput(*o) for o in zip(*env_output)]
+
+
 def compute_aid2uids(uid2aid):
   """ Compute aid2uids from uid2aid """
   aid2uids = []

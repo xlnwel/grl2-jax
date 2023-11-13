@@ -1,6 +1,6 @@
 import ray
 
-from .local.controller import Controller
+from .sync.local.controller import Controller
 from tools.ray_setup import sigint_shutdown_ray
 
 

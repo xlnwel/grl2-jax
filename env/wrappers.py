@@ -144,7 +144,7 @@ class FrameSkip(gym.Wrapper):
     frame_skip = frame_skip or self.frame_skip
     for i in range(1, frame_skip+1):
       obs, reward, done, info = self.env.step(action, **kwargs)
-      total_reward += reward
+      total_reward.append(reward)
       if np.all(done):
         break
     total_reward = [sum(r) for r in zip(*total_reward)]
@@ -426,8 +426,8 @@ class Continuous2MultiCategorical(gym.ActionWrapper):
     self.n_bins = n_bins
     if isinstance(ac, (list, tuple)):
       assert all([isinstance(a, gym.spaces.Box) for a in ac]), ac
-      assert all([a.low == -1 for a in ac]), [a.low for a in ac]
-      assert all([a.high == 1 for a in ac]), [a.high for a in ac]
+      assert all([np.all(a.low == -1) for a in ac]), [a.low for a in ac]
+      assert all([np.all(a.high == 1) for a in ac]), [a.high for a in ac]
       self.action_space = [
         gym.spaces.MultiDiscrete([n_bins for _ in range(a.shape[0])])
       for a in ac]
@@ -437,12 +437,14 @@ class Continuous2MultiCategorical(gym.ActionWrapper):
     else:
       assert isinstance(ac, gym.spaces.Box), ac
       self.action_space = gym.spaces.MultiDiscrete([n_bins for _ in range(ac.shape[0])])
-      self.action_dim = a.nvec
+      self.action_dim = self.action_space.nvec
       self.action_dtype = np.int32
       self.is_action_discrete = True
   
   def action(self, action):
     action = action * 2 / (self.n_bins - 1) - 1
+    assert np.all(-1 <= action), action
+    assert np.all(action <= 1), action
     return action
 
 class TurnBasedProcess(gym.Wrapper):
@@ -512,7 +514,7 @@ class TurnBasedProcess(gym.Wrapper):
     self._dense_score += rewards
     win_score = self._dense_score > 0
     draw_score = self._dense_score == 0
-    score = self._dense_score > 0
+    score = np.sign(self._dense_score)
 
     return dict(
       dense_score=self._dense_score, 
@@ -575,6 +577,7 @@ class Single2MultiAgent(gym.Wrapper):
     if isinstance(env.obs_shape, dict):
       self.obs_shape = [env.obs_shape]
       self.obs_dtype = [env.obs_dtype]
+      self.action_space = [env.action_space]
       self.action_shape=[env.action_shape]
       self.action_dim=[env.action_dim]
       self.is_action_discrete = [env.is_action_discrete]

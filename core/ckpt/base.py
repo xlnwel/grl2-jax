@@ -24,11 +24,11 @@ class YAMLCheckpointBase:
 
 
 class ParamsCheckpointBase:
-  def __init__(self, config, name):
+  def __init__(self, config, name, ckpt_name):
     self.name = name
     self.config = dict2AttrDict(config, to_copy=True)
     self.params: Dict[str, Dict] = AttrDict()
-    self._ckpt = Checkpoint(self.config, name=self.name)
+    self._ckpt = Checkpoint(self.config, name=ckpt_name)
 
   @property
   def filedir(self):

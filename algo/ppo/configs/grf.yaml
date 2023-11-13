@@ -122,6 +122,7 @@ trainer:
   n_epochs: &nepochs 5
   n_mbs: &nmbs 1
   n_steps: *nsteps
+  debug: True
 
   theta_opt:
     opt_name: adam

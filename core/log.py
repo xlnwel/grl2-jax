@@ -52,7 +52,7 @@ def pwc(
 
 
 def pwt(*args, **kwargs):
-  print(datetime.now(), *args, **kwargs)
+  print(f'{datetime.now()}:', *args, **kwargs)
 
 
 def pwtc(*args, color='red', bold=False, highlight=False, **kwargs):
@@ -104,12 +104,14 @@ def do_logging(
     filename = filename.rsplit('/', 1)[-1]
     funcname = frame.f_code.co_name
     lineno = frame.f_lineno
-    func_lineno = f'{filename} {funcname}: line {lineno}: '
-  if prefix:
-    prefix = f'{prefix}: '
-  new_prefix = func_lineno + prefix
+    func_lineno = ': '.join([filename, funcname, f'line {lineno}'])
+  if prefix == '' or prefix.startswith('\t'):
+    func_lineno = func_lineno
+  else:
+    func_lineno = func_lineno + ': ' + prefix
+    prefix = ''
   if time:
-    new_prefix = f'{datetime.now()}: {new_prefix}'
+    func_lineno = ': '.join([str(datetime.now()), func_lineno])
   log_func = {
     'critical': logger.critical,
     'error': logger.error,
@@ -123,48 +125,45 @@ def do_logging(
   }[level.lower()]
 
   def decorate_content(x):
-    content = f'{new_prefix}: {x}'
+    content = f'{func_lineno}: {x}'
     if color or bold or highlight:
       content = colorize(content, color=color, bold=bold, highlight=highlight)
     return content
 
-  if isinstance(x, str):
-    log_func(decorate_content(x))
-  elif isinstance(x, (list, tuple)):
-    for v in x:
-      if isinstance(v, dict):
-        do_logging(
-          v, 
-          logger=logger, 
-          prefix=f'{prefix}\t', 
-          level=level, 
-          func_lineno=func_lineno, 
-          time=time, 
-          color=color, 
-          bold=bold, 
-          highlight=highlight
-        )
-      else:
-        log_func(decorate_content(v))
-  elif isinstance(x, dict):
+  if isinstance(x, dict):
     for k, v in x.items():
       if isinstance(v, dict):
-        log_func(decorate_content(k))
+        log_func(decorate_content(f'{prefix}{k}'))
         do_logging(
           v, 
           logger=logger, 
-          prefix=f'{prefix}\t', 
+          prefix='\t'+prefix, 
           level=level, 
           func_lineno=func_lineno, 
-          time=time, 
           color=color, 
           bold=bold, 
           highlight=highlight
         )
       else:
-        log_func(decorate_content(f'{k}: {v}'))
+        log_func(decorate_content(f'{prefix}{k}: {v}'))
+  elif isinstance(x, (list, tuple)):
+    if any([isinstance(v, dict) for v in x]):
+      log_func(decorate_content(f'{prefix}{x.__class__.__name__}'))
+      for v in x:
+        do_logging(
+          v, 
+          logger=logger, 
+          prefix='\t'+prefix, 
+          level=level, 
+          func_lineno=func_lineno, 
+          color=color, 
+          bold=bold, 
+          highlight=highlight
+        )
+    else:
+      log_func(decorate_content(f'{prefix}{x}'))
   else:
-    raise ValueError(f'{x} is of unknown type.')
+    log_func(decorate_content(f'{prefix}{x}'))
 
 def get_frame(backtrack):
   frame = inspect.currentframe()
@@ -172,3 +171,27 @@ def get_frame(backtrack):
     if frame.f_back:
       frame = frame.f_back
   return frame
+
+
+def stringify(x, prefix=''):
+  lines = []
+  if isinstance(x, tuple) and hasattr(x, '_asdict'):
+    lines.append(prefix + f'namedtuple.{x.__class__.__name__}')
+  if isinstance(x, str):
+    lines.append(x)
+  elif isinstance(x, (list, tuple)):
+    for v in x:
+      if isinstance(v, dict):
+        lines += stringify(v, prefix='\t'+prefix)
+      else:
+        lines.append(str(v))
+  elif isinstance(x, dict):
+    for k, v in x.items():
+      if isinstance(v, dict):
+        lines.append(f'{prefix}{k}')
+        lines += stringify(v, prefix='\t'+prefix)
+      else:
+        lines.append(f'{prefix}{k}: {v}')
+  else:
+    lines.append(f'{prefix}{k}: {v}')
+  return lines

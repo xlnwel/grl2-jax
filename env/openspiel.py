@@ -56,7 +56,7 @@ class OpenSpiel:
     return self._current_player
 
   def random_action(self):
-    action = [random.choice(self._time_step.observations['legal_actions'][self._current_player]) ]
+    action = [random.choice(self._time_step.observations['legal_actions'][self._current_player])]
     assert action[0] in self._time_step.observations['legal_actions'][self._current_player], \
       (action, self._time_step.observations['legal_actions'][self._current_player])
     return action

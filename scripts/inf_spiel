@@ -1,16 +1,35 @@
 #!/bin/bash
 
 
-source activate inf
+source activate grl
 
-algo=sync-bmg
+algo=sync-ppo
 suite=spiel
 env=leduc_poker
 
 config=spiel
-args1=(0)
-args2=(0)
-args3=(1e-4 3e-4 1e-3)
+args1=(
+  32
+  64
+)
+args2=(
+  2
+  4
+  8
+)
+args3=(
+  1
+  5
+)
+args4=(
+  1e-3
+  5e-4
+)
+args5=(
+  5e-1
+  1e-1
+  5e-2
+)
 date=$(date +"%m%d")
 seed=3
 info=""
@@ -26,27 +45,31 @@ fi
 
 kws="$@"
 for item in $@; do
-    if [ -z != $kwstr ]; then
-        kwstr="$kwstr-$item"
-    else
-        kwstr="$item"
-    fi
+  if [ -z != $kwstr ]; then
+    kwstr="$kwstr-$item"
+  else
+    kwstr="$item"
+  fi
 done
 
-
-ld="$suite-logs"
-env="${suite}-${env}"
-if [ 0 != $# ]; then
-    root="$ld/$env/$algo/$n-$kwstr"
-else
-    root="$ld/$env/$algo/$n"
-fi
+env="$suite-$env"
+ld="logs"
 
 
-for ((s=1; s<=$seed; s++)); do
-    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-    commands+=("$py_script")
-    echo $py_script
+for a1 in "${args1[@]}"; do
+  for a2 in "${args2[@]}"; do
+    for a3 in "${args3[@]}"; do
+      for a4 in "${args4[@]}"; do
+        for a5 in "${args5[@]}"; do
+          kws="n_envs=$a1 n_steps=$a2 n_epochs=$a3 lr=$a4 entropy_coef=$a5"
+          py_script="python run/train.py -a $algo -e $env -c $config -ld $ld -n $n -kw $kws &"
+          echo $py_script
+          eval $py_script
+        done
+        wait
+      done
+    done
+  done
 done
 
 # python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-spiel -p $1 -s 0 \

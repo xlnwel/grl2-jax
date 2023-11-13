@@ -233,6 +233,9 @@ def compute_actor_loss(
     lax.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2), 
     sample_mask, data.n)
   stats.clip_frac = clip_frac
+  stats.approx_kl = jax_math.mask_mean(
+    .5 * (data.mu_logprob - stats.pi_logprob)**2, sample_mask, data.n
+  )
 
   return loss, stats
 

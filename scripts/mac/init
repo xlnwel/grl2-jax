@@ -1,0 +1,3 @@
+#!/bin/zsh
+
+TERM=xterm && source ~/.zshrc && conda activate grl

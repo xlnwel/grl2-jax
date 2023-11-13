@@ -3,6 +3,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from core.ckpt import pickle
+from core.log import do_logging
 from core.typing import ModelPath, get_aid
 from tools.utils import config_attr
 
@@ -285,16 +286,16 @@ class SelfPlayPayoffTable(PayoffTableCheckpoint):
       elif self.counts[sids] == 0:
         payoff = s_sum / s_total
         self.payoffs[sids] = payoff
-        self.payoffs[rsids] = 1-payoff
+        self.payoffs[rsids] = -payoff
       elif self._step_size == 0 or self._step_size is None:
         payoff = (self.counts[sids] * self.payoffs[sids] + s_sum) / (self.counts[sids] + s_total)
         self.payoffs[sids] = payoff
-        self.payoffs[rsids] = 1-payoff
+        self.payoffs[rsids] = -payoff
       else:
         payoff = s_sum / s_total
         new_payoff = self._step_size * (payoff - self.payoffs[sids])
         self.payoffs[sids] += new_payoff
-        new_payoff = self._step_size * (1-payoff - self.payoffs[rsids])
+        new_payoff = self._step_size * (-payoff - self.payoffs[rsids])
         self.payoffs[rsids] += new_payoff
       # assert self.payoffs[sids] + self.payoffs[rsids] == 1, (sids, self.payoffs[sids], rsids, self.payoffs[rsids])
       assert not np.isnan(self.payoffs[sids]), (self.counts[sids], self.payoffs[sids])

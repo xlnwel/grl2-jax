@@ -69,7 +69,7 @@ def get_env_stats(config):
   env_stats.n_envs = env_stats.n_runners * config.n_envs
   do_logging(
     env_stats, 
-    prefix='env stats', 
+    prefix='Env stats', 
     logger=logger, 
     color='blue'
   )

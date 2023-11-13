@@ -2,6 +2,8 @@
 
 source activate grl
 
-ray start --head
+# ray stop
 
 python multi_exec.py -c "ray stop"
+
+rm -rf ray_ip.txt

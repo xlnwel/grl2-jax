@@ -53,9 +53,11 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
 
   env_stats = env.stats()
 
-  builder = ElementsBuilder(config, env_stats)
-  elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)
-  agent = elements.agent
+  agents = []
+  for config in configs:
+    builder = ElementsBuilder(config, env_stats)
+    elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)
+    agents.append(elements.agent)
   print('start evaluation')
 
   if n < env.n_envs:
@@ -63,7 +65,7 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
   start = time.time()
   scores, epslens, data, video = evaluate(
     env, 
-    agent, 
+    agents, 
     n, 
     record_video=record, 
     size=size, 
@@ -71,8 +73,9 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
   )
 
   do_logging(f'After running {n} episodes', color='cyan')
-  do_logging(f'\tScore: {np.mean(scores):.3g}\n', color='cyan')
-  do_logging(f'\tEpslen: {np.mean(epslens):.3g}\n', color='cyan')
+  for i, (score, epslen) in enumerate(zip(scores, epslens)):
+    do_logging(f'\tScore for Agent{i}: {np.mean(score):.3g}\n', color='cyan')
+    do_logging(f'\tEpslen for Agent{i}: {np.mean(epslen):.3g}\n', color='cyan')
   do_logging(f'\tTime: {time.time()-start:.3g}', color='cyan')
 
   filename = f'{out_dir}/{algo_name}-{env_name}/{config["model_name"]}'

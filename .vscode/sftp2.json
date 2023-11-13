@@ -40,8 +40,8 @@
 }
 
 {
-    "host": "36.111.128.2",
-    "port": 44186,
+    "host": "116.172.93.164",
+    "port": 2108,
     "username": "ubuntu",
     "password": "imin",
     "protocol": "sftp",

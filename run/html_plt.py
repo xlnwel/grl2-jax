@@ -22,9 +22,12 @@ def parse_args():
   parser.add_argument('directory',
             type=str,
             default='.')
+  parser.add_argument('--final_level', '-fl', 
+            type=int, 
+            default=DirLevel.VERSION)
   parser.add_argument('--last_name', '-ln', 
             type=str, 
-            default=['seed'], 
+            default=['a0'], 
             nargs='*')
   parser.add_argument('--name', '-n', 
             type=str, 
@@ -251,6 +254,7 @@ def generate_data(args, search_dir, level, plt_config=None):
       algo=algo, 
       date=date, 
       model=model, 
+      final_level=DirLevel(args.final_level), 
       final_name=args.last_name
     )]
     pool = multiprocessing.Pool()
@@ -266,7 +270,9 @@ def generate_data(args, search_dir, level, plt_config=None):
       env=args.env, 
       algo=args.algo, 
       date=date, 
-      model=args.model
+      model=args.model, 
+      final_level=DirLevel(args.final_level), 
+      final_name=args.last_name
     ):
       print('before processing', d)
       convert_data(d, directory, target=target, plt_config=plt_config)
@@ -301,7 +307,7 @@ if __name__ == '__main__':
     process = subprocess.Popen(cmd)
 
   search_dir = directory
-  level = get_level(search_dir, args.last_name)
+  level = get_level(search_dir)
   print('Search directory level:', level)
 
   # generate_data(args, search_dir, level)

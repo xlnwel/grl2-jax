@@ -35,7 +35,8 @@ env:
   population_size: 1
   timeout_done: &td False
 
-  uid2aid: [0, 1]
+  uid2aid: [0, 0]
+  uid2gid: [0, 0]
 
 agent: {}
 
@@ -118,14 +119,18 @@ actor:
   update_obs_rms_at_execution: False
   update_obs_at_execution: False
   rms:
-    obs_names: [obs, global_state]
-    obs_normalized_axis: [0, 1, 2]
-    reward_normalized_axis: [0, 1, 2]
-    normalize_obs: False
-    obs_clip: 10
-    normalize_reward: False
-    update_reward_rms_in_time: False
-    gamma: *gamma
+    obs:
+      obs_names: [obs, global_state]
+      obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
+      obs_normalized_ndim: 2
+      normalize_obs: False
+      obs_clip: 10
+    reward:
+      reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
+      reward_normalized_ndim: 1
+      normalize_reward: False
+      update_reward_rms_in_time: False
+      gamma: *gamma
 
 buffer:
   type: ac

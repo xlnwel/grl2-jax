@@ -78,7 +78,7 @@ if __name__ == '__main__':
     strs = directory.split('/')
 
   search_dir = directory
-  level = get_level(search_dir, args.last_name)
+  level = get_level(search_dir)
   print('Search directory level:', level)
   # all_data = collections.defaultdict(list)
   # for d in yield_dirs(search_dir, args.last_name, is_suffix=False, root_matches=args.name):

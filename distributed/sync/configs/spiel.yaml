@@ -32,6 +32,8 @@ parameter_server:
 
   score_metric: score   # stats recorded in payoff tables
   train_from_scratch_frac: 1
+  train_from_latest_frac: 1
+  reset_policy_head: True
   online_frac: .25
     # - [1, 1]
     # - [5, .75]
@@ -42,7 +44,7 @@ parameter_server:
   payoff:
     step_size: 1e-1
     sampling_strategy:
-      type: pfsp
+      type: fsp
       p: 1
       threshold: .3
 
@@ -88,7 +90,7 @@ model:
 
   policy:
     nn_id: policy
-    units_list: [128]
+    units_list: [128, 128]
     w_init: orthogonal
     activation: relu
     norm: null
@@ -97,7 +99,7 @@ model:
     rnn_units: 64
   value:
     nn_id: value
-    units_list: [128]
+    units_list: [128, 128]
     w_init: orthogonal
     activation: relu
     norm: null
@@ -110,10 +112,10 @@ loss:
   c_clip: 1
   rho_clip: 1
   adv_type: vtrace
-  norm_adv: False
+  norm_adv: True
 
   # hyperparams for policy optimization
-  pg_type: pg
+  pg_type: ppo
   ppo_clip_range: .2
   reg_clip: .2
   reg_type: kl_reverse
@@ -129,7 +131,7 @@ loss:
     gamma: *gamma
     lam: &lam .95
     pg_coef: 1
-    entropy_coef: 1e-1
+    entropy_coef: 1e-2
     value_coef: 1
 
 trainer:
@@ -143,7 +145,7 @@ trainer:
   debug: True
 
   theta_opt:
-    opt_name: rmsprop
+    opt_name: adam
     lr: 1e-3
     clip_norm: 10
     eps: 1e-5

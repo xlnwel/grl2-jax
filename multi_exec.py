@@ -119,8 +119,8 @@ def main(inventory_file, working_dir, conda_activate, node_range, command, num_w
 
     for r, n in zip(results, [p[0] for p in params]):
       print(f'node {n}, results: [{r[0]}]=========================================>')
-      print(f'stdout: {r[1]}')
-      print(f'stderr: {r[2]}')
+      print(f'stdout: \n{r[1]}')
+      print(f'stderr: \n{r[2]}')
       pass
     thread_pool.close()
   finally:
@@ -136,9 +136,9 @@ if __name__ == '__main__':
                       help='The working directory where you execute the command.')
   parser.add_argument('--conda-activate', '-ca', type=str, default='activate', 
                       help='The place where your conda activate is')
-  parser.add_argument('--node-range', type=str, default=None, 
+  parser.add_argument('--node-range', '-nr', type=str, default=None, 
                       help='The range of nodes in which you execute the command. Format="start,end"')
-  parser.add_argument('--command', type=str, required=True)
+  parser.add_argument('--command', '-c', type=str, required=True)
   parser.add_argument('--num-workers', type=int, default=8, 
                       help='The number of workers for execution')
   parser.add_argument('--sudo', action='store_true', default=False,

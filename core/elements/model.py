@@ -23,7 +23,7 @@ class Model(ParamsCheckpointBase):
     env_stats: AttrDict,
     name: str,
   ):
-    super().__init__(config, name)
+    super().__init__(config, name, 'model')
     self.env_stats = dict2AttrDict(env_stats, to_copy=True)
     self.modules: Dict[str, hk.Module] = AttrDict()
     self.rng = self._prngkey()
@@ -121,6 +121,8 @@ class Model(ParamsCheckpointBase):
     for name in self.params.keys():
       if name in weights:
         self.params[name] = weights[name]
+      else:
+        do_logging(f'Missing params: {name}')
 
   def get_states(self):
     pass

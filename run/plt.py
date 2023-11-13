@@ -64,7 +64,7 @@ def parse_args():
 
 
 def load_dataset(search_dir, args, date):
-  level = get_level(search_dir, args.last_name)
+  level = get_level(search_dir)
   record_name = 'record'
   print('Search directory level:', level)
 
