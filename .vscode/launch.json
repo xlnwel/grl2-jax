@@ -10,12 +10,12 @@
             "request": "launch",
             "program": "run/train.py",
             "args": [
-              "-a", "sync-ppo", 
-              "-e", "grf-academy_pass_and_shoot_with_keeper", 
+              "-a", "happo", 
+            //   "-e", "grf-academy_pass_and_shoot_with_keeper", 
               // "--task", "smac_5m_vs_6m", 
-              // "--task", "grf_academy_counterattack_hard", 
+              "-e", "grf-academy_counterattack_hard", 
               "-c", "grf"],
-            "python": "/home/ubuntu/.conda/envs/grl/bin/python3",
+            "python": "/opt/anaconda3/envs/chenxw/bin/python3",
             "console": "integratedTerminal",
             "justMyCode": true, 
         }

@@ -67,6 +67,8 @@ def restore_params(model_path: ModelPath, name, filenames=None, backtrack=4):
   filedir = get_filedir(model_path, name)
   if filenames is None:
     filenames = search_for_all_files(filedir, '.pkl', remove_dir=True)
+  if not isinstance(filenames, (list, tuple)):
+    filenames = [filenames]
   params = {}
   for filename in filenames:
     weights = restore(

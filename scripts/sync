@@ -10,4 +10,3 @@
 #     --exclude cfr.py --exclude test.py . ~/github/g2rl
 
 rsync -e 'ssh -p 46797' -avz ubuntu@36.111.128.2:/home/ubuntu/chenxinwei/grl/grf-logs/grf-academy_corner/happo_mb/0529 ~/work/Polixir/nas/grf-logs/grf-academy_corner/happo_mb --exclude src
-

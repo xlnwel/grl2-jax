@@ -85,22 +85,22 @@ class MAMujoco(gym.Wrapper):
       'game_over': done or self._epslen == self.max_episode_steps
     }
 
-    reward = np.split(reward, self.n_groups)
+    reward = np.split(reward, self.n_agents)
     if done and self._epslen == self.max_episode_steps:
       done = [np.zeros(self.n_units)] if self.single_agent else \
-        [np.zeros(1) for _ in range(self.n_groups)]
+        [np.zeros(len(self.aid2uids[i])) for i in range(self.n_agents)]
     else:
       done = [np.ones(self.n_units) * done] if self.single_agent else \
-        [np.ones(1) * done for _ in range(self.n_groups)]
-    assert len(obs) == self.n_groups, (obs, self.n_groups)
-    assert len(reward) == self.n_groups, (reward, self.n_groups)
-    assert len(done) == self.n_groups, (done, self.n_groups)
+        [np.ones(len(self.aid2uids[i])) * done for i in range(self.n_agents)]
+    assert len(obs) == self.n_agents, (obs, self.n_agents)
+    assert len(reward) == self.n_agents, (reward, self.n_agents)
+    assert len(done) == self.n_agents, (done, self.n_agents)
     return obs, reward, done, info
 
   def reset(self):
     obs, state, _ = self.env.reset()
     obs = get_obs(obs, state, self.single_agent)
-    assert len(obs) == self.n_groups, (obs, self.n_groups)
+    assert len(obs) == self.n_agents, (obs, self.n_agents)
 
     self._score = np.zeros(self.n_units)
     self._dense_score = np.zeros(self.n_units)
@@ -110,11 +110,5 @@ class MAMujoco(gym.Wrapper):
 
 def get_obs(obs, state, single_agent):
   agent_obs = []
-  if single_agent:
-    agent_obs.append({'obs': np.stack(obs, -2), 'global_state': np.stack(state, -2)})
-  else:
-    for o, s in zip(obs, state):
-      o = np.expand_dims(o, 0)
-      s = np.expand_dims(s, 0)
-      agent_obs.append({'obs': o, 'global_state': s})
+  agent_obs.append({'obs': np.stack(obs, -2), 'global_state': np.stack(state, -2)})
   return agent_obs

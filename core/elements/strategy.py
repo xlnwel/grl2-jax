@@ -5,6 +5,7 @@ from core.elements.model import Model
 from core.elements.trainer import TrainerBase, TrainerEnsemble
 from core.elements.trainloop import TrainingLoop
 from core.mixin.strategy import StepCounter, Memory
+from core.names import *
 from core.typing import ModelPath, AttrDict, dict2AttrDict
 from env.typing import EnvOutput
 from tools.run import concat_along_unit_dim
@@ -98,11 +99,11 @@ class Strategy:
       train_step=False, env_step=False):
     weights = {}
     if self.model is not None:
-      weights[f'model'] = self.model.get_weights(module_name)
+      weights[MODEL] = self.model.get_weights(module_name)
     if self.trainer is not None and opt_weights:
-      weights[f'opt'] = self.trainer.get_optimizer_weights()
+      weights[OPTIMIZER] = self.trainer.get_optimizer_weights()
     if self.actor is not None and aux_stats:
-      weights[f'aux'] = self.actor.get_auxiliary_stats()
+      weights[ANCILLARY] = self.actor.get_auxiliary_stats()
     if train_step:
       weights[f'train_step'] = self.step_counter.get_train_step()
     if env_step:
@@ -111,12 +112,12 @@ class Strategy:
     return weights
 
   def set_weights(self, weights):
-    if 'model' in weights:
-      self.model.set_weights(weights['model'])
-    if 'opt' in weights and self.trainer is not None:
-      self.trainer.set_optimizer_weights(weights['opt'])
-    if 'aux' in weights:
-      self.actor.set_auxiliary_stats(weights['aux'])
+    if MODEL in weights:
+      self.model.set_weights(weights[MODEL])
+    if OPTIMIZER in weights and self.trainer is not None:
+      self.trainer.set_optimizer_weights(weights[OPTIMIZER])
+    if ANCILLARY in weights:
+      self.actor.set_auxiliary_stats(weights[ANCILLARY])
     if 'train_step' in weights:
       self.step_counter.set_train_step(weights['train_step'])
     if 'env_step' in weights:

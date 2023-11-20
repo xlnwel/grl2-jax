@@ -1,21 +1,23 @@
 ## Overview
 
-This repository is a multi-agent reinforcement learning. 
-
-Currently, we only implement PPO and synchronous training for simultaneous-step environments. Basic algorithms are implemented in folder "algo", and the distributed architectures are implemented in folder "distributed". 
+A multi-agent reinforcement learning library. 
 
 ## 概述
 
 这是一个模块化的分布式多智能体强化学习的框架. 它主要由三个模块构成: i) 单/多智能体算法, ii) 分布式训练框架, iii) 博弈. 本文先介绍框架的使用指南, 然后再依次阐述这三个模块设计.
 
+## 优势
+
+- 容易上手, 不需要编程基础也能在半小时内轻松学会多机调参实验. 
+- 模块化设计, 方便扩展, 新算法和环境的引入只需要遵循预先定制的接口, 即可即插即用.
+- 现有的基础算法在多个benchmark上取得了SOTA的水平, 包括SMAC, GRF等经典的多智能体测试环境. 
+- 分布式训练框架, 支持自博弈以及不对称的多种群博弈, 评估.
+
 ## 使用指南
-
-
 
 ## 单/多智能体算法
 
 单/多智能体算法的入口在algo/train.py, 算法由Agent定义, 大部分的交互模块都定义在Runner这个类里.
-
 
 ## <a name="start"></a>Get Started
 

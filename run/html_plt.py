@@ -3,7 +3,6 @@ import os, sys, glob
 from pathlib import Path
 import json
 import functools
-import subprocess
 import multiprocessing
 import numpy as np
 import pandas as pd
@@ -29,39 +28,11 @@ def parse_args():
             type=str, 
             default=['a0'], 
             nargs='*')
-  parser.add_argument('--name', '-n', 
-            type=str, 
-            default=[], 
-            nargs='*')
   parser.add_argument('--target', '-t', 
             type=str, 
             default='~/Documents/html-logs')
-  parser.add_argument('--env', '-e', 
-            type=str, 
-            default=[], 
-            nargs='*')
-  parser.add_argument('--algo', '-a', 
-            type=str, 
-            default=[], 
-            nargs='*')
-  parser.add_argument('--date', '-d', 
-            type=str, 
-            default=[], 
-            nargs='*')
-  parser.add_argument('--model', '-m', 
-            type=str, 
-            default=[], 
-            nargs='*')
-  parser.add_argument('--plt_config', '-pc', 
-            type=str, 
-            default=None)
   parser.add_argument('--multiprocessing', '-mp', 
             action='store_true')
-  parser.add_argument('--sync', 
-            action='store_true')
-  parser.add_argument('--ignore', '-i',
-            type=str, 
-            default=[])
   args = parser.parse_args()
 
   return args
@@ -106,15 +77,6 @@ def rename_env(config: dict):
 
 
 def process_data(data, plt_config):
-  if 'model_error/ego&train-trans' in data:
-    k1_err = data[f'model_error/ego-trans']
-    train_err = data[f'model_error/train-trans']
-    k1_train_err = np.abs(k1_err - train_err)
-    data[f'model_error/ego&train-trans'] = k1_train_err
-    data[f'model_error/norm_ego&train-trans'] = np.where(train_err != 0,
-      k1_train_err / train_err, k1_train_err)
-  if 'cos_lka_pi' in data:
-    data['cos_lka_mu_diff'] = data['cos_lka_pi'] - data['cos_mu_pi']
   # if name != 'happo':
   new_data = {}
   for k in data.keys():
@@ -200,7 +162,7 @@ def convert_data(d, directory, target, plt_config):
   config = flatten_dict(config)
   config = rename_env(config)
   config = remove_redundancies(config)
-  config = {k: str(v) for k, v in config.items()}
+  # config = {k: str(v) for k, v in config.items()}
   # config['model_name'] = config['model_name'].split('/')[1]
   config['buffer/sample_keys'] = []
 
@@ -213,33 +175,27 @@ def convert_data(d, directory, target, plt_config):
         data[k] = (data[f'{k}1'] + data[f'{k}2']) / 2
       except:
         pass
-
+  
   with open(json_path, 'w') as json_file:
     json.dump(config, json_file)
   data.to_csv(csv_path, index=False)
 
 
-def generate_data(args, search_dir, level, plt_config=None):
-  if plt_config:
-    date = set()
-    env = set()
-    algo = set()
-    model = set()
-    plt_config = yaml_op.load_config(plt_config, to_eval=False)
-    for data in plt_config.data:
-      if 'date' in data:
-        date.add(data.date)
-      if 'env_suite' in data:
-        env.add(f'{data.env_suite}-{data.raw_env_name}' if 'raw_env_name' in data else data.env_suite)
-      if 'name' in data:
-        algo.add(data.name)
-      if 'model' in data:
-        model.add(data.model)
-  else:
-    date = get_date(args.date)
-    env = set(args.env)
-    algo = set(args.algo)
-    model = set(args.model)
+def transfer_data(args, search_dir, level, plt_config=None):
+  date = set()
+  env = set()
+  algo = set()
+  model = set()
+  plt_config = yaml_op.load_config(plt_config, to_eval=False)
+  for data in plt_config.data:
+    if 'date' in data:
+      date.add(str(data.date))
+    if 'env_suite' in data:
+      env.add(f'{data.env_suite}-{data.raw_env_name}' if 'raw_env_name' in data else data.env_suite)
+    if 'name' in data:
+      algo.add(str(data.name))
+    if 'model' in data:
+      model.add(data.model)
   do_logging(f'Loading logs with')
   do_logging(f'\tdate={date}')
   do_logging(f'\tenv={env}')
@@ -267,21 +223,18 @@ def generate_data(args, search_dir, level, plt_config=None):
     for d in fixed_pattern_search(
       search_dir, 
       level=level, 
-      env=args.env, 
-      algo=args.algo, 
+      env=env, 
+      algo=algo, 
       date=date, 
-      model=args.model, 
+      model=model, 
       final_level=DirLevel(args.final_level), 
       final_name=args.last_name
     ):
-      print('before processing', d)
       convert_data(d, directory, target=target, plt_config=plt_config)
 
 
 if __name__ == '__main__':
   args = parse_args()
-  
-  name = args.name
 
   directory = os.path.abspath(args.directory)
   target = os.path.expanduser(args.target)
@@ -294,28 +247,14 @@ if __name__ == '__main__':
   
   if directory.startswith('/'):
     strs = directory.split('/')
-  process = None
-  if args.sync:
-    old_logs = '/'.join(strs)
-    new_logs = f'~/Documents/' + '/'.join(strs[8:])
-    if not os.path.exists(new_logs):
-      Path(new_logs).mkdir(parents=True)
-    cmd = ['rsync', '-avz', old_logs, new_logs, '--exclude', 'src']
-    for n in name:
-      cmd += ['--include', n]
-    do_logging(' '.join(cmd))
-    process = subprocess.Popen(cmd)
 
   search_dir = directory
   level = get_level(search_dir)
   print('Search directory level:', level)
 
-  # generate_data(args, search_dir, level)
+  # transfer_data(args, search_dir, level)
   for f in glob.glob(f'plt_configs/*'):
-    generate_data(args, search_dir, level, f)
-
-  if process is not None:
-    do_logging('Waiting for rsync to complete...')
-    process.wait()
+    if f.endswith('.yaml'):
+      transfer_data(args, search_dir, level, f)
 
   do_logging('Transfer completed')

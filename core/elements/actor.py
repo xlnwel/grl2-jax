@@ -3,6 +3,7 @@ import jax
 
 from core.elements.model import Model
 from core.mixin.actor import RMS
+from core.names import ANCILLARY, MODEL
 from core.typing import ModelPath, AttrDict, dict2AttrDict
 from tools.run import concat_along_unit_dim
 from tools.utils import set_path, batch_dicts
@@ -162,19 +163,20 @@ class Actor:
     return reward
 
   def update_obs_rms(self, obs, mask=None):
+    obs = {k: obs[k] for k in self.rms.get_obs_names()}
     self.rms.update_obs_rms(obs, self.gid2uids, split_axis=2, mask=mask)
 
   def get_weights(self):
     weights = {
-      'model': self.model.get_weights(),
-      'aux': self.get_auxiliary_stats()
+      MODEL: self.model.get_weights(),
+      ANCILLARY: self.get_auxiliary_stats()
     }
     return weights
 
   def set_weights(self, weights):
-    self.model.set_weights(weights['model'])
-    if 'aux' in weights:
-      self.set_auxiliary_stats(weights['aux'])
+    self.model.set_weights(weights[MODEL])
+    if ANCILLARY in weights:
+      self.set_auxiliary_stats(weights[ANCILLARY])
 
   def get_model_weights(self, name: str=None):
     return self.model.get_weights(name)

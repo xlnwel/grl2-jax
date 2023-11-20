@@ -3,14 +3,14 @@ import logging
 import numpy as np
 from typing import Dict, List, Tuple, Union
 
-from core.ckpt.pickle import save, restore
+from core.ckpt.pickle import save, restore, save_params, restore_params
+from core.names import *
 from core.typing import ModelPath, AttrDict
 from tools.display import print_dict, print_dict_info
 from tools.rms import RunningMeanStd, combine_rms, normalize, StatsWithVarCount
 from tools.utils import yield_from_tree_with_indices, batch_dicts
 
 logger = logging.getLogger(__name__)
-
 
 RMSStats = collections.namedtuple('RMSStats', 'obs reward')
 
@@ -35,10 +35,10 @@ def rms2dict(rms: RMSStats):
     for i, obs_rms in enumerate(rms.obs):
       for k, v in obs_rms.items():
         for kk, vv in v._asdict().items():
-          stats[f'aux/{k}/{kk}{i}'] = vv
+          stats[f'{ANCILLARY}/{k}/{kk}{i}'] = vv
   if rms.reward:
     for k, v in rms.reward._asdict().items():
-      stats[f'aux/reward/{k}'] = v
+      stats[f'{ANCILLARY}/reward/{k}'] = v
 
   return stats
 
@@ -179,14 +179,14 @@ class RewardRunningMeanStd:
       raise RuntimeError('rms path is not configured.')
     self.rms = restore(
       filedir=self._filedir, 
-      filename=f'params/{self.name}', 
+      filename=f'${PARAMS}/{self.name}', 
       default=self.rms
     )
   
   def save_rms(self):
     if self._filedir is None:
       raise RuntimeError('rms path is not configured.')
-    save(self.rms, filedir=self._filedir, filename=f'params/{self.name}')
+    save(self.rms, filedir=self._filedir, filename=f'${PARAMS}/{self.name}')
 
   def reset_path(self, model_path: ModelPath):
     self._filedir = '/'.join(model_path)
@@ -202,7 +202,7 @@ class ObsRunningMeanStd:
     self._normalize_obs = config.get('normalize_obs', False)
     self._clip = config.setdefault('obs_clip', 10)
 
-    self._obs_names = config.get('obs_names', ['obs'])
+    self._obs_names = config.get('obs_names', [OBS])
     self._masked_names = config.get('masked_names', self._obs_names)
     self.rms: Dict[str, RunningMeanStd] = AttrDict()
     if self._normalize_obs:
@@ -234,7 +234,7 @@ class ObsRunningMeanStd:
     if self._normalize_obs:
       if not isinstance(obs, dict):
         if name is None:
-          name = 'obs'
+          name = OBS
         if name not in self._masked_names:
           mask = None
         assert name in self.rms, (name, list(self.rms))
@@ -262,7 +262,7 @@ class ObsRunningMeanStd:
         batch_count=v.count
       )
 
-  def normalize(self, obs, name='obs', mask=None):
+  def normalize(self, obs, name=OBS, mask=None):
     """ Normalize obs using obs RMS """
     if isinstance(obs, dict):
       obs = obs[name]
@@ -324,14 +324,14 @@ class ObsRunningMeanStd:
       raise RuntimeError('rms path is not configured.')
     self.rms = restore(
       filedir=self._filedir, 
-      filename=f'params/{self.name}', 
+      filename=f'${PARAMS}/{self.name}', 
       default=self.rms
     )
 
   def save_rms(self):
     if self._filedir is None:
       raise RuntimeError('rms path is not configured.')
-    save(self.rms, filedir=self._filedir, filename=f'params/{self.name}')
+    save(self.rms, filedir=self._filedir, filename=f'${PARAMS}/{self.name}')
 
   def reset_path(self, model_path: ModelPath):
     self._filedir = '/'.join(model_path)
@@ -353,6 +353,7 @@ class RMS:
       ]
     assert len(self.obs_rms) == self.n_obs, (len(self.obs_rms), self.n_obs)
     self.reward_rms = RewardRunningMeanStd(config.reward, name=f'reward_{name}')
+    self._model_path = config.model_path
 
   @property
   def is_obs_normalized(self):
@@ -381,8 +382,7 @@ class RMS:
       self.obs_rms[0].update(obs, name, mask, axis)
     else:
       assert indices is not None and len(indices) == self.n_obs, (indices, self.n_obs)
-      for rms, (o, m) in zip(self.obs_rms, 
-          yield_from_tree_with_indices(
+      for rms, (o, m) in zip(self.obs_rms, yield_from_tree_with_indices(
             (obs, mask), indices, split_axis, keep_none=True)):
         rms.update(o, name, m, axis)
 
@@ -431,7 +431,7 @@ class RMS:
   """ RMS Update """
   def update_all_rms(self, data, obs_mask=None, reward_mask=None, axis=None):
     self.update_obs_rms(data, mask=obs_mask, axis=axis)
-    self.update_reward_rms(data['reward'], data['discount'], 
+    self.update_reward_rms(data[REWARD], data[DISCOUNT], 
       mask=reward_mask, axis=axis)
 
   def update_from_stats_list(self, rms_stats_list: List[RMSStats]):
@@ -448,17 +448,17 @@ class RMS:
 
   """ Checkpoint Operations """
   def restore_rms(self):
-    for rms in self.obs_rms:
-      rms.restore_rms()
-    self.reward_rms.restore_rms()
+    params = restore_params(self._model_path, name=PARAMS, filenames=ANCILLARY)
+    if not params: return
+    anc = params[ANCILLARY]
+    self.set_rms_stats(anc)
 
   def restore_auxiliary_stats(self):
     self.restore_rms()
 
   def save_rms(self):
-    for rms in self.obs_rms:
-      rms.save_rms()
-    self.reward_rms.save_rms()
+    anc = {ANCILLARY: self.get_rms_stats()}
+    save_params(anc, self._model_path, name=PARAMS)
 
   def save_auxiliary_stats(self):
     self.save_rms()

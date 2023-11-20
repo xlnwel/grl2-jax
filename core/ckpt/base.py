@@ -28,7 +28,7 @@ class ParamsCheckpointBase:
     self.name = name
     self.config = dict2AttrDict(config, to_copy=True)
     self.params: Dict[str, Dict] = AttrDict()
-    self._ckpt = Checkpoint(self.config, name=ckpt_name)
+    self._ckpt = Checkpoint(self.config, name=f'params/{ckpt_name}')
 
   @property
   def filedir(self):

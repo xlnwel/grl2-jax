@@ -1,0 +1,16 @@
+ANCILLARY = 'ancillary'
+OPTIMIZER = 'opt'
+MODEL = 'model'
+LOSS = 'loss'
+TRAINER = 'trainer'
+ACTOR = 'actor'
+BUFFER = 'buffer'
+STRATEGY = 'strategy'
+AGENT = 'agent'
+
+PARAMS = 'params'
+OBS = 'obs'
+REWARD = 'reward'
+DISCOUNT = 'discount'
+
+ROOTDIR = 'root_dir'

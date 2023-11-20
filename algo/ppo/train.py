@@ -19,7 +19,7 @@ def train(
     init_next=env_step != 0, 
     final=routine_config.MAX_STEPS
   )
-  init_running_stats(agent, runner)
+  init_running_stats(agent, runner, n_steps=routine_config.n_steps)
 
   while env_step < routine_config.MAX_STEPS:
     env_step = env_run(agent, runner, routine_config, prepare_buffer)

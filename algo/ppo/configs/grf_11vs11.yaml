@@ -14,7 +14,7 @@ model_name: *algo
 routine:
   algorithm: *algo
 
-  MAX_STEPS: 5e6
+  MAX_STEPS: 1e9
   n_steps: &nsteps 100
   LOG_PERIOD: 1e5
   EVAL_PERIOD: null
@@ -29,7 +29,7 @@ routine:
   perm: null
 
 env:
-  env_name: &env_name grf-academy_3_vs_1_with_keeper
+  env_name: &env_name grf-11_vs_11_stochastic
   representation: simple115v2
   render: False
   write_full_episode_dumps: False
@@ -40,9 +40,10 @@ env:
   control_left: True
   control_right: False
   shared_policy: True
+  shared_reward: True
   score_reward_scale: 1
 
-  max_episode_steps: 200
+  max_episode_steps: 3000
   use_action_mask: False
   uid2aid: null
 
@@ -64,25 +65,26 @@ strategy:
 model:
   aid: 0
   gamma: &gamma .99
+  print_for_debug: False
 
   policy:
     nn_id: policy
-    units_list: [64, 64]
+    units_list: [256, 256]
     w_init: orthogonal
     activation: relu
     norm: null
     out_scale: .01
     rnn_type: &prnn null
-    rnn_units: 64
+    rnn_units: 256
     use_feature_norm: False
   value:
     nn_id: value
-    units_list: [64, 64]
+    units_list: [256, 256]
     w_init: orthogonal
     activation: relu
     norm: null
     rnn_type: &vrnn null
-    rnn_units: 64
+    rnn_units: 256
     use_feature_norm: False
 
 loss:
@@ -122,7 +124,6 @@ trainer:
   n_epochs: &nepochs 5
   n_mbs: &nmbs 1
   n_steps: *nsteps
-  update_scheme: whole
   debug: True
 
   theta_opt:

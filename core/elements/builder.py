@@ -11,6 +11,7 @@ from core.elements.strategy import Strategy
 from core.elements.trainer import TrainerBase
 from core.elements.monitor import Monitor, create_monitor
 from core.log import do_logging
+from core.names import *
 from core.typing import *
 from core.utils import save_code_for_seed, save_config
 from env.func import get_env_stats
@@ -51,13 +52,13 @@ class ElementsBuilder:
   
   def retrieve_constructor(self, algo):
     constructors = AttrDict()
-    constructors.model = self._import_element('model', algo).create_model
-    constructors.loss = self._import_element('loss', algo).create_loss
-    constructors.trainer = self._import_element('trainer', algo).create_trainer
-    constructors.actor = self._import_element('actor', algo).create_actor
-    constructors.buffer = self._import_element('buffer', algo).create_buffer
-    constructors.strategy = self._import_element('strategy', algo).create_strategy
-    constructors.agent = self._import_element('agent', algo).create_agent
+    constructors.model = self._import_element(MODEL, algo).create_model
+    constructors.loss = self._import_element(LOSS, algo).create_loss
+    constructors.trainer = self._import_element(TRAINER, algo).create_trainer
+    constructors.actor = self._import_element(ACTOR, algo).create_actor
+    constructors.buffer = self._import_element(BUFFER, algo).create_buffer
+    constructors.strategy = self._import_element(STRATEGY, algo).create_strategy
+    constructors.agent = self._import_element(AGENT, algo).create_agent
 
     return constructors
 

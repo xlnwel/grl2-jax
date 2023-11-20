@@ -6,7 +6,7 @@ source activate grl
 dir=$1
 shift
 
-sleep=60
+sleep=3
 while true
 do
     tomorrow=$(date -v+1d "+%m%d")
@@ -20,7 +20,10 @@ do
     echo $py_script
     eval $py_script
     # rm -rf html-logs
-    py_script="python run/html_plt.py $dir -ln a0 dynamics -d tomorrow today yesterday dby $@ "
+    py_script="python run/html_plt.py $dir -fl 7 -ln a0 $@ "
+    echo $py_script
+    eval $py_script
+    py_script="python run/html_plt.py $dir -fl 8 -ln i1-v1 $@ "
     echo $py_script
     eval $py_script
     echo "sleeping for $sleep seconds"

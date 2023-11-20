@@ -70,7 +70,7 @@ env:
   extra_players: null
   control_left: True
   control_right: False
-  shared_policy: True
+  shared_policy: False
   score_reward_scale: 1
 
   max_episode_steps: 200

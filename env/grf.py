@@ -1,5 +1,6 @@
 import numpy as np
 import gym
+from gym.spaces import Discrete
 f32 = np.float32
 
 from env.grf_env.selected_agents import SelectedAgents
@@ -100,10 +101,7 @@ class GRF:
     self.use_idx = use_idx
 
     self.action_space = [
-      self.env.action_space
-      if isinstance(self.env.action_space, gym.spaces.MultiDiscrete) 
-      else self.env.action_space 
-      for _ in range(self.n_agents)
+      Discrete(20) for _ in range(self.n_agents)
     ]
     self.action_shape = [() for _ in self.action_space]
     self.action_dim = [19 for _ in range(self.n_agents)]
@@ -154,7 +152,7 @@ class GRF:
     self._collected_checkpoints = [0, 0]
 
     # return [{'obs': o[None], 'global_state': o[None]} for o in obs]
-    return self._get_obs()
+    return self._get_obs(obs)
 
   def step(self, action):
     obs, reward, done, info = self.env.step(action)
@@ -193,10 +191,10 @@ class GRF:
       'game_over': done
     }
 
-    agent_obs = self._get_obs()
+    agent_obs = self._get_obs(obs)
     # agent_obs = [{'obs': o[None], 'global_state': o[None]} for o in obs]
-    agent_rewards = [np.reshape(reward[uids], -1) for uids in self.gid2uids]
-    agent_dones = [np.reshape(dones[uids], -1) for uids in self.gid2uids]
+    agent_rewards = [np.reshape(reward[uids], -1) for uids in self.aid2uids]
+    agent_dones = [np.reshape(dones[uids], -1) for uids in self.aid2uids]
 
     return agent_obs, agent_rewards, agent_dones, info
 
@@ -210,13 +208,19 @@ class GRF:
   def close(self):
     return self.env.close()
 
-  def _get_obs(self):
-    agent_obs = [dict(
-      obs=np.concatenate([self.get_state(u >= self.n_left_units, u) for u in uids], 0), 
-      global_state=np.concatenate([self.get_state(u >= self.n_left_units) for u in uids], 0), 
-    ) for uids in self.gid2uids]
+  def _get_obs(self, obs):
+    if self.representation == Representation.SIMPLE115:
+      agent_obs = [dict(
+        obs=obs[uids],
+        global_state=obs[uids]
+      ) for uids in self.aid2uids]
+    else:
+      agent_obs = [dict(
+        obs=np.concatenate([self.get_state(u >= self.n_left_units, u) for u in uids], 0), 
+        global_state=np.concatenate([self.get_state(u >= self.n_left_units) for u in uids], 0), 
+      ) for uids in self.aid2uids]
     if self.use_idx:
-      for o, uids in zip(agent_obs, self.gid2uids):
+      for o, uids in zip(agent_obs, self.aid2uids):
         o['idx'] = np.eye(len(uids), dtype=f32)
 
     return agent_obs
@@ -334,7 +338,7 @@ def parse_args():
 if __name__ == '__main__':
   args = parse_args()
   config = {
-      'env_name': 'academy_pass_and_shoot_with_keeper',
+      'env_name': 'academy_counterattack_hard',
       'representation': 'simple115v2',
       'write_full_episode_dumps': True, 
       'write_video': True, 
@@ -363,12 +367,13 @@ if __name__ == '__main__':
   env.seed(1)
   obs = env.raw_state()
   ids = np.array([o['active'] for o in obs])
+  print('ids', ids)
   for i in range(args.step):
     a = env.random_action()
     obs, rew, done, info = env.step(a)
-    print(i, 'reward', rew, 'done', done)
     obs = env.raw_state()
     new_ids = np.array([o['active'] for o in obs])
+    print('ids', new_ids)
     # new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
     # np.testing.assert_equal(ids, new_ids)
     # print('ball_owned_team', [o['ball_owned_team'] for o in obs])

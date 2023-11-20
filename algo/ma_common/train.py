@@ -2,10 +2,11 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
+from core.names import ANCILLARY
 from core.typing import get_basic_model_name
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from tools.display import print_dict
-from tools.utils import modify_config, prefix_name, flatten_dict
+from tools.utils import modify_config, flatten_dict
 from tools.timer import Timer, timeit
 from algo.ma_common.run import Runner
 
@@ -96,10 +97,10 @@ def log_agent(agent, env_step, train_step, error_stats={}):
   if rms is not None:
     if isinstance(rms[0], list):
       for i, v in enumerate(rms[0]):
-        rms_dict[f'aux/obs{i}'] = v
+        rms_dict[f'{ANCILLARY}/obs{i}'] = v
     else:
-      rms_dict[f'aux/obs'] = rms[0]
-    rms_dict[f'aux/reward'] = rms[-1]
+      rms_dict[f'{ANCILLARY}/obs'] = rms[0]
+    rms_dict[f'{ANCILLARY}/reward'] = rms[-1]
     rms_dict = flatten_dict(rms_dict)
 
   agent.store(**{

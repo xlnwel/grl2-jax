@@ -6,6 +6,8 @@ import jax.numpy as jnp
 from core.typing import AttrDict, dict2AttrDict
 from core.elements.strategy import Strategy as StrategyBase, create_strategy
 from core.mixin.strategy import Memory as MemoryBase
+from env.typing import EnvOutput
+from tools.display import print_dict_info
 
 
 class Memory(MemoryBase):
@@ -45,11 +47,10 @@ class Strategy(StrategyBase):
 
   def _prepare_input_to_actor(self, env_output):
     if isinstance(env_output.obs, list):
-      inps = [dict2AttrDict(o, to_copy=True) for o in env_output.obs]
-      resets = env_output.reset
-    else:
-      inps = [env_output.obs.slice(indices=uids, axis=1) for uids in self.gid2uids]
-      resets = [env_output.reset[:, uids] for uids in self.gid2uids]
+      assert len(env_output.obs) == 1, len(env_output.obs)
+      env_output = EnvOutput(*[x[0] for x in env_output])
+    inps = [env_output.obs.slice(indices=uids, axis=1) for uids in self.gid2uids]
+    resets = [env_output.reset[:, uids] for uids in self.gid2uids]
     inps = self._memory.add_memory_state_to_input(inps, resets)
 
     return inps
@@ -61,15 +62,12 @@ class Strategy(StrategyBase):
 
   def compute_value(self, env_output, states=None):
     if isinstance(env_output.obs, list):
-      inps = [AttrDict(
-        global_state=o.get('global_state', o['obs'])
-      ) for o in env_output.obs]
-      resets = env_output.reset
-    else:
-      inps = [AttrDict(
-        global_state=env_output.obs.get('global_state', env_output.obs['obs'])[:, uids]
-      ) for uids in self.gid2uids]
-      resets = [env_output.reset[:, uids] for uids in self.gid2uids]
+      assert len(env_output.obs) == 1, len(env_output.obs)
+      env_output = EnvOutput(*[x[0] for x in env_output])
+    inps = [AttrDict(
+      global_state=env_output.obs.get('global_state', env_output.obs['obs'])[:, uids]
+    ) for uids in self.gid2uids]
+    resets = [env_output.reset[:, uids] for uids in self.gid2uids]
     inps = self._memory.add_memory_state_to_input(inps, resets, states)
     value = self.actor.compute_value(inps)
 

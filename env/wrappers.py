@@ -1,8 +1,10 @@
 import collections
 import copy
 import logging
+from gym.core import Env
 import numpy as np
 import gym
+import random
 import cv2
 
 from core.log import do_logging
@@ -446,6 +448,40 @@ class Continuous2MultiCategorical(gym.ActionWrapper):
     assert np.all(-1 <= action), action
     assert np.all(action <= 1), action
     return action
+
+
+def _swap(x):
+  assert len(x) == 2, x
+  if isinstance(x, np.ndarray):
+    return np.array([x[1], x[0]])
+  else:
+    return x[1], x[0]
+
+
+class AgentSwapper(gym.Wrapper):
+  def __init__(self, env: Env):
+    super().__init__(env)
+    assert env.n_agents == 2, env.n_agents
+    self._to_swap = False
+
+  def reset(self):
+    self._to_swap = random.choice([True, False])
+    obs = self.env.reset()
+    if self._to_swap:
+      obs = _swap(obs)
+    return obs
+  
+  def step(self, action):
+    if self._to_swap:
+      action = _swap(action)
+    obs, reward, done, info = self.env.step(action)
+    if self._to_swap:
+      obs = _swap(obs)
+      reward = _swap(reward)
+      done = _swap(done)
+      info = {k: _swap(v) if isinstance(v, (list, tuple, np.ndarray)) else v for k, v in info.items()}
+    return obs, reward, done, info
+
 
 class TurnBasedProcess(gym.Wrapper):
   def __init__(self, env) -> None:
@@ -1148,9 +1184,9 @@ class MASimEnvStats(EnvStatsBase):
 
   def _reset(self):
     obs = super()._reset()
-    reward = self._get_group_wise_zeros()
-    discount = self._get_group_wise_ones()
-    reset = self._get_group_wise_ones()
+    reward = self._get_agent_wise_zeros()
+    discount = self._get_agent_wise_ones()
+    reset = self._get_agent_wise_ones()
     self._prev_output = EnvOutput(obs, reward, discount, reset)
     self._output = EnvOutput(obs, reward, discount, reset)
 
@@ -1160,9 +1196,9 @@ class MASimEnvStats(EnvStatsBase):
     if self.game_over():
       assert self.auto_reset == False
       # step after the game is over
-      reward = self._get_group_wise_zeros()
-      discount = self._get_group_wise_zeros()
-      reset = self._get_group_wise_zeros()
+      reward = self._get_agent_wise_zeros()
+      discount = self._get_agent_wise_zeros()
+      reset = self._get_agent_wise_zeros()
       self._output = EnvOutput(self._output.obs, reward, discount, reset)
       return self._output
 
@@ -1178,11 +1214,11 @@ class MASimEnvStats(EnvStatsBase):
     if self._epslen >= self.max_episode_steps:
       self._game_over = True
       if self.timeout_done:
-        done = self._get_group_wise_ones()
+        done = self._get_agent_wise_ones()
     discount = [np.array(1-d, self.float_dtype) for d in done]
 
     # store previous env output for later retrieval
-    reset = self._get_group_wise_zeros()
+    reset = self._get_agent_wise_zeros()
     self._prev_output = EnvOutput(obs, reward, discount, reset)
 
     # reset env
@@ -1203,15 +1239,15 @@ class MASimEnvStats(EnvStatsBase):
   def observation(self, obs):
     if isinstance(obs, dict):
       obs = [obs]
-    assert isinstance(obs, list) and len(obs) == self.n_groups, (self.n_groups, obs)
+    assert isinstance(obs, list) and len(obs) == self.n_agents, (self.n_agents, obs)
     assert isinstance(obs[0], dict), obs[0]
     return obs
 
-  def _get_group_wise_zeros(self):
-    return [np.zeros(len(uids), self.float_dtype) for uids in self.gid2uids]
+  def _get_agent_wise_zeros(self):
+    return [np.zeros(len(uids), self.float_dtype) for uids in self.aid2uids]
   
-  def _get_group_wise_ones(self):
-    return [np.ones(len(uids), self.float_dtype) for uids in self.gid2uids]
+  def _get_agent_wise_ones(self):
+    return [np.ones(len(uids), self.float_dtype) for uids in self.aid2uids]
 
 
 class MATurnBasedEnvStats(EnvStatsBase):

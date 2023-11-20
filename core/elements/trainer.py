@@ -6,8 +6,8 @@ from core.ckpt.base import ParamsCheckpointBase
 from core.elements.loss import LossBase
 from core.ensemble import Ensemble
 from core.optimizer import build_optimizer
-from core.typing import ModelPath, dict2AttrDict
-from core.typing import AttrDict
+from core.typing import AttrDict, ModelPath, dict2AttrDict
+from core.names import MODEL, OPTIMIZER
 from tools.timer import Timer
 from tools.utils import set_path
 
@@ -21,7 +21,7 @@ class TrainerBase(ParamsCheckpointBase):
     loss: LossBase,
     name: str
   ):
-    super().__init__(config, f'{name}_trainer', 'opt')
+    super().__init__(config, f'{name}_trainer', OPTIMIZER)
     self.aid = config.get('aid', 0)
     self.env_stats = env_stats
 
@@ -71,14 +71,14 @@ class TrainerBase(ParamsCheckpointBase):
   """ Weights Access """
   def get_weights(self):
     weights = {
-      'model': self.model.get_weights(),
-      'opt': self.get_optimizer_weights(),
+      MODEL: self.model.get_weights(),
+      OPTIMIZER: self.get_optimizer_weights(),
     }
     return weights
 
   def set_weights(self, weights):
-    self.model.set_weights(weights['model'])
-    self.set_optimizer_weights(weights['opt'])
+    self.model.set_weights(weights[MODEL])
+    self.set_optimizer_weights(weights[OPTIMIZER])
 
   def get_model_weights(self, name: str=None):
     return self.model.get_weights(name)

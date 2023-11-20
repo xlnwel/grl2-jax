@@ -40,6 +40,9 @@ class LocalBuffer(Buffer):
   def size(self):
     return self._size
 
+  def __len__(self):
+    return self.size()
+
   def is_empty(self):
     return self._size == 0
 

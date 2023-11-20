@@ -7,6 +7,7 @@ import haiku as hk
 
 from core.ckpt.pickle import save, restore
 from core.log import do_logging
+from core.names import MODEL, OPTIMIZER
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
@@ -104,9 +105,9 @@ class Trainer(TrainerBase):
         v_target.append(stats.v_target)
         # print_dict_info(stats)
         if e == self.config.n_epochs-1 and i == self.config.n_mbs - 1:
-          all_stats.update(**prefix_name(stats, name=f'agent_last_epoch'))
+          all_stats.update(**prefix_name(stats, name=f'group_last_epoch'))
         elif e == 0 and i == 0:
-          all_stats.update(**prefix_name(stats, name=f'agent_first_epoch'))
+          all_stats.update(**prefix_name(stats, name=f'group_first_epoch'))
     self.model.set_weights(theta)
 
     if self.config.popart:
@@ -117,6 +118,7 @@ class Trainer(TrainerBase):
 
     data = flatten_dict({k: v 
       for k, v in data.items() if v is not None}, prefix='data')
+    stats = prefix_name(stats, name='train')
     all_stats.update(data)
 
     for v in theta.values():
@@ -127,14 +129,14 @@ class Trainer(TrainerBase):
 
   def get_theta_params(self):
     weights = {
-      'model': self.model.theta, 
-      'opt': self.params.theta
+      MODEL: self.model.theta, 
+      OPTIMIZER: self.params.theta
     }
     return weights
   
   def set_theta_params(self, weights):
-    self.model.set_weights(weights['model'])
-    self.params.theta = weights['opt']
+    self.model.set_weights(weights[MODEL])
+    self.params.theta = weights[OPTIMIZER]
 
   def theta_train(
     self, 

@@ -102,6 +102,7 @@ class Trainer(TrainerBase):
 
     data = flatten_dict({k: v 
       for k, v in data.items() if v is not None}, prefix='data')
+    stats = prefix_name(stats, name='train')
     stats.update(data)
 
     return stats
@@ -149,15 +150,15 @@ class Trainer(TrainerBase):
           #     stats.adv_ratio_pp + stats.adv_ratio_pn + stats.adv_ratio_np + stats.adv_ratio_nn, 1, 2)
           vts.append(stats.pop('v_target'))
           if e == 0 and i == 0:
-            all_stats.update(**prefix_name(stats, name=f'agent{gid}_first_epoch'))
+            all_stats.update(**prefix_name(stats, name=f'group{gid}_first_epoch'))
         if e == n_epochs-1:
-          all_stats.update(**prefix_name(stats, name=f'agent{gid}_last_epoch'))
+          all_stats.update(**prefix_name(stats, name=f'group{gid}_last_epoch'))
       teammate_log_ratio = self.compute_teammate_log_ratio(
         agent_theta.policy, self.rng, teammate_log_ratio, agent_data
       )
       
       v_target[gid] = np.concatenate(vts)
-      all_stats[f'agent{gid}/teammate_log_ratio'] = teammate_log_ratio
+      all_stats[f'group{gid}/teammate_log_ratio'] = teammate_log_ratio
       theta, opt_state = set_params_and_opt(
         theta, opt_state, gid, agent_theta, agent_opt_state)
     

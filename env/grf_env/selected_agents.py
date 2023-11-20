@@ -67,6 +67,13 @@ class SelectedAgents(gym.Wrapper):
           self._left_controlled_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         if control_right:
           self._right_controlled_units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      elif env_name.startswith('academy_counterattack'):
+        n_left_units = 4
+        n_right_units = 0
+        if control_left:
+          self._left_controlled_units = None
+        if control_right:
+          self._right_controlled_units = None
       else:
         n_left_units = 11
         n_right_units = 11
@@ -144,13 +151,13 @@ class SelectedAgents(gym.Wrapper):
     actions = []
     cid = 0
     for i in range(self.n_left_units):
-      if i in self._left_controlled_units:
+      if i in self.left_controlled_units:
         actions.append(action[cid])
         cid += 1
       else:
         actions.append(19)
     for i in range(self.n_right_units):
-      if i in self._right_controlled_units:
+      if i in self.right_controlled_units:
         actions.append(action[cid])
         cid += 1
       else:
@@ -159,7 +166,9 @@ class SelectedAgents(gym.Wrapper):
 
   def get_controlled_players_data(self, data):
     assert len(data) == self.n_units, (len(data), self.n_units)
-    if self.n_right_units > 0:
+    if len(data) == self.n_units:
+      return data
+    if self.n_right_controlled_units > 0:
       left_data = data[:self.n_left_units]
       right_data = data[self.n_left_units:]
       left_data = np.asarray([left_data[i] for i in self.left_controlled_units])

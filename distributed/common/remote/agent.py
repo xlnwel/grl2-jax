@@ -6,6 +6,7 @@ from tools.timer import Timer
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.log import do_logging
+from core.names import *
 from core.remote.base import RayBase
 from .monitor import Monitor
 from .parameter_server import ParameterServer
@@ -55,7 +56,7 @@ class Agent(RayBase):
       self.get_model_path(), 
       self.strategy.get_weights(aux_stats=False, train_step=True, env_step=False)
     )
-    assert set(model_weights.weights) == set(['model', 'opt', 'train_step']), list(model_weights.weights)
+    assert set(model_weights.weights) == set([MODEL, OPTIMIZER, 'train_step']), list(model_weights.weights)
     ids = self.parameter_server.update_and_prepare_strategy.remote(
       self.aid, model_weights, model_weights.weights['train_step']
     )
@@ -75,11 +76,9 @@ class Agent(RayBase):
   def _training(self):
     while self.train_signal:
       stats = self.strategy.train_record()
-      if stats is None:
-        # print('Training stopped due to no data being received in time')
-        continue
-      self.publish_weights()
-      self._send_train_stats(stats)
+      if stats:
+        self.publish_weights()
+        self._send_train_stats(stats)
 
     do_logging('Training terminated')
 

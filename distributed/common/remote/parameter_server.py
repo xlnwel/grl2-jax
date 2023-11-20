@@ -11,6 +11,7 @@ from core.ckpt import pickle
 from core.elements.builder import ElementsBuilderVC
 from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
+from core.names import *
 from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
   get_aid, get_basic_model_name
@@ -133,7 +134,7 @@ class ParameterServer(RayBase):
 
   def get_aux_stats(self, model_path: ModelPath):
     aid = get_aid(model_path.model_name)
-    rms = self._params[aid][model_path].get('aux', RMSStats({}, None))
+    rms = self._params[aid][model_path].get(ANCILLARY, RMSStats({}, None))
     stats = rms2dict(rms)
 
     return stats
@@ -238,7 +239,7 @@ class ParameterServer(RayBase):
             # it's likely that you retrive the latest model 
             # in self.payoff_manager.sample_strategies
             weights = {k: self._params[i][m][k] 
-              for k in ['model', 'train_step', 'aux']}
+              for k in [MODEL, 'train_step', ANCILLARY]}
           mids.append(ray.put(ModelWeights(m, weights)))
       return mids
 
@@ -270,9 +271,9 @@ class ParameterServer(RayBase):
         self._ready[rid] = True
 
     def prepare_models(aid, model_weights: ModelWeights):
-      model_weights.weights.pop('opt')
-      model_weights.weights['aux'] = \
-        self._params[aid][model_weights.model].get('aux', RMSStats({}, None))
+      model_weights.weights.pop(OPTIMIZER)
+      model_weights.weights[ANCILLARY] = \
+        self._params[aid][model_weights.model].get(ANCILLARY, RMSStats({}, None))
       mid = ray.put(model_weights)
 
       if self._iteration == 1 or self.n_runners == self.n_online_runners:
@@ -286,7 +287,7 @@ class ParameterServer(RayBase):
         prepare_historical_models(aid, mid, model_weights)
 
     assert self._active_models[aid] == model_weights.model, (self._active_models, model_weights.model)
-    assert set(model_weights.weights) == set(['model', 'opt', 'train_step']), list(model_weights.weights)
+    assert set(model_weights.weights) == set([MODEL, OPTIMIZER, 'train_step']), list(model_weights.weights)
     assert aid == get_aid(model_weights.model.model_name), (aid, model_weights.model)
     
     self._params[aid][model_weights.model].update(model_weights.weights)
@@ -295,16 +296,16 @@ class ParameterServer(RayBase):
 
   def update_aux_stats(self, aid, model_weights: ModelWeights):
     assert len(model_weights.weights) == 1, list(model_weights.weights)
-    assert 'aux' in model_weights.weights, list(model_weights.weights)
+    assert ANCILLARY in model_weights.weights, list(model_weights.weights)
     assert aid == get_aid(model_weights.model.model_name), (aid, model_weights.model)
     if self._params[aid][model_weights.model] is not None \
-        and 'aux' in self._params[aid][model_weights.model]:
-      self._params[aid][model_weights.model]['aux'] = combine_rms_stats(
-        self._params[aid][model_weights.model]['aux'], 
-        model_weights.weights['aux'],
+        and ANCILLARY in self._params[aid][model_weights.model]:
+      self._params[aid][model_weights.model][ANCILLARY] = combine_rms_stats(
+        self._params[aid][model_weights.model][ANCILLARY], 
+        model_weights.weights[ANCILLARY],
       )
     else:
-      self._params[aid][model_weights.model]['aux'] = model_weights.weights['aux']
+      self._params[aid][model_weights.model][ANCILLARY] = model_weights.weights[ANCILLARY]
 
   def sample_training_strategies(self, iteration=None):
     if iteration is not None:
@@ -346,7 +347,7 @@ class ParameterServer(RayBase):
     for aid, model in enumerate(self._active_models):
       assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
       weights = self._params[aid][model].copy()
-      weights.pop('aux', None)
+      weights.pop(ANCILLARY, None)
       strategies.append(ModelWeights(model, weights))
       do_logging(f'Restoring active strategy: {model}', color='green')
       [b.save_config() for b in self.builders]
@@ -373,14 +374,14 @@ class ParameterServer(RayBase):
     do_logging(f'Sampling historical stratgy({model}) from {list(self._params[aid])}', color='green')
     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
     weights = self._params[aid][model].copy()
-    weights.pop('aux')
+    weights.pop(ANCILLARY)
     config = search_for_config(model)
     model, config = self.builders[aid].get_sub_version(config, iteration)
     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
     assert model not in self._params[aid], f'{model} is already in {list(self._params[aid])}'
     if self._reset_policy_head:
       rng = jax.random.PRNGKey(random.randint(0, 2**32))
-      out = weights['model']['policy']['policy/mlp/out']
+      out = weights[MODEL]['policy']['policy/mlp/out']
       w = jax.nn.initializers.orthogonal(.01)(rng, out['w'].shape)
       b = jax.nn.initializers.zeros(rng, out['b'].shape)
       out['w'] = w
@@ -477,13 +478,13 @@ class ParameterServer(RayBase):
   def save_params(self, model: ModelPath, name='params'):
     assert model in self._active_models, (model, self._active_models)
     aid = get_aid(model.model_name)
-    if 'model' in self._params[aid][model]:
+    if MODEL in self._params[aid][model]:
       pickle.save_params(
-        self._params[aid][model]['model'], model, f'{name}/model')
-    if 'opt' in self._params[aid][model]:
+        self._params[aid][model][MODEL], model, f'{name}/model')
+    if OPTIMIZER in self._params[aid][model]:
       pickle.save_params(
-        self._params[aid][model]['opt'], model, f'{name}/opt')
-    rest_params = exclude_subdict(self._params[aid][model], 'model', 'opt')
+        self._params[aid][model][OPTIMIZER], model, f'{name}/opt')
+    rest_params = exclude_subdict(self._params[aid][model], MODEL, OPTIMIZER)
     if rest_params:
       pickle.save_params(rest_params, model, name)
 

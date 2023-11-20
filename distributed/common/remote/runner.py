@@ -13,6 +13,7 @@ from core.elements.buffer import Buffer
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.mixin.actor import RMS
+from core.names import ANCILLARY, MODEL
 from core.remote.base import RayBase
 from core.typing import ModelPath
 from core.typing import ModelStats, ModelWeights
@@ -180,7 +181,7 @@ class MultiAgentRunner(RayBase):
         model_weights = ray.get(mid)
         self.is_agent_active[aid] = model_weights.model in self.active_models
         self.current_models[aid] = model_weights.model
-        assert set(model_weights.weights) == set(['model', 'aux', 'train_step']) or set(model_weights.weights) == set(['aid', 'vid', 'path']), set(model_weights.weights)
+        assert set(model_weights.weights) == set([MODEL, ANCILLARY, 'train_step']) or set(model_weights.weights) == set(['aid', 'vid', 'path']), set(model_weights.weights)
         self.agents[aid].set_strategy(model_weights, env=self.env)
       assert any(self.is_agent_active), (self.active_models, self.current_models)
 
@@ -252,8 +253,10 @@ class MultiAgentRunner(RayBase):
 
   def set_current_models(self, model_paths: List[ModelPath]):
     if len(model_paths) == 1:
-      assert self.self_play, self.self_play
-      self.current_models = [model_paths[0] for _ in self.current_models]
+      if self.self_play:
+        self.current_models = [model_paths[0] for _ in self.current_models]
+      else:
+        self.current_models = model_paths
     else:
       assert len(model_paths) == len(self.current_models), (model_paths, self.current_models)
       self.current_models = model_paths
@@ -541,27 +544,27 @@ class MultiAgentRunner(RayBase):
 
   @timeit
   def _update_rms(self, agent_env_outs: Union[EnvOutput, List[EnvOutput]]):
-    if isinstance(agent_env_outs, EnvOutput):
-      for name in self.rms[0].get_obs_names():
-        self.rms[0].update_obs_rms(
-          agent_env_outs.obs, 
-          name, 
-          mask=agent_env_outs.obs.get('sample_mask'), 
-          axis=0
-        )
-      self.rms[0].update_reward_rms(agent_env_outs.reward, agent_env_outs.discount, axis=0)
-    else:
-      assert len(self.rms) == len(agent_env_outs), (len(self.rms), len(agent_env_outs))
-      for rms, out in zip(self.rms, agent_env_outs):
-        if len(out.obs) == 0:
-          continue
-        for name in rms.get_obs_names():
-          rms.update_obs_rms(out.obs, name, mask=out.obs.get('sample_mask'), axis=0)
-        rms.update_reward_rms(out.reward, out.discount, axis=0)
+    # if isinstance(agent_env_outs, EnvOutput):
+    #   assert len(self.aid2gids) == 1, self.aid2gids
+    #   self.rms[0].update_obs_rms(
+    #     agent_env_outs.obs, 
+    #     mask=agent_env_outs.obs.get('sample_mask'), 
+    #     axis=0
+    #   )
+    #   self.rms[0].update_reward_rms(agent_env_outs.reward, agent_env_outs.discount, axis=0)
+    # else:
+    assert len(self.rms) == len(agent_env_outs), (len(self.rms), len(agent_env_outs))
+    for rms, out, gids in zip(self.rms, agent_env_outs, self.aid2gids):
+      if len(out.obs) == 0:
+        continue
+      uids = [self.gid2uids[gid] for gid in gids]
+      rms.update_obs_rms(out.obs, indices=uids, split_axis=1, mask=out.obs.get('sample_mask'), axis=0)
+      rms.update_reward_rms(out.reward, out.discount, axis=0)
 
   @timeit
   def _update_rms_from_batch(self, aid: int, data: Dict[str, Any]):
-    self.rms[aid].update_obs_rms(data, mask=data.sample_mask)
+    uids = [self.gid2uids[gid] for gid in self.aid2gids[aid]]
+    self.rms[aid].update_obs_rms(data, indices=uids, split_axis=2, mask=data.sample_mask)
     self.rms[aid].update_reward_rms(data.reward, data.discount, mask=data.sample_mask)
 
   @timeit
@@ -613,7 +616,7 @@ class MultiAgentRunner(RayBase):
     self.rms[aid].reset_rms_stats()
     model = self.current_models[aid]
     assert model in self.active_models, (model, self.active_models)
-    model_weights = ModelWeights(model, {'aux': aux_stats})
+    model_weights = ModelWeights(model, {ANCILLARY: aux_stats})
     self.parameter_server.update_aux_stats.remote(aid, model_weights)
 
   def _send_run_stats(self, aid, env_steps, n_episodes):

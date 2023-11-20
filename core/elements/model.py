@@ -3,6 +3,7 @@ import haiku as hk
 from typing import Dict, Union
 
 from core.log import do_logging
+from core.names import MODEL
 from core.ckpt.base import ParamsCheckpointBase
 from core.ensemble import Ensemble, constructor
 from core.typing import AttrDict, dict2AttrDict
@@ -23,7 +24,7 @@ class Model(ParamsCheckpointBase):
     env_stats: AttrDict,
     name: str,
   ):
-    super().__init__(config, name, 'model')
+    super().__init__(config, name, MODEL)
     self.env_stats = dict2AttrDict(env_stats, to_copy=True)
     self.modules: Dict[str, hk.Module] = AttrDict()
     self.rng = self._prngkey()

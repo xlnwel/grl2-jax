@@ -6,6 +6,7 @@ import pandas as pd
 import jax
 
 from core.log import do_logging
+from core.names import ANCILLARY
 from core.typing import ModelPath, get_env_algo
 from tools.utils import isscalar
 from tools.timer import get_current_datetime, compute_time_left
@@ -160,7 +161,7 @@ class Recorder:
         k = add_prefix(k, 'metrics')
       if (
         adaptive 
-        and not k.startswith('aux/') 
+        and not k.startswith(f'{ANCILLARY}/') 
         and not k.startswith('misc/') 
         and not k.startswith('time/')
         and not k.endswith('std')

@@ -12,6 +12,7 @@ from core.ckpt import pickle
 from core.elements.builder import ElementsBuilderVC
 from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
+from core.names import *
 from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
   get_aid, get_basic_model_name
@@ -126,7 +127,7 @@ class SPParameterServer(RayBase):
     return active_stats
 
   def get_aux_stats(self, model_path: ModelPath):
-    rms = self._params[model_path].get('aux', RMSStats({}, None))
+    rms = self._params[model_path].get(ANCILLARY, RMSStats({}, None))
     stats = rms2dict(rms)
 
     return stats
@@ -218,7 +219,7 @@ class SPParameterServer(RayBase):
         # it's likely that you retrive the latest model 
         # in self.payoff_manager.sample_strategies
         weights = {k: self._params[model][k] 
-                   for k in ['model', 'train_step', 'aux']}
+                   for k in [MODEL, 'train_step', ANCILLARY]}
       mid = ray.put(ModelWeights(model, weights))
       return mid
 
@@ -243,9 +244,9 @@ class SPParameterServer(RayBase):
         self._ready[rid] = True
 
     def prepare_models(model_weights: ModelWeights):
-      model_weights.weights.pop('opt')
-      model_weights.weights['aux'] = \
-        self._params[model_weights.model].get('aux', RMSStats([], None))
+      model_weights.weights.pop(OPTIMIZER)
+      model_weights.weights[ANCILLARY] = \
+        self._params[model_weights.model].get(ANCILLARY, RMSStats([], None))
       mid = ray.put(model_weights)
 
       if self._iteration == 1 or self.n_runners == self.n_online_runners:
@@ -260,7 +261,7 @@ class SPParameterServer(RayBase):
 
     assert aid == 0, aid
     assert self._active_model == model_weights.model, (self._active_model, model_weights.model)
-    assert set(model_weights.weights) == set(['model', 'opt', 'train_step']), list(model_weights.weights)
+    assert set(model_weights.weights) == set([MODEL, OPTIMIZER, 'train_step']), list(model_weights.weights)
     assert aid == get_aid(model_weights.model.model_name), (aid, model_weights.model)
     
     self._params[model_weights.model].update(model_weights.weights)
@@ -271,16 +272,16 @@ class SPParameterServer(RayBase):
   def update_aux_stats(self, aid, model_weights: ModelWeights):
     assert aid == 0, aid
     assert len(model_weights.weights) == 1, list(model_weights.weights)
-    assert 'aux' in model_weights.weights, list(model_weights.weights)
+    assert ANCILLARY in model_weights.weights, list(model_weights.weights)
     assert aid == get_aid(model_weights.model.model_name), (aid, model_weights.model)
     if self._params[model_weights.model] is not None \
-        and 'aux' in self._params[model_weights.model]:
-      self._params[model_weights.model]['aux'] = combine_rms_stats(
-        self._params[model_weights.model]['aux'], 
-        model_weights.weights['aux'],
+        and ANCILLARY in self._params[model_weights.model]:
+      self._params[model_weights.model][ANCILLARY] = combine_rms_stats(
+        self._params[model_weights.model][ANCILLARY], 
+        model_weights.weights[ANCILLARY],
       )
     else:
-      self._params[model_weights.model]['aux'] = model_weights.weights['aux']
+      self._params[model_weights.model][ANCILLARY] = model_weights.weights[ANCILLARY]
 
   def sample_training_strategies(self, iteration=None):
     if iteration is not None:
@@ -320,7 +321,7 @@ class SPParameterServer(RayBase):
     strategies = []
     model = self._active_model
     weights = self._params[model].copy()
-    weights.pop('aux', None)
+    weights.pop(ANCILLARY, None)
     strategies.append(ModelWeights(model, weights))
     do_logging(f'Restoring active strategy: {model}', color='green')
     self.builder.save_config()
@@ -345,13 +346,13 @@ class SPParameterServer(RayBase):
       model = random.choice(candidates)
     do_logging(f'Sampling historical stratgy({model}) from {list(self._params)}', color='green')
     weights = self._params[model].copy()
-    weights.pop('aux')
+    weights.pop(ANCILLARY)
     config = search_for_config(model)
     model, config = self.builder.get_sub_version(config, iteration)
     assert model not in self._params, f'{model} is already in {list(self._params)}'
     if self._reset_policy_head:
       rng = jax.random.PRNGKey(random.randint(0, 2**32))
-      out = weights['model']['policy']['policy/mlp/out']
+      out = weights[MODEL]['policy']['policy/mlp/out']
       w = jax.nn.initializers.orthogonal(.01)(rng, out['w'].shape)
       b = jax.nn.initializers.zeros(rng, out['b'].shape)
       out['w'] = w
@@ -428,13 +429,13 @@ class SPParameterServer(RayBase):
 
   def save_params(self, model: ModelPath, name='params'):
     assert model == self._active_model, (model, self._active_model)
-    if 'model' in self._params[model]:
+    if MODEL in self._params[model]:
       pickle.save_params(
-        self._params[model]['model'], model, f'{name}/model')
-    if 'opt' in self._params[model]:
+        self._params[model][MODEL], model, f'{name}/model')
+    if OPTIMIZER in self._params[model]:
       pickle.save_params(
-        self._params[model]['opt'], model, f'{name}/opt')
-    rest_params = exclude_subdict(self._params[model], 'model', 'opt')
+        self._params[model][OPTIMIZER], model, f'{name}/opt')
+    rest_params = exclude_subdict(self._params[model], MODEL, OPTIMIZER)
     if rest_params:
       pickle.save_params(rest_params, model, name)
 

@@ -2,16 +2,23 @@
 
 export PYTHONPATH=.
 
-suite=mujoco
+suite=ma_mujoco
 algos=(
-  ppo
+  # ppo
+  happo
 )
 # shift
 envs=(
   # $1
-  Ant
-  HalfCheetah
-  Walker2d
+  Ant_2x4
+  Ant_4x2
+  Ant_8x1
+  HalfCheetah_2x3
+  HalfCheetah_3x2
+  HalfCheetah_6x1
+  Walker2d_2x3
+  Walker2d_3x2
+  Walker2d_6x1
 )
 configs=(
   "${suite}"
@@ -46,25 +53,25 @@ else
 fi
 
 # INF_MAC_NODE_RANK=$1
-# le=${#envs[@]}
-# idx=$(($INF_MAC_NODE_RANK % $le))
-# e=${envs[$idx]}
-# env="${suite}-${e}"
-# lc=${#configs[@]}
-# idx=$(($INF_MAC_NODE_RANK % $lc))
-# config=${configs[$idx]}
-# la=${#algos[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la))
-# a=${algos[$idx]}
-# la1=${#args1[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la1))
-# a1=${args1[$idx]}
-# la2=${#args2[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la2))
-# a2=${args2[$idx]}
-# la3=${#args3[@]}
-# idx=$(($INF_MAC_NODE_RANK % $la3))
-# a3=${args3[$idx]}
+le=${#envs[@]}
+idx=$(($INF_MAC_NODE_RANK % $le))
+e=${envs[$idx]}
+env="${suite}-${e}"
+lc=${#configs[@]}
+idx=$(($INF_MAC_NODE_RANK % $lc))
+config=${configs[$idx]}
+la=${#algos[@]}
+idx=$(($INF_MAC_NODE_RANK % $la))
+a=${algos[$idx]}
+la1=${#args1[@]}
+idx=$(($INF_MAC_NODE_RANK % $la1))
+a1=${args1[$idx]}
+la2=${#args2[@]}
+idx=$(($INF_MAC_NODE_RANK % $la2))
+a2=${args2[$idx]}
+la3=${#args3[@]}
+idx=$(($INF_MAC_NODE_RANK % $la3))
+a3=${args3[$idx]}
 
 commands=()
 # kws=$@
@@ -87,23 +94,22 @@ commands=()
 # done
 i=0
 for a in "${algos[@]}"; do
-  for e in "${envs[@]}"; do
-    env="${suite}-${e}"
-    for a1 in "${args1[@]}"; do
-      for s in {0..3}; do
-        # gpus=$(nvidia-smi -L | wc -l)
-        # gpu=$(($i % $gpus))
-        kws="n_bins=$a1"
-        # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s --gpu $gpu &"
-        py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-        commands+=("$py_script")
-        echo $py_script
-        # eval $py_script
-        # sleep 5s
-        ((i=(i+1) ))
-      done
-    done
+# for e in "${envs[@]}"; do
+  env="${suite}-${e}"
+  # for a1 in "${args1[@]}"; do
+  for s in {0..4}; do
+    # gpus=$(nvidia-smi -L | wc -l)
+    # gpu=$(($i % $gpus))
+    # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s --gpu $gpu &"
+    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+    commands+=("$py_script")
+    echo $py_script
+    # eval $py_script
+    # sleep 5s
+    ((i=(i+1) ))
   done
+  # done
 done
+# done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 16 -L 1 bash -c COMMAND
 echo "Script completed"
