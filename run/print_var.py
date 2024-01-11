@@ -9,6 +9,7 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from core.mixin.monitor import is_nonempty_file, merge_data
 from tools.file import yield_dirs
 from tools import yaml_op
@@ -18,8 +19,8 @@ Data = collections.namedtuple('data', 'mean std')
 
 
 def get_model_path(dirpath) -> ModelPath:
-  d = dirpath.split('/')
-  model_path = ModelPath('/'.join(d[:3]), '/'.join(d[3:]))
+  d = dirpath.split(PATH_SPLIT)
+  model_path = ModelPath(os.path.join(*d[:3]), os.path.join(d[3:]))
   return model_path
 
 def parse_args():
@@ -115,11 +116,11 @@ if __name__ == '__main__':
   directory = os.path.abspath(args.directory)
   do_logging(f'Directory: {directory}')
 
-  while directory.endswith('/'):
+  while directory.endswith(PATH_SPLIT):
     directory = directory[:-1]
   
-  if directory.startswith('/'):
-    strs = directory.split('/')
+  if directory.startswith(PATH_SPLIT):
+    strs = directory.split(PATH_SPLIT)
 
   search_dir = directory
   
@@ -135,7 +136,7 @@ if __name__ == '__main__':
         continue
 
       # load config
-      yaml_path = '/'.join([d, config_name])
+      yaml_path = os.path.join(d, config_name)
       if not os.path.exists(yaml_path):
         do_logging(f'{yaml_path} does not exist', color='magenta')
         continue
@@ -143,7 +144,7 @@ if __name__ == '__main__':
       name = config[k]
 
       # save stats
-      record_filename = '/'.join([d, record_name])
+      record_filename = os.path.join(d, record_name)
       df = merge_data(record_filename, '.txt')
       if v in df:
         data[v][name].append(df[v].to_numpy())

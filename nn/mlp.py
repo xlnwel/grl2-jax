@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 def _prepare_for_rnn(x):
-  shape = x.shape
   x = jnp.swapaxes(x, 0, 1)
+  shape = x.shape
   x = jnp.reshape(x, (x.shape[0], -1, *x.shape[3:]))
   return x, shape
 
 def _recover_shape(x, shape):
-  x = jnp.swapaxes(x, 0, 1)
   x = jnp.reshape(x, (*shape[:3], x.shape[-1]))
+  x = jnp.swapaxes(x, 0, 1)
   return x
 
 def _rnn_reshape(rnn_out, shape):
@@ -85,7 +85,6 @@ class MLP(hk.Module):
       layer_type=out_layer_type, 
       w_init=out_w_init, 
       b_init=out_b_init, 
-      name='out', 
       scale=out_scale, 
       **out_kwargs
     )
@@ -112,10 +111,10 @@ class MLP(hk.Module):
       reset, _ = _prepare_for_rnn(reset)
       x = (x, reset)
       
-      state = _rnn_reshape(state, (shape[0]*shape[2], -1))
+      state = _rnn_reshape(state, (shape[1] * shape[2], -1))
       x, state = hk.dynamic_unroll(core, x, state)
       x = _recover_shape(x, shape)
-      state = _rnn_reshape(state, (shape[0], shape[2], -1))
+      state = _rnn_reshape(state, (shape[1], shape[2], -1))
 
       for l in out_layers:
         x = l(x, is_training)
@@ -128,7 +127,7 @@ class MLP(hk.Module):
       for u in self.units_list:
         layers.append(Layer(u, **self.layer_kwargs))
       if self.out_size:
-        layers.append(Layer(self.out_size, **self.out_kwargs))
+        layers.append(Layer(self.out_size, **self.out_kwargs, name='out'))
 
       return layers
     else:

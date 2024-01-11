@@ -1,5 +1,6 @@
 from functools import partial
 from typing import List
+import numpy as np
 import jax
 import jax.numpy as jnp
 
@@ -22,8 +23,9 @@ class Memory(MemoryBase):
     if states is None:
       return inps  # no memory is maintained
 
+    assert len(inps) == len(states) == len(resets), (len(inps), len(states), len(resets))
     for inp, state, reset in zip(inps, states, resets):
-      reset_exp = jnp.expand_dims(reset, -1)
+      reset_exp = np.expand_dims(reset, -1)
       inp.state = jax.tree_util.tree_map(lambda x: x*(1-reset_exp), state)
       inp.state_reset = reset
     

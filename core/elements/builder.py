@@ -178,7 +178,7 @@ class ElementsBuilder:
     env, 
     config, 
   ):
-    path = config['path'].replace('/', '.')
+    path = config['path'].replace(PATH_SPLIT, '.')
     m = importlib.import_module(path)
 
     strategy = m.create_strategy(env, config)
@@ -492,7 +492,7 @@ class ElementsBuilderVC(ElementsBuilder):
     )
 
     self._default_model_path = self._model_path
-    self._builder_path = '/'.join([*self._model_path, f'{self._name}.yaml'])
+    self._builder_path = os.path.join(*self._model_path, f'{self._name}.yaml')
 
     self._iteration = start_iteration
     self._all_versions: Set = set()
@@ -556,7 +556,7 @@ class ElementsBuilderVC(ElementsBuilder):
       version
     )
     model_path = ModelPath(root_dir, model_name)
-    model_dir = '/'.join(model_path)
+    model_dir = os.path.join(*model_path)
     config = set_path(config, model_path)
     if not os.path.isdir(model_dir):
       os.makedirs(model_dir, exist_ok=True)

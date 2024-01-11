@@ -29,7 +29,6 @@ def retrieve_all_make_env():
 
 def make_env(config, eid=None, agents={}):
   config = config.copy()
-  set_seed(config['seed'])
   env_name = config['env_name'].lower()
 
   env_dict = retrieve_all_make_env()

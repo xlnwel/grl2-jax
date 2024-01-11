@@ -1,3 +1,4 @@
+import os
 import ray
 
 from core.typing import dict2AttrDict
@@ -11,11 +12,11 @@ from tools import yaml_op, pkg
 def save_config(config, name='config.yaml'):
   yaml_op.save_config(
     config.asdict(), 
-    path='/'.join([
+    path=os.path.join(
       config['root_dir'], 
       config['model_name'], 
       name
-    ])
+    )
   )
 
 

@@ -1,3 +1,4 @@
+import os
 import collections
 import logging
 import numpy as np
@@ -46,7 +47,7 @@ def rms2dict(rms: RMSStats):
 class RewardRunningMeanStd:
   def __init__(self, config, name='reward_rms'):
     self.name = name
-    self._filedir = '/'.join(config.model_path)
+    self._filedir = os.path.join(*config.model_path)
 
     self._gamma = config.gamma
     self._reward_normalized_axis = tuple(
@@ -189,13 +190,13 @@ class RewardRunningMeanStd:
     save(self.rms, filedir=self._filedir, filename=f'${PARAMS}/{self.name}')
 
   def reset_path(self, model_path: ModelPath):
-    self._filedir = '/'.join(model_path)
+    self._filedir = os.path.join(*model_path)
 
 
 class ObsRunningMeanStd:
   def __init__(self, config: dict, name='obs_rms'):
     self.name = name
-    self._filedir = '/'.join(config.model_path)
+    self._filedir = os.path.join(*config.model_path)
 
     self._obs_normalized_axis = tuple(
       config.get('obs_normalized_axis', (0,)))
@@ -334,7 +335,7 @@ class ObsRunningMeanStd:
     save(self.rms, filedir=self._filedir, filename=f'${PARAMS}/{self.name}')
 
   def reset_path(self, model_path: ModelPath):
-    self._filedir = '/'.join(model_path)
+    self._filedir = os.path.join(model_path)
 
 
 class RMS:

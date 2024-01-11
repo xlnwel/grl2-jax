@@ -3,8 +3,10 @@ from jax import lax, nn
 import jax.numpy as jnp
 import haiku as hk
 
+from core.names import DEFAULT_ACTION
 from core.typing import dict2AttrDict
 from nn.func import nn_registry
+from nn.layers import Layer
 from nn.mlp import MLP
 from nn.utils import get_activation
 from jax_tools import jax_assert
@@ -22,6 +24,7 @@ class Policy(hk.Module):
     sigmoid_scale=False, 
     std_x_coef=1., 
     std_y_coef=.5, 
+    use_action_mask={DEFAULT_ACTION: False}, 
     use_feature_norm=False, 
     name='policy', 
     **config
@@ -36,55 +39,67 @@ class Policy(hk.Module):
     self.sigmoid_scale = sigmoid_scale
     self.std_x_coef = std_x_coef
     self.std_y_coef = std_y_coef
+    self.use_action_mask = use_action_mask
     self.use_feature_norm = use_feature_norm
 
-  def __call__(self, x, reset=None, state=None, action_mask=None):
+  def __call__(self, x, reset=None, state=None, action_mask=None, no_state_return=False):
     if self.use_feature_norm:
       ln = hk.LayerNorm(-1, True, True)
       x = ln(x)
-    net = self.build_net()
+    net, heads = self.build_net()
     x = net(x, reset, state)
     if isinstance(x, tuple):
       assert len(x) == 2, x
       x, state = x
+    
+    outs = {}
+    if action_mask is not None and not isinstance(action_mask, dict):
+      assert len(heads) == 1, heads
+      action_mask = {k: action_mask for k in heads}
 
-    if self.is_action_discrete:
-      if action_mask is not None:
-        jax_assert.assert_shape_compatibility([x, action_mask])
-        x = jnp.where(action_mask, x, -float('inf'))
-        x = jnp.where(jnp.all(action_mask == 0, axis=-1, keepdims=True), 1, x)
-      return x, state
+    for name, layer in heads.items():
+      v = layer(x)
+      if self.is_action_discrete[name]:
+        if self.use_action_mask.get(name, False):
+          assert action_mask[name] is not None, action_mask
+          am = action_mask[name]
+          jax_assert.assert_shape_compatibility([v, am])
+          v = jnp.where(am, v, -float('inf'))
+          v = jnp.where(jnp.all(am == 0, axis=-1, keepdims=True), 1, v)
+        outs[name] = v
+      else:
+        if self.out_act == 'tanh':
+          v = jnp.tanh(v)
+        if self.sigmoid_scale:
+          logstd_init = self.std_x_coef
+        else:
+          logstd_init = lax.log(self.init_std)
+        logstd_init = hk.initializers.Constant(logstd_init)
+        logstd = hk.get_parameter(
+          f'{name}_logstd', 
+          shape=(self.action_dim[name],), 
+          init=logstd_init
+        )
+        if self.sigmoid_scale:
+          scale = nn.sigmoid(logstd / self.std_x_coef) * self.std_y_coef
+        else:
+          scale = lax.exp(logstd)
+        outs[name] = (v, scale)
+    if no_state_return:
+      return outs
     else:
-      if self.out_act == 'tanh':
-        x = jnp.tanh(x)
-      if self.sigmoid_scale:
-        logstd_init = self.std_x_coef
-      else:
-        logstd_init = lax.log(self.init_std)
-      logstd_init = hk.initializers.Constant(logstd_init)
-      logstd = hk.get_parameter(
-        'logstd', 
-        shape=(self.action_dim,), 
-        init=logstd_init
-      )
-      if self.sigmoid_scale:
-        scale = nn.sigmoid(logstd / self.std_x_coef) * self.std_y_coef
-      else:
-        scale = lax.exp(logstd)
-      return (x, scale), state
+      return outs, state
 
   @hk.transparent
   def build_net(self):
-    if isinstance(self.action_dim, int):
-      out_size = self.action_dim
+    net = MLP(**self.config)
+    out_kwargs = net.out_kwargs
+    if isinstance(self.action_dim, dict):
+      heads = {k: Layer(v, **out_kwargs, name=f'head_{k}') for k, v in self.action_dim.items()}
     else:
-      out_size = np.sum(self.action_dim)
-    net = MLP(
-      **self.config, 
-      out_size=out_size, 
-    )
+      raise NotImplementedError(self.action_dim)
 
-    return net
+    return net, heads
 
 
 @nn_registry.register('value')

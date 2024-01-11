@@ -49,8 +49,8 @@ class Monitor(RayBase):
 
     self._last_save_time: Dict[ModelPath, float] = collections.defaultdict(lambda: time.time())
 
-    self._dir = '/'.join([self.config.root_dir, self.config.model_name])
-    self._path = '/'.join([self._dir, 'monitor.pkl'])
+    self._dir = os.path.join(self.config.root_dir, self.config.model_name)
+    self._path = os.path.join(self._dir, 'monitor.pkl')
 
     self.restore()
 
@@ -245,6 +245,19 @@ class Monitor(RayBase):
             name='count', 
             step=step
           )
+          # if payoffs.shape[0] > 1:
+          #   alpha_rank = AlphaRank(1000, 5, 0)
+          #   rank, mass = alpha_rank.compute_rank(payoffs, is_single_population=True, return_mass=True)
+          #   self.plot_stats(
+          #     model=m, 
+          #     stats=mass, 
+          #     xlabel='mass',
+          #     ylabel='player',
+          #     name='mass',
+          #     step=step
+          #   )
+          #   do_logging(f'AlphaRank at step {step}')
+          #   do_logging(rank)
         else:
           for m, p, c in zip(models, payoffs, counts):
             # stats = {}

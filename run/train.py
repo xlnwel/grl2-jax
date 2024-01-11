@@ -20,7 +20,7 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import setup_logging, do_logging
-from core.utils import configure_gpu
+from core.names import PATH_SPLIT
 from tools import pkg
 from tools.utils import modify_config
 from run.args import parse_train_args
@@ -102,9 +102,9 @@ def make_info(config, info, model_name):
   if info is None:
     info = ''
   if info:
-    model_info = f'{info}-{model_name.split("/", 1)[0]}'
+    model_info = f'{info}-{model_name.split(PATH_SPLIT, 1)[0]}'
   else:
-    model_info = model_name.split('/', 1)[0]
+    model_info = model_name.split(PATH_SPLIT, 1)[0]
   if config.info and config.info not in info:
     if info:
       info = f'{config.info}-{info}'
@@ -123,7 +123,7 @@ def setup_configs(cmd_args, algo_env_config):
     if len(cmd_args.model_name) == 4:
       raw_model_name = ''
     else:
-      assert cmd_args.model_name[4] in ['-', '_', '/'], cmd_args.model_name[4]
+      assert cmd_args.model_name[4] in ['-', '_', PATH_SPLIT], cmd_args.model_name[4]
       raw_model_name = f'{cmd_args.model_name[5:]}'
   else:
     date = datetime.now().strftime("%m%d")
@@ -149,15 +149,16 @@ def setup_configs(cmd_args, algo_env_config):
     config.info, config.model_info = make_info(config, cmd_args.info, model_name)
     # model_name = config.model_info
     if not cmd_args.grid_search and not cmd_args.trials > 1:
-      model_name = f'{model_name}/seed={cmd_args.seed}'
+      model_name = os.path.join(model_name, f'seed={cmd_args.seed}')
     
     dir_prefix = prefix + '-' if prefix else prefix
-    root_dir = f'{logdir}/{dir_prefix}{config.env.env_name}/{config.algorithm}'
+    env_name = dir_prefix + config.env.env_name
+    root_dir = os.path.join(logdir, env_name, config.algorithm)
     config = modify_config(
       config, 
       max_layer=1, 
       root_dir=root_dir, 
-      model_name=f'{date}/{model_name}', 
+      model_name=os.path.join(date, model_name), 
       algorithm=algo, 
       name=algo, 
       seed=cmd_args.seed

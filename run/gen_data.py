@@ -5,6 +5,7 @@ import jax
 
 from core.ckpt.pickle import save
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from core.typing import AttrDict
 from core.utils import configure_gpu
 from tools.display import print_dict, print_dict_info
@@ -46,9 +47,9 @@ def parse_args():
 
 
 def load_config_from_filedir(filedir, from_algo=False):
-  assert filedir.split('/')[-1].startswith('a'), filedir
+  assert filedir.split(PATH_SPLIT)[-1].startswith('a'), filedir
   
-  names = filedir.split('/')
+  names = filedir.split(PATH_SPLIT)
   algo = names[-5]
   if from_algo:
     algo = names[-5]
@@ -60,8 +61,8 @@ def load_config_from_filedir(filedir, from_algo=False):
   else:
     # load config from the logging directory
     config = search_for_config(filedir)
-  root_dir = '/'.join(names[:-5])
-  model_name = '/'.join(names[-5:])
+  root_dir = os.path.join(names[:-5])
+  model_name = os.path.join(names[-5:])
   config = modify_config(
     config, 
     root_dir=root_dir, 

@@ -1,0 +1,4 @@
+source activate grl
+
+
+python -m tf2onnx.convert --saved-model ./saved_model/tf_model  --output ./saved_model/model.onnx --opset 13

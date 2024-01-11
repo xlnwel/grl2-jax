@@ -1,3 +1,4 @@
+import os
 from typing import Union
 import numpy as np
 import tensorflow as tf
@@ -143,7 +144,7 @@ def matrix_summary(
   writer, 
   step=None, 
 ):
-  save_path = None if model is None else '/'.join([*model, name])
+  save_path = None if model is None else os.path.join(*model, name)
   image = graph.matrix_plot(
     matrix, 
     label_top=label_top, 
@@ -159,7 +160,7 @@ def matrix_summary(
 def create_tb_writer(model_path: ModelPath):
   # writer for tensorboard summary
   # stats are saved in directory f'{root_dir}/{model_name}'
-  writer = tf.summary.create_file_writer('/'.join(model_path))
+  writer = tf.summary.create_file_writer(os.path.join(*model_path))
   writer.set_as_default()
   return writer
 

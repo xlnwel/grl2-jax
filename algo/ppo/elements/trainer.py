@@ -1,4 +1,5 @@
 from functools import partial
+import os
 import numpy as np
 import jax
 from jax import random
@@ -7,7 +8,7 @@ import haiku as hk
 
 from core.ckpt.pickle import save, restore
 from core.log import do_logging
-from core.names import MODEL, OPTIMIZER
+from core.names import MODEL, OPTIMIZER, TRAIN_AXIS
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
@@ -91,7 +92,7 @@ class Trainer(TrainerBase):
       _indices = np.split(self.indices, self.config.n_mbs)
       v_target = []
       for i, d in enumerate(yield_from_tree_with_indices(
-          data, _indices, axis=0)):
+          data, _indices, axis=TRAIN_AXIS.BATCH)):
         if self.config.popart:
           d.popart_mean = self.popart.mean
           d.popart_std = self.popart.std
@@ -102,7 +103,7 @@ class Trainer(TrainerBase):
             data=d, 
             debug=self.config.debug
           )
-        v_target.append(stats.v_target)
+        v_target.append(stats.raw_v_target)
         # print_dict_info(stats)
         if e == self.config.n_epochs-1 and i == self.config.n_mbs - 1:
           all_stats.update(**prefix_name(stats, name=f'group_last_epoch'))
@@ -208,7 +209,7 @@ class Trainer(TrainerBase):
     self.restore_popart()
 
   def get_popart_dir(self):
-    path = '/'.join([self.config.root_dir, self.config.model_name])
+    path = os.path.join(self.config.root_dir, self.config.model_name)
     return path
 
   def save_popart(self):
@@ -224,11 +225,10 @@ class Trainer(TrainerBase):
     )
 
   # def haiku_tabulate(self, data=None):
-  #   rng = jax.random.PRNGKey(0)
+  #   rng = random.PRNGKey(0)
   #   if data is None:
   #     data = construct_fake_data(self.env_stats, 0)
   #   theta = self.model.theta.copy()
-  #   is_lookahead = theta.pop('lookahead')
   #   print(hk.experimental.tabulate(self.theta_train)(
   #     theta, rng, self.params.theta, data
   #   ))

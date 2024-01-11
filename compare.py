@@ -69,7 +69,7 @@ if __name__ == '__main__':
       results = []
       final = []
       for d in yield_dirs(directory, 'a0', is_suffix=False):
-        record_path = '/'.join([d, record_name])
+        record_path = os.path.join(d, record_name)
 
         data = pd.read_table(record_path, on_bad_lines='skip')
         res = data[f'metrics/old_old_{metric}']
@@ -95,7 +95,7 @@ if __name__ == '__main__':
   # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/run_with_future_opponents=True-n_lka_steps=3'
   # results = []
   # for d in yield_dirs(directory, 'a0', is_suffix=False):
-  #   record_path = '/'.join([d, record_name])
+  #   record_path = os.path.join(d, record_name)
 
   #   try:
   #     data = pd.read_table(record_path, on_bad_lines='skip')
@@ -111,7 +111,7 @@ if __name__ == '__main__':
   # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/has_hare=False'
   # results = []
   # for d in yield_dirs(directory, 'a0', is_suffix=False):
-  #   record_path = '/'.join([d, record_name])
+  #   record_path = os.path.join(d, record_name)
     
   #   data = pd.read_table(record_path, on_bad_lines='skip')
   #   res = data[f'metrics/old_old_{metric}']
@@ -123,7 +123,7 @@ if __name__ == '__main__':
   # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1206/has_hare=False-run_with_future_opponents=True-n_lka_steps=3'
   # results = []
   # for d in yield_dirs(directory, 'a0', is_suffix=False):
-  #   record_path = '/'.join([d, record_name])
+  #   record_path = os.path.join(d, record_name)
 
   #   try:
   #     data = pd.read_table(record_path, on_bad_lines='skip')
@@ -165,7 +165,7 @@ if __name__ == '__main__':
   # directory = '/System/Volumes/Data/mnt/公共区/cxw/magw-logs/magw-staghunt/zero/1130/run_with_future_opponents=True-n_lka_steps=3'
   # results = []
   # for d in yield_dirs(directory, 'a0', is_suffix=False):
-  #   record_path = '/'.join([d, record_name])
+  #   record_path = os.path.join(d, record_name)
     
   #   data = pd.read_table(record_path, on_bad_lines='skip')
   #   res = data[f'metrics/after_old_old_{metric}'] - data[f'metrics/before_old_old_{metric}']

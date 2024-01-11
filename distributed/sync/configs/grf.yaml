@@ -56,7 +56,7 @@ monitor:
 
 runner:
   n_runners: &nrunners 10
-  n_steps: &nsteps 100
+  n_steps: &nsteps 200
   push_every_episode: False
 
 env:
@@ -70,14 +70,14 @@ env:
   extra_players: null
   control_left: True
   control_right: False
-  shared_policy: False
+  shared_policy: True
   score_reward_scale: 1
 
   max_episode_steps: 200
   use_action_mask: False
   uid2aid: null
 
-  n_envs: &nenvs 10
+  n_envs: &nenvs 2
 
   use_idx: False
   timeout_done: &td True
@@ -134,12 +134,13 @@ loss:
   value_loss: clip
   value_clip_range: .2
   value_sample_mask: False
+  popart: &popart True
 
   stats:
     gamma: *gamma
     lam: &lam .95
     pg_coef: 1
-    entropy_coef: 5e-3
+    entropy_coef: 1e-2
     value_coef: 1
 
 trainer:
@@ -147,12 +148,19 @@ trainer:
   aid: 0
   n_runners: *nrunners
   n_envs: *nenvs
-  n_epochs: &nepochs 5
-  n_mbs: &nmbs 1
+  n_epochs: &nepochs 15
+  n_mbs: &nmbs 2
   n_steps: *nsteps
   update_scheme: whole
+  popart: *popart
+  debug: True
 
-  theta_opt:
+  policy_opt:
+    opt_name: adam
+    lr: 5e-4
+    clip_norm: 10
+    eps: 1e-5
+  value_opt:
     opt_name: adam
     lr: 5e-4
     clip_norm: 10

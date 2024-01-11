@@ -1,3 +1,4 @@
+from core.names import TRAIN_AXIS
 from tools.utils import except_axis
 from algo.ma_common.elements.utils import *
 
@@ -43,7 +44,7 @@ def compute_target_adv(
   ratio, 
   gamma, 
   lam, 
-  axis=1, 
+  axis=TRAIN_AXIS.SEQ, 
 ):
   if config.adv_horizon:
     shape = reward.shape

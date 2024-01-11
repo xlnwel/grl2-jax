@@ -4,62 +4,30 @@ export PYTHONPATH=.
 
 suite=grf
 algos=(
-  # ppo
-  # ppo
-  # ppo
-  # ppo
-  # ppo
-  # sync-ppo
-  # sync-happo
-  # sync-happo
-  # sync-happo
-  # sync-happo
-  happo
-  happo
-  happo
-  # happo
+  ppo
 )
 envs=(
-  # 11_vs_11_hard_stochastic
-  $1
-  # academy_3_vs_1_with_keeper
-  # academy_corner
   # academy_counterattack_hard
-  # academy_custom_counterattack_hard
+  $1
 )
-# shift
+shift
 configs=(
-  # grf_11vs11_ppo
   "grf"
 )
 # shift
 args1=(
   $2
-  # 5
-  # 5
-  # 15
-  # 15
 )
 args2=(
   $3
-  # 1
-  # 1
-  # 2
-  # 2
 )
 args3=(
-  $4
-  # 1e-2
-  # 5e-3
+  1
 )
 args4=(
   .2
-  # None
-  # False
-  # .1
 )
 date=$(date +"%m%d")
-# date=0519
 info=""
 ld="${suite}-logs"
 
@@ -98,7 +66,6 @@ kws=$@
 # for e in "${envs[@]}"; do
 # for a1 in "${args1[@]}"; do
 # kws="$@ entropy_coef=$a1"
-env="${suite}-${e}"
 # i=$(($INF_MAC_NODE_RANK % 2))
 # if [ "$i" -eq 0 ]; then
 #   for s in {0..4}; do
@@ -113,9 +80,10 @@ env="${suite}-${e}"
 #     echo $py_script
 #   done
 # fi
-kws="n_epochs=$a1 n_mbs=$a2 entropy_coef=$a3"
+kws="n_runners=$1 n_envs=$2 n_steps=$3"
 # for a in "${algos[@]}"; do
 for e in "${envs[@]}"; do
+  env="${suite}-${e}"
   for s in {0..4}; do
     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
     commands+=("$py_script")

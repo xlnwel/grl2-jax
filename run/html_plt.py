@@ -10,6 +10,7 @@ import pandas as pd
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from core.mixin.monitor import is_nonempty_file, merge_data
 from tools import yaml_op
 from tools.utils import flatten_dict, recursively_remove
@@ -119,9 +120,9 @@ def convert_data(d, directory, target, plt_config):
   progress_name = 'progress.csv'
 
   # load config
-  yaml_path = '/'.join([d, config_name])
+  yaml_path = os.path.join(d, config_name)
   if not os.path.exists(yaml_path):
-    new_yaml_path = '/'.join([d, player0_config_name])
+    new_yaml_path = os.path.join(d, player0_config_name)
     if os.path.exists(new_yaml_path):
       yaml_path = new_yaml_path
     else:
@@ -145,10 +146,10 @@ def convert_data(d, directory, target, plt_config):
   assert os.path.isdir(target_dir), target_dir
   
   # define paths
-  json_path = '/'.join([target_dir, js_name])
-  record_filename = '/'.join([d, record_name])
+  json_path = os.path.join(target_dir, js_name)
+  record_filename = os.path.join(d, record_name)
   record_path = record_filename + '.txt'
-  csv_path = '/'.join([target_dir, progress_name])
+  csv_path = os.path.join(target_dir, progress_name)
   # do_logging(f'yaml path: {yaml_path}')
   if not is_nonempty_file(record_path):
     do_logging(f'Bypass {record_path} due to its non-existence', color='magenta')
@@ -242,11 +243,11 @@ if __name__ == '__main__':
   do_logging(f'Directory: {directory}')
   do_logging(f'Target: {target}')
 
-  while directory.endswith('/'):
+  while directory.endswith(PATH_SPLIT):
     directory = directory[:-1]
   
-  if directory.startswith('/'):
-    strs = directory.split('/')
+  if directory.startswith(PATH_SPLIT):
+    strs = directory.split(PATH_SPLIT)
 
   search_dir = directory
   level = get_level(search_dir)

@@ -6,6 +6,7 @@ import shutil
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from tools import yaml_op
 from tools.utils import modify_config
 from tools.logops import *
@@ -71,11 +72,11 @@ if __name__ == '__main__':
   directory = os.path.abspath(args.directory)
   do_logging(f'Directory: {directory}')
 
-  while directory.endswith('/'):
+  while directory.endswith(PATH_SPLIT):
     directory = directory[:-1]
   
-  if directory.startswith('/'):
-    strs = directory.split('/')
+  if directory.startswith(PATH_SPLIT):
+    strs = directory.split(PATH_SPLIT)
 
   search_dir = directory
   level = get_level(search_dir)
@@ -95,16 +96,16 @@ if __name__ == '__main__':
     model=args.model, 
     final_level=DirLevel.MODEL
   ):
-    root, env, algo, date, model = d.rsplit('/', 4)
+    root, env, algo, date, model = d.rsplit(PATH_SPLIT, 4)
     root = root if args.new_root is None else args.new_root
-    prev_dir = '/'.join([root, env, algo, date])
+    prev_dir = os.path.join(root, env, algo, date)
     new_date = args.new_date if args.new_date else date
     new_model = model
     if model_rename:
       for s in model_rename:
         old, new = s.split('=')
         new_model = new_model.replace(old, new)
-    new_dir = '/'.join([root, env, algo, new_date, new_model])
+    new_dir = os.path.join(root, env, algo, new_date, new_model)
     do_logging(f'Moving directory from \n{d} to \n{new_dir}')
     if not os.path.isdir(prev_dir):
       Path(prev_dir).mkdir(parents=True)
@@ -122,13 +123,13 @@ if __name__ == '__main__':
       date=new_date, 
       model=args.model, 
     ):
-      last_name = d2.split('/')[-1]
+      last_name = d2.split(PATH_SPLIT)[-1]
       if not any([last_name.startswith(p) for p in args.last_name]):
         continue
       # load config
-      yaml_path = '/'.join([d2, config_name])
+      yaml_path = os.path.join(d2, config_name)
       if not os.path.exists(yaml_path):
-        new_yaml_path = '/'.join([d2, player0_config_name])
+        new_yaml_path = os.path.join(d2, player0_config_name)
         if os.path.exists(new_yaml_path):
           yaml_path = new_yaml_path
         else:

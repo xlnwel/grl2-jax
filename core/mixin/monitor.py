@@ -63,7 +63,7 @@ class Recorder:
     self._max_steps = max_steps
 
     if model_path is not None:
-      recorder_dir = f'{model_path.root_dir}/{model_path.model_name}'
+      recorder_dir = os.path.join(model_path.root_dir, model_path.model_name)
       self.record_filename = os.path.join(recorder_dir, record_file)
       self.record_suffix = suffix
       path = self.record_filename + suffix

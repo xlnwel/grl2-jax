@@ -84,10 +84,11 @@ class RunnerManager(ManagerBase):
     eids = []
     rid = 0
     for s in strategies:
-      eids.append(self.runners[rid].evaluate.remote(total_episodes, s))
+      eids.append(self.runners[rid].evaluate.remote(total_episodes, s, wait=True))
       rid += 1
       if rid == len(self.runners):
         rid = 0
+    assert len(eids) == len(strategies), (len(eids), len(strategies))
     ray.get(eids)
 
   def evaluate(self, total_episodes):

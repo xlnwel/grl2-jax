@@ -1,5 +1,4 @@
 from typing import Any, Dict, List, Set, Tuple, Union, Callable
-import random
 import collections
 import threading
 import numpy as np
@@ -15,20 +14,16 @@ from core.log import do_logging
 from core.mixin.actor import RMS
 from core.names import ANCILLARY, MODEL
 from core.remote.base import RayBase
-from core.typing import ModelPath
-from core.typing import ModelStats, ModelWeights
+from core.typing import ModelStats, ModelWeights, ModelPath, dict2AttrDict
 from env.func import create_env
 from env.typing import EnvOutput
 from env.utils import divide_env_output
 from tools.display import print_dict_info
 from tools.run import concat_along_unit_dim
 from tools.timer import Timer, timeit
-from tools.utils import dict2AttrDict
 
 
-def _swap(xs):
-  assert len(xs) == 2, xs
-  return [xs[1], xs[0]]
+SEED_MULTIPLIER = 1000
 
 
 class MultiAgentRunner(RayBase):
@@ -47,6 +42,7 @@ class MultiAgentRunner(RayBase):
       config = configs[0]
     else:
       config = dict2AttrDict(configs)
+      configs = [config]
     super().__init__(runner_id, seed=config.get('seed'))
 
     self.id = runner_id
@@ -114,7 +110,10 @@ class MultiAgentRunner(RayBase):
     self.rms: List[RMS] = []
 
     for aid, config in enumerate(configs):
+      config.model.seed += self.id * SEED_MULTIPLIER
       config.buffer.type = 'local' if self.is_simultaneous_move else 'tblocal'
+      # update n_steps for consistency
+      config.buffer.n_steps = self.n_steps
       elements = self.builder.build_acting_agent_from_scratch(
         config, 
         env_stats=self.env_stats,
@@ -124,11 +123,8 @@ class MultiAgentRunner(RayBase):
       )
       self.agents.append(elements.agent)
 
-      # TODO: handle the case in which some algorithms do not require normalization with RMS
       self.rms.append(elements.actor.get_raw_rms())
 
-      # update n_steps for consistency
-      config.buffer.n_steps = self.n_steps
       buffer = self.builder.build_buffer(
         elements.model, 
         config=config.buffer, 
@@ -150,7 +146,8 @@ class MultiAgentRunner(RayBase):
     agent_env_outs = divide_env_output(self.env_output)
     self._update_rms(agent_env_outs)
     while step < self.n_steps:
-      self.env_output = self.env.step(self.env.random_action())
+      action = self.env.random_action()
+      self.env_output = self.env.step(action)
       agent_env_outs = divide_env_output(self.env_output)
       self._update_rms(agent_env_outs)
       step += 1
@@ -181,8 +178,10 @@ class MultiAgentRunner(RayBase):
         model_weights = ray.get(mid)
         self.is_agent_active[aid] = model_weights.model in self.active_models
         self.current_models[aid] = model_weights.model
-        assert set(model_weights.weights) == set([MODEL, ANCILLARY, 'train_step']) or set(model_weights.weights) == set(['aid', 'vid', 'path']), set(model_weights.weights)
+        assert set(model_weights.weights).issubset(set([MODEL, ANCILLARY, 'train_step'])) or set(model_weights.weights) == set(['aid', 'vid', 'path']), set(model_weights.weights)
         self.agents[aid].set_strategy(model_weights, env=self.env)
+      if self.self_play:
+        self.is_agent_active = [True, False]
       assert any(self.is_agent_active), (self.active_models, self.current_models)
 
     def send_stats(steps, n_episodes):
@@ -194,7 +193,7 @@ class MultiAgentRunner(RayBase):
       self._update_payoffs()
 
     def stop_fn(step, **kwargs):
-      return step > self.n_steps
+      return step >= self.n_steps
     
     set_strategies(mids)
     steps, n_episodes = self.run(stop_fn=stop_fn)
@@ -222,14 +221,16 @@ class MultiAgentRunner(RayBase):
 
     return steps, n_episodes
 
-  def evaluate(self, total_episodes, model_paths: List[ModelPath]=None):
+  def evaluate(self, total_episodes, model_paths: List[ModelPath]=None, wait=False):
     def stop_fn(n_episodes, **kwargs):
-      return n_episodes > total_episodes
+      return n_episodes >= total_episodes
 
     if model_paths is not None:
       self.set_weights_from_model_paths(model_paths)
     steps, n_eps = self.run(stop_fn, to_store_data=False)
-    self._update_payoffs()
+    pid = self._update_payoffs()
+    if wait:
+      ray.get(pid)
 
     return steps, n_eps
 
@@ -290,9 +291,6 @@ class MultiAgentRunner(RayBase):
     @timeit
     def agents_infer(agents: List[Agent], agent_env_outs: List[EnvOutput]):
       assert len(agent_env_outs)  == len(agents), (len(agent_env_outs), len(agents))
-      # action, terms = zip(*[
-      #   a(o, evaluation=self.evaluation) 
-      #   for a, o in zip(agents, agent_env_outs)])
       action, terms = [], []
       for aid in range(self.n_agents):
         agent = agents[aid]
@@ -305,11 +303,7 @@ class MultiAgentRunner(RayBase):
 
     @timeit
     def step_env(actions: List):
-      action = concat_along_unit_dim(actions)
-      self.env_output = self.env.step(action)
-      # legacy code for visualizing overcooked.
-      # if video is not None:
-      #   video.append(self.env.get_screen(convert_batch=False)[0])
+      self.env_output = self.env.step(actions)
       agent_env_outs = divide_env_output(self.env_output)
       return agent_env_outs
     
@@ -337,12 +331,12 @@ class MultiAgentRunner(RayBase):
           if self.is_agent_active[aid]:
             stats = {
               'obs': env_out.obs, 
-              'action': agent_actions[aid],
               'reward': agent.actor.normalize_reward(next_env_out.reward),
               'discount': next_env_out.discount,
               'reset': next_env_out.reset,
               'next_obs': next_obs[aid],
             }
+            stats.update(agent_actions[aid])
             stats.update(agent_terms[aid])
             buffer.collect(**stats)
 
@@ -408,19 +402,22 @@ class MultiAgentRunner(RayBase):
 
     @timeit
     def step_env(agent_env_outs: List, agent_actions: List):
-      actions = np.zeros((self.n_envs, 1), dtype=np.int32)
-      k = 0
+      actions = {}
+      n = 0
       for out, acts in zip(agent_env_outs, agent_actions):
         if len(out.obs) == 0:
           assert len(acts) == 0, acts
           continue
-        assert len(out.obs['uid']) == len(acts), (out.obs['uid'], acts)
-        for i, am, a in zip(out.obs['eid'], out.obs['action_mask'], acts):
-          assert am[0][a[0]], (a, am)
-          actions[i] = a
-          k += 1
-      assert k == self.n_envs, (k, actions)
-      self.env_output = self.env.step(actions)
+        for k in acts.keys():
+          if k not in actions:
+            actions[k] = np.zeros((self.n_envs, 1), dtype=np.int32)
+          assert len(out.obs['uid']) == len(acts[k]), (out.obs['uid'], acts[k])
+          for i, eid in enumerate(out.obs['eid']):
+            assert out.obs['action_mask'][i][0][acts[k][i]], (out.obs['action_mask'][i][0], acts[k][i])
+            actions[k][eid] = acts[k][i]
+            n += 1
+      assert n == self.n_envs, (n, actions)
+      self.env_output = self.env.step([actions])
       assert len(self.env_output) == self.n_agents, len(self.env_output)
       return self.env_output
     
@@ -446,9 +443,9 @@ class MultiAgentRunner(RayBase):
               assert len(agent_actions[aid]) != 0, agent_actions[aid]
               stats = {
                 **env_out.obs,
-                'action': agent_actions[aid],
                 'reset': env_out.reset, 
               }
+              stats.update(agent_actions[aid])
               stats.update(agent_terms[aid])
               buffer.add(**stats)
             else:
@@ -633,9 +630,7 @@ class MultiAgentRunner(RayBase):
   def _setup_env_config(self, config: dict):
     config = dict2AttrDict(config)
     if config.get('seed') is not None:
-      config.seed += self.id * 1000
-    if config.env_name.startswith('unity'):
-      config.unity_config.worker_id += config.n_envs * self.id + 1
+      config.seed += self.id * SEED_MULTIPLIER
     if config.env_name.startswith('grf'):
       if self.id == 0 and self.evaluation:
         config.write_video = True
@@ -651,14 +646,15 @@ class MultiAgentRunner(RayBase):
   def _update_payoffs(self):
     if self.self_play:
       if len(self.scores) > 0:
-        self.parameter_server.update_payoffs.remote(
+        pid = self.parameter_server.update_payoffs.remote(
           self.current_models, self.scores)
         self.scores = []
     else:
       if sum([len(s) for s in self.scores]) > 0:
-        self.parameter_server.update_payoffs.remote(
+        pid = self.parameter_server.update_payoffs.remote(
           self.current_models, self.scores)
         self.scores = [[] for _ in range(self.n_agents)]
+    return pid
 
   def _save_time_recordings(self):
     stats = Timer.top_stats()

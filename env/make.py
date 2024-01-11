@@ -145,7 +145,7 @@ def make_mpe(config):
   assert 'mpe' in config['env_name'], config['env_name']
   config = _change_env_name(config)
   env = MPEEnv(config)
-  env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+  env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.DataProcess(env)
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 
@@ -155,6 +155,7 @@ def make_spiel(config):
   config = _change_env_name(config)
   from env.openspiel import OpenSpiel
   env = OpenSpiel(**config)
+  env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.TurnBasedProcess(env)
   # env = wrappers.SqueezeObs(env, config['squeeze_keys'])
   env = wrappers.MATurnBasedEnvStats(env, seed=config.seed)
@@ -175,20 +176,11 @@ def make_card(config):
 
 
 def make_smac(config):
-  from env.smac_env import SMACEnv
+  from env.smac import StarCraft2Env
   config = _change_env_name(config)
-  env = SMACEnv(config)
-  env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+  env = StarCraft2Env(**config)
+  env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.DataProcess(env)
-  env = wrappers.MASimEnvStats(env, seed=config.seed)
-
-  return env
-
-
-def make_smac2(config):
-  from env.smac2 import SMAC
-  config = _change_env_name(config)
-  env = SMAC(**config)
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 
   return env
@@ -208,7 +200,7 @@ def make_ma_minigrid(config):
   from env.ma_minigrid.environment import MAMiniGrid
   config = _change_env_name(config)
   env = MAMiniGrid(config)
-  env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+  env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.DataProcess(env)
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 
@@ -219,7 +211,7 @@ def make_lbf(config):
   from env.lbf_env.environment import LBFEnv
   config = _change_env_name(config)
   env = LBFEnv(config)
-  env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+  env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.DataProcess(env)
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 
@@ -244,7 +236,7 @@ def make_matrix(config):
   from env.matrix import env_map
   config = _change_env_name(config)
   env = env_map[config['env_name']](**config)
-  env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+  env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.DataProcess(env)
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 
@@ -256,7 +248,7 @@ def make_magw(config):
   from env.magw import env_map
   config = _change_env_name(config)
   env = env_map[config['env_name']](**config)
-  env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+  env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.PopulationSelection(env, config.pop('population_size', 1))
   env = wrappers.DataProcess(env)
   env = wrappers.MASimEnvStats(
@@ -270,6 +262,7 @@ def make_grf(config):
   from env.grf import GRF
   config = _change_env_name(config)
   env = GRF(**config)
+  env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.DataProcess(env)
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 

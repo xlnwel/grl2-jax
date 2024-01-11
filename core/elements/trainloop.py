@@ -45,7 +45,6 @@ class TrainingLoop:
       train_step, stats = self._train(**kwargs)
     if train_step != 0:
       stats = self._after_train(stats)
-
     return train_step, stats
 
   def _before_train(self, step):

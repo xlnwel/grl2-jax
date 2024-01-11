@@ -1,3 +1,4 @@
+import os
 from typing import List
 import numpy as np
 
@@ -37,7 +38,7 @@ class ProportionalPER(Buffer):
     if self.config.directory:
       filedir = self.config.directory
     elif self.config.root_dir and self.config.model_name:
-      filedir = '/'.join([self.config.root_dir, self.config.model_name])
+      filedir = os.path.join(self.config.root_dir, self.config.model_name)
     else:
       filedir = None
     self._filedir = filedir

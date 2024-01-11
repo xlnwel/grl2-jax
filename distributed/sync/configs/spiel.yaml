@@ -75,6 +75,7 @@ env:
   uid2aid: [0, 1]
   n_envs: &nenvs 4
   timeout_done: &td True
+  use_action_mask: True
 
 agent: {}
 

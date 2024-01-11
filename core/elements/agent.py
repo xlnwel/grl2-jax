@@ -1,9 +1,11 @@
+import os
 from typing import Dict, Union
 
 from core.decorator import *
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from core.elements.monitor import Monitor
 from core.typing import ModelPath, get_algo, AttrDict, ModelWeights
 from run.utils import search_for_config
@@ -68,7 +70,7 @@ class Agent:
       learned by RL
     """
     self._model_path = strategy.model
-    if len(strategy.model.root_dir.split('/')) < 3:
+    if len(strategy.model.root_dir.split(PATH_SPLIT)) < 3:
       # the strategy is rule-based if model_name is int(standing for version)
       # for rule-based strategies, we expect strategy.weights 
       # to be the kwargs for the strategy initialization
@@ -83,7 +85,7 @@ class Agent:
     else:
       algo = get_algo(strategy.model.root_dir)
       if algo not in self.strategies:
-        config = search_for_config('/'.join(strategy.model))
+        config = search_for_config(os.path.join(strategy.model))
         self.config = config
         build_func = self.builder.build_training_strategy_from_scratch \
           if self.is_trainable else self.builder.build_acting_strategy_from_scratch

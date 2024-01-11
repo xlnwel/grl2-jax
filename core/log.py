@@ -3,6 +3,8 @@ import inspect
 import logging
 from datetime import datetime
 
+from core.names import PATH_SPLIT
+
 
 color2num = dict(
   gray=30,
@@ -78,9 +80,17 @@ def get_sys_logger(backtrack=1):
   filename = frame.f_code.co_filename
   filename = filename.replace(f'{os.getcwd()}/', '')
   filename = filename.replace('.py', '')
-  filename = filename.replace('/', '.')
+  filename = filename.replace(PATH_SPLIT, '.')
   logger = logging.getLogger(filename)
   return logger
+
+
+def log_once(*args, **kwargs):
+  backtrack = kwargs.get('backtrack', 2)
+  backtrack += 1
+  kwargs['backtrack'] = backtrack
+
+  do_logging(*args, **kwargs, once=True)
 
 
 def do_logging(
@@ -94,14 +104,20 @@ def do_logging(
   color=None, 
   bold=False, 
   highlight=False, 
+  once=False, 
   **log_kwargs, 
 ):
+  if once:
+    if not hasattr(do_logging, 'first'):
+      do_logging.first = True
+    if not do_logging.first:
+      return
   if logger is None:
     logger = get_sys_logger(backtrack)
   frame = get_frame(backtrack)
   if func_lineno is None:
     filename = frame.f_code.co_filename
-    filename = filename.rsplit('/', 1)[-1]
+    filename = filename.rsplit(PATH_SPLIT, 1)[-1]
     funcname = frame.f_code.co_name
     lineno = frame.f_lineno
     func_lineno = ': '.join([filename, funcname, f'line {lineno}'])

@@ -15,50 +15,28 @@ routine:
   algorithm: *algo
 
   MAX_STEPS: 1e7
-  n_steps: &nsteps 100
-  LOG_PERIOD: 2e5
+  n_steps: &nsteps 200
+  LOG_PERIOD: 5e4
   EVAL_PERIOD: null
 
   RECORD_VIDEO: False
   N_EVAL_EPISODES: 1
   size: [256, 256]
 
-  n_lka_steps: 0
-  lookahead_rollout: sim
-  compute_return_at_once: False
+  compute_return_at_once: True
   ignore_ratio_for_ego: False
-  ignore_ratio_for_lookahead: False
   perm: null
 
 env:
   env_name: &env_name smac-5m_vs_6m
-  n_runners: &nrunners 1
-  n_envs: &nenvs 32
+  n_runners: &nrunners 8
+  n_envs: &nenvs 1
   timeout_done: &td False
-  env_args:
-    obs_all_health: True
-    obs_own_health: True
-    obs_last_action: True   # Different from PyMARL, we decide it to be True by default here.
-    obs_pathing_grid: False
-    obs_terrain_height: False
-    obs_instead_of_state: False
-    obs_timestep_number: False
-    obs_agent_id: True  # We align it to the environment in HAPPO or MAPPO
-    state_pathing_grid: False
-    state_terrain_height: False
-    state_last_action: True
-    state_timestep_number: False
-    state_agent_id: True # We align it to the environment in HAPPO or MAPPO
-    use_state_agent: True
-    add_center_xy: True
-    add_distance_state: False
-    add_xy_state: False
-    add_visible_state: False
-    add_enemy_action_state: False
-    use_sample_mask: True
-    use_action_mask: True
-    sample_mask_at_done: 0
-  uid2aid: [0, 1, 2, 3, 4]
+  use_sample_mask: &sm True
+  use_action_mask: &am True
+  sample_mask_at_done: 0
+  uid2aid: null
+  shared_policy: True
 
 agent: {}
 
@@ -71,7 +49,6 @@ strategy:
 
 model:
   aid: 0
-  joint_log_prob: False
   gamma: &gamma .99
 
   policy:
@@ -79,33 +56,29 @@ model:
     units_list: [64, 64]
     w_init: orthogonal
     activation: relu
-    norm: layer
+    norm: null
     out_scale: .01
     rnn_type: &prnn null
     rnn_units: 64
-    init_std: .2
-    sigmoid_scale: True
-    std_x_coef: 1.
-    std_y_coef: .5
     use_feature_norm: False
+    use_action_mask: *am
   value:
     nn_id: value
     units_list: [64, 64]
     w_init: orthogonal
     activation: relu
-    norm: layer
+    norm: null
     rnn_type: &vrnn null
     rnn_units: 64
     use_feature_norm: False
 
 loss:
   # hyperparams for value target and advantage
-  target_type: vtrace
+  target_type: gae
   c_clip: 1
   rho_clip: 1
   adv_type: gae
   norm_adv: True
-  popart: &popart True
 
   prnn_bptt: 10
   vrnn_bptt: 10
@@ -113,17 +86,15 @@ loss:
   # hyperparams for policy optimization
   pg_type: ppo
   ppo_clip_range: .2
-  reg_type: kl_reverse
-  reg_coef: 0
-  pos_reg_coef: 0
-  neg_reg_coef: 0
+  teammate_ratio_clip: .2
   policy_sample_mask: True
 
   # hyperparams for value learning
   value_loss: clip_huber
   huber_threshold: 10
   value_clip_range: .2
-  value_sample_mask: True
+  value_sample_mask: False
+  popart: &popart True
 
   stats:
     gamma: *gamma
@@ -137,21 +108,21 @@ trainer:
   aid: 0
   n_runners: *nrunners
   n_envs: *nenvs
-  n_epochs: 10
-  n_lka_epochs: 10
+  n_epochs: 5
   n_mbs: &nmbs 1
-  n_steps: *nsteps     # BPTT length
-
+  n_steps: *nsteps
+  update_scheme: whole
   popart: *popart
+  debug: True
 
   policy_opt:
     opt_name: adam
-    lr: 3e-4
+    lr: 5e-4
     clip_norm: 10
     eps: 1e-5
   value_opt:
     opt_name: adam
-    lr: 3e-4
+    lr: 5e-4
     clip_norm: 10
     eps: 1e-5
 
@@ -159,14 +130,18 @@ actor:
   update_obs_rms_at_execution: False
   update_obs_at_execution: False
   rms:
-    obs_names: [obs, global_state]
-    obs_normalized_axis: [0, 1, 2]
-    reward_normalized_axis: [0, 1, 2]
-    normalize_obs: False
-    obs_clip: 10
-    normalize_reward: False
-    update_reward_rms_in_time: False
-    gamma: *gamma
+    obs:
+      obs_names: [obs, global_state]
+      obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
+      obs_normalized_ndim: 2
+      normalize_obs: True
+      obs_clip: 10
+    reward:
+      reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
+      reward_normalized_ndim: 1
+      normalize_reward: False
+      update_reward_rms_in_time: False
+      gamma: *gamma
 
 buffer:
   type: ac
@@ -182,7 +157,9 @@ buffer:
 
   sample_keys: 
     - obs
+    - global_state
     - action
+    - action_mask
     - value
     - reward
     - discount

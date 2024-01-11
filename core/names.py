@@ -1,3 +1,5 @@
+import os
+
 ANCILLARY = 'ancillary'
 OPTIMIZER = 'opt'
 MODEL = 'model'
@@ -12,5 +14,25 @@ PARAMS = 'params'
 OBS = 'obs'
 REWARD = 'reward'
 DISCOUNT = 'discount'
+DEFAULT_ACTION = 'action'
 
-ROOTDIR = 'root_dir'
+ROOT_DIR = 'root_dir'
+MODEL_NAME = 'model_name'
+
+if os.name == 'posix':  # Linux, macOS, or Unix
+  PATH_SPLIT = '/'
+elif os.name == 'nt':  # Windows
+  PATH_SPLIT = '\\'
+else:
+  raise RuntimeError(f'Unsupported system ({os.name})')
+
+
+class TRAIN_AXIS:
+  BATCH = 0
+  SEQ = 1
+  UNIT = 2
+
+class INFER_AXIS:
+  BATCH = 0
+  UNIT = 1
+  

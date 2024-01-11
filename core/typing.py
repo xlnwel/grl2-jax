@@ -1,9 +1,12 @@
+import os
 import sys
 import copy
 import collections
 from typing import Any
 from jax import tree_util
+
 from core.log import do_logging, stringify
+from core.names import PATH_SPLIT
 
 
 ModelWeights = collections.namedtuple('model_weights', 'model weights')
@@ -368,31 +371,31 @@ ModelPath = collections.namedtuple('ModelPath', 'root_dir model_name')
 
 
 def construct_model_name_from_version(base, iteration, version):
-  return f'{base}/i{iteration}-v{version}'
+  return os.path.join(base, f'i{iteration}-v{version}')
 
 def construct_model_name(base, aid, iteration, version):
-  return f'{base}/a{aid}/i{iteration}-v{version}'
+  return os.path.join(base, f'a{aid}', f'i{iteration}-v{version}')
 
 def get_aid(model_name: str):
-  _, aid, _ = model_name.rsplit('/', maxsplit=2)
+  _, aid, _ = model_name.rsplit(PATH_SPLIT, maxsplit=2)
   aid = eval(aid[1:])
   assert isinstance(aid, int), aid
   return aid
 
 def get_vid(model_name: str):
-  _, vid = model_name.rsplit('/', maxsplit=1)
+  _, vid = model_name.rsplit(PATH_SPLIT, maxsplit=1)
   vid = vid.rsplit('v', maxsplit=1)[-1]
   return vid
 
 def get_aid_vid(model_name: str):
-  _, aid, vid = model_name.rsplit('/', maxsplit=2)
+  _, aid, vid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
   aid = eval(aid[1:])
   vid = vid.rsplit('v', maxsplit=1)[-1]
   assert isinstance(aid, int), aid
   return aid, vid
 
 def get_all_ids(model_name: str):
-  _, aid, vid = model_name.rsplit('/', maxsplit=2)
+  _, aid, vid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
   aid = eval(aid[1:])
   iid, vid = vid.split('v', maxsplit=1)
   iid = eval(iid[1:-1])
@@ -403,28 +406,28 @@ def get_all_ids(model_name: str):
 def get_basic_model_name(model_name: str):
   """ Basic model name excludes aid, iid, and vid """
   name = []
-  for n in model_name.split('/'):
+  for n in model_name.split(PATH_SPLIT):
     if n.startswith('a') and n[1:].isdigit():
       break
     name.append(n)
-  name = '/'.join(name)
+  name = os.path.join(*name)
 
   return name
 
 def modelpath2outdir(model_path):
   root_dir, model_name = model_path
   model_name = get_basic_model_name(model_name)
-  outdir = '/'.join([root_dir, model_name])
+  outdir = os.path.join(root_dir, model_name)
   return outdir
 
 def get_env_algo(root_dir: str):
-  env, algo = root_dir.split('/')[-2:]
+  env, algo = root_dir.split(PATH_SPLIT)[-2:]
   return env, algo
 
 def get_algo(root_dir: str):
-  algo = root_dir.split('/')[-1]
+  algo = root_dir.split(PATH_SPLIT)[-1]
   return algo
 
 def get_env(root_dir: str):
-  env = root_dir.split('/')[-2]
+  env = root_dir.split(PATH_SPLIT)[-2]
   return env

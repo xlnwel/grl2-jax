@@ -101,7 +101,7 @@ class SelectedAgents(gym.Wrapper):
     )
     super().__init__(self.env)
 
-    self.action_dim = 20
+    self.action_dim = 19
     self.n_left_units = n_left_units
     self.n_right_units = n_right_units
     self.n_units = n_left_units + n_right_units
@@ -148,6 +148,8 @@ class SelectedAgents(gym.Wrapper):
     return obs, reward, done, info
 
   def fill_actions(self, action):
+    if len(action) == self.n_units:
+      return action
     actions = []
     cid = 0
     for i in range(self.n_left_units):
@@ -166,7 +168,7 @@ class SelectedAgents(gym.Wrapper):
 
   def get_controlled_players_data(self, data):
     assert len(data) == self.n_units, (len(data), self.n_units)
-    if len(data) == self.n_units:
+    if len(data) == self.n_left_controlled_units:
       return data
     if self.n_right_controlled_units > 0:
       left_data = data[:self.n_left_units]

@@ -9,6 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from core.utils import configure_gpu
 from core.typing import dict2AttrDict, get_basic_model_name
 from tools.display import print_dict_info
@@ -174,10 +175,12 @@ def main(configs, n, record=False, size=(256, 256), video_len=1000,
     do_logging(f'filename: {filename}')
   else:
     filename = f'{out_dir}/{algo_name}-{env_name}/{config["model_name"]}'
-  out_dir, filename = filename.rsplit('/', maxsplit=1)
+  filename = filename.replace('/', PATH_SPLIT)
+  out_dir, filename = filename.rsplit(PATH_SPLIT, maxsplit=1)
   if info != "" and info is not None:
     filename = f'{out_dir}/{filename}/{info}'
-    out_dir, filename = filename.rsplit('/', maxsplit=1)
+    filename = filename.replace('/', PATH_SPLIT)
+    out_dir, filename = filename.rsplit(PATH_SPLIT, maxsplit=1)
   if record:
     plot(data, out_dir, filename)
     save_video(filename, video, fps=fps, out_dir=out_dir)

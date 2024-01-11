@@ -6,6 +6,7 @@ import collections
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from tools import yaml_op
 
 ModelPath = collections.namedtuple('ModelPath', 'root_dir model_name')
@@ -62,14 +63,14 @@ class DirLevel(Enum):
 
 
 def join_dir_name(filedir, filename):
-  return '/'.join([filedir, filename])
+  return os.path.join(filedir, filename)
 
 
 def get_level(search_dir, last_prefix):
   for d in os.listdir(search_dir):
     if d.endswith('logs'):
       return DirLevel.ROOT
-  all_names = search_dir.split('/')
+  all_names = search_dir.split(PATH_SPLIT)
   last_name = all_names[-1]
   if any([last_name.startswith(p) for p in last_prefix]):
     return DirLevel.FINAL
@@ -78,7 +79,7 @@ def get_level(search_dir, last_prefix):
   if last_name.startswith('seed'):
     return DirLevel.SEED
   suite = None
-  for name in search_dir.split('/'):
+  for name in search_dir.split(PATH_SPLIT):
     if name.endswith('-logs'):
       suite = name.split('-')[0]
   if last_name.startswith(f'{suite}'):
@@ -138,11 +139,11 @@ if __name__ == '__main__':
   directory = os.path.abspath(args.directory)
   do_logging(f'Directory: {directory}')
 
-  while directory.endswith('/'):
+  while directory.endswith(PATH_SPLIT):
     directory = directory[:-1]
   
-  if directory.startswith('/'):
-    strs = directory.split('/')
+  if directory.startswith(PATH_SPLIT):
+    strs = directory.split(PATH_SPLIT)
 
   search_dir = directory
   level = get_level(search_dir, args.prefix)
@@ -153,13 +154,13 @@ if __name__ == '__main__':
   ignores = args.ignore
 
   for d in fixed_pattern_search(search_dir, level=level, matches=matches, ignores=ignores):
-    last_name = d.split('/')[-1]
+    last_name = d.split(PATH_SPLIT)[-1]
     if not any([last_name.startswith(p) for p in args.prefix]):
       continue
     # load config
-    yaml_path = '/'.join([d, config_name])
+    yaml_path = os.path.join(d, config_name)
     if not os.path.exists(yaml_path):
-      new_yaml_path = '/'.join([d, player0_config_name])
+      new_yaml_path = os.path.join(d, player0_config_name)
       if os.path.exists(new_yaml_path):
         yaml_path = new_yaml_path
       else:

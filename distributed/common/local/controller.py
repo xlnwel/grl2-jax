@@ -1,3 +1,4 @@
+import os
 from math import ceil
 import cloudpickle
 from functools import partial
@@ -50,7 +51,7 @@ def _setup_configs(
     config.aid = aid
     config.buffer.n_envs = env_stats.n_envs
     root_dir = config.root_dir
-    model_name = '/'.join([config.model_name, f'a{aid}'])
+    model_name = os.path.join(config.model_name, f'a{aid}')
     modify_config(
       config, 
       root_dir=root_dir, 
@@ -82,7 +83,7 @@ class Controller(YAMLCheckpointBase):
       self.config.root_dir, 
       get_basic_model_name(self.config.model_name)
     )
-    self._dir = '/'.join(self._model_path)
+    self._dir = os.path.join(*self._model_path)
     self._path = f'{self._dir}/{name}.yaml'
     do_logging(f'Model Path: {self._model_path}', color='blue')
     save_code(self._model_path)
@@ -96,6 +97,7 @@ class Controller(YAMLCheckpointBase):
 
   """ Manager Building """
   def build_managers_for_evaluation(self, config: AttrDict):
+    self.self_play = config.self_play
     if config.self_play:
       ParameterServerCls = SPParameterServer
     else:
@@ -131,6 +133,7 @@ class Controller(YAMLCheckpointBase):
     self.configs = _setup_configs(configs, env_stats)
 
     config = configs[0]
+    self.self_play = config.self_play
 
     self.n_runners = config.runner.n_runners
     self.n_steps = config.runner.n_steps
@@ -331,7 +334,7 @@ class Controller(YAMLCheckpointBase):
       self.monitor.save_payoff_table.remote(self._iteration)
     ])
     self._log_remote_stats_for_models(eval_pids, self.active_models, step=self._steps)
-    self._log_remote_stats(ipid, record=True)
+    self._log_remote_stats(ipid, step=self._iteration, record=True, )
     self._steps = 0
 
   """ Statistics Logging """
@@ -386,12 +389,17 @@ class Controller(YAMLCheckpointBase):
     counts = self.parameter_server.get_counts.remote()
     payoffs = ray.get(payoffs)
     counts = ray.get(counts)
+    if not isinstance(payoffs, list):
+      payoffs = [payoffs]
+    for i, p in enumerate(payoffs):
+      payoffs[i] = np.nan_to_num(p)
     do_logging('Final Payoffs', color='blue')
     for i in range(len(payoffs)):
       print(payoffs[i])
     do_logging(f'Final Counts: {np.mean(counts)}, {np.std(counts)}', color='blue')
     alpha_rank = AlphaRank(1000, 5, 0)
-    ranks, mass = alpha_rank.compute_rank(payoffs, return_mass=True)
+    ranks, mass = alpha_rank.compute_rank(
+      payoffs, is_single_population=self.self_play, return_mass=True)
     print('Alpha Rank Results:\n', ranks)
     print('Mass at Stationary Point:\n', mass)
     path = f'{self._dir}/{filename}.pkl'
@@ -413,7 +421,7 @@ class Controller(YAMLCheckpointBase):
     if configs is None:
       configs = search_for_all_configs(self._dir, to_attrdict=False)
     from run.spiel_eval import main
-    filename = '/'.join([self._dir, 'nash_conv.txt'])
+    filename = os.path.join(self._dir, 'nash_conv.txt')
     pid = run_ray_process(
       main, 
       configs, 

@@ -84,6 +84,15 @@ def get_initializer(name, scale=1., **kwargs):
     return name
 
 
+def reset_weights(weights, rng, name, **params):
+  rngs = jax.random.split(rng, 2)
+  w = getattr(jax.nn.initializers, 'orthogonal')(**params)(rngs[0], weights['w'].shape)
+  b = jax.nn.initializers.zeros(rngs[1], weights['b'].shape)
+  weights['w'] = w
+  weights['b'] = b
+  return weights
+
+
 @hk.transparent
 def call_norm(norm_type, norm_kwargs, x, is_training, name=None):
   if norm_type is None:

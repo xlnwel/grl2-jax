@@ -3,14 +3,17 @@ import gym
 from gym.spaces import Discrete
 f32 = np.float32
 
+from core.names import DEFAULT_ACTION
 from env.grf_env.selected_agents import SelectedAgents
 from env.utils import *
+
 
 def do_flatten(obj):
   """Run flatten on either python list or numpy array."""
   if type(obj) == list:
       return np.array(obj).flatten()
   return obj.flatten()
+
 
 class Representation:
   RAW='raw'
@@ -35,15 +38,11 @@ class GRF:
     control_left=True,
     control_right=False,
     # custom grf configs
-    shared_policy=False, 
-    shared_policy_among_agents=True, 
     score_reward_scale=1, 
     # required configs for grl
     max_episode_steps=3000,
     use_action_mask=False,
     use_sample_mask=False, 
-    uid2aid=None,
-    uid2gid=None, 
     seed=None, 
     use_idx=False, 
     **kwargs,
@@ -73,26 +72,6 @@ class GRF:
     self.n_left_units = self.env.n_left_controlled_units
     self.n_right_units = self.env.n_right_controlled_units
     self.n_units = self.env.n_controlled_units
-    if uid2gid is None:
-      if shared_policy:
-        uid2gid = tuple(np.zeros(self.n_left_units, dtype=np.int32)) \
-          + tuple(np.ones(self.n_right_units, dtype=np.int32))
-      else:
-        uid2gid = tuple(np.arange(self.n_units, dtype=np.int32))
-
-    if uid2aid is None:
-      if shared_policy_among_agents:
-        uid2aid = tuple(np.zeros(self.n_left_units, dtype=np.int32)) \
-          + tuple(np.ones(self.n_right_units, dtype=np.int32))
-      else:
-        uid2aid = tuple(np.arange(self.n_units, dtype=np.int32))
-
-    self.uid2gid = uid2gid
-    self.uid2aid = uid2aid
-    self.aid2uids = compute_aid2uids(self.uid2aid)
-    self.gid2uids = compute_aid2uids(self.uid2gid)
-    self.aid2gids = compute_aid2gids(uid2aid, uid2gid)
-    self.n_agents = len(self.aid2uids)
 
     self.max_episode_steps = max_episode_steps
 
@@ -100,20 +79,14 @@ class GRF:
     self.use_sample_mask = use_sample_mask              # if life mask is used
     self.use_idx = use_idx
 
-    self.action_space = [
-      Discrete(20) for _ in range(self.n_agents)
-    ]
-    self.action_shape = [() for _ in self.action_space]
-    self.action_dim = [19 for _ in range(self.n_agents)]
-    self.action_dtype = [np.int32 for _ in self.action_space]
-    self.is_action_discrete = [True for _ in self.action_space]
+    self.action_space = Discrete(19)
 
     self.observation_space = self.env.observation_space
     self.reward_range = self.env.reward_range
     self.metadata = self.env.metadata
     obs = self.reset()
-    self.obs_shape = [{k: v.shape[-1:] for k, v in o.items()} for o in obs]
-    self.obs_dtype = [{k: v.dtype for k, v in o.items()} for o in obs]
+    self.obs_shape = {k: v.shape[-1:] for k, v in obs.items()}
+    self.obs_dtype = {k: v.dtype for k, v in obs.items()}
 
     # The following stats should be updated in self.step and be reset in self.reset
     # The episodic score we use to evaluate agent's performance. It excludes shaped rewards
@@ -124,9 +97,6 @@ class GRF:
     self._epslen = 0
     self._left_score = np.zeros(self.n_units, dtype=f32)
     self._right_score = np.zeros(self.n_units, dtype=f32)
-
-    self._prev_action = [-1 for _ in self.action_dim]
-    self._consecutive_action = np.zeros(self.n_units, bool)
 
     self._checkpoint_reward = .1
     self._num_checkpoints = 10
@@ -147,14 +117,13 @@ class GRF:
     self._right_score = np.zeros(self.n_units, dtype=f32)
     self._ckpt_score = np.zeros(self.n_units, dtype=f32)
 
-    self._prev_action = [-1 for _ in self.action_dim]
-    self._consecutive_action = np.zeros(self.n_units, bool)
     self._collected_checkpoints = [0, 0]
 
     # return [{'obs': o[None], 'global_state': o[None]} for o in obs]
     return self._get_obs(obs)
 
   def step(self, action):
+    action = action[0][DEFAULT_ACTION]
     obs, reward, done, info = self.env.step(action)
 
     reward = self._get_reward(reward, info)
@@ -176,7 +145,6 @@ class GRF:
       self._score = diff_score > 0
     dones = np.tile(done, self.n_units)
 
-    self._prev_action = action
     info = {
       'score': self._score,
       'dense_score': self._dense_score,
@@ -184,19 +152,12 @@ class GRF:
       'right_score': self._right_score,
       'diff_score': diff_score,
       'win_score': diff_score > 0,
-      # 'non_loss_score': diff_score >= 0,
-      # 'consecutive_action': self._consecutive_action,
       'checkpoint_score': self._ckpt_score,
       'epslen': self._epslen,
       'game_over': done
     }
 
-    agent_obs = self._get_obs(obs)
-    # agent_obs = [{'obs': o[None], 'global_state': o[None]} for o in obs]
-    agent_rewards = [np.reshape(reward[uids], -1) for uids in self.aid2uids]
-    agent_dones = [np.reshape(dones[uids], -1) for uids in self.aid2uids]
-
-    return agent_obs, agent_rewards, agent_dones, info
+    return self._get_obs(obs), reward, dones, info
 
   def render(self):
     if not self.to_render:
@@ -210,20 +171,17 @@ class GRF:
 
   def _get_obs(self, obs):
     if self.representation == Representation.SIMPLE115:
-      agent_obs = [dict(
-        obs=obs[uids],
-        global_state=obs[uids]
-      ) for uids in self.aid2uids]
+      obs = dict(
+        obs=obs, 
+        global_state=obs
+      )
     else:
-      agent_obs = [dict(
-        obs=np.concatenate([self.get_state(u >= self.n_left_units, u) for u in uids], 0), 
-        global_state=np.concatenate([self.get_state(u >= self.n_left_units) for u in uids], 0), 
-      ) for uids in self.aid2uids]
-    if self.use_idx:
-      for o, uids in zip(agent_obs, self.aid2uids):
-        o['idx'] = np.eye(len(uids), dtype=f32)
+      obs = dict(
+        obs=np.concatenate([self.get_state(u >= self.n_left_units, u) for u in range(self.n_units)], 0), 
+        global_state=np.concatenate([self.get_state(u >= self.n_left_units) for u in range(self.n_units)], 0), 
+      )
 
-    return agent_obs
+    return obs
 
   def get_state(self, side=0, uid=None):
     # adapted from imple115StateWrapper.convert_observation
@@ -232,7 +190,7 @@ class GRF:
     def do_flatten(obj):
       """Run flatten on either python list or numpy array."""
       if type(obj) == list:
-          return np.array(obj).flatten()
+        return np.array(obj).flatten()
       return obj.flatten()
 
     s = []
@@ -255,14 +213,16 @@ class GRF:
       s.extend([0, 1, 0])
     if raw_state[0]["ball_owned_team"] == 1:
       s.extend([0, 0, 1])
-    active = [0] * 11
     if uid is None:
       for obs in raw_state:
+        active = [0] * 11
         if obs["active"] != -1:
           active[obs["active"]] = 1
+        s.extend(active)
     else:
+      active = [0] * 11
       active[uid] = 1
-    s.extend(active)
+      s.extend(active)
     game_mode = [0] * 7
     game_mode[raw_state[0]["game_mode"]] = 1
     s.extend(game_mode)
@@ -340,14 +300,14 @@ if __name__ == '__main__':
   config = {
       'env_name': 'academy_counterattack_hard',
       'representation': 'simple115v2',
-      'write_full_episode_dumps': True, 
-      'write_video': True, 
-      'render': True, 
+      'write_full_episode_dumps': False, 
+      'write_video': False, 
+      'render': False, 
       'rewards': 'scoring,checkpoints', 
       'control_left': args.left,
       'control_right': args.right,
       'shared_policy': True, 
-      'use_action_mask':True, 
+      'use_action_mask':False, 
       'uid2aid': None,
       'use_idx': True,
       'use_hidden': False, 
@@ -357,27 +317,25 @@ if __name__ == '__main__':
       'seed': 1
   }
 
+  import random
+  random.seed(0)
   import numpy as np
-  np.random.seed(0)
-  env = GRF(**config)
-  left = args.left
-  obs_left = []
-  obs_right = []
+  np.random.seed(10)
+  # env = GRF(**config)
+  import gfootball.env as football_env
+  env = football_env.create_environment('academy_counterattack_hard', representation=Representation.SIMPLE115, number_of_left_players_agent_controls=4)
+  env.unwrapped.seed(1)
   obs = env.reset()
-  env.seed(1)
-  obs = env.raw_state()
-  ids = np.array([o['active'] for o in obs])
-  print('ids', ids)
   for i in range(args.step):
-    a = env.random_action()
+    a = np.random.randint(0, 19, size=4)
     obs, rew, done, info = env.step(a)
-    obs = env.raw_state()
-    new_ids = np.array([o['active'] for o in obs])
-    print('ids', new_ids)
-    # new_ids = np.array([o['obs'][0, -13+i] for i, o in enumerate(obs)])
-    # np.testing.assert_equal(ids, new_ids)
-    # print('ball_owned_team', [o['ball_owned_team'] for o in obs])
-    # print(obs[0]['obs'].reshape(-1, 5))
+    if isinstance(env, GRF):
+      raw_obs = env.raw_state()
+    else:
+      raw_obs = env.unwrapped.observation()
+  
+    id = [o['active'] for o in raw_obs]
+    print(i, 'active', id)
     if np.all(done):
       print(info)
       # print('Done ball_owned_team', [o['ball_owned_team'] for o in obs])

@@ -17,6 +17,7 @@ from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
   get_aid, get_basic_model_name
 from core.typing import ModelWeights
+from nn.utils import reset_weights
 from distributed.common.remote.payoff import PayoffManager
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
@@ -72,9 +73,9 @@ class SPParameterServer(RayBase):
     assert self.self_play, self.self_play
 
     model_name = get_basic_model_name(config.model_name)
-    self._dir = f'{config.root_dir}/{model_name}'
+    self._dir = os.path.join(config.root_dir, model_name)
     os.makedirs(self._dir, exist_ok=True)
-    self._path = f'{self._dir}/{self.name}.yaml'
+    self._path = os.path.join(self._dir, f'{self.name}.yaml')
 
     self._params: Dict[ModelPath, Dict] = {}
     self._prepared_strategies: List[List[ModelWeights]] = \
@@ -113,7 +114,7 @@ class SPParameterServer(RayBase):
 
   def build(self, configs: List[Dict], env_stats: Dict):
     self.agent_config = dict2AttrDict(configs[0])
-    model = f'{self.agent_config["root_dir"]}/{self.agent_config["model_name"]}'
+    model = os.path.join(self.agent_config["root_dir"], self.agent_config["model_name"])
     os.makedirs(model, exist_ok=True)
     self.builder = ElementsBuilderVC(self.agent_config, env_stats, to_save_code=False)
 
@@ -172,7 +173,7 @@ class SPParameterServer(RayBase):
       assert aid < self.n_active_agents, (aid, self.n_active_agents)
       vid = config['vid']
       model_name = get_basic_model_name(self.config.model_name)
-      model_name = f'{model_name}/{name}-rule'
+      model_name = os.path.join(model_name, f'{name}-rule')
       model_name = construct_model_name(model_name, aid, vid, vid)
       model = ModelPath(self.config.root_dir, model_name)
       self._rule_strategies.add(model)
@@ -218,8 +219,11 @@ class SPParameterServer(RayBase):
         # if error happens here
         # it's likely that you retrive the latest model 
         # in self.payoff_manager.sample_strategies
-        weights = {k: self._params[model][k] 
-                   for k in [MODEL, 'train_step', ANCILLARY]}
+        weights = {
+          k: self._params[model][k] 
+          for k in [MODEL, 'train_step', ANCILLARY]
+          if k in self._params[model]
+        }
       mid = ray.put(ModelWeights(model, weights))
       return mid
 
@@ -352,11 +356,16 @@ class SPParameterServer(RayBase):
     assert model not in self._params, f'{model} is already in {list(self._params)}'
     if self._reset_policy_head:
       rng = jax.random.PRNGKey(random.randint(0, 2**32))
-      out = weights[MODEL]['policy']['policy/mlp/out']
-      w = jax.nn.initializers.orthogonal(.01)(rng, out['w'].shape)
-      b = jax.nn.initializers.zeros(rng, out['b'].shape)
-      out['w'] = w
-      out['b'] = b
+      if 'policies' in weights[MODEL]:
+        for policy in weights[MODEL]['policies']:
+          for k, v in policy.items():
+            if k.startswith('policy/head'):
+              policy[k] = v
+      elif 'policy' in weights[MODEL]:
+        for k, v in weights[MODEL]['policy'].items():
+          if k.startswith('policy/head'):
+            weights[MODEL]['policy'][k] = reset_weights(
+              v, rng, 'orthogonal', scale=.01)
     self._params[model] = weights
     model_weights = ModelWeights(model, weights)
     
@@ -394,11 +403,10 @@ class SPParameterServer(RayBase):
   def sample_strategies_for_evaluation(self):
     if self._all_strategies is None:
       strategies = self.payoff_manager.get_all_strategies()
-      self._all_strategies = [mw for mw in itertools.product(
-        *[[s for s in ss] for ss in strategies])]
-      assert len(self._all_strategies) == np.product([len(s) for s in strategies]), \
-        (len(self._all_strategies), np.product([len(s) for s in strategies]))
-
+      self._all_strategies = []
+      for i, s in enumerate(strategies):
+        for j in range(i+1, len(strategies)):
+          self._all_strategies.append([s, strategies[j]])
     return self._all_strategies
 
   """ Payoff Operations """

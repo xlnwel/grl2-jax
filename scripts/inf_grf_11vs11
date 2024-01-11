@@ -10,7 +10,7 @@ algos=(
   # ppo
   # ppo
   # sync-ppo
-  "sync-$1"
+  happo
   # happo
   # happo
   # happo
@@ -18,18 +18,15 @@ algos=(
   # happo
 )
 envs=(
-  11_vs_11_hard_stochastic
-  # academy_3_vs_1_with_keeper
-  # academy_corner
-  # academy_counterattack_hard
-  # academy_custom_counterattack_hard
-)
-# shift
-configs=(
-  # grf_11vs11_ppo
-  "grf_11vs11_$1"
+  $1
+  # 11_vs_11_easy_stochastic
 )
 shift
+configs=(
+  # grf_11vs11_ppo
+  "grf_11vs11"
+)
+# shift
 args1=(
   1e-3
   1e-3
@@ -91,7 +88,6 @@ kws=$@
 # for e in "${envs[@]}"; do
 # for a1 in "${args1[@]}"; do
 # kws="$@ entropy_coef=$a1"
-env="${suite}-${e}"
 # i=$(($INF_MAC_NODE_RANK % 2))
 # if [ "$i" -eq 0 ]; then
 #   for s in {0..4}; do
@@ -106,10 +102,11 @@ env="${suite}-${e}"
 #     echo $py_script
 #   done
 # fi
-kws="gamma=$1 entropy_coef=$2"
+kws="n_epochs=$1 n_mbs=$2 lr=$3 entropy_coef=$4"
 # for a in "${algos[@]}"; do
 for e in "${envs[@]}"; do
-  for s in {0..1}; do
+  env="${suite}-${e}"
+  for s in {0..2}; do
     py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
     commands+=("$py_script")
     echo $py_script

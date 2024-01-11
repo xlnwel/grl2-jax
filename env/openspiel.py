@@ -72,6 +72,7 @@ class OpenSpiel:
     return self.get_obs(self._time_step)
 
   def step(self, action):
+    action = action[0]['action']
     assert action[0] in self._time_step.observations['legal_actions'][self._current_player], \
       (action, self._time_step.observations['legal_actions'][self._current_player])
     self._time_step = self.env.step(action)
@@ -89,6 +90,7 @@ class OpenSpiel:
     }
 
     obs = self.get_obs(self._time_step)
+    assert obs['action_mask'].shape[-1] == 3, obs['action_mask'].shape
 
     return obs, rewards, discounts, info
 

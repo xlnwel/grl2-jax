@@ -5,16 +5,10 @@ from tools.utils import convert_batch_with_func
 
 
 def batch_env_output(out, func=np.stack):
-  return EnvOutput(*[convert_batch_with_func(o, func=func) for o in zip(*out)])
-
-
-def batch_ma_env_output(out, func=np.stack):
-  obs = [convert_batch_with_func(o, func=func) for o in zip(*out[0])]
-  reward = [convert_batch_with_func(r, func=func) for r in zip(*out[1])]
-  discount = [convert_batch_with_func(d, func=func) for d in zip(*out[2])]
-  reset = [convert_batch_with_func(r, func=func) for r in zip(*out[3])]
-  
-  return EnvOutput(obs, reward, discount, reset)
+  out = list(zip(*out))
+  result = EnvOutput(*[[
+    convert_batch_with_func(x, func=func) for x in zip(*o)] for o in out])
+  return result
 
 
 def divide_env_output(env_output):
@@ -59,3 +53,13 @@ def compute_angle_cos_sin(center, x):
   dist = np.linalg.norm(diff)
   ans = diff / dist
   return ans
+
+
+def get_action_mask(action):
+  action_mask = {
+    k.replace('_mask', ''): v 
+    for k, v in action.items() if k.endswith('_mask')
+  }
+  if not action_mask:
+    action_mask = None
+  return action_mask

@@ -1,6 +1,7 @@
 from jax import lax, random
 import jax.numpy as jnp
 
+from env.utils import get_action_mask
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict
 from jax_tools import jax_loss
@@ -20,8 +21,7 @@ class Loss(LossBase):
     rngs = random.split(rng, 2)
     stats = dict2AttrDict(self.config.stats, to_copy=True)
 
-    if data.action_mask is not None:
-      stats.n_avail_actions = jnp.sum(data.action_mask, -1)
+    action_mask = get_action_mask(data.action)
     if data.sample_mask is not None:
       stats.n_alive_units = jnp.sum(data.sample_mask, -1)
 
@@ -34,10 +34,10 @@ class Loss(LossBase):
       data.state_reset, 
       None if data.state is None else data.state.value, 
       bptt=self.config.vrnn_bptt, 
-      seq_axis=1, 
+      seq_axis=TRAIN_AXIS.SEQ, 
     )
 
-    act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
+    act_dists, stats.pi_logprob, stats.log_ratio, stats.ratio = \
       compute_policy(
         self.model, 
         theta.policy, 
@@ -47,14 +47,14 @@ class Loss(LossBase):
         data.mu_logprob, 
         data.state_reset[:, :-1] if 'state_reset' in data else None, 
         state=None if data.state is None else data.state.policy, 
-        # action_mask=data.action_mask, 
+        action_mask=action_mask, 
         bptt=self.config.prnn_bptt, 
       )
-    stats = record_policy_stats(data, stats, act_dist)
+    stats = record_policy_stats(data, stats, act_dists)
 
     if 'advantage' in data:
       stats.raw_adv = data.pop('advantage')
-      stats.v_target = data.pop('v_target')
+      stats.raw_v_target = data.pop('v_target')
     else:
       if self.config.popart:
         value = lax.stop_gradient(denormalize(
@@ -64,7 +64,7 @@ class Loss(LossBase):
       else:
         value = lax.stop_gradient(stats.value)
 
-      v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+      stats.raw_v_target, stats.raw_adv = jax_loss.compute_target_advantage(
         config=self.config, 
         reward=data.reward, 
         discount=data.discount, 
@@ -74,12 +74,13 @@ class Loss(LossBase):
         ratio=lax.stop_gradient(stats.ratio), 
         gamma=stats.gamma, 
         lam=stats.lam, 
-        axis=1
+        axis=TRAIN_AXIS.SEQ
       )
-      if self.config.popart:
-        v_target = normalize(
-          v_target, data.popart_mean, data.popart_std)
-      stats.v_target = lax.stop_gradient(v_target)
+    if self.config.popart:
+      stats.v_target = normalize(stats.raw_v_target, data.popart_mean, data.popart_std)
+    else:
+      stats.v_target = stats.raw_v_target
+    stats.v_target = lax.stop_gradient(stats.v_target)
     stats = record_target_adv(stats)
     stats.norm_adv, stats.advantage = norm_adv(
       self.config, 
@@ -95,15 +96,11 @@ class Loss(LossBase):
       self.config, 
       data, 
       stats, 
-      act_dist=act_dist, 
+      act_dists=act_dists, 
       entropy_coef=stats.entropy_coef
     )
 
-    value_loss, stats = compute_vf_loss(
-      self.config, 
-      data, 
-      stats, 
-    )
+    value_loss, stats = compute_vf_loss(self.config, data, stats)
     stats = summarize_adv_ratio(stats, data)
     loss = actor_loss + value_loss
     stats.loss = loss
@@ -122,8 +119,7 @@ class Loss(LossBase):
     rngs = random.split(rng, 2)
     stats = dict2AttrDict(self.config.stats, to_copy=True)
 
-    if data.action_mask is not None:
-      stats.n_avail_actions = jnp.sum(data.action_mask, -1)
+    action_mask = get_action_mask(data.action)
     if data.sample_mask is not None:
       stats.n_alive_units = jnp.sum(data.sample_mask, -1)
 
@@ -136,7 +132,7 @@ class Loss(LossBase):
       data.state_reset, 
       None if data.state is None else data.state.value, 
       bptt=self.config.vrnn_bptt, 
-      seq_axis=1, 
+      seq_axis=TRAIN_AXIS.SEQ, 
     )
 
     _, _, _, ratio = compute_policy(
@@ -148,13 +144,13 @@ class Loss(LossBase):
       data.mu_logprob, 
       data.state_reset[:, :-1] if 'state_reset' in data else None, 
       None if data.state is None else data.state.policy, 
-      # action_mask=data.action_mask, 
+      action_mask=action_mask, 
       bptt=self.config.prnn_bptt, 
     )
 
     if 'advantage' in data:
       stats.raw_adv = data.pop('advantage')
-      stats.v_target = data.pop('v_target')
+      stats.raw_v_target = data.pop('v_target')
     else:
       if self.config.popart:
         value = lax.stop_gradient(denormalize(
@@ -164,7 +160,7 @@ class Loss(LossBase):
       else:
         value = lax.stop_gradient(stats.value)
 
-      v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+      stats.raw_v_target, stats.raw_adv = jax_loss.compute_target_advantage(
         config=self.config, 
         reward=data.reward, 
         discount=data.discount, 
@@ -174,19 +170,16 @@ class Loss(LossBase):
         ratio=lax.stop_gradient(ratio), 
         gamma=stats.gamma, 
         lam=stats.lam, 
-        axis=1
+        axis=TRAIN_AXIS.SEQ
       )
-      if self.config.popart:
-        v_target = normalize(
-          v_target, data.popart_mean, data.popart_std)
-      stats.v_target = lax.stop_gradient(v_target)
+    if self.config.popart:
+      stats.v_target = normalize(stats.raw_v_target, data.popart_mean, data.popart_std)
+    else:
+      stats.v_target = stats.raw_v_target
+    stats.v_target = lax.stop_gradient(stats.v_target)
     stats = record_target_adv(stats)
 
-    value_loss, stats = compute_vf_loss(
-      self.config, 
-      data, 
-      stats, 
-    )
+    value_loss, stats = compute_vf_loss(self.config, data, stats)
     stats.norm_adv, stats.advantage = norm_adv(
       self.config, 
       stats.raw_adv, 
@@ -209,7 +202,8 @@ class Loss(LossBase):
   ):
     rngs = random.split(rng, 2)
 
-    act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
+    action_mask = get_action_mask(data.action)
+    act_dists, stats.pi_logprob, stats.log_ratio, stats.ratio = \
       compute_policy(
         self.model, 
         theta, 
@@ -219,16 +213,16 @@ class Loss(LossBase):
         data.mu_logprob, 
         data.state_reset[:, :-1] if 'state_reset' in data else None, 
         None if data.state is None else data.state.policy, 
-        # action_mask=data.action_mask, 
+        action_mask=action_mask, 
         bptt=self.config.prnn_bptt, 
       )
-    stats = record_policy_stats(data, stats, act_dist)
+    stats = record_policy_stats(data, stats, act_dists)
 
     actor_loss, stats = compute_actor_loss(
       self.config, 
       data, 
       stats, 
-      act_dist=act_dist, 
+      act_dists=act_dists, 
       entropy_coef=stats.entropy_coef
     )
 

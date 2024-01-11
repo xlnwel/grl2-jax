@@ -278,9 +278,10 @@ class MultiCategorical(distrax.Distribution):
   def get_stats(self, prefix=None):
     logits = jnp.concatenate(self._logits, -1)
     if prefix is None:
-      return {'logits': logits}
+      stats = {'logits': logits}
     else:
-      return {f'{prefix}_logits': logits}
+      stats = {f'{prefix}_logits': logits}
+    return stats
   
   @staticmethod
   def stats_keys(prefix=None):

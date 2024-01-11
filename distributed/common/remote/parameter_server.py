@@ -10,12 +10,14 @@ import ray
 from core.ckpt import pickle
 from core.elements.builder import ElementsBuilderVC
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
 from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
   get_aid, get_basic_model_name
 from core.typing import ModelWeights
+from nn.utils import reset_weights
 from distributed.common.remote.payoff import PayoffManager
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
@@ -70,9 +72,9 @@ class ParameterServer(RayBase):
     assert not self.self_play, self.self_play
 
     model_name = get_basic_model_name(config.model_name)
-    self._dir = f'{config.root_dir}/{model_name}'
+    self._dir = os.path.join(config.root_dir, model_name)
     os.makedirs(self._dir, exist_ok=True)
-    self._path = f'{self._dir}/{self.name}.yaml'
+    self._path = os.path.join(self._dir, f'{self.name}.yaml')
 
     self._params: List[Dict[ModelPath, Dict]] = [{} for _ in range(self.n_agents)]
     self._prepared_strategies: List[List[ModelWeights]] = \
@@ -113,8 +115,8 @@ class ParameterServer(RayBase):
     self.configs = [dict2AttrDict(c) for c in configs]
     self.builders: List[ElementsBuilderVC] = []
     for aid, config in enumerate(configs):
-      model = f'{config["root_dir"]}/{config["model_name"]}'
-      assert model.rsplit('/')[-1] == f'a{aid}', model
+      model = os.path.join(config["root_dir"], config["model_name"])
+      assert model.rsplit(PATH_SPLIT)[-1] == f'a{aid}', model
       os.makedirs(model, exist_ok=True)
       builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
       self.builders.append(builder)
@@ -181,7 +183,7 @@ class ParameterServer(RayBase):
       assert aid < self.n_agents, (aid, self.n_agents)
       vid = config['vid']
       model_name = get_basic_model_name(self.config.model_name)
-      model_name = f'{model_name}/{name}-rule'
+      model_name = os.path.join(model_name, f'{name}-rule')
       model_name = construct_model_name(model_name, aid, vid, vid)
       model = ModelPath(self.config.root_dir, model_name)
       self._rule_strategies.add(model)
@@ -238,8 +240,11 @@ class ParameterServer(RayBase):
             # if error happens here
             # it's likely that you retrive the latest model 
             # in self.payoff_manager.sample_strategies
-            weights = {k: self._params[i][m][k] 
-              for k in [MODEL, 'train_step', ANCILLARY]}
+            weights = {
+              k: self._params[i][m][k] 
+              for k in [MODEL, 'train_step', ANCILLARY]
+              if k in self._params[i][m]
+            }
           mids.append(ray.put(ModelWeights(m, weights)))
       return mids
 
@@ -381,11 +386,16 @@ class ParameterServer(RayBase):
     assert model not in self._params[aid], f'{model} is already in {list(self._params[aid])}'
     if self._reset_policy_head:
       rng = jax.random.PRNGKey(random.randint(0, 2**32))
-      out = weights[MODEL]['policy']['policy/mlp/out']
-      w = jax.nn.initializers.orthogonal(.01)(rng, out['w'].shape)
-      b = jax.nn.initializers.zeros(rng, out['b'].shape)
-      out['w'] = w
-      out['b'] = b
+      if 'policies' in weights[MODEL]:
+        for policy in weights[MODEL]['policies']:
+          for k, v in policy.items():
+            if k.startswith('policy/head'):
+              policy[k] = v
+      elif 'policy' in weights[MODEL]:
+        for k, v in weights[MODEL]['policy'].items():
+          if k.startswith('policy/head'):
+            weights[MODEL]['policy'][k] = reset_weights(
+              v, rng, 'orthogonal', scale=.01)
     self._params[aid][model] = weights
     model_weights = ModelWeights(model, weights)
     

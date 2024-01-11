@@ -2,6 +2,7 @@ import os
 import logging
 
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from core.typing import dict2AttrDict
 from tools import pkg
 from tools.file import search_for_all_files, search_for_file
@@ -12,10 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_configs_dir(algo):
-  algo_dir = pkg.get_package_from_algo(algo, 0, '/')
+  algo_dir = pkg.get_package_from_algo(algo, 0, PATH_SPLIT)
   if algo_dir is None:
     raise RuntimeError(f'Algorithm({algo}) is not implemented')
-  configs_dir = f'{algo_dir}/configs'
+  configs_dir = os.path.join(algo_dir, 'configs')
 
   return configs_dir
 
@@ -115,7 +116,7 @@ def read_config(algo, env, filename=None):
   if filename is None:
     filename = get_filename_with_env(env)
   filename = filename + '.yaml'
-  path = f'{configs_dir}/{filename}'
+  path = os.path.join(configs_dir, filename)
   config = load_config(path)
 
   config = dict2AttrDict(config)
@@ -127,7 +128,7 @@ def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True, return
   if filename is None:
     filename = get_filename_with_env(env)
   filename = filename + '.yaml'
-  path = f'{configs_dir}/{filename}'
+  path = os.path.join(configs_dir, filename)
 
   config = load_config(path)
   if config is None:
@@ -167,7 +168,7 @@ def search_for_all_configs(directory, to_attrdict=True):
 
 def search_for_config(directory, to_attrdict=True, check_duplicates=True):
   if isinstance(directory, tuple):
-    directory = '/'.join(directory)
+    directory = os.path.join(*directory)
 
   if not os.path.exists(directory):
     raise ValueError(f'Invalid directory: {directory}')

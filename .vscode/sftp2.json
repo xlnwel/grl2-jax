@@ -41,7 +41,7 @@
 
 {
     "host": "116.172.93.164",
-    "port": 2108,
+    "port": 16336,
     "username": "ubuntu",
     "password": "imin",
     "protocol": "sftp",
@@ -79,6 +79,7 @@
         "*.tar"
     ]
 }
+
 
 {
     "host": "172.16.20.124",

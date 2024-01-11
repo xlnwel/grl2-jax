@@ -2,10 +2,11 @@
 config:
   old: base
   # new: 0601-mujoco
-  new: 1115
+  new: 1124
 rename:
   metrics/score: score
   metrics/dense_score: dense_score
+  metrics/epslen: epslen
   train/group0_first_epoch/entropy: entropy
   group_first_epoch/entropy: entropy
   train/group0_first_epoch/clip_frac: first_epoch/clip_frac
@@ -14,49 +15,8 @@ rename:
   group_last_epoch/clip_frac: last_epoch/clip_frac
 
 data:
-  # - date: '615'
-  #   env_suite: mujoco
-  #   name: happo
-  # - date: '616'
-  #   env_suite: mujoco
-  #   name: happo
-  # - date: 1115
+  # - date: 1127
   #   env_suite: grf
-  # - date: 1116
-  #   name: sync-happo
-  # - date: 1117
-  #   name: sync-happo
-  # - date: 1118
-  - date: 1120
+  - date: 1129
     env_suite: grf
-  # - date: '725'
-  #   env_suite: grf
-  # - date: '617'
-  #   env_suite: grf
-  #   name: happo_lka2
-  # - date: '617'
-  #   env_suite: mujoco
-  #   name: happo
-  # - date: '615'
-  #   env_suite: mujoco
-  #   name: happo
-  # - date: '614'
-  #   env_suite: mujoco
-  #   name: happo
-  # - date: '609'
-  #   env_suite: grf
-  # - date: '602'
-  #   env_suite: grf
-  #   name: happo_mb
-  # - date: '602'
-  #   env_suite: grf
-  #   name: happo
-  #   model_info: happo-target_type=gae
-
-  # - date: '601'
-  #   env_suite: ma_mujoco
-  #   name: happo
-  # - date: '601'
-  #   env_suite: ma_mujoco
-  #   name: happo_mb
-
+  - date: 1201

@@ -2,13 +2,14 @@ import os
 import cloudpickle
 
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from core.typing import ModelPath
 from tools.file import search_for_all_files
 
 
 def _ckpt_filename(filedir, filename):
   if filedir is not None:
-    filename = f'{filedir}/{filename}'
+    filename = os.path.join(filedir, filename)
   if not filename.endswith('.pkl'):
     filename = f'{filename}.pkl'
   return filename
@@ -28,6 +29,7 @@ def save(data, *, filedir, filename, backtrack=3, name='data', to_print=True):
   if not os.path.isdir(filedir):
     os.makedirs(filedir)
   filename = _ckpt_filename(filedir, filename)
+  assert os.path.isdir(os.path.dirname(filename)), os.path.dirname(filename)
   with open(filename, 'wb') as f:
     cloudpickle.dump(data, f)
   if to_print:
@@ -54,7 +56,7 @@ def restore(*, filedir=None, filename, backtrack=3, default={}, name='data'):
 
 
 def get_filedir(model_path: ModelPath, name: str, *args):
-  return '/'.join([*model_path, name, *args])
+  return os.path.join(*model_path, name, *args)
 
 
 def save_params(params, model_path: ModelPath, name, backtrack=4):
@@ -75,8 +77,8 @@ def restore_params(model_path: ModelPath, name, filenames=None, backtrack=4):
       filedir=filedir, filename=filename, backtrack=backtrack, name='parameters')
     filename = filename.replace('.pkl', '')
     if weights:
-      if '/' in filename:
-        name1, name2 = filename.split('/')
+      if PATH_SPLIT in filename:
+        name1, name2 = filename.split(PATH_SPLIT)
         if name1 not in params:
           params[name1] = {}
         params[name1][name2] = weights

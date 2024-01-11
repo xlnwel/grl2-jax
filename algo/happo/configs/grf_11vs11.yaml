@@ -41,11 +41,11 @@ env:
   control_left: True
   control_right: False
   shared_policy: False
-  shared_reward: True
   score_reward_scale: 1
 
   max_episode_steps: 3000
   use_action_mask: False
+  uid2gid: [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3]
   uid2aid: null
 
   n_runners: &nrunners 10
@@ -65,25 +65,25 @@ strategy:
 
 model:
   aid: 0
-  gamma: &gamma .99
-  print_for_debug: False
+  gamma: &gamma .995
+  print_for_debug: True
 
   policy:
     nn_id: policy
-    units_list: [256, 256]
+    units_list: [256, 256, 256]
     w_init: orthogonal
     activation: relu
-    norm: null
+    norm: layer
     out_scale: .01
     rnn_type: &prnn null
     rnn_units: 256
     use_feature_norm: False
   value:
     nn_id: value
-    units_list: [256, 256]
+    units_list: [256, 256, 256]
     w_init: orthogonal
     activation: relu
-    norm: null
+    norm: layer
     rnn_type: &vrnn null
     rnn_units: 256
     use_feature_norm: False
@@ -110,12 +110,13 @@ loss:
   value_loss: clip
   value_clip_range: .2
   value_sample_mask: False
+  popart: &popart True
 
   stats:
     gamma: *gamma
     lam: &lam .95
     pg_coef: 1
-    entropy_coef: 5e-3
+    entropy_coef: 1e-3
     value_coef: 1
 
 trainer:
@@ -127,11 +128,18 @@ trainer:
   n_mbs: &nmbs 1
   n_steps: *nsteps
   update_scheme: whole
+  popart: *popart
+  debug: True
 
-  theta_opt:
+  policy_opt:
     opt_name: adam
-    lr: 5e-4
-    clip_norm: 10
+    lr: 1e-4
+    clip_norm: .5
+    eps: 1e-5
+  value_opt:
+    opt_name: adam
+    lr: 1e-4
+    clip_norm: .5
     eps: 1e-5
 
 actor:

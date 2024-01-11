@@ -1,4 +1,5 @@
 from functools import partial
+import os
 import numpy as np
 import jax
 from jax import random
@@ -7,10 +8,10 @@ import haiku as hk
 
 from core.ckpt.pickle import save, restore
 from core.log import do_logging
+from core.names import TRAIN_AXIS
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import AttrDict
-from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
 from tools.utils import flatten_dict, prefix_name, yield_from_tree_with_indices
 from algo.ppo.elements.trainer import construct_fake_data
@@ -55,19 +56,19 @@ class Trainer(TrainerBase):
 
   def compile_train(self):
     _jit_train = jax.jit(self.theta_train, 
-      static_argnames=['gid', 'compute_teammate_log_ratio', 'return_stats'])
+      static_argnames=['gid', 'compute_teammate_log_ratio', 'debug'])
     def jit_train(*args, **kwargs):
       self.rng, rng = random.split(self.rng)
       return _jit_train(*args, rng=rng, **kwargs)
     self.jit_train = jit_train
-    
+
     self.haiku_tabulate()
 
   def train(self, data: AttrDict, gids=None):
     if self.config.n_runners * self.config.n_envs < self.config.n_mbs:
       self.indices = np.arange(self.config.n_mbs)
       data = jax.tree_util.tree_map(
-        lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[2:])), data)
+        lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[TRAIN_AXIS.UNIT:])), data)
 
     theta = self.model.theta.copy()
     opt_state = self.params.theta
@@ -96,7 +97,7 @@ class Trainer(TrainerBase):
 
     if self.config.popart:
       for gid, uids in enumerate(self.gid2uids):
-        self.popart[gid].update(np.take(stats.v_target, indices=uids, axis=2))
+        self.popart[gid].update(np.take(stats.v_target, indices=uids, axis=TRAIN_AXIS.UNIT))
       stats['theta/popart/mean'] = [rms.mean for rms in self.popart]
       stats['theta/popart/std'] = [rms.std for rms in self.popart]
 
@@ -110,7 +111,7 @@ class Trainer(TrainerBase):
   def sequential_opt(self, theta, opt_state, data, 
       n_epochs, n_mbs, indices, train_fn, gids=None, 
       return_stats=True, name=None):
-    teammate_log_ratio = jnp.zeros((*data.mu_logprob.shape[:2], 1))
+    teammate_log_ratio = jnp.zeros((*data.mu_logprob.shape[:TRAIN_AXIS.UNIT], 1))
 
     v_target = [None for _ in self.gids]
     all_stats = AttrDict()
@@ -120,7 +121,7 @@ class Trainer(TrainerBase):
       gid = int(gid)
       uids = self.gid2uids[gid]
       agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, gid)
-      agent_data = data.slice(indices=uids, axis=2)
+      agent_data = data.slice(indices=uids, axis=TRAIN_AXIS.UNIT)
       for e in range(n_epochs):
         vts = []
         np.random.shuffle(indices)
@@ -139,16 +140,9 @@ class Trainer(TrainerBase):
               teammate_log_ratio=tlr, 
               gid=gid, 
               compute_teammate_log_ratio=False, 
-              return_stats=self.config.get('debug', False)
+              debug=self.config.get('debug', False)
             )
-          # if name is None:
-          #   print('adv_ratio_pp', stats.adv_ratio_pp)
-          #   print('adv_ratio_pn', stats.adv_ratio_pn)
-          #   print('adv_ratio_np', stats.adv_ratio_np)
-          #   print('adv_ratio_nn', stats.adv_ratio_nn)
-          #   np.testing.assert_almost_equal(
-          #     stats.adv_ratio_pp + stats.adv_ratio_pn + stats.adv_ratio_np + stats.adv_ratio_nn, 1, 2)
-          vts.append(stats.pop('v_target'))
+          vts.append(stats.pop('raw_v_target'))
           if e == 0 and i == 0:
             all_stats.update(**prefix_name(stats, name=f'group{gid}_first_epoch'))
         if e == n_epochs-1:
@@ -163,7 +157,7 @@ class Trainer(TrainerBase):
         theta, opt_state, gid, agent_theta, agent_opt_state)
     
     if return_stats:
-      all_stats.v_target = np.concatenate(v_target, 2)
+      all_stats.v_target = np.concatenate(v_target, axis=TRAIN_AXIS.UNIT)
       assert all_stats.v_target.shape == data.reward.shape, (all_stats.v_target.shape, data.reward.shape)
       all_stats = prefix_name(all_stats, name=name)
       return theta, opt_state, all_stats
@@ -179,14 +173,15 @@ class Trainer(TrainerBase):
       np.random.shuffle(indices)
       _indices = np.split(indices, n_mbs)
       v_target = []
-      for i, data_slice in enumerate(yield_from_tree_with_indices(data, _indices, axis=0)):
+      for i, data_slice in enumerate(
+          yield_from_tree_with_indices(data, _indices, axis=TRAIN_AXIS.BATCH)):
         vts = [None for _ in self.gid2uids]
-        teammate_log_ratio = jnp.zeros((*data_slice.mu_logprob.shape[:2], 1))
+        teammate_log_ratio = jnp.zeros((*data_slice.mu_logprob.shape[:TRAIN_AXIS.UNIT], 1))
         if gids is None:
           gids = np.random.permutation(self.gids)
         uids = [self.gid2uids[gid] for gid in gids]
         for gid, agent_data in zip(gids, 
-            yield_from_tree_with_indices(data_slice, uids, axis=2)):
+            yield_from_tree_with_indices(data_slice, uids, axis=TRAIN_AXIS.UNIT)):
           agent_theta, agent_opt_state = get_params_and_opt(theta, opt_state, gid)
           if self.config.popart:
             agent_data.popart_mean = self.popart[gid].mean
@@ -199,7 +194,7 @@ class Trainer(TrainerBase):
               teammate_log_ratio=teammate_log_ratio, 
               gid=gid,
               compute_teammate_log_ratio=True, 
-              return_stats=self.config.get('debug', False)
+              debug=self.config.get('debug', False)
             )
           teammate_log_ratio = stats.teammate_log_ratio
 
@@ -207,7 +202,7 @@ class Trainer(TrainerBase):
             theta, opt_state, gid, agent_theta, agent_opt_state)
           
           if return_stats:
-            vts[gid] = stats.pop('v_target')
+            vts[gid] = stats.pop('raw_v_target')
             if e == n_epochs-1 and i == n_mbs - 1:
               all_stats.update(**prefix_name(stats, name=f'agent{gid}_last_epoch'))
             elif e == 0 and i == 0:
@@ -215,7 +210,7 @@ class Trainer(TrainerBase):
         v_target.append(vts)
 
     if return_stats:
-      v_target = [np.concatenate(v, 2) for v in v_target]
+      v_target = [np.concatenate(v, TRAIN_AXIS.UNIT) for v in v_target]
       all_stats.v_target = np.concatenate(v_target)
       assert all_stats.v_target.shape == data.reward.shape, (all_stats.v_target.shape, data.reward.shape)
       all_stats = prefix_name(all_stats, name=name)
@@ -231,7 +226,7 @@ class Trainer(TrainerBase):
     teammate_log_ratio, 
     gid, 
     compute_teammate_log_ratio=True, 
-    return_stats=True
+    debug=True
   ):
     do_logging('train is traced', backtrack=4)
     rngs = random.split(rng, 3)
@@ -247,7 +242,7 @@ class Trainer(TrainerBase):
         }, 
         opt=self.opts.theta[gid], 
         name='opt/theta', 
-        debug=return_stats
+        debug=debug
       )
     else:
       theta.value, opt_state.value, stats = optimizer.optimize(
@@ -262,7 +257,7 @@ class Trainer(TrainerBase):
         }, 
         opt=self.opts.vs[gid], 
         name='opt/value', 
-        debug=return_stats
+        debug=debug
       )
       theta.policy, opt_state.policy, stats = optimizer.optimize(
         self.loss.policy_loss, 
@@ -275,7 +270,7 @@ class Trainer(TrainerBase):
         }, 
         opt=self.opts.policies[gid], 
         name='opt/policy', 
-        debug=return_stats
+        debug=debug
       )
 
     if compute_teammate_log_ratio:
@@ -283,7 +278,7 @@ class Trainer(TrainerBase):
         theta.policy, rngs[2], teammate_log_ratio, data)
 
     inverse_mu = 1 / jnp.exp(data.mu_logprob)
-    if not return_stats:
+    if not debug:
       stats = AttrDict(
         ratio=stats.ratio, 
         log_ratio=stats.log_ratio, 
@@ -318,9 +313,11 @@ class Trainer(TrainerBase):
     pi_logprob = self.model.action_logprob(policy_params, rng, data)
     log_ratio = pi_logprob - data.mu_logprob
     if log_ratio.ndim > 3:
+      # for continuous actions, we sum up the log ratio along the action dimension 
       log_ratio = jnp.sum(log_ratio, axis=3)
-    if log_ratio.shape[2] > 1:
-      log_ratio = jnp.sum(log_ratio, axis=2, keepdims=True)
+    if log_ratio.shape[TRAIN_AXIS.UNIT] > 1:
+      # for groups contains several units, the log ratios are summed up along the unit dimension
+      log_ratio = jnp.sum(log_ratio, axis=TRAIN_AXIS.UNIT, keepdims=True)
     teammate_log_ratio += log_ratio
   
     return teammate_log_ratio
@@ -342,7 +339,7 @@ class Trainer(TrainerBase):
     self.restore_popart()
 
   def get_popart_dir(self):
-    path = '/'.join([self.config.root_dir, self.config.model_name])
+    path = os.path.join(self.config.root_dir, self.config.model_name)
     return path
 
   def save_popart(self):

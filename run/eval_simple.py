@@ -11,6 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
 from core.log import setup_logging, do_logging
+from core.names import PATH_SPLIT
 from core.typing import dict2AttrDict
 from core.utils import configure_gpu
 from tools.plot import plot_data_dict
@@ -46,9 +47,6 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
   except Exception as e:
     make_env = None
   
-  if env_name.startswith('procgen') and record:
-    config.env['render_mode'] = 'rgb_array'
-
   env = create_env(config.env, env_fn=make_env)
 
   env_stats = env.stats()
@@ -76,10 +74,10 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
   do_logging(f'\tTime: {time.time()-start:.3g}', color='cyan')
 
   filename = f'{out_dir}/{algo_name}-{env_name}/{config["model_name"]}'
-  out_dir, filename = filename.rsplit('/', maxsplit=1)
+  out_dir, filename = filename.rsplit(PATH_SPLIT, maxsplit=1)
   if info != "" and info is not None:
     filename = f'{out_dir}/{filename}/{info}'
-    out_dir, filename = filename.rsplit('/', maxsplit=1)
+    out_dir, filename = filename.rsplit(PATH_SPLIT, maxsplit=1)
   if record:
     plot(data, out_dir, filename)
     save_video(filename, video, fps=fps, out_dir=out_dir)
@@ -116,9 +114,9 @@ if __name__ == '__main__':
     if not d.startswith(config.root_dir):
       i = d.find(config.root_dir)
       if i == -1:
-        names = d.split('/')
-        root_dir = '/'.join([n for n in names if n not in config.model_name])
-        model_name = '/'.join([n for n in names if n in config.model_name])
+        names = d.split(PATH_SPLIT)
+        root_dir = os.path.join(n for n in names if n not in config.model_name)
+        model_name = os.path.join(n for n in names if n in config.model_name)
         model_name = config.model_name[config.model_name.find(model_name):]
       else:
         root_dir = d[:i] + config.root_dir

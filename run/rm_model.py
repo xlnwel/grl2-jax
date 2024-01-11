@@ -4,6 +4,7 @@ import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import do_logging
+from core.names import PATH_SPLIT
 from tools.file import rm
 from tools.logops import *
 
@@ -47,7 +48,7 @@ if __name__ == '__main__':
   directory = os.path.abspath(args.directory)
   do_logging(f'Directory: {directory}')
 
-  while directory.endswith('/'):
+  while directory.endswith(PATH_SPLIT):
     directory = directory[:-1]
   
   level = get_level(directory)
@@ -61,7 +62,7 @@ if __name__ == '__main__':
     date=date, 
     final_level=DirLevel.MODEL
   ):
-    root, env, algo, date, model = d.rsplit('/', 4)
+    root, env, algo, date, model = d.rsplit(PATH_SPLIT, 4)
     if args.env and not any([e in env for e in args.env]):
       continue
     if args.algo and algo not in args.algo:

@@ -48,7 +48,7 @@ def set_seed(seed: int=None):
 
 def save_code(model_path: ModelPath, backtrack=3):
   """ Saves the code so that we can check the chagnes latter """
-  dest_dir = '/'.join([*model_path, 'src'])
+  dest_dir = os.path.join(*model_path, 'src')
   if os.path.isdir(dest_dir):
     shutil.rmtree(dest_dir)
   
@@ -91,7 +91,7 @@ def save_config(config, model_path=None, config_name='config.yaml'):
     assert model_path.model_name == config.model_name, (model_path.model_name, config.model_name)
   config = simplify_datatype(config)
   yaml_op.save_config(config, 
-    path='/'.join([*model_path, config_name]))
+    path = os.path.join(*model_path, config_name))
 
 def get_vars_for_modules(modules):
   return sum([m.variables for m in modules], ())

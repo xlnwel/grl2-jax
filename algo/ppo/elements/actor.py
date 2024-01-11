@@ -3,7 +3,7 @@ from core.elements.actor import Actor as ActorBase
 
 class Actor(ActorBase):
   def compute_value(self, inps):
-    inps = self._process_input(inps, False)
+    inps = self.process_obs_with_rms(inps, False)
     value = self.model.compute_value(inps)
     return value
 

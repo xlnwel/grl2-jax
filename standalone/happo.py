@@ -512,7 +512,7 @@ def plot(data, dir_path, name):
   ax.spines['top'].set_visible(False)
   ax.spines['right'].set_visible(False)
   ax.set_title(name)
-  fig_path = '/'.join([dir_path, f'{name}.png'])
+  fig_path = os.path.join(dir_path, f'{name}.png')
   fig.savefig(fig_path)
   print(f'File saved at "{fig_path}"')
 

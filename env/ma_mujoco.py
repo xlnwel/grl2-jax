@@ -56,6 +56,11 @@ class MAMujoco(gym.Wrapper):
       'obs': np.float32, 
       'global_state': np.float32
     } for _ in range(self.n_agents)]
+    
+    self.action_shape = [a.shape for a in self.action_space]
+    self.action_dim = [a.shape[0] for a in self.action_space]
+    self.is_action_discrete = [False for a in self.action_space]
+    self.action_dtype = [np.float32 for a in self.action_space]
 
     self.reward_range = None
     self.metadata = None
@@ -66,9 +71,11 @@ class MAMujoco(gym.Wrapper):
 
   def random_action(self):
     action = np.array([a.sample() for a in self.action_space])
+    action = [{'action': action}]
     return action
 
   def step(self, actions):
+    actions = actions[0]['action']
     obs, state, reward, done, _, _ = self.env.step(actions)
     reward = np.reshape(reward, -1)
     done = done[0]

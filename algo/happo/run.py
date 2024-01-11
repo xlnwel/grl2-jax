@@ -15,7 +15,7 @@ def prepare_buffer(
   value = agent.compute_value(env_output)
   data = buffer.get_data({
     'value': value, 
-    'state_reset': concat_along_unit_dim(env_output.reset)
+    'state_reset': env_output.reset
   })
   data.raw_reward = data.reward
   data.reward = agent.actor.process_reward_with_rms(
@@ -46,7 +46,5 @@ def prepare_buffer(
       next_value=next_value, 
       reset=data.reset,
     )
-    if agent.trainer.config.popart:
-      data.v_target = normalize(data.v_target, mean, std)
 
   buffer.move_to_queue(data)

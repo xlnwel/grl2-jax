@@ -13,7 +13,7 @@ class StepCounter:
     self._train_step = 0
     self._env_step_interval = 0
     self._train_step_interval = 0
-    self._path = None if model_path is None else '/'.join([*model_path, f'{name}.pkl'])
+    self._path = None if model_path is None else os.path.join(*model_path, f'{name}.pkl')
 
   def get_env_step(self):
     return self._env_step

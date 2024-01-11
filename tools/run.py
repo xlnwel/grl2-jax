@@ -1,4 +1,5 @@
 import collections
+from typing import Tuple
 from functools import partial
 import logging
 import numpy as np
@@ -75,61 +76,82 @@ class RunnerWithState:
 
   def run(
     self, 
-    agent, 
+    agents: Tuple, 
     *, 
     name=None, 
     env_kwargs={}, 
     **kwargs, 
   ):
     if name is None:
-      return self._run(agent, **kwargs)
+      return self._run(agents, **kwargs)
     else:
       constructor = partial(
-        state_constructor, agent=agent, runner=self, env_kwargs=env_kwargs)
-      set_fn = partial(set_states, agent=agent, runner=self)
+        state_constructor, agents=agents, runner=self, env_kwargs=env_kwargs)
+      set_fn = partial(set_states, agents=agents, runner=self)
       with StateStore(name, constructor, set_fn):
-        return self._run(agent, **kwargs)
-  
-  def _run(
-    self, 
-    agent, 
-    n_steps, 
-    store_info=True, 
-    collect_data=True, 
-  ):
-    env_output = self.env_output
-    for _ in range(n_steps):
-      action, stats = agent(env_output)
-      new_env_output = self.env.step(action)
+        return self._run(agents, **kwargs)
 
-      if collect_data:
-        data = dict(
-          obs=batch_dicts(env_output.obs, func=concat_along_unit_dim), 
-          action=action, 
-          reward=concat_along_unit_dim(new_env_output.reward), 
-          discount=concat_along_unit_dim(new_env_output.discount), 
-          next_obs=batch_dicts(self.env.prev_obs(), func=concat_along_unit_dim), 
-          reset=concat_along_unit_dim(new_env_output.reset),
-        )
-        agent.buffer.collect(**data, **stats)
-
-      if store_info:
-        done_env_ids = [i for i, r in enumerate(new_env_output.reset[0]) if np.all(r)]
-
-        if done_env_ids:
-          info = self.env.info(done_env_ids)
-          if info:
-            info = batch_dicts(info, list)
-            agent.store(**info)
-      env_output = new_env_output
-
-    self.env_output = env_output
-
-    return env_output
+  def _run(self, agents, **kwargs):
+    self.env_output = run(
+      agents, 
+      self.env, 
+      self.env_output, 
+      self._env_stats, 
+      **kwargs
+    )
+    return self.env_output
 
   def get_steps_per_run(self, n_steps):
     return self._env_stats.n_envs * n_steps
-  
+
+
+def run(
+  agents: Tuple, 
+  env, 
+  env_output, 
+  env_stats, 
+  n_steps, 
+  store_info=True, 
+  collect_data=True, 
+  eps_callbacks=[]
+):
+  for _ in range(n_steps):
+    agent_env_outputs = divide_env_output(env_output)
+    actions, stats = zip(*[a(o) for a, o in zip(agents, agent_env_outputs)])
+    new_env_output = env.step(actions)
+    new_agent_env_outputs = divide_env_output(new_env_output)
+    assert len(agent_env_outputs) == len(actions) == len(new_agent_env_outputs)
+
+    if collect_data:
+      next_obs = env.prev_obs()
+      for i, agent in enumerate(agents):
+        data = dict(
+          obs=env_output[i].obs, 
+          reward=new_agent_env_outputs[i].reward, 
+          discount=new_agent_env_outputs[i].discount, 
+          next_obs=next_obs[i], 
+          reset=new_agent_env_outputs[i].reset,
+        )
+        data.update(actions[i])
+        data.update(stats[i])
+        agent.buffer.collect(**data)
+
+    env_output = new_env_output
+    done_env_ids = [i for i, r in enumerate(env_output.reset[0]) if np.all(r)]
+    if done_env_ids:
+      info = env.info(done_env_ids, convert_batch=True)
+      if store_info:
+        for aid, uids in enumerate(env_stats.aid2uids):
+          agent_info = {k: [vv[uids] for vv in v]
+              if isinstance(v[0], np.ndarray) else v 
+              for k, v in info.items()}
+          agents[aid].store(**agent_info)
+
+      for callback in eps_callbacks:
+        callback(info=info)
+
+  return env_output
+
 
 class Runner:
   def __init__(self, env, agent, step=0, nsteps=None, 
@@ -295,9 +317,9 @@ def simple_evaluate(env, agents, n_eps, render=False):
 
   env_output = env.output()
   while eps_i < n_eps:
-    agent_output = divide_env_output(env_output)
-    assert len(agent_output) == len(agents), (len(agent_output), len(agents))
-    actions = np.concatenate([a(o) for a, o in zip(agents, agent_output)], axis=1)
+    agent_outputs = divide_env_output(env_output)
+    assert len(agent_outputs) == len(agents), (len(agent_outputs), len(agents))
+    actions = [a(o, evaluation=True)[0] for a, o in zip(agents, agent_outputs)]
     env_output = env.step(actions)
     if render:
       env.render()
@@ -307,6 +329,7 @@ def simple_evaluate(env, agents, n_eps, render=False):
       eps_i += 1
   
   return agent_scores, epslen
+
 
 def evaluate(
   env, 
@@ -389,16 +412,19 @@ def evaluate(
     return scores, epslens, stats, None
 
 
-def state_constructor(agent, runner: RunnerWithState, env_kwargs={}):
+def state_constructor(agents, runner: RunnerWithState, env_kwargs={}):
   env_config = runner.env_config()
   env_config.update(env_kwargs)
-  agent_states = agent.build_memory()
+  agent_states = []
+  for a in agents:
+    agent_states.append(a.build_memory())
   runner_states = runner.build_env(env_config)
   return State(agent_states, runner_states)
 
 
-def set_states(states: State, agent, runner):
+def set_states(states: State, agents: Tuple, runner):
   agent_states, runner_states = states
-  agent_states = agent.set_memory(agent_states)
+  for a, s in zip(agents, agent_states):
+    a.set_memory(s)
   runner_states = runner.set_states(runner_states)
   return State(agent_states, runner_states)

@@ -11,5 +11,7 @@
       "configurations": [],
       "compounds": []
     },
-    "files.autoSave": "onFocusChange"
+    "files.autoSave": "onFocusChange",
+    "editor.inlineSuggest.showToolbar": "onHover",
+    "cmake.sourceDirectory": "/Users/aptx4869/github/grl/cpp"
 }

@@ -18,3 +18,5 @@ results
 .tmp.driveupload
 env/aircombat
 env/aircombat.py
+cpp/build
+saved_model

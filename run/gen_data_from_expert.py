@@ -49,7 +49,7 @@ def main(args):
     if not filename.endswith(YAML_SUFFIX):
       continue
     filename = filename.replace(YAML_SUFFIX, '')
-    stats_path = '/'.join([dataset_dir, filename])
+    stats_path = os.path.join(dataset_dir, filename)
     stats = load_config(stats_path)
     stats = {k: v for k, v in stats.items() if isinstance(v, dict)}
     

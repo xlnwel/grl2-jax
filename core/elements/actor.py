@@ -1,4 +1,5 @@
 from typing import Tuple, Dict
+import numpy as np
 import jax
 
 from core.elements.model import Model
@@ -135,6 +136,7 @@ class Actor:
         inp = batch_dicts(inp, concat_along_unit_dim)
       stats.update({k: inp[k] 
         for k in self.config.rms.obs.obs_names})
+    action = jax.tree_map(np.asarray, action)
     return action, stats, state
 
   def process_obs_with_rms(self, obs, update_rms=None):

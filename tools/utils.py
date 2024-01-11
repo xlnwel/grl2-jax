@@ -541,32 +541,41 @@ def batch_dicts(x, func=np.stack, keys=None):
 
   return res
 
+def batch_states(states, axis=1, func=np.stack):
+  if isinstance(states[0], dict):
+    # state is a dictionary, e.g., both actor and critic have their states
+    v = AttrDict()
+    for name in states[0].keys():
+      if hasattr(states[0][name], '_fields'):
+        t = type(states[0][name])
+        v[name] = [d[name] for d in states]
+        v[name] = t(*[func(x, axis) for x in zip(*v[name])])
+      else:
+        v[name] = func([x[name] for x in states], axis)
+  else:
+    # state is a single namedtuple
+    if hasattr(states[0], '_fields'):
+      t = type(states[0])
+      v = t(*[func(x, axis) for x in zip(*states)])
+    else:
+      v = func([x for x in states], axis)
+  return v
+
 def stack_data_with_state(buffer, keys=None, seq_axis=1):
   if keys is None:
     keys = buffer.keys()
 
   data = AttrDict()
   for k in keys:
+    if k == 'action':
+      for kk in buffer:
+        if kk.startswith(k):
+          data[kk] = np.stack(buffer[kk], seq_axis)
+      continue
     if k not in buffer:
       continue
     if k == 'state':
-      if isinstance(buffer[k][0], dict):
-        # state is a dictionary, e.g., both actor and critic have their states
-        v = AttrDict()
-        for name in buffer[k][0].keys():
-          if hasattr(buffer[k][0][name], '_fields'):
-            t = type(buffer[k][0][name])
-            v[name] = [d[name] for d in buffer[k]]
-            v[name] = t(*[np.stack(x, seq_axis) for x in zip(*v[name])])
-          else:
-            v[name] = np.stack([x[name] for x in buffer[k]], seq_axis)
-      else:
-        # state is a single namedtuple
-        if hasattr(buffer[k][0], '_fields'):
-          t = type(buffer[k][0])
-          v = t(*[np.stack(x, seq_axis) for x in zip(*buffer[k])])
-        else:
-          v = np.stack([x for x in buffer[k]], seq_axis)
+      v = batch_states(buffer[k], axis=seq_axis)
     else:
       v = np.stack(buffer[k], seq_axis)
     data[k] = v

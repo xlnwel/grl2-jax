@@ -29,6 +29,7 @@ def print_array(v, prefix, level, backtrack):
     f'norm({np.linalg.norm(v):0.4g}) mean({v.mean():0.4g}) std({v.std():0.4g}) max({v.max():0.4g}) min({v.min():0.4g}) ',
     level=level, backtrack=backtrack+1)
 
+
 def print_dict_info(tree, prefix='', level='pwt', backtrack=3):
   if isinstance(tree, tuple) and hasattr(tree, '_asdict'):
     print_dict_info(tree._asdict(), prefix+'\t', level=level, backtrack=backtrack+1)
@@ -56,6 +57,7 @@ def print_dict_info(tree, prefix='', level='pwt', backtrack=3):
   else:
     do_logging(f'{prefix}: {tree}', level=level, backtrack=backtrack)
 
+
 def summarize_arrays(tree):
   n = 0
   if isinstance(tree, (Sequence)):
@@ -65,6 +67,7 @@ def summarize_arrays(tree):
   elif hasattr(tree, 'size'):
     n += tree.size
   return n
+
 
 def int2str(step):
   if step < 1000:

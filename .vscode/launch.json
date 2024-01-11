@@ -1,23 +1,24 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Python: My File",
-            "type": "python",
-            "request": "launch",
-            "program": "run/train.py",
-            "args": [
-              "-a", "happo", 
-            //   "-e", "grf-academy_pass_and_shoot_with_keeper", 
-              // "--task", "smac_5m_vs_6m", 
-              "-e", "grf-academy_counterattack_hard", 
-              "-c", "grf"],
-            "python": "/opt/anaconda3/envs/chenxw/bin/python3",
-            "console": "integratedTerminal",
-            "justMyCode": true, 
-        }
-    ]
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: My File",
+      "type": "python",
+      "request": "launch",
+      "program": "run/train.py",
+      "args": [
+        "-a", "happo", 
+      //   "-e", "grf-academy_pass_and_shoot_with_keeper", 
+        "-e", "grf-academy_counterattack_hard", 
+        "-c", "grf", 
+        "-kw", "n_runners=1", "n_envs=1", "rnn_type=lstm"
+      ],
+      "python": "/opt/anaconda3/envs/chenxw/bin/python3",
+      "console": "integratedTerminal",
+      "justMyCode": false, 
+    }
+  ]
 }

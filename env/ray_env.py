@@ -4,7 +4,7 @@ import ray
 from core.typing import AttrDict2dict
 from env.cls import *
 from env.typing import EnvOutput
-from env.utils import batch_ma_env_output
+from env.utils import batch_env_output
 from tools.utils import convert_batch_with_func
 
 
@@ -59,10 +59,14 @@ class RayVecEnv:
     return action
 
   def step(self, actions, **kwargs):
-    if isinstance(actions, (tuple, list)):
-      actions = list(zip(*[np.split(a, self.n_runners) for a in actions]))
-    else:
-      actions = [a for a in np.split(actions, self.n_runners)]
+    if not isinstance(actions, (list, tuple)):
+      actions = [actions]
+    new_actions = []
+    for i in range(self.n_runners):
+      new_actions.append([{
+        k: v[i*self.envsperworker: (i+1)*self.envsperworker] for k, v in action.items()
+      } for action in actions])
+    actions = new_actions
     if kwargs:
       kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_runners)] 
         for k, v in kwargs.items()}
@@ -95,10 +99,7 @@ class RayVecEnv:
       'info', idxes, convert_batch=convert_batch)
   
   def output(self, idxes=None):
-    out = self._remote_call('output', idxes, single_output=False, 
-      convert_batch=not self._stats.is_multi_agent)
-    if self._stats.is_multi_agent:
-      out = batch_ma_env_output(out, func=self._combine_func)
+    out = self._remote_call('output', idxes, single_output=False)
     return out
 
   def _remote_call(self, name, idxes, single_output=True, convert_batch=True):
@@ -129,21 +130,16 @@ class RayVecEnv:
   def _process_output(self, out, convert_batch):
     out = self._get_vectorized_outputs(out)
     if convert_batch:
-      if self._stats.is_multi_agent:
+      if isinstance(out[0], (list, tuple)):
         out = [convert_batch_with_func(o, func=self._combine_func) for o in zip(*out)]
-      else:
-        # always stack as chain has flattened the data
-        out = convert_batch_with_func(out)
+      elif isinstance(out[0], dict):
+        out = batch_dicts(out, self._combine_func)
     return out
 
   def _process_list_outputs(self, out, convert_batch):
     out = self._get_vectorized_outputs(out)
     if convert_batch:
-      if self._stats.is_multi_agent:
-        out = list(zip(*out))
-        out = batch_ma_env_output(out, func=self._combine_func)
-      else:
-        out = batch_env_output(out, func=self._combine_func)
+      out = batch_env_output(out, func=self._combine_func)
     else:
       out = list(zip(*out))
 

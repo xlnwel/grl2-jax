@@ -117,7 +117,7 @@ def main(configs, train=train):
     if f'a{i}' in model_name:
       new_model_name = model_name
     else:
-      new_model_name = '/'.join([model_name, f'a{i}'])
+      new_model_name = os.path.join(model_name, f'a{i}')
     modify_config(
       configs[i], 
       model_name=new_model_name, 

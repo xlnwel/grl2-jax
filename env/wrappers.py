@@ -4,14 +4,16 @@ import logging
 from gym.core import Env
 import numpy as np
 import gym
+import jax
 import random
 import cv2
 
 from core.log import do_logging
+from core.names import DEFAULT_ACTION
+from core.typing import AttrDict, dict2AttrDict
 from env.utils import compute_aid2uids, compute_aid2gids
 from tools.feature import one_hot
 from tools.utils import infer_dtype, convert_dtype, batch_dicts
-from core.typing import AttrDict, dict2AttrDict
 from env.typing import EnvOutput, GymOutput
 
 # stop using GPU
@@ -352,31 +354,20 @@ class ContinuousActionMapper(gym.ActionWrapper):
     self, 
     env, 
     bound_method='clip', # clip, tanh, rescale
-    to_rescale=True, 
     # clip sampled actions, this embodied in training
     action_low=None,
     action_high=None, 
   ):
-    self.is_multi_agent = getattr(env, 'is_multi_agent', False)
-    if self.is_multi_agent:
-      assert np.all([isinstance(a, gym.spaces.Box) for a in env.action_space]), env.action_space
-      assert bound_method in ('clip', 'tanh', None), bound_method
-    else:
-      assert isinstance(env.action_space, gym.spaces.Box), env.action_space
-      assert bound_method in ('clip', 'tanh', None), bound_method
+    assert np.all([[isinstance(v, gym.spaces.Box) for v in a.values()] for a in env.action_space]), env.action_space
+    assert bound_method in ('clip', 'tanh', None), bound_method
     super().__init__(env)
 
     self.bound_method = bound_method
-    self.to_rescale = to_rescale
     if bound_method == 'clip':
       action_low = -1
       action_high = 1
-    if self.is_multi_agent:
-      self.env_action_low = [a.low for a in self.action_space]
-      self.env_action_high = [a.high for a in self.action_space]
-    else:
-      self.env_action_low = self.action_space.low
-      self.env_action_high = self.action_space.high
+    self.env_action_low = [{k: v.low for k, v in a.items()} for a in self.action_space]
+    self.env_action_high = [{k: v.high for k, v in a.items()} for a in self.action_space]
     self.action_low = action_low
     self.action_high = action_high
     if ContinuousActionMapper.to_print:
@@ -388,35 +379,18 @@ class ContinuousActionMapper(gym.ActionWrapper):
     self._is_random_action = True
     return self.env.random_action()
 
-  def action(self, action):
-    if self.is_multi_agent:
-      if self._is_random_action:
-        self._is_random_action = False
-        return action
-      if self.bound_method == 'clip':
-        action = [np.clip(a, -1, 1) for a in action]
-      elif self.bound_method == 'tanh':
-        action = [np.tanh(a) for a in action]
-      if self.to_rescale:
-        size = [ah - al for ah, al in zip(self.env_action_high, self.env_action_low)]
-        action = [s * (a - self.action_low) / (self.action_high - self.action_low) + al
-          for a, al, s in zip(action, self.env_action_low, size)]
-        assert np.all([al <= a for al, a in zip(self.env_action_low, action)]) \
-          and np.all([a <= ah for a, ah, in zip(action, self.env_action_high)]), action
-    else:
-      if self._is_random_action:
-        self._is_random_action = False
-        return action
-      if self.bound_method == 'clip':
-        action = np.clip(action, -1, 1)
-      elif self.bound_method == 'tanh':
-        action = np.tanh(action)
-      if self.to_rescale:
-        assert np.all(self.action_low <= action) and np.all(action <= self.action_high), (action, self.action_low, self.action_high)
-        size = self.env_action_high - self.env_action_low
-        action = size * (action - self.action_low) / (self.action_high - self.action_low) + self.env_action_low
-        assert np.all(self.env_action_low <= action) \
-          and np.all(action <= self.env_action_high), action
+  def action(self, actions):
+    if self._is_random_action:
+      self._is_random_action = False
+      return actions
+    new_actions = []
+    for action in actions:
+      new_actions.append({})
+      for name, act in action.items():
+        if self.bound_method == 'clip':
+          new_actions[-1][name] = np.clip(act, -1, 1)
+        elif self.bound_method == 'tanh':
+          new_actions[-1][name] = np.tanh(act)
 
     return action
 
@@ -489,15 +463,11 @@ class TurnBasedProcess(gym.Wrapper):
     self.env = env
     self._current_player = -1
 
-    self._prev_action = [np.zeros(ad, dtype=np.float32) 
-      for ad in self.env.action_dim]
     self._prev_rewards = np.zeros(self.env.n_units, dtype=np.float32)
     self._dense_score = np.zeros(self.env.n_units, dtype=np.float32)
     self._epslen = np.zeros(self.env.n_units, dtype=np.int32)
 
   def reset(self):
-    self._prev_action = [np.zeros(ad, dtype=np.float32) 
-      for ad in self.env.action_dim]
     self._prev_rewards = np.zeros(self.env.n_units, dtype=np.float32)
     self._dense_score = np.zeros(self.env.n_units, dtype=np.float32)
     self._epslen = np.zeros(self.env.n_units, dtype=np.int32)
@@ -505,7 +475,6 @@ class TurnBasedProcess(gym.Wrapper):
     obs = self.env.reset()
     self._current_player = obs['uid']
     # obs.update({
-    #   'prev_action': self._prev_action[self._current_player],
     #   'prev_reward': np.float32(0.),
     # })
 
@@ -513,10 +482,6 @@ class TurnBasedProcess(gym.Wrapper):
 
   def step(self, action):
     assert self._current_player >= 0, self._current_player
-    self._prev_action[self._current_player] = np.zeros(
-      self.env.action_dim[self._current_player], dtype=np.float32)
-    self._prev_action[self._current_player][np.squeeze(action)] = 1
-
     # obs is specific to the current player only, 
     # while others are for all players
     obs, rewards, discounts, info = self.env.step(action)
@@ -533,7 +498,6 @@ class TurnBasedProcess(gym.Wrapper):
     info['epslen'] = self._epslen
 
     # obs.update({
-    #   'prev_action': self._prev_action[self._current_player],
     #   'prev_reward': acc_rewards[self._current_player],
     # })
 
@@ -680,54 +644,98 @@ class Single2MultiAgent(gym.Wrapper):
 
 
 class MultiAgentUnitsDivision(gym.Wrapper):
-  def __init__(self, env, uid2aid):
+  def __init__(self, env, config):
     super().__init__(env)
+
+    if config.uid2aid is None:
+      if config.shared_policy or not config.multi_agent:
+        uid2aid = tuple(np.zeros(self.env.n_units, dtype=np.int32))
+      else:
+        uid2aid = tuple(np.arange(self.env.n_units, dtype=np.int32))
+    else:
+      uid2aid = config.uid2aid
+    if config.uid2gid is None:
+      if config.shared_policy:
+        uid2gid = tuple(np.zeros(self.env.n_units, dtype=np.int32))
+      else:
+        uid2gid = tuple(np.arange(self.env.n_units, dtype=np.int32))
+    else:
+      uid2gid = config.uid2gid
 
     self.uid2aid = uid2aid
     self.aid2uids = compute_aid2uids(self.uid2aid)
     self.n_units = len(self.uid2aid)
     self.n_agents = len(self.aid2uids)
 
+    self.uid2gid = uid2gid
+    self.gid2uids = compute_aid2uids(self.uid2gid)
+    self.aid2gids = compute_aid2gids(uid2aid, uid2gid)
+    self.n_groups = len(self.gid2uids)
+
     if isinstance(self.env.action_space, list):
-      self.action_space = self.env.action_space
+      self.action_space = [a if isinstance(a, dict) else {DEFAULT_ACTION: a} for a in self.env.action_space]
     else:
-      self.action_space = [self.env.action_space for _ in range(self.n_agents)]
-    if isinstance(self.env.action_shape, list):
-      self.action_shape = self.env.action_shape
+      a = self.env.action_space if isinstance(self.env.action_space, dict) else {'action': self.env.action_space}
+      self.action_space = [a for _ in range(self.n_groups)]
+    self.is_action_discrete = [
+      {k: isinstance(v, gym.spaces.Discrete) for k, v in a.items()} for a in self.action_space]
+    self.action_shape = [
+      {k: v.shape for k, v in a.items()} for a in self.action_space]
+    self.action_dim = [
+      {k: v.n if iad[k] else v.shape[0] for k, v in a.items()} 
+      for a, iad in zip(self.action_space, self.is_action_discrete)]
+    self.action_dtype = [
+      {k: np.int32 if iad[k] else np.float32 for k in a} 
+      for a, iad in zip(self.action_space, self.is_action_discrete)]
+    use_action_mask = getattr(self.env, 'use_action_mask', None)
+    if use_action_mask is None:
+      self.use_action_mask = [
+        {k: False for k in iad.keys()}
+        for iad in self.is_action_discrete]
+    elif isinstance(use_action_mask, bool):
+      self.use_action_mask = [
+        {k: use_action_mask for k in iad.keys()}
+        for iad in self.is_action_discrete]
+    elif isinstance(use_action_mask, dict):
+      self.use_action_mask = [
+        {k: use_action_mask[k] for k in iad.keys()}
+        for iad in self.is_action_discrete]
     else:
-      self.action_shape = [self.env.action_shape for _ in range(self.n_agents)]
-    if isinstance(self.env.action_dim, list):
-      self.action_dim = self.env.action_dim
-    else:
-      self.action_dim = [self.env.action_dim for _ in range(self.n_agents)]
-    if isinstance(self.env.action_dtype, list):
-      self.action_dtype = self.env.action_dtype
-    else:
-      self.action_dtype = [self.env.action_dtype for _ in range(self.n_agents)]
-    if isinstance(self.env.is_action_discrete, list):
-      self.is_action_discrete = self.env.is_action_discrete
-    else:
-      self.is_action_discrete = [self.env.is_action_discrete for _ in range(self.n_agents)]
+      self.use_action_mask = use_action_mask
+    for uam, iad in zip(self.use_action_mask, self.is_action_discrete):
+      for k, v in uam.items():
+        assert k in iad, f'use_action_mask({k}) not in action space({list(iad)})'
+        if not iad[k]:
+          assert not v, f'use_action_mask({k}) is True but action space({k}) is not discrete'
 
     if isinstance(self.env.obs_shape, list):
       self.obs_shape = self.env.obs_shape
     else:
-      self.obs_shape = [self.env.obs_shape for _ in range(self.n_agents)]
+      self.obs_shape = [self.env.obs_shape for _ in range(self.n_groups)]
     if isinstance(self.env.obs_dtype, list):
       self.obs_dtype = self.env.obs_dtype
     else:
-      self.obs_dtype = [self.env.obs_dtype for _ in range(self.n_agents)]
-  
+      self.obs_dtype = [self.env.obs_dtype for _ in range(self.n_groups)]
+
+  def random_action(self, *args, **kwargs):
+    action = self.env.random_action()
+    if isinstance(action, dict):
+      action = [{k: v[uids] for k, v in action.items()} for uids in self.aid2uids]
+    return action
+
   def reset(self):
     obs = super().reset()
+    if 'uid' in obs:
+      return obs
     obs = self._convert_obs(obs)
     return obs
   
   def step(self, action):
     obs, reward, done, info = super().step(action)
-    obs = self._convert_obs(obs)
-    reward = [reward[uids] for uids in self.aid2uids]
-    done = [done[uids] for uids in self.aid2uids]
+    if 'uid' not in obs:
+      obs = self._convert_obs(obs)
+      reward = [reward[uids] for uids in self.aid2uids]
+      done = [done[uids] for uids in self.aid2uids]
     return obs, reward, done, info
   
   def _convert_obs(self, obs):
@@ -799,26 +807,14 @@ class PopulationSelection(gym.Wrapper):
 
 
 class DataProcess(gym.Wrapper):
-  """ Convert observation to np.float32 or np.float16 """
   def __init__(self, env, precision=32):
     super().__init__(env)
     self.precision = precision
     self.float_dtype = np.float32 if precision == 32 else np.float16
 
-    if not hasattr(self.env, 'is_action_discrete'):
-      if isinstance(self.action_space, (list, tuple)):
-        self.is_action_discrete = [isinstance(a, gym.spaces.Discrete) 
-          for a in self.action_space]
-      else:
-        self.is_action_discrete = isinstance(
-          self.action_space, gym.spaces.Discrete)
-    if not self.is_action_discrete and precision == 16:
-      self.action_space = gym.spaces.Box(
-        self.action_space.low, self.action_space.high, 
-        self.action_space.shape, self.float_dtype)
     if not hasattr(self.env, 'obs_shape'):
       if isinstance(self.observation_space, (list, tuple)):
-        self.obs_shape = [{'obs': o.shape} for o in self.observation_space]
+        self.obs_shape = [{'obs': o.shape, 'global_state': o.shape} for o in self.observation_space]
       else:
         self.obs_shape = {'obs': self.observation_space.shape}
     if not hasattr(self.env, 'obs_dtype'):
@@ -826,24 +822,6 @@ class DataProcess(gym.Wrapper):
         self.obs_dtype = [{'obs': infer_dtype(o.dtype, precision)} for o in self.observation_space]
       else:
         self.obs_dtype = {'obs': infer_dtype(self.observation_space.dtype, precision)}
-    if not hasattr(self.env, 'action_shape'):
-      if isinstance(self.action_space, (list, tuple)):
-        self.action_shape = [a.shape for a in self.action_space]
-      else:
-        self.action_shape = self.action_space.shape
-    if not hasattr(self.env, 'action_dim'):
-      if isinstance(self.action_space, (list, tuple)):
-        self.action_dim = [a.n if iad else a.shape[0] 
-          for a, iad in zip(self.action_space, self.is_action_discrete)]
-      else:
-        self.action_dim = self.action_space.n if self.is_action_discrete else self.action_shape[0]
-    if not hasattr(self.env, 'action_dtype'):
-      if isinstance(self.action_space, (list, tuple)):
-        self.action_dtype = [np.int32 if iad else infer_dtype(a.dtype, self.precision) 
-          for a, iad in zip(self.action_space, self.is_action_discrete)]
-      else:
-        self.action_dtype = np.int32 if self.is_action_discrete \
-          else infer_dtype(self.action_space.dtype, self.precision)
 
   def observation(self, observation):
     if isinstance(observation, list):
@@ -854,18 +832,16 @@ class DataProcess(gym.Wrapper):
     else:
       observation = {'obs': o for o in observation}
     return observation
-  
-  # def action(self, action):
-  #   if isinstance(action, np.ndarray):
-  #     return convert_dtype(action, self.precision)
-  #   return np.int32(action) # always keep int32 for integers as tf.one_hot does not support int16
 
   def reset(self):
     obs = self.env.reset()
     return self.observation(obs)
 
   def step(self, action, **kwargs):
-    action = np.asarray(action)
+    action = jax.tree_map(np.asarray, action)
+    if not isinstance(action, (list, tuple)):
+      action = [action]
+    action = [a if isinstance(a, dict) else {DEFAULT_ACTION: a} for a in action]
     obs, reward, done, info = self.env.step(action, **kwargs)
     return self.observation(obs), reward, done, info
 
@@ -943,16 +919,45 @@ class EnvStatsBase(gym.Wrapper):
       self.gid2uids = getattr(self.env, 'gid2uids', compute_aid2uids(self.uid2gid))
       self.n_groups = getattr(self.env, 'n_groups', len(self.gid2uids))
       self.aid2gids = getattr(self.env, 'aid2gids', compute_aid2gids(self.uid2aid, self.uid2gid))
+      obs_shape = env.obs_shape if isinstance(env.obs_shape, list) \
+        else [env.obs_shape for _ in range(self.n_groups)]
+      obs_dtype = env.obs_dtype if isinstance(env.obs_dtype, list) \
+        else [env.obs_dtype for _ in range(self.n_groups)]
+      action_space = env.action_space if isinstance(env.action_space, list) \
+        else [env.action_space for _ in range(self.n_groups)]
+      action_shape = env.action_shape if isinstance(env.action_shape, list) \
+        else [env.action_shape for _ in range(self.n_groups)]
+      action_dim = env.action_dim if isinstance(env.action_dim, list) \
+        else [env.action_dim for _ in range(self.n_groups)]
+      is_action_discrete = env.is_action_discrete if isinstance(env.is_action_discrete, list) \
+        else [env.is_action_discrete for _ in range(self.n_groups)]
+      action_dtype = env.action_dtype if isinstance(env.action_dtype, list) \
+        else [env.action_dtype for _ in range(self.n_groups)]
+      use_action_mask = getattr(env, 'use_action_mask', [False for _ in range(self.n_groups)])
+      use_action_mask = use_action_mask if isinstance(use_action_mask, list) \
+        else [use_action_mask for _ in range(self.n_groups)]
+      if not isinstance(action_space[0], dict):
+        action_space = [{DEFAULT_ACTION: a} for a in action_space]
+      if not isinstance(action_shape[0], dict):
+        action_shape = [{DEFAULT_ACTION: a} for a in action_shape]
+      if not isinstance(action_dim[0], dict):
+        action_dim = [{DEFAULT_ACTION: a} for a in action_dim]
+      if not isinstance(is_action_discrete[0], dict):
+        is_action_discrete = [{DEFAULT_ACTION: a} for a in is_action_discrete]
+      if not isinstance(action_dtype[0], dict):
+        action_dtype = [{DEFAULT_ACTION: a} for a in action_dtype]
+      if not isinstance(use_action_mask[0], dict):
+        use_action_mask = [{DEFAULT_ACTION: a} for a in use_action_mask]
       self._stats = AttrDict(
-        obs_shape=env.obs_shape,
-        obs_dtype=env.obs_dtype,
-        action_space=env.action_space, 
-        action_shape=env.action_shape, 
-        action_dim=env.action_dim,
+        obs_shape=obs_shape,
+        obs_dtype=obs_dtype,
+        action_space=action_space, 
+        action_shape=action_shape, 
+        action_dim=action_dim,
         action_low=getattr(env, 'action_low', None), 
         action_high=getattr(env, 'action_high', None), 
-        is_action_discrete=env.is_action_discrete,
-        action_dtype=env.action_dtype,
+        is_action_discrete=is_action_discrete,
+        action_dtype=action_dtype,
         n_agents=self.n_agents,
         n_units=self.n_units,
         uid2aid=self.uid2aid,
@@ -960,8 +965,8 @@ class EnvStatsBase(gym.Wrapper):
         aid2uids=self.aid2uids,
         gid2uids=self.gid2uids, 
         aid2gids=self.aid2gids, 
-        use_sample_mask=getattr(env, 'use_sample_mask', False),
-        use_action_mask=getattr(env, 'use_action_mask', False),
+        use_sample_mask=getattr(env, 'use_sample_mask', [False for _ in range(self.n_groups)]),
+        use_action_mask=use_action_mask,
         is_multi_agent=getattr(env, 'is_multi_agent', len(self.uid2aid) > 1),
         is_simultaneous_move=getattr(env, 'is_simultaneous_move', True),
       )
@@ -974,7 +979,7 @@ class EnvStatsBase(gym.Wrapper):
       else:
         self._stats['obs_keys'] = list(env.obs_shape)
     if timeout_done:
-      do_logging('Timeout is treated as done', logger=logger)
+      do_logging('Timeout is treated as done', logger=logger, once=True)
     self.env.seed(seed)
     self._reset()
 
@@ -1202,7 +1207,7 @@ class MASimEnvStats(EnvStatsBase):
       self._output = EnvOutput(self._output.obs, reward, discount, reset)
       return self._output
 
-    assert not np.any(np.isnan(action)), action
+    # assert not np.any(np.isnan(action)), action
     obs, reward, done, info = self.env.step(action, **kwargs)
     # expect score, epslen, and game_over in info as multi-agent environments may vary in metrics 
     self._score = info['score']
@@ -1290,7 +1295,7 @@ class MATurnBasedEnvStats(EnvStatsBase):
 
   def step(self, action, **kwargs):
     assert not self._game_over, self._game_over
-    assert not np.any(np.isnan(action)), action
+    # assert not np.any(np.isnan(action)), action
     obs, reward, discount, info = self.env.step(action, **kwargs)
     # expect score, epslen, and game_over in info as multi-agent environments may vary in metrics 
     self._score = info['score']

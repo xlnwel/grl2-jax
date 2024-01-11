@@ -7,7 +7,7 @@ from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
-from tools.utils import stack_data_with_state
+from tools.utils import batch_dicts, batch_states, stack_data_with_state
 from replay import replay_registry
 
 logger = logging.getLogger(__name__)
@@ -155,10 +155,24 @@ class ACBuffer(Buffer):
 
     if self._current_size >= self.max_size:
       keys = list(next(iter(self._buffers.values())))
-      data = dict2AttrDict({k: np.concatenate(
-        [np.concatenate(b[k]) for b in self._buffers.values() if b]
-        )[-self.batch_size:] for k in self.sample_keys if k in keys
-      })
+      data = AttrDict()
+      for k in self.sample_keys:
+        if k == 'action':
+          for kk in keys:
+            if kk.startswith(k):
+              data[kk] =  np.concatenate(
+                [np.concatenate(b[kk]) for b in self._buffers.values() if b]
+              )[-self.batch_size:]
+        elif k == 'state':
+          data[k] = batch_states(
+            [batch_states(b[k], func=np.concatenate) for b in self._buffers.values() if b], 
+            axis=0, func=np.concatenate)
+        elif k not in self._buffers[rid]:
+          continue
+        else:
+          data[k] = np.concatenate(
+            [np.concatenate(b[k]) for b in self._buffers.values() if b]
+          )[-self.batch_size:]
       # assert len(self._queue) == 0 or data.used, list(self._queue[0])
       self._queue.append(data)
       self._buffers = collections.defaultdict(lambda: collections.defaultdict(list))
@@ -199,10 +213,16 @@ class ACBuffer(Buffer):
     return True
 
   def _sample(self, sample_keys=None):
-    sample_keys = sample_keys or self.sample_keys
     assert len(self._queue) == 1, len(self._queue)
     # sample = {k: self._queue[0][k] for k in sample_keys}
-    sample = self._queue.pop()
+    raw_sample = self._queue.pop()
+    sample = AttrDict()
+    sample['action'] = AttrDict()
+    for k, v in raw_sample.items():
+      if k.startswith('action'):
+        sample['action'][k] = v
+      else:
+        sample[k] = v
     # sample = self._queue[0].copy()
     # self._queue[0]['used'] = True
 

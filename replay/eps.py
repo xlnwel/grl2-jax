@@ -1,3 +1,4 @@
+import os
 import collections
 from datetime import datetime
 import logging
@@ -35,7 +36,7 @@ class EpisodicReplay(Buffer):
     self.n_envs = self.n_runners * self.config.n_envs
 
     directory = self.config.directory if self.config.directory else \
-      '/'.join([self.config.root_dir, self.config.model_name])
+      os.path.join(self.config.root_dir, self.config.model_name)
     self._dir = Path(directory).expanduser()
     self._save = self.config.save
     if self._save:

@@ -4,6 +4,7 @@ import collections
 import numpy as np
 import pandas as pd
 
+from core.names import PATH_SPLIT
 from tools.plot import lineplot_dataframe
 from tools.utils import to_int
 
@@ -66,7 +67,7 @@ if __name__ == '__main__':
       data[y].append(np.mean(diff_errors[step]))
     
 
-  filename = args.path.rsplit('/', 1)[-1]
+  filename = args.path.rsplit(PATH_SPLIT, 1)[-1]
   filename = filename.split('.')[0]
 
   y = 'absolute error difference'

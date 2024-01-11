@@ -97,7 +97,7 @@ def lineplot_dataframe(data, title, *, y, x='steps', fig=None, ax=None, legend='
   ax.legend(loc='lower left', bbox_to_anchor=(0, 1.05))
   if outdir:
     mkdir(outdir)
-    fig_path = '/'.join([outdir, f'{title}.png'])
+    fig_path = os.path.join(outdir, f'{title}.png')
     fig.savefig(fig_path, bbox_inches='tight')
     print(f'File saved at "{fig_path}"')
 

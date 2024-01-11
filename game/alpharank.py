@@ -80,7 +80,6 @@ class AlphaRank:
   ):
     """ Compute the Markov transition matrix from given payoffs """
     if is_single_population:
-      assert len(payoffs) == 1, len(payoffs)
       return self._compute_transition_matrix_sp(payoffs)
     else:
       assert len(payoffs) == payoffs[0].ndim, (len(payoffs), payoffs[0].ndim)

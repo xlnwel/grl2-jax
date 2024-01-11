@@ -3,6 +3,8 @@ import jax
 from jax import random
 import jax.numpy as jnp
 
+from env.utils import get_action_mask
+from core.names import DEFAULT_ACTION
 from core.typing import AttrDict, tree_slice
 from jax_tools import jax_utils
 from tools.file import source_file
@@ -16,6 +18,27 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 def concat_along_unit_dim(x):
   x = jnp.concatenate(x, axis=1)
   return x
+
+
+def construct_fake_data(env_stats, aid, batch_size=1):
+  shapes = env_stats.obs_shape[aid]
+  dtypes = env_stats.obs_dtype[aid]
+  action_dim = env_stats.action_dim[aid]
+  action_dtype = env_stats.action_dtype[aid]
+  use_action_mask = env_stats.use_action_mask[aid]
+  n_units = len(env_stats.aid2uids[aid])
+  basic_shape = (batch_size, 1, n_units)
+  data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
+    for k, v in shapes.items()}
+  data = dict2AttrDict(data)
+  data.setdefault('global_state', data.obs)
+  data.action = AttrDict()
+  for k in action_dim.keys():
+    data.action[k] = jnp.zeros((*basic_shape, action_dim[k]), action_dtype[k])
+    if use_action_mask[k]:
+      data.action[f'{k}_mask'] = jnp.ones((*basic_shape, action_dim[k]), action_dtype[k])
+  data.state_reset = jnp.zeros(basic_shape, jnp.float32)
+  return data
 
 
 class Model(MAModelBase):
@@ -71,15 +94,29 @@ class Model(MAModelBase):
       state = d.pop('state', AttrDict())
       if self.has_rnn:
         d = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , d)
-      act_out, state = self.forward_policy(p, agent_rngs[0], d, state)
-      act_dist = self.policy_dist(act_out, evaluation)
+      act_outs, state = self.forward_policy(p, agent_rngs[0], d, state)
+      act_dists = self.policy_dist(act_outs, evaluation)
 
       if evaluation:
-        action = act_dist.sample(seed=agent_rngs[1])
+        action = {k: ad.sample(seed=agent_rngs[1]) for k, ad in act_dists.items()}
         stats = AttrDict()
       else:
-        action, logprob = act_dist.sample_and_log_prob(seed=agent_rngs[1])
-        stats = act_dist.get_stats('mu')
+        if len(act_dists) == 1:
+          action, logprob = act_dists[DEFAULT_ACTION].sample_and_log_prob(seed=agent_rngs[1])
+          action = {DEFAULT_ACTION: action}
+          stats = act_dists[DEFAULT_ACTION].get_stats('mu')
+          stats = dict2AttrDict(stats)
+          stats.mu_logprob = logprob
+        else:
+          action = AttrDict()
+          logprob = AttrDict()
+          stats = AttrDict(mu_logprob=0)
+          for k, ad in act_dists.items():
+            a, lp = ad.sample_and_log_prob(seed=agent_rngs[1])
+            action[k] = a
+            logprob[k] = lp
+            stats.update(ad.get_stats(f'{k}_mu'))
+            stats.mu_logprob = stats.mu_logprob + lp
         value, state.value = self.modules.value(
           v, 
           agent_rngs[2], 
@@ -87,8 +124,9 @@ class Model(MAModelBase):
           d.state_reset, 
           state.value
         )
-        stats.update({'mu_logprob': logprob, 'value': value})
+        stats['value'] = value
       if self.has_rnn:
+        # squeeze the sequential dimension
         action, stats = jax.tree_util.tree_map(
           lambda x: jnp.squeeze(x, 1), (action, stats))
         all_states.append(state)
@@ -97,8 +135,8 @@ class Model(MAModelBase):
 
       all_actions.append(action)
       all_stats.append(stats)
-
-    action = concat_along_unit_dim(all_actions)
+    
+    action = batch_dicts(all_actions, concat_along_unit_dim)
     stats = batch_dicts(all_stats, func=concat_along_unit_dim)
 
     return action, stats, all_states
@@ -114,9 +152,13 @@ class Model(MAModelBase):
     if 'state' in data:
       data.state = tree_slice(data.state, indices=0, axis=1)
     state = data.pop('state', AttrDict())
+    data.action_mask = get_action_mask(data.action)
     act_out, _ = self.forward_policy(params, rng, data, state=state)
-    act_dist = self.policy_dist(act_out)
-    logprob = act_dist.log_prob(data.action)
+    act_dists = self.policy_dist(act_out)
+    if len(act_dists) == 1:
+      logprob = act_dists[DEFAULT_ACTION].log_prob(data.action[DEFAULT_ACTION])
+    else:
+      logprob = sum([act_dists[k].log_prob(data.action[k]) for k in act_dists])
 
     return logprob
 
@@ -150,14 +192,18 @@ class Model(MAModelBase):
       return self._initial_states[name]
     if not self.has_rnn:
       return None
-    data = construct_fake_data(self.env_stats, batch_size)
+    data = construct_fake_data(self.env_stats, self.aid, batch_size=batch_size)
+    action_mask = AttrDict()
+    for k, v in data.action.items():
+      if k.endswith('_mask'):
+        action_mask[k.replace('_mask', '')] = v
     states = []
-    for p, v, d in zip(self.params.policies, self.params.vs, data):
+    for p, v in zip(self.params.policies, self.params.vs):
       state = AttrDict()
       _, state.policy = self.modules.policy(
-        p, self.act_rng, d.obs, d.state_reset)
+        p, self.act_rng, data.obs, reset=data.state_reset, action_mask=action_mask)
       _, state.value = self.modules.value(
-        v, self.act_rng, d.global_state, d.state_reset)
+        v, self.act_rng, data.global_state, reset=data.state_reset)
       states.append(state)
     states = tuple(states)
     self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, states)

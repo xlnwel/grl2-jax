@@ -58,11 +58,8 @@ def dice(logprob, lam, axis=1):
 def huber_loss(x, *, y=None, threshold=1.):
   if y is not None:   # if y is passed, take x-y as error, otherwise, take x as error
     x = x - y
-  loss = jnp.where(
-    lax.abs(x) <= threshold, 
-    0.5 * lax.square(x), 
-    threshold * (lax.abs(x) - 0.5 * threshold), 
-  )
+  x = lax.abs(x)
+  loss = jnp.where(x < threshold, 0.5 * lax.square(x), threshold * (x - 0.5 * threshold))
 
   return loss
 

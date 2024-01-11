@@ -1,17 +1,17 @@
 import os
-import logging
 import jax
 from jax import random
 import jax.numpy as jnp
 
-from core.typing import AttrDict
+from env.utils import get_action_mask
+from core.names import DEFAULT_ACTION
+from core.typing import AttrDict, dict2AttrDict
 from tools.file import source_file
 from tools.utils import batch_dicts
 from algo.ma_common.elements.model import *
 
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
-logger = logging.getLogger(__name__)
 
 
 class Model(MAModelBase):
@@ -25,8 +25,7 @@ class Model(MAModelBase):
       data.global_state, data.state_reset, data.state, name='value')
 
   def compile_model(self):
-    self.jit_action = jax.jit(
-      self.raw_action, static_argnames=('evaluation'))
+    self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
 
   def action(self, data, evaluation):
     if 'global_state' not in data:
@@ -45,15 +44,30 @@ class Model(MAModelBase):
     # add the sequential dimension
     if self.has_rnn:
       data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
-    act_out, state = self.forward_policy(params.policy, rngs[0], data, state)
-    act_dist = self.policy_dist(act_out, evaluation)
+    act_outs, state = self.forward_policy(params.policy, rngs[0], data, state)
+    act_dists = self.policy_dist(act_outs, evaluation)
 
     if evaluation:
-      action = act_dist.mode()
+      action = {k: ad.sample(seed=rngs[1]) for k, ad in act_dists.items()}
       stats = AttrDict()
     else:
-      stats = act_dist.get_stats('mu')
-      action, logprob = act_dist.sample_and_log_prob(seed=rngs[1])
+      if len(act_dists) == 1:
+        action, logprob = act_dists[DEFAULT_ACTION].sample_and_log_prob(seed=rngs[1])
+        action = {DEFAULT_ACTION: action}
+        stats = act_dists[DEFAULT_ACTION].get_stats('mu')
+        stats = dict2AttrDict(stats)
+        stats.mu_logprob = logprob
+      else:
+        action = AttrDict()
+        logprob = AttrDict()
+        stats = AttrDict(mu_logprob=0)
+        for k, ad in act_dists.items():
+          a, lp = ad.sample_and_log_prob(seed=rngs[1])
+          action[k] = a
+          logprob[k] = lp
+          stats.update(ad.get_stats(f'{k}_mu'))
+          stats.mu_logprob = stats.mu_logprob + lp
+        
       value, state.value = self.modules.value(
         params.value, 
         rngs[2], 
@@ -61,8 +75,9 @@ class Model(MAModelBase):
         data.state_reset, 
         state.value
       )
-      stats.update({'mu_logprob': logprob, 'value': value})
+      stats['value'] = value
     if self.has_rnn:
+      # squeeze the sequential dimension
       action, stats = jax.tree_util.tree_map(
         lambda x: jnp.squeeze(x, 1), (action, stats))
     if state.policy is None and state.value is None:
@@ -97,20 +112,21 @@ class Model(MAModelBase):
       return self._initial_states[name]
     if not self.has_rnn:
       return None
-    data = construct_fake_data(self.env_stats, batch_size)
-    data = batch_dicts(data, lambda x: jnp.concatenate(x, axis=2))
+    data = construct_fake_data(self.env_stats, self.aid, batch_size=batch_size)
+    action_mask = get_action_mask(data.action)
     state = AttrDict()
     _, state.policy = self.modules.policy(
       self.params.policy, 
       self.act_rng, 
       data.obs, 
-      data.state_reset
+      reset=data.state_reset, 
+      action_mask=action_mask
     )
     _, state.value = self.modules.value(
       self.params.value, 
       self.act_rng, 
       data.global_state, 
-      data.state_reset
+      reset=data.state_reset
     )
     self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, state)
 

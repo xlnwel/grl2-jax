@@ -7,7 +7,7 @@ from core.typing import dict2AttrDict
 from tools.utils import batch_dicts, convert_batch_with_func
 from env import make_env
 from env.typing import EnvOutput
-from env.utils import batch_env_output, batch_ma_env_output
+from env.utils import batch_env_output
 
 
 class Env:
@@ -132,13 +132,20 @@ class VecEnvBase:
   
   def process_output(self, out, convert_batch=True):
     if convert_batch:
-      if self._stats.is_multi_agent:
-        out = list(zip(*out))
-        return batch_ma_env_output(out)
-      else:
-        return batch_env_output(out)
+      return batch_env_output(out)
     else:
       return out
+
+  def combine_actions(self, actions):
+    new_actions = [batch_dicts(a) for a in zip(*actions)]
+    return new_actions
+
+  def divide_actions(self, actions):
+    new_actions = [
+      [{k: v[i] for k, v in action.items()} for action in actions]
+      for i in range(self.n_envs)
+    ]
+    return new_actions
 
 
 class VecEnv(VecEnvBase):
@@ -146,12 +153,8 @@ class VecEnv(VecEnvBase):
     super().__init__(config, env_fn, agents)
 
   def random_action(self, *args, **kwargs):
-    if self._stats.is_multi_agent:
-      return np.stack([env.random_action() if hasattr(env, 'random_action')
-        else env.action_space.sample() for env in self.envs])
-    else:
-      return np.stack([env.random_action() if hasattr(env, 'random_action')
-        else env.action_space.sample() for env in self.envs])
+    actions = [env.random_action() for env in self.envs]
+    return self.combine_actions(actions)
 
   def reset(self, idxes=None, convert_batch=True, **kwargs):
     idxes = self._get_idxes(idxes)
@@ -160,6 +163,8 @@ class VecEnv(VecEnvBase):
     return out
 
   def step(self, actions, convert_batch=True, **kwargs):
+    actions = self.divide_actions(actions)
+    assert len(self.envs) == len(actions), (len(self.envs), len(actions))
     outs = [e.step(a) for e, a in zip(self.envs, actions)]
     out = self.process_output(outs, convert_batch=convert_batch)
     return out
@@ -186,10 +191,7 @@ class VecEnv(VecEnvBase):
     idxes = self._get_idxes(idxes)
     obs = [self.envs[i].prev_obs() for i in idxes]
     if convert_batch:
-      if self._stats.is_multi_agent:
-        obs = [convert_batch_with_func(o) for o in zip(*obs)]
-      else:
-        obs = batch_dicts(obs)
+      obs = [convert_batch_with_func(o) for o in zip(*obs)]
     return obs
 
   def info(self, idxes=None, convert_batch=False):
@@ -355,39 +357,6 @@ class MASimVecEnv(VecEnvBase):
     if hasattr(self.env, 'close'):
       [env.close() for env in self.envs]
 
-  def process_output(self, out, convert_batch=True):
-    obs = []
-    reward = []
-    discount = []
-    reset = []
-    for o in out:
-      obs.append(o.obs)
-      reward.append(o.reward)
-      discount.append(o.discount)
-      reset.append(o.reset)
-    assert len(obs) == self.n_envs, len(obs)
-    assert len(reward) == self.n_envs, len(reward)
-    assert len(discount) == self.n_envs, len(discount)
-    assert len(reset) == self.n_envs, len(reset)
-    if convert_batch:
-      obs = [convert_batch_with_func(o) for o in zip(*obs)]
-      reward = [convert_batch_with_func(r) for r in zip(*reward)]
-      discount = [convert_batch_with_func(d) for d in zip(*discount)]
-      reset = [convert_batch_with_func(r) for r in zip(*reset)]
-      out = EnvOutput(obs, reward, discount, reset)
-
-    else:
-      obs = list(zip(*obs))
-      reward = list(zip(*reward))
-      discount = list(zip(*discount))
-      reset = list(zip(*reset))
-      out = EnvOutput(obs, reward, discount, reset)
-    assert len(out.obs) == self.env.n_agents, len(out.obs)
-    assert len(out.reward) == self.env.n_agents, len(out.reward)
-    assert len(out.discount) == self.env.n_agents, len(out.discount)
-    assert len(out.reset) == self.env.n_agents, len(out.reset)
-    return out
-
 
 class MATBVecEnv(VecEnvBase):
   """ Different from other Envs which returns data of structure
@@ -400,7 +369,7 @@ class MATBVecEnv(VecEnvBase):
 
   def random_action(self, *args, **kwargs):
     actions = [env.random_action() for env in self.envs]
-    return actions
+    return self.combine_actions(actions)
 
   def reset(self, idxes=None, convert_batch=True, **kwargs):
     idxes = self._get_idxes(idxes)
@@ -409,6 +378,7 @@ class MATBVecEnv(VecEnvBase):
     return self.process_output(out, convert_batch=convert_batch)
 
   def step(self, actions, convert_batch=True, **kwargs):
+    actions = self.divide_actions(actions)
     outs = [e.step(a) for e, a in zip(self.envs, actions)]
 
     return self.process_output(outs, convert_batch=convert_batch)

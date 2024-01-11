@@ -2,13 +2,14 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from .smac_maps import get_map_params
+
 import atexit
 from operator import attrgetter
 from copy import deepcopy
 import numpy as np
 import enum
 import math
-import random
 from absl import logging
 
 from pysc2 import maps
@@ -20,12 +21,12 @@ from s2clientprotocol import sc2api_pb2 as sc_pb
 from s2clientprotocol import raw_pb2 as r_pb
 from s2clientprotocol import debug_pb2 as d_pb
 
+import os.path as osp
+from pathlib import Path
+import yaml
+
+import random
 from gym.spaces import Discrete
-import gym
-
-from tools.utils import batch_dicts
-from env.smac_maps import get_map_params
-
 
 races = {
   "R": sc_common.Random,
@@ -62,10 +63,9 @@ class Direction(enum.IntEnum):
   WEST = 3
 
 
-class SMAC(gym.Env):
+class StarCraft2Env:
   """The StarCraft II environment for decentralised multi-agent
-  micromanagement scenarios. This environment keeps stepping until
-  the maximum number of episodic steps meets
+  micromanagement scenarios.
   """
 
   def __init__(
@@ -79,12 +79,11 @@ class SMAC(gym.Env):
     add_enemy_action_state=False,
     add_agent_id=False,
     use_state_agent=False,
-    use_mustalive=False,
-    add_center_xy=False,
+    use_mustalive=True,
+    add_center_xy=True,
     use_stacked_frames=False,
-    stacked_frames=1,
-    use_obs_instead_of_state=False,
-    # all the above are from args
+    use_obs_instead_of_state=False, 
+    stacked_frames=False,
     step_mul=8,
     move_amount=2,
     difficulty="7",
@@ -119,14 +118,14 @@ class SMAC(gym.Env):
     heuristic_ai=False,
     heuristic_rest=False,
     debug=False,
-    **kwargs,
+    **kwargs
   ):
     """
     Create a StarCraftC2Env environment.
 
     Parameters
     ----------
-    name : str, optional
+    env_name : str, optional
       The name of the SC2 map to play (default is "8m"). The full list
       can be found by running bin/map_list.
     step_mul : int, optional
@@ -217,30 +216,26 @@ class SMAC(gym.Env):
       Log messages about observations, state, actions and rewards for
       debugging purposes (default is False).
     """
-    import sys
-    from absl import flags
-    FLAGS = flags.FLAGS
-    FLAGS([sys.argv[0]])
-    
     # Map arguments
-    self.name = env_name
-    self.add_local_obs = add_local_obs
-    self.add_move_state = add_move_state
-    self.add_visible_state = add_visible_state
-    self.add_distance_state = add_distance_state
-    self.add_xy_state = add_xy_state
-    self.add_enemy_action_state = add_enemy_action_state
-    self.add_agent_id = add_agent_id
-    self.use_state_agent = use_state_agent
-    self.use_mustalive = use_mustalive
-    self.add_center_xy = add_center_xy
-    self.use_stacked_frames = use_stacked_frames
-    self.stacked_frames = stacked_frames
+    state_config = self.load_state_config(args["state_type"])
+    self.map_name = args["map_name"]
+    self.add_local_obs = state_config["add_local_obs"]
+    self.add_move_state = state_config["add_move_state"]
+    self.add_visible_state = state_config["add_visible_state"]
+    self.add_distance_state = state_config["add_distance_state"]
+    self.add_xy_state = state_config["add_xy_state"]
+    self.add_enemy_action_state = state_config["add_enemy_action_state"]
+    self.add_agent_id = state_config["add_agent_id"]
+    self.use_state_agent = state_config["use_state_agent"]
+    self.use_mustalive = state_config["use_mustalive"]
+    self.add_center_xy = state_config["add_center_xy"]
+    self.use_stacked_frames = state_config["use_stacked_frames"]
+    self.stacked_frames = state_config["stacked_frames"]
 
-    map_params = get_map_params(self.name)
-    self.n_units = map_params["n_units"]
+    map_params = get_map_params(self.map_name)
+    self.n_agents = map_params["n_agents"]
     self.n_enemies = map_params["n_enemies"]
-    self.max_episode_steps = map_params["limit"]
+    self.episode_limit = map_params["limit"]
     self._move_amount = move_amount
     self._step_mul = step_mul
     self.difficulty = difficulty
@@ -248,17 +243,19 @@ class SMAC(gym.Env):
     # Observations and state
     self.obs_own_health = obs_own_health
     self.obs_all_health = obs_all_health
-    self.obs_instead_of_state = use_obs_instead_of_state
+    self.obs_instead_of_state = state_config["use_obs_instead_of_state"]
     self.obs_last_action = obs_last_action
+    self.use_global_state = state_config["use_global_state"]
+    self.global_state_include_info = state_config["global_state_include_info"]
 
     self.obs_pathing_grid = obs_pathing_grid
     self.obs_terrain_height = obs_terrain_height
     self.obs_timestep_number = obs_timestep_number
     self.obs_agent_id = obs_agent_id
-    self.state_pathing_grid = state_pathing_grid
-    self.state_terrain_height = state_terrain_height
-    self.state_last_action = state_last_action
-    self.state_timestep_number = state_timestep_number
+    self.state_pathing_grid = state_config["state_pathing_grid"]
+    self.state_terrain_height = state_config["state_terrain_height"]
+    self.state_last_action = state_config["state_last_action"]
+    self.state_timestep_number = state_config["state_timestep_number"]
     self.state_agent_id = state_agent_id
     if self.obs_all_health:
       self.obs_own_health = True
@@ -279,7 +276,7 @@ class SMAC(gym.Env):
     # Other
     self.game_version = game_version
     self.continuing_episode = continuing_episode
-    self._seed = np.random.randint(1000) if seed is None else seed
+    self._seed = seed
     self.heuristic_ai = heuristic_ai
     self.heuristic_rest = heuristic_rest
     self.debug = debug
@@ -300,15 +297,12 @@ class SMAC(gym.Env):
     self.unit_type_bits = map_params["unit_type_bits"]
     self.map_type = map_params["map_type"]
 
-    self.max_reward = (
-      self.n_enemies * self.reward_death_value + self.reward_win
-    )
+    self.max_reward = self.n_enemies * self.reward_death_value + self.reward_win
 
     self.agents = {}
     self.enemies = {}
     self._episode_count = 0
     self._episode_steps = 0
-    self._score = 0
     self._total_steps = 0
     self._obs = None
     self.battles_won = 0
@@ -316,11 +310,11 @@ class SMAC(gym.Env):
     self.timeouts = 0
     self.force_restarts = 0
     self.last_stats = None
-    self.death_tracker_ally = np.zeros(self.n_units, dtype=np.float32)
+    self.death_tracker_ally = np.zeros(self.n_agents, dtype=np.float32)
     self.death_tracker_enemy = np.zeros(self.n_enemies, dtype=np.float32)
     self.previous_ally_units = None
     self.previous_enemy_units = None
-    self.last_action = np.zeros((self.n_units, self.n_actions), dtype=np.float32)
+    self.last_action = np.zeros((self.n_agents, self.n_actions), dtype=np.float32)
     self._min_unit_type = 0
     self.marine_id = self.marauder_id = self.medivac_id = 0
     self.hydralisk_id = self.zergling_id = self.baneling_id = 0
@@ -335,111 +329,67 @@ class SMAC(gym.Env):
     self._sc2_proc = None
     self._controller = None
 
-    self._reset_for_error = False
-
     # Try to avoid leaking SC2 processes on shutdown
-    atexit.register(self.close)
+    atexit.register(lambda: self.close())
 
-    self.action_spaces = []
-    self.observation_spaces = []
-    self.global_state_spaces = []
-    for i in range(self.n_units):
-      self.action_spaces.append(Discrete(self.n_actions))
-      self.observation_spaces.append(self.get_obs_size())
-      self.global_state_spaces.append(self.get_state_size())
+    self.action_space = []
+    self.observation_space = []
+    self.share_observation_space = []
+    for i in range(self.n_agents):
+      self.action_space.append(Discrete(self.n_actions))
+      self.observation_space.append(self.get_obs_size())
+      self.share_observation_space.append(self.get_state_size())
 
-    self.obs_shape = dict(
-      obs=(self.observation_space[0],),
-      global_state=(self.global_state_space[0],),
-      action_mask=(self.action_dim,),
-      sample_mask=()
-    )
-    self.obs_dtype = dict(
-      obs=np.float32,
-      global_state=np.float32,
-      action_mask=bool,
-      sample_mask=np.float32
-    )
     if self.use_stacked_frames:
-      self.stacked_local_obs = np.zeros((self.n_units, self.stacked_frames, int(self.get_obs_size()[0]/self.stacked_frames)), dtype=np.float32)
-      self.stacked_global_state = np.zeros((self.n_units, self.stacked_frames, int(self.get_state_size()[0]/self.stacked_frames)), dtype=np.float32)
-
-    self._empty_obs = dict(
-      obs=np.zeros((self.n_units, *self.obs_shape), dtype=np.float32),
-      global_state=np.zeros((self.n_units, *self.global_state_shape), dtype=np.float32),
-      action_mask=np.zeros((self.n_units, self.n_actions), bool),
-      sample_mask=np.zeros(self.n_units, dtype=np.float32)
-    )
-    # some properties for multi-agent environments
-    self.use_sample_mask = True
-    self.use_action_mask = True
-
-  def random_action(self):
-    actions = []
-    for avail_actions in self.get_avail_actions():
-      choices = [i for i, v in enumerate(avail_actions) if v]
-      actions.append(random.choice(choices))
-      
-    return [np.stack(actions)]
-
-  @property
-  def is_multiagent(self):
-    return True
-
-  @property
-  def action_space(self):
-    return self.action_spaces[0]
-  
-  @property
-  def is_action_discrete(self):
-    return True
-
-  @property
-  def action_shape(self):
-    return self.action_space.shape
-  
-  @property
-  def action_dim(self):
-    return self.n_actions
-  
-  @property
-  def action_dtype(self):
-    return np.int32
-  
-  @property
-  def observation_space(self):
-    return self.observation_spaces[0]
-  
-  @property
-  def global_state_space(self):
-    return self.global_state_spaces[0]
+      self.stacked_local_obs = np.zeros(
+        (
+          self.n_agents,
+          self.stacked_frames,
+          int(self.get_obs_size()[0] / self.stacked_frames),
+        ),
+        dtype=np.float32,
+      )
+      self.stacked_global_state = np.zeros(
+        (
+          self.n_agents,
+          self.stacked_frames,
+          int(self.get_state_size()[0] / self.stacked_frames),
+        ),
+        dtype=np.float32,
+      )
 
   def _launch(self):
     """Launch the StarCraft II game."""
-    self.dones = np.zeros(self.n_units, dtype=bool)
     self._run_config = run_configs.get(version=self.game_version)
-    _map = maps.get(self.name)
+    _map = maps.get(self.map_name)
     self._seed += 1
 
     # Setting up the interface
     interface_options = sc_pb.InterfaceOptions(raw=True, score=False)
-    self._sc2_proc = self._run_config.start(window_size=self.window_size, want_rgb=False)
+    self._sc2_proc = self._run_config.start(
+      window_size=self.window_size, want_rgb=False
+    )
     self._controller = self._sc2_proc.controller
 
     # Request to create the game
     create = sc_pb.RequestCreateGame(
       local_map=sc_pb.LocalMap(
-        map_path=_map.path,
-        map_data=self._run_config.map_data(_map.path)),
+        map_path=_map.path, map_data=self._run_config.map_data(_map.path)
+      ),
       realtime=False,
-      random_seed=self._seed)
+      random_seed=self._seed,
+    )
     create.player_setup.add(type=sc_pb.Participant)
-    create.player_setup.add(type=sc_pb.Computer, race=races[self._bot_race],
-                difficulty=difficulties[self.difficulty])
+    create.player_setup.add(
+      type=sc_pb.Computer,
+      race=races[self._bot_race],
+      difficulty=difficulties[self.difficulty],
+    )
     self._controller.create_game(create)
 
-    join = sc_pb.RequestJoinGame(race=races[self._agent_race],
-                   options=interface_options)
+    join = sc_pb.RequestJoinGame(
+      race=races[self._agent_race], options=interface_options
+    )
     self._controller.join_game(join)
 
     game_info = self._controller.game_info()
@@ -453,33 +403,46 @@ class SMAC(gym.Env):
 
     if map_info.pathing_grid.bits_per_pixel == 1:
       vals = np.array(list(map_info.pathing_grid.data)).reshape(
-        self.map_x, int(self.map_y / 8))
-      self.pathing_grid = np.transpose(np.array([
-        [(b >> i) & 1 for b in row for i in range(7, -1, -1)]
-        for row in vals], dtype=bool))
+        self.map_x, int(self.map_y / 8)
+      )
+      self.pathing_grid = np.transpose(
+        np.array(
+          [
+            [(b >> i) & 1 for b in row for i in range(7, -1, -1)]
+            for row in vals
+          ],
+          dtype=np.bool,
+        )
+      )
     else:
-      self.pathing_grid = np.invert(np.flip(np.transpose(np.array(
-        list(map_info.pathing_grid.data), dtype=bool).reshape(
-          self.map_x, self.map_y)), axis=1))
+      self.pathing_grid = np.invert(
+        np.flip(
+          np.transpose(
+            np.array(
+              list(map_info.pathing_grid.data), dtype=np.bool
+            ).reshape(self.map_x, self.map_y)
+          ),
+          axis=1,
+        )
+      )
 
-    self.terrain_height = np.flip(
-      np.transpose(np.array(list(map_info.terrain_height.data))
-             .reshape(self.map_x, self.map_y)), 1) / 255
+    self.terrain_height = (
+      np.flip(
+        np.transpose(
+          np.array(list(map_info.terrain_height.data)).reshape(
+            self.map_x, self.map_y
+          )
+        ),
+        1,
+      )
+      / 255
+    )
 
   def reset(self):
     """Reset the environment. Required after each full episode.
     Returns initial observations and states.
     """
-    if self._reset_for_error:
-      # the environment has already reset due to an error
-      self._reset_for_error = False
-      assert self._last_reset_obs is not None, self._last_reset_obs
-      obs = self._last_reset_obs
-      self._last_reset_obs = None
-      return obs
-
-    self._reset_track_stats()
-
+    self._episode_steps = 0
     if self._episode_count == 0:
       # Launch StarCraft II
       self._launch()
@@ -487,17 +450,17 @@ class SMAC(gym.Env):
       self._restart()
 
     # Information kept for counting the reward
-    self.death_tracker_ally = np.zeros(self.n_units, dtype=np.float32)
+    self.death_tracker_ally = np.zeros(self.n_agents, dtype=np.float32)
     self.death_tracker_enemy = np.zeros(self.n_enemies, dtype=np.float32)
     self.previous_ally_units = None
     self.previous_enemy_units = None
     self.win_counted = False
     self.defeat_counted = False
 
-    self.last_action = np.zeros((self.n_units, self.n_actions), dtype=np.float32)
+    self.last_action = np.zeros((self.n_agents, self.n_actions), dtype=np.float32)
 
     if self.heuristic_ai:
-      self.heuristic_targets = [None] * self.n_units
+      self.heuristic_targets = [None] * self.n_agents
 
     try:
       self._obs = self._controller.observe()
@@ -505,16 +468,27 @@ class SMAC(gym.Env):
     except (protocol.ProtocolError, protocol.ConnectionError):
       self.full_restart()
 
-    available_actions = self.get_avail_actions()
+    available_actions = []
+    for i in range(self.n_agents):
+      available_actions.append(self.get_avail_agent_actions(i))
 
     if self.debug:
-      print("Started Episode {}"
-              .format(self._episode_count).center(60, "*"))
+      logging.debug(
+        "Started Episode {}".format(self._episode_count).center(60, "*")
+      )
 
     if self.use_state_agent:
-      global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_units)]
+      global_state = [
+        self.get_state_agent(agent_id) for agent_id in range(self.n_agents)
+      ]
+    elif self.use_global_state:
+      global_state = [
+        self.get_global_state() for agent_id in range(self.n_agents)
+      ]
     else:
-      global_state = [self.get_state(agent_id) for agent_id in range(self.n_units)]
+      global_state = [
+        self.get_state(agent_id) for agent_id in range(self.n_agents)
+      ]
 
     local_obs = self.get_obs()
 
@@ -525,25 +499,29 @@ class SMAC(gym.Env):
       self.stacked_local_obs[:, -1, :] = np.array(local_obs).copy()
       self.stacked_global_state[:, -1, :] = np.array(global_state).copy()
 
-      local_obs = self.stacked_local_obs.reshape(self.n_units, -1)
-      global_state = self.stacked_global_state.reshape(self.n_units, -1)
+      local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
+      global_state = self.stacked_global_state.reshape(self.n_agents, -1)
 
-    self.mask = np.ones(self.n_units, np.float32)
-    obs_dict = dict(
-      obs=local_obs,
-      global_state=np.array(global_state, np.float32),
-      action_mask=np.array(available_actions, bool),
-      sample_mask=self.mask
+    return local_obs, global_state, available_actions
+
+  def load_state_config(self, state_type):
+    base_path = osp.split(osp.split(osp.dirname(osp.abspath(__file__)))[0])[0]
+    state_config_path = (
+      Path(base_path)
+      / "configs"
+      / "envs_cfgs"
+      / "smac_state_config"
+      / f"{state_type}.yaml"
     )
-
-    return obs_dict
+    with open(str(state_config_path), "r", encoding="utf-8") as file:
+      state_config = yaml.load(file, Loader=yaml.FullLoader)
+    return state_config
 
   def _restart(self):
     """Restart the environment by killing all units on the map.
     There is a trigger in the SC2Map file, which restarts the
     episode when there are no units left.
     """
-    self.dones = np.zeros(self.n_units, dtype=bool)
     try:
       self._kill_all_units()
       self._controller.step(2)
@@ -551,39 +529,33 @@ class SMAC(gym.Env):
       self.full_restart()
 
   def full_restart(self):
-    """Full restart. Closes the SC2 process and launches a new one. """
+    """Full restart. Closes the SC2 process and launches a new one."""
     self._sc2_proc.close()
     self._launch()
     self.force_restarts += 1
 
-  def step(self, action):
-    """ A single environment step. Returns reward, terminated, info."""
-    assert self._fake_episode_steps < self.max_episode_steps, \
-      (self._fake_episode_steps, self.max_episode_steps)
-    if self._game_over:
-      return self._fake_step(bad_episode=False)
-
+  def step(self, actions):
+    """A single environment step. Returns reward, terminated, info."""
     terminated = False
-    infos = [{} for i in range(self.n_units)]
-    self.mask = (1 - self.dones).astype(np.float32)
-    self.dones = dones = np.zeros(self.n_units, dtype=bool)
+    bad_transition = False
+    infos = [{} for i in range(self.n_agents)]
+    dones = np.zeros((self.n_agents), dtype=bool)
 
-    actions_int = [int(a) for a in action]
+    actions_int = [int(a) for a in actions]
 
     self.last_action = np.eye(self.n_actions)[np.array(actions_int)]
 
     # Collect individual actions
     sc_actions = []
     if self.debug:
-      print("Actions".center(60, "-"))
+      logging.debug("Actions".center(60, "-"))
 
-    for a_id, a in enumerate(actions_int):
+    for a_id, action in enumerate(actions_int):
       if not self.heuristic_ai:
-        sc_action = self.get_agent_action(a_id, a)
+        sc_action = self.get_agent_action(a_id, action)
       else:
-        sc_action, action_num = self.get_agent_action_heuristic(
-          a_id, a)
-        a[a_id] = action_num
+        sc_action, action_num = self.get_agent_action_heuristic(a_id, action)
+        actions[a_id] = action_num
       if sc_action:
         sc_actions.append(sc_action)
 
@@ -595,75 +567,75 @@ class SMAC(gym.Env):
       self._controller.step(self._step_mul)
       # Observe here so that we know if the episode is over.
       self._obs = self._controller.observe()
-    except (protocol.ProtocolError, protocol.ConnectionError) as e:
-      print('Restart due to an exception:', e)
-      if self._fake_episode_steps < self.max_episode_steps:
-        self._game_over = True
-        return self._fake_step(bad_episode=True)
+    except (protocol.ProtocolError, protocol.ConnectionError):
       self.full_restart()
       terminated = True
       available_actions = []
-      for i in range(self.n_units):
+      for i in range(self.n_agents):
         available_actions.append(self.get_avail_agent_actions(i))
         infos[i] = {
           "battles_won": self.battles_won,
           "battles_game": self.battles_game,
           "battles_draw": self.timeouts,
           "restarts": self.force_restarts,
-          "won": self.win_counted
+          "bad_transition": bad_transition,
+          "won": self.win_counted,
         }
-        dones[i] = True
-        
+        if terminated:
+          dones[i] = True
+        else:
+          if self.death_tracker_ally[i]:
+            dones[i] = True
+          else:
+            dones[i] = False
+
       if self.use_state_agent:
-        global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_units)]
+        global_state = [
+          self.get_state_agent(agent_id) for agent_id in range(self.n_agents)
+        ]
+      elif self.use_global_state:
+        global_state = [
+          self.get_global_state() for agent_id in range(self.n_agents)
+        ]
       else:
-        global_state = [self.get_state(agent_id) for agent_id in range(self.n_units)]
+        global_state = [
+          self.get_state(agent_id) for agent_id in range(self.n_agents)
+        ]
 
       local_obs = self.get_obs()
 
       if self.use_stacked_frames:
         self.stacked_local_obs = np.roll(self.stacked_local_obs, 1, axis=1)
-        self.stacked_global_state = np.roll(self.stacked_global_state, 1, axis=1)
+        self.stacked_global_state = np.roll(
+          self.stacked_global_state, 1, axis=1
+        )
 
         self.stacked_local_obs[:, -1, :] = np.array(local_obs).copy()
         self.stacked_global_state[:, -1, :] = np.array(global_state).copy()
 
-        local_obs = self.stacked_local_obs.reshape(self.n_units, -1)
-        global_state = self.stacked_global_state.reshape(self.n_units, -1)
-      
-      self.mask = np.ones_like(self.mask)
-      obs_dict = dict(
-        obs=local_obs,
-        global_state=np.array(global_state, np.float32),
-        action_mask=np.array(available_actions, bool),
-        sample_mask=self.mask
-      )
-      rewards = np.zeros(self.n_units, np.float32)
-      info = batch_dicts(infos)
-      info.update({
-        'dense_score': self._score * np.ones(self.n_units, np.float32),
-        'score': self.win_counted * np.ones(self.n_units, np.float32),
-        'epslen': self._episode_steps,
-        'game_over': terminated,
-        'bad_episode': False,
-        'valid_step': True
-      })
+        local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
+        global_state = self.stacked_global_state.reshape(self.n_agents, -1)
 
-      self._reset_track_stats()
-      self._reset_for_error = True
-      self._last_reset_obs = obs_dict
-      
-      return obs_dict, rewards, dones, info
+      return (
+        local_obs,
+        global_state,
+        [[0]] * self.n_agents,
+        dones,
+        infos,
+        available_actions,
+      )
 
     self._total_steps += 1
     self._episode_steps += 1
-    self._fake_episode_steps += 1
+
     # Update units
     game_end_code = self.update_units()
 
     reward = self.reward_battle()
 
-    available_actions = self.get_avail_actions()
+    available_actions = []
+    for i in range(self.n_agents):
+      available_actions.append(self.get_avail_agent_actions(i))
 
     if game_end_code is not None:
       # Battle is over
@@ -683,34 +655,35 @@ class SMAC(gym.Env):
         else:
           reward = -1
 
-    elif self._episode_steps >= self.max_episode_steps:
+    elif self._episode_steps >= self.episode_limit:
       # Episode limit reached
       terminated = True
+      bad_transition = True
       if self.continuing_episode:
-        for i in range(self.n_units):
-          infos[i]["max_episode_steps"] = True
+        info["episode_limit"] = True
       self.battles_game += 1
       self.timeouts += 1
 
-    for i in range(self.n_units):
+    for i in range(self.n_agents):
       infos[i] = {
         "battles_won": self.battles_won,
         "battles_game": self.battles_game,
         "battles_draw": self.timeouts,
         "restarts": self.force_restarts,
+        "bad_transition": bad_transition,
         "won": self.win_counted,
       }
 
       if terminated:
         dones[i] = True
       else:
-        if self.death_tracker_ally[i]:  # the agent is dead, but its allies are still fighting
+        if self.death_tracker_ally[i]:
           dones[i] = True
         else:
           dones[i] = False
 
     if self.debug:
-      print("Reward = {}".format(reward).center(60, '-'))
+      logging.debug("Reward = {}".format(reward).center(60, "-"))
 
     if terminated:
       self._episode_count += 1
@@ -718,13 +691,20 @@ class SMAC(gym.Env):
     if self.reward_scale:
       reward /= self.max_reward / self.reward_scale_rate
 
-    self._score += reward
-    rewards = reward*np.ones(self.n_units, np.float32)
+    rewards = [[reward]] * self.n_agents
 
     if self.use_state_agent:
-      global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_units)]
+      global_state = [
+        self.get_state_agent(agent_id) for agent_id in range(self.n_agents)
+      ]
+    elif self.use_global_state:
+      global_state = [
+        self.get_global_state() for agent_id in range(self.n_agents)
+      ]
     else:
-      global_state = [self.get_state(agent_id) for agent_id in range(self.n_units)]
+      global_state = [
+        self.get_state(agent_id) for agent_id in range(self.n_agents)
+      ]
 
     local_obs = self.get_obs()
 
@@ -735,57 +715,17 @@ class SMAC(gym.Env):
       self.stacked_local_obs[:, -1, :] = np.array(local_obs).copy()
       self.stacked_global_state[:, -1, :] = np.array(global_state).copy()
 
-      local_obs = self.stacked_local_obs.reshape(self.n_units, -1)
-      global_state = self.stacked_global_state.reshape(self.n_units, -1)
+      local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
+      global_state = self.stacked_global_state.reshape(self.n_agents, -1)
 
-    obs_dict = dict(
-      obs=local_obs,
-      global_state=np.array(global_state, np.float32),
-      action_mask=np.array(available_actions, bool),
-      sample_mask=self.mask
-    )
-    info = batch_dicts(infos)
-    info.update({
-      'dense_score': self._score * np.ones(self.n_units, np.float32),
-      'score': self.win_counted * np.ones(self.n_units, np.float32),
-      'epslen': self._episode_steps,
-      'game_over': self._episode_steps == self.max_episode_steps,
-      'bad_episode': False,
-      'valid_step': True
-    })
-    assert np.all(dones) == terminated, (dones, terminated)
-
-    self._reset_for_error = False
-
-    return obs_dict, rewards, dones, info
-
-  def _reset_track_stats(self):
-    self._game_over = False
-    self._score = 0
-    self._episode_steps = 0
-    self._fake_episode_steps = 0
-
-  def _fake_step(self, bad_episode):
-    self._fake_episode_steps += 1
-    obs = deepcopy(self._empty_obs)
-    info = {
-      'dense_score': self._score * np.ones(self.n_units, np.float32),
-      'score': self.win_counted * np.ones(self.n_units, np.float32),
-      'epslen': self._episode_steps,
-      'game_over': self._fake_episode_steps == self.max_episode_steps,
-      'extra_padding': self._fake_episode_steps - self._episode_steps, 
-      'bad_episode': bad_episode,
-      'valid_step': False
-    }
-
-    return obs, np.zeros(self.n_units, np.float32), \
-      np.ones(self.n_units, bool), info
+    return local_obs, global_state, rewards, dones, infos, available_actions
 
   def get_agent_action(self, a_id, action):
     """Construct the action for agent a_id."""
     avail_actions = self.get_avail_agent_actions(a_id)
-    assert avail_actions[action] == 1, \
-      "Agent {} cannot perform action {}".format(a_id, action)
+    assert avail_actions[action] == 1, "Agent {} cannot perform action {}".format(
+      a_id, action
+    )
 
     unit = self.get_unit_by_id(a_id)
     tag = unit.tag
@@ -796,60 +736,59 @@ class SMAC(gym.Env):
       # no-op (valid only when dead)
       assert unit.health == 0, "No-op only available for dead agents."
       if self.debug:
-        print("Agent {}: Dead".format(a_id))
+        logging.debug("Agent {}: Dead".format(a_id))
       return None
     elif action == 1:
       # stop
       cmd = r_pb.ActionRawUnitCommand(
-        ability_id=actions["stop"],
-        unit_tags=[tag],
-        queue_command=False)
+        ability_id=actions["stop"], unit_tags=[tag], queue_command=False
+      )
       if self.debug:
-        print("Agent {}: Stop".format(a_id))
+        logging.debug("Agent {}: Stop".format(a_id))
 
     elif action == 2:
       # move north
       cmd = r_pb.ActionRawUnitCommand(
         ability_id=actions["move"],
-        target_world_space_pos=sc_common.Point2D(
-          x=x, y=y + self._move_amount),
+        target_world_space_pos=sc_common.Point2D(x=x, y=y + self._move_amount),
         unit_tags=[tag],
-        queue_command=False)
+        queue_command=False,
+      )
       if self.debug:
-        print("Agent {}: Move North".format(a_id))
+        logging.debug("Agent {}: Move North".format(a_id))
 
     elif action == 3:
       # move south
       cmd = r_pb.ActionRawUnitCommand(
         ability_id=actions["move"],
-        target_world_space_pos=sc_common.Point2D(
-          x=x, y=y - self._move_amount),
+        target_world_space_pos=sc_common.Point2D(x=x, y=y - self._move_amount),
         unit_tags=[tag],
-        queue_command=False)
+        queue_command=False,
+      )
       if self.debug:
-        print("Agent {}: Move South".format(a_id))
+        logging.debug("Agent {}: Move South".format(a_id))
 
     elif action == 4:
       # move east
       cmd = r_pb.ActionRawUnitCommand(
         ability_id=actions["move"],
-        target_world_space_pos=sc_common.Point2D(
-          x=x + self._move_amount, y=y),
+        target_world_space_pos=sc_common.Point2D(x=x + self._move_amount, y=y),
         unit_tags=[tag],
-        queue_command=False)
+        queue_command=False,
+      )
       if self.debug:
-        print("Agent {}: Move East".format(a_id))
+        logging.debug("Agent {}: Move East".format(a_id))
 
     elif action == 5:
       # move west
       cmd = r_pb.ActionRawUnitCommand(
         ability_id=actions["move"],
-        target_world_space_pos=sc_common.Point2D(
-          x=x - self._move_amount, y=y),
+        target_world_space_pos=sc_common.Point2D(x=x - self._move_amount, y=y),
         unit_tags=[tag],
-        queue_command=False)
+        queue_command=False,
+      )
       if self.debug:
-        print("Agent {}: Move West".format(a_id))
+        logging.debug("Agent {}: Move West".format(a_id))
     else:
       # attack/heal units that are in range
       target_id = action - self.n_actions_no_attack
@@ -867,11 +806,13 @@ class SMAC(gym.Env):
         ability_id=action_id,
         target_unit_tag=target_tag,
         unit_tags=[tag],
-        queue_command=False)
+        queue_command=False,
+      )
 
       if self.debug:
-        print("Agent {} {}s unit # {}".format(
-          a_id, action_name, target_id))
+        logging.debug(
+          "Agent {} {}s unit # {}".format(a_id, action_name, target_id)
+        )
 
     sc_action = sc_pb.Action(action_raw=r_pb.ActionRaw(unit_command=cmd))
     return sc_action
@@ -882,17 +823,20 @@ class SMAC(gym.Env):
 
     target = self.heuristic_targets[a_id]
     if unit.unit_type == self.medivac_id:
-      if (target is None or self.agents[target].health == 0 or
-          self.agents[target].health == self.agents[target].health_max):
+      if (
+        target is None
+        or self.agents[target].health == 0
+        or self.agents[target].health == self.agents[target].health_max
+      ):
         min_dist = math.hypot(self.max_distance_x, self.max_distance_y)
         min_id = -1
         for al_id, al_unit in self.agents.items():
           if al_unit.unit_type == self.medivac_id:
             continue
-          if (al_unit.health != 0 and
-              al_unit.health != al_unit.health_max):
-            dist = self.distance(unit.pos.x, unit.pos.y,
-                       al_unit.pos.x, al_unit.pos.y)
+          if al_unit.health != 0 and al_unit.health != al_unit.health_max:
+            dist = self.distance(
+              unit.pos.x, unit.pos.y, al_unit.pos.x, al_unit.pos.y
+            )
             if dist < min_dist:
               min_dist = dist
               min_id = al_id
@@ -900,19 +844,22 @@ class SMAC(gym.Env):
         if min_id == -1:
           self.heuristic_targets[a_id] = None
           return None, 0
-      action_id = actions['heal']
+      action_id = actions["heal"]
       target_tag = self.agents[self.heuristic_targets[a_id]].tag
     else:
       if target is None or self.enemies[target].health == 0:
         min_dist = math.hypot(self.max_distance_x, self.max_distance_y)
         min_id = -1
         for e_id, e_unit in self.enemies.items():
-          if (unit.unit_type == self.marauder_id and
-              e_unit.unit_type == self.medivac_id):
+          if (
+            unit.unit_type == self.marauder_id
+            and e_unit.unit_type == self.medivac_id
+          ):
             continue
           if e_unit.health > 0:
-            dist = self.distance(unit.pos.x, unit.pos.y,
-                       e_unit.pos.x, e_unit.pos.y)
+            dist = self.distance(
+              unit.pos.x, unit.pos.y, e_unit.pos.x, e_unit.pos.y
+            )
             if dist < min_dist:
               min_dist = dist
               min_id = e_id
@@ -920,15 +867,13 @@ class SMAC(gym.Env):
         if min_id == -1:
           self.heuristic_targets[a_id] = None
           return None, 0
-      action_id = actions['attack']
+      action_id = actions["attack"]
       target_tag = self.enemies[self.heuristic_targets[a_id]].tag
 
     action_num = self.heuristic_targets[a_id] + self.n_actions_no_attack
 
     # Check if the action is available
-    if (self.heuristic_rest and
-        self.get_avail_agent_actions(a_id)[action_num] == 0):
-
+    if self.heuristic_rest and self.get_avail_agent_actions(a_id)[action_num] == 0:
       # Move towards the target rather than attacking/healing
       if unit.unit_type == self.medivac_id:
         target_unit = self.agents[self.heuristic_targets[a_id]]
@@ -941,34 +886,40 @@ class SMAC(gym.Env):
       if abs(delta_x) > abs(delta_y):  # east or west
         if delta_x > 0:  # east
           target_pos = sc_common.Point2D(
-            x=unit.pos.x + self._move_amount, y=unit.pos.y)
+            x=unit.pos.x + self._move_amount, y=unit.pos.y
+          )
           action_num = 4
         else:  # west
           target_pos = sc_common.Point2D(
-            x=unit.pos.x - self._move_amount, y=unit.pos.y)
+            x=unit.pos.x - self._move_amount, y=unit.pos.y
+          )
           action_num = 5
       else:  # north or south
         if delta_y > 0:  # north
           target_pos = sc_common.Point2D(
-            x=unit.pos.x, y=unit.pos.y + self._move_amount)
+            x=unit.pos.x, y=unit.pos.y + self._move_amount
+          )
           action_num = 2
         else:  # south
           target_pos = sc_common.Point2D(
-            x=unit.pos.x, y=unit.pos.y - self._move_amount)
+            x=unit.pos.x, y=unit.pos.y - self._move_amount
+          )
           action_num = 3
 
       cmd = r_pb.ActionRawUnitCommand(
-        ability_id=actions['move'],
+        ability_id=actions["move"],
         target_world_space_pos=target_pos,
         unit_tags=[tag],
-        queue_command=False)
+        queue_command=False,
+      )
     else:
       # Attack/heal the target
       cmd = r_pb.ActionRawUnitCommand(
         ability_id=action_id,
         target_unit_tag=target_tag,
         unit_tags=[tag],
-        queue_command=False)
+        queue_command=False,
+      )
 
     sc_action = sc_pb.Action(action_raw=r_pb.ActionRaw(unit_command=cmd))
     return sc_action, action_num
@@ -983,7 +934,7 @@ class SMAC(gym.Env):
     if self.reward_sparse:
       return 0
 
-    reward = np.zeros(self.n_units, np.float32)
+    reward = 0
     delta_deaths = 0
     delta_ally = 0
     delta_enemy = 0
@@ -991,25 +942,24 @@ class SMAC(gym.Env):
     neg_scale = self.reward_negative_scale
 
     # update deaths
-    for aid, unit in self.agents.items():
-      if not self.death_tracker_ally[aid]:
+    for al_id, al_unit in self.agents.items():
+      if not self.death_tracker_ally[al_id]:
         # did not die so far
         prev_health = (
-          self.previous_ally_units[aid].health
-          + self.previous_ally_units[aid].shield
+          self.previous_ally_units[al_id].health
+          + self.previous_ally_units[al_id].shield
         )
-        if unit.health == 0:
+        if al_unit.health == 0:
           # just died
-          self.death_tracker_ally[aid] = 1
+          self.death_tracker_ally[al_id] = 1
           if not self.reward_only_positive:
-            reward[aid] -= self.reward_death_value * neg_scale
-            reward[aid] -= prev_health * neg_scale
+            delta_deaths -= self.reward_death_value * neg_scale
+          delta_ally += prev_health * neg_scale
         else:
           # still alive
-          if not self.reward_only_positive:
-            reward[aid] -= neg_scale * (
-              prev_health - unit.health - unit.shield
-            )
+          delta_ally += neg_scale * (
+            prev_health - al_unit.health - al_unit.shield
+          )
 
     for e_id, e_unit in self.enemies.items():
       if not self.death_tracker_enemy[e_id]:
@@ -1025,7 +975,9 @@ class SMAC(gym.Env):
           delta_enemy += prev_health - e_unit.health - e_unit.shield
 
     if self.reward_only_positive:
-      reward += abs(delta_enemy + delta_deaths)  # shield regeneration
+      reward = abs(delta_enemy + delta_deaths)  # shield regeneration
+    else:
+      reward = delta_enemy + delta_deaths - delta_ally
 
     return reward
 
@@ -1057,16 +1009,17 @@ class SMAC(gym.Env):
       self.colossus_id: 24,
       self.hydralisk_id: 10,
       self.zergling_id: 11,
-      self.baneling_id: 1
+      self.baneling_id: 1,
     }
     return switcher.get(unit.unit_type, 15)
 
   def save_replay(self):
     """Save a replay."""
-    prefix = self.replay_prefix or self.name
+    prefix = self.replay_prefix or self.map_name
     replay_dir = self.replay_dir or ""
     replay_path = self._run_config.save_replay(
-      self._controller.save_replay(), replay_dir=replay_dir, prefix=prefix)
+      self._controller.save_replay(), replay_dir=replay_dir, prefix=prefix
+    )
     logging.info("Replay saved at: %s" % replay_path)
 
   def unit_max_shield(self, unit):
@@ -1121,14 +1074,13 @@ class SMAC(gym.Env):
 
   def check_bounds(self, x, y):
     """Whether a point is within the map bounds."""
-    return (0 <= x < self.map_x and 0 <= y < self.map_y)
+    return 0 <= x < self.map_x and 0 <= y < self.map_y
 
   def get_surrounding_pathing(self, unit):
     """Returns pathing values of the grid surrounding the given unit."""
     points = self.get_surrounding_points(unit, include_self=False)
     vals = [
-      self.pathing_grid[x, y] if self.check_bounds(x, y) else 1
-      for x, y in points
+      self.pathing_grid[x, y] if self.check_bounds(x, y) else 1 for x, y in points
     ]
     return vals
 
@@ -1144,27 +1096,27 @@ class SMAC(gym.Env):
   def get_obs_agent(self, agent_id):
     """Returns observation for agent_id. The observation is composed of:
 
-       - agent movement features (where it can move to, height information and pathing grid)
-       - enemy features (available_to_attack, health, relative_x, relative_y, shield, unit_type)
-       - ally features (visible, distance, relative_x, relative_y, shield, unit_type)
-       - agent unit features (health, shield, unit_type)
+    - agent movement features (where it can move to, height information and pathing grid)
+    - enemy features (available_to_attack, health, relative_x, relative_y, shield, unit_type)
+    - ally features (visible, distance, relative_x, relative_y, shield, unit_type)
+    - agent unit features (health, shield, unit_type)
 
-       All of this information is flattened and concatenated into a list,
-       in the aforementioned order. To know the sizes of each of the
-       features inside the final list of features, take a look at the
-       functions ``get_obs_move_feats_size()``,
-       ``get_obs_enemy_feats_size()``, ``get_obs_ally_feats_size()`` and
-       ``get_obs_own_feats_size()``.
+    All of this information is flattened and concatenated into a list,
+    in the aforementioned order. To know the sizes of each of the
+    features inside the final list of features, take a look at the
+    functions ``get_obs_move_feats_size()``,
+    ``get_obs_enemy_feats_size()``, ``get_obs_ally_feats_size()`` and
+    ``get_obs_own_feats_size()``.
 
-       The size of the observation vector may vary, depending on the
-       environment configuration and type of units present in the map.
-       For instance, non-Protoss units will not have shields, movement
-       features may or may not include terrain height and pathing grid,
-       unit_type is not included if there is only one type of unit in the
-       map etc.).
+    The size of the observation vector may vary, depending on the
+    environment configuration and type of units present in the map.
+    For instance, non-Protoss units will not have shields, movement
+    features may or may not include terrain height and pathing grid,
+    unit_type is not included if there is only one type of unit in the
+    map etc.).
 
-       NOTE: Agents should have access only to their local observations
-       during decentralised execution.
+    NOTE: Agents should have access only to their local observations
+    during decentralised execution.
     """
     unit = self.get_unit_by_id(agent_id)
 
@@ -1177,7 +1129,7 @@ class SMAC(gym.Env):
     enemy_feats = np.zeros(enemy_feats_dim, dtype=np.float32)
     ally_feats = np.zeros(ally_feats_dim, dtype=np.float32)
     own_feats = np.zeros(own_feats_dim, dtype=np.float32)
-    agent_id_feats = np.zeros(self.n_units, dtype=np.float32)
+    agent_id_feats = np.zeros(self.n_agents, dtype=np.float32)
 
     if unit.health > 0:  # otherwise dead, return all zeros
       x = unit.pos.x
@@ -1192,7 +1144,9 @@ class SMAC(gym.Env):
       ind = self.n_actions_move
 
       if self.obs_pathing_grid:
-        move_feats[ind: ind + self.n_obs_pathing] = self.get_surrounding_pathing(unit)
+        move_feats[
+          ind : ind + self.n_obs_pathing
+        ] = self.get_surrounding_pathing(unit)
         ind += self.n_obs_pathing
 
       if self.obs_terrain_height:
@@ -1204,20 +1158,27 @@ class SMAC(gym.Env):
         e_y = e_unit.pos.y
         dist = self.distance(x, y, e_x, e_y)
 
-        if (dist < sight_range and e_unit.health > 0):  # visible and alive
+        if dist < sight_range and e_unit.health > 0:  # visible and alive
           # Sight range > shoot range
-          enemy_feats[e_id, 0] = avail_actions[self.n_actions_no_attack + e_id]  # available
+          # available
+          enemy_feats[e_id, 0] = avail_actions[
+            self.n_actions_no_attack + e_id
+          ]
           enemy_feats[e_id, 1] = dist / sight_range  # distance
           enemy_feats[e_id, 2] = (e_x - x) / sight_range  # relative X
           enemy_feats[e_id, 3] = (e_y - y) / sight_range  # relative Y
 
           ind = 4
           if self.obs_all_health:
-            enemy_feats[e_id, ind] = (e_unit.health / e_unit.health_max)  # health
+            enemy_feats[e_id, ind] = (
+              e_unit.health / e_unit.health_max
+            )  # health
             ind += 1
             if self.shield_bits_enemy > 0:
               max_shield = self.unit_max_shield(e_unit)
-              enemy_feats[e_id, ind] = (e_unit.shield / max_shield)  # shield
+              enemy_feats[e_id, ind] = (
+                e_unit.shield / max_shield
+              )  # shield
               ind += 1
 
           if self.unit_type_bits > 0:
@@ -1225,15 +1186,14 @@ class SMAC(gym.Env):
             enemy_feats[e_id, ind + type_id] = 1  # unit type
 
       # Ally features
-      al_ids = [al_id for al_id in range(self.n_units) if al_id != agent_id]
+      al_ids = [al_id for al_id in range(self.n_agents) if al_id != agent_id]
       for i, al_id in enumerate(al_ids):
-
         al_unit = self.get_unit_by_id(al_id)
         al_x = al_unit.pos.x
         al_y = al_unit.pos.y
         dist = self.distance(x, y, al_x, al_y)
 
-        if (dist < sight_range and al_unit.health > 0):  # visible and alive
+        if dist < sight_range and al_unit.health > 0:  # visible and alive
           ally_feats[i, 0] = 1  # visible
           ally_feats[i, 1] = dist / sight_range  # distance
           ally_feats[i, 2] = (al_x - x) / sight_range  # relative X
@@ -1241,11 +1201,13 @@ class SMAC(gym.Env):
 
           ind = 4
           if self.obs_all_health:
-            ally_feats[i, ind] = (al_unit.health / al_unit.health_max)  # health
+            ally_feats[i, ind] = (
+              al_unit.health / al_unit.health_max
+            )  # health
             ind += 1
             if self.shield_bits_ally > 0:
               max_shield = self.unit_max_shield(al_unit)
-              ally_feats[i, ind] = (al_unit.shield / max_shield)  # shield
+              ally_feats[i, ind] = al_unit.shield / max_shield  # shield
               ind += 1
 
           if self.unit_type_bits > 0:
@@ -1279,31 +1241,40 @@ class SMAC(gym.Env):
       if self.obs_last_action:
         own_feats[ind:] = self.last_action[agent_id]
 
-    agent_obs = np.concatenate((ally_feats.flatten(),
-                    enemy_feats.flatten(),
-                    move_feats.flatten(),
-                    own_feats.flatten()))
+    agent_obs = np.concatenate(
+      (
+        ally_feats.flatten(),
+        enemy_feats.flatten(),
+        move_feats.flatten(),
+        own_feats.flatten(),
+      )
+    )
 
     # Agent id features
     if self.obs_agent_id:
-      agent_id_feats[agent_id] = 1.
-      agent_obs = np.concatenate((ally_feats.flatten(),
-                      enemy_feats.flatten(),
-                      move_feats.flatten(),
-                      own_feats.flatten(),
-                      agent_id_feats.flatten()))
+      agent_id_feats[agent_id] = 1.0
+      agent_obs = np.concatenate(
+        (
+          ally_feats.flatten(),
+          enemy_feats.flatten(),
+          move_feats.flatten(),
+          own_feats.flatten(),
+          agent_id_feats.flatten(),
+        )
+      )
 
     if self.obs_timestep_number:
-      agent_obs = np.append(agent_obs, self._episode_steps / self.max_episode_steps)
+      agent_obs = np.append(agent_obs, self._episode_steps / self.episode_limit)
 
     if self.debug:
-      print("Obs Agent: {}".format(agent_id).center(60, "-"))
-      print("Avail. actions {}".format(
-        self.get_avail_agent_actions(agent_id)))
-      print("Move feats {}".format(move_feats))
-      print("Enemy feats {}".format(enemy_feats))
-      print("Ally feats {}".format(ally_feats))
-      print("Own feats {}".format(own_feats))
+      logging.debug("Obs Agent: {}".format(agent_id).center(60, "-"))
+      logging.debug(
+        "Avail. actions {}".format(self.get_avail_agent_actions(agent_id))
+      )
+      logging.debug("Move feats {}".format(move_feats))
+      logging.debug("Enemy feats {}".format(enemy_feats))
+      logging.debug("Ally feats {}".format(ally_feats))
+      logging.debug("Own feats {}".format(own_feats))
 
     return agent_obs
 
@@ -1312,8 +1283,7 @@ class SMAC(gym.Env):
     NOTE: Agents should have access only to their local observations
     during decentralised execution.
     """
-    agents_obs = np.array(
-      [self.get_obs_agent(i) for i in range(self.n_units)], dtype=np.float32)
+    agents_obs = [self.get_obs_agent(i) for i in range(self.n_agents)]
     return agents_obs
 
   def get_state(self, agent_id=-1):
@@ -1352,21 +1322,23 @@ class SMAC(gym.Env):
 
     nf_mv = self.get_state_move_feats_size()
 
-    ally_state = np.zeros((self.n_units, nf_al), dtype=np.float32)
+    ally_state = np.zeros((self.n_agents, nf_al), dtype=np.float32)
     enemy_state = np.zeros((self.n_enemies, nf_en), dtype=np.float32)
     move_state = np.zeros((1, nf_mv), dtype=np.float32)
-    agent_id_feats = np.zeros((self.n_units, 1), dtype=np.float32)
+    agent_id_feats = np.zeros((self.n_agents, 1), dtype=np.float32)
 
     center_x = self.map_x / 2
     center_y = self.map_y / 2
 
-    unit = self.get_unit_by_id(agent_id)# get the unit of some agent 
+    unit = self.get_unit_by_id(agent_id)  # get the unit of some agent
     x = unit.pos.x
     y = unit.pos.y
     sight_range = self.unit_sight_range(agent_id)
-    avail_actions = self.get_avail_agent_actions(agent_id) 
+    avail_actions = self.get_avail_agent_actions(agent_id)
 
-    if (self.use_mustalive and unit.health > 0) or (not self.use_mustalive): # or else all zeros
+    if (self.use_mustalive and unit.health > 0) or (
+      not self.use_mustalive
+    ):  # or else all zeros
       # Movement features
       for m in range(self.n_actions_move):
         move_state[0, m] = avail_actions[m + 2]
@@ -1374,12 +1346,14 @@ class SMAC(gym.Env):
       ind = self.n_actions_move
 
       if self.state_pathing_grid:
-        move_state[0, ind: ind + self.n_obs_pathing] = self.get_surrounding_pathing(unit)
+        move_state[
+          0, ind : ind + self.n_obs_pathing
+        ] = self.get_surrounding_pathing(unit)
         ind += self.n_obs_pathing
 
       if self.state_terrain_height:
         move_state[0, ind:] = self.get_surrounding_height(unit)
-                    
+
       for al_id, al_unit in self.agents.items():
         if al_unit.health > 0:
           al_x = al_unit.pos.x
@@ -1387,22 +1361,29 @@ class SMAC(gym.Env):
           max_cd = self.unit_max_cooldown(al_unit)
           dist = self.distance(x, y, al_x, al_y)
 
-          ally_state[al_id, 0] = (al_unit.health / al_unit.health_max)  # health
-          if (self.map_type == "MMM" and al_unit.unit_type == self.medivac_id):
+          ally_state[al_id, 0] = al_unit.health / al_unit.health_max  # health
+          if self.map_type == "MMM" and al_unit.unit_type == self.medivac_id:
             ally_state[al_id, 1] = al_unit.energy / max_cd  # energy
           else:
-            ally_state[al_id, 1] = (al_unit.weapon_cooldown / max_cd)  # cooldown
-          
+            ally_state[al_id, 1] = (
+              al_unit.weapon_cooldown / max_cd
+            )  # cooldown
+
           ind = 2
-          
+
           if self.add_center_xy:
-            ally_state[al_id, ind] = (al_x - center_x) / self.max_distance_x  # center X
-            ally_state[al_id, ind+1] = (al_y - center_y) / self.max_distance_y  # center Y
+            ally_state[al_id, ind] = (
+              al_x - center_x
+            ) / self.max_distance_x  # center X
+            # center Y
+            ally_state[al_id, ind + 1] = (
+              al_y - center_y
+            ) / self.max_distance_y
             ind += 2
 
           if self.shield_bits_ally > 0:
             max_shield = self.unit_max_shield(al_unit)
-            ally_state[al_id, ind] = (al_unit.shield / max_shield)  # shield
+            ally_state[al_id, ind] = al_unit.shield / max_shield  # shield
             ind += 1
 
           if self.unit_type_bits > 0:
@@ -1415,12 +1396,15 @@ class SMAC(gym.Env):
               ally_state[al_id, ind] = dist / sight_range  # distance
               ind += 1
             if self.add_xy_state:
-              ally_state[al_id, ind] = (al_x - x) / sight_range  # relative X
-              ally_state[al_id, ind + 1] = (al_y - y) / sight_range  # relative Y
+              ally_state[al_id, ind] = (
+                al_x - x
+              ) / sight_range  # relative X
+              # relative Y
+              ally_state[al_id, ind + 1] = (al_y - y) / sight_range
               ind += 2
             if self.add_visible_state:
               if dist < sight_range:
-                ally_state[al_id, ind] = 1 # visible
+                ally_state[al_id, ind] = 1  # visible
               ind += 1
             if self.state_last_action:
               ally_state[al_id, ind:] = self.last_action[al_id]
@@ -1431,17 +1415,22 @@ class SMAC(gym.Env):
           e_y = e_unit.pos.y
           dist = self.distance(x, y, e_x, e_y)
 
-          enemy_state[e_id, 0] = (e_unit.health / e_unit.health_max)  # health         
-          
+          enemy_state[e_id, 0] = e_unit.health / e_unit.health_max  # health
+
           ind = 1
           if self.add_center_xy:
-            enemy_state[e_id, ind] = (e_x - center_x) / self.max_distance_x  # center X
-            enemy_state[e_id, ind+1] = (e_y - center_y) / self.max_distance_y  # center Y
+            enemy_state[e_id, ind] = (
+              e_x - center_x
+            ) / self.max_distance_x  # center X
+            # center Y
+            enemy_state[e_id, ind + 1] = (
+              e_y - center_y
+            ) / self.max_distance_y
             ind += 2
-            
+
           if self.shield_bits_enemy > 0:
             max_shield = self.unit_max_shield(e_unit)
-            enemy_state[e_id, ind] = (e_unit.shield / max_shield)  # shield
+            enemy_state[e_id, ind] = e_unit.shield / max_shield  # shield
             ind += 1
 
           if self.unit_type_bits > 0:
@@ -1454,18 +1443,24 @@ class SMAC(gym.Env):
               enemy_state[e_id, ind] = dist / sight_range  # distance
               ind += 1
             if self.add_xy_state:
-              enemy_state[e_id, ind] = (e_x - x) / sight_range  # relative X
-              enemy_state[e_id, ind + 1] = (e_y - y) / sight_range  # relative Y
+              enemy_state[e_id, ind] = (
+                e_x - x
+              ) / sight_range  # relative X
+              # relative Y
+              enemy_state[e_id, ind + 1] = (e_y - y) / sight_range
               ind += 2
             if self.add_visible_state:
               if dist < sight_range:
-                enemy_state[e_id, ind] = 1 # visible
+                enemy_state[e_id, ind] = 1  # visible
               ind += 1
             if self.add_enemy_action_state:
-              enemy_state[e_id, ind] = avail_actions[self.n_actions_no_attack + e_id]  # available
+              # available
+              enemy_state[e_id, ind] = avail_actions[
+                self.n_actions_no_attack + e_id
+              ]
 
     state = np.append(ally_state.flatten(), enemy_state.flatten())
-         
+
     if self.add_move_state:
       state = np.append(state, move_state.flatten())
 
@@ -1473,7 +1468,7 @@ class SMAC(gym.Env):
       state = np.append(state, self.get_obs_agent(agent_id).flatten())
 
     if self.state_timestep_number:
-      state = np.append(state, self._episode_steps / self.max_episode_steps)
+      state = np.append(state, self._episode_steps / self.episode_limit)
 
     if self.add_agent_id:
       agent_id_feats[agent_id] = 1.0
@@ -1481,45 +1476,182 @@ class SMAC(gym.Env):
 
     state = state.astype(dtype=np.float32)
 
-    # if self.debug:
-    #   print("STATE".center(60, "-"))
-    #   print("Ally state {}".format(ally_state))
-    #   print("Enemy state {}".format(enemy_state))
-    #   print("Move state {}".format(move_state))
-    #   if self.state_last_action:
-    #     print("Last actions {}".format(self.last_action))
+    if self.debug:
+      logging.debug("STATE".center(60, "-"))
+      logging.debug("Ally state {}".format(ally_state))
+      logging.debug("Enemy state {}".format(enemy_state))
+      logging.debug("Move state {}".format(move_state))
+      if self.state_last_action:
+        logging.debug("Last actions {}".format(self.last_action))
 
     return state
-  
-  def get_state_agent(self, agent_id):
-    """Returns observation for agent_id. The observation is composed of:
 
-       - agent movement features (where it can move to, height information and pathing grid)
-       - enemy features (available_to_attack, health, relative_x, relative_y, shield, unit_type)
-       - ally features (visible, distance, relative_x, relative_y, shield, unit_type)
-       - agent unit features (health, shield, unit_type)
-
-       All of this information is flattened and concatenated into a list,
-       in the aforementioned order. To know the sizes of each of the
-       features inside the final list of features, take a look at the
-       functions ``get_obs_move_feats_size()``,
-       ``get_obs_enemy_feats_size()``, ``get_obs_ally_feats_size()`` and
-       ``get_obs_own_feats_size()``.
-
-       The size of the observation vector may vary, depending on the
-       environment configuration and type of units present in the map.
-       For instance, non-Protoss units will not have shields, movement
-       features may or may not include terrain height and pathing grid,
-       unit_type is not included if there is only one type of unit in the
-       map etc.).
-
-       NOTE: Agents should have access only to their local observations
-       during decentralised execution.
+  def get_global_state(self):
+    """Returns the agent-agnostic global state.
+    NOTE: This functon should not be used during decentralised execution.
     """
     if self.obs_instead_of_state:
       obs_concat = np.concatenate(self.get_obs(), axis=0).astype(np.float32)
       return obs_concat
-      
+
+    nf_al = 2 + self.shield_bits_ally + self.unit_type_bits
+    nf_en = 1 + self.shield_bits_enemy + self.unit_type_bits
+
+    if self.add_center_xy:
+      nf_al += 2
+      nf_en += 2
+
+    if self.state_last_action:
+      nf_al += self.n_actions
+
+    nf_mv_glb = self.get_state_move_feats_size_global()
+
+    ally_state = np.zeros((self.n_agents, nf_al), dtype=np.float32)
+    enemy_state = np.zeros((self.n_enemies, nf_en), dtype=np.float32)
+    move_state = np.zeros((self.n_agents, nf_mv_glb), dtype=np.float32)
+    info_state = np.zeros((1, 5), dtype=np.float32)
+
+    center_x = self.map_x / 2
+    center_y = self.map_y / 2
+
+    # move_state
+    for agent_id in range(self.n_agents):
+      unit = self.get_unit_by_id(agent_id)
+      avail_actions = self.get_avail_agent_actions(agent_id)
+      for m in range(self.n_actions):
+        move_state[agent_id, m] = avail_actions[m]
+      ind = self.n_actions
+      if self.state_pathing_grid:
+        move_state[
+          agent_id, ind : ind + self.n_obs_pathing
+        ] = self.get_surrounding_pathing(unit)
+        ind += self.n_obs_pathing
+      if self.state_terrain_height:
+        move_state[agent_id, ind:] = self.get_surrounding_height(unit)
+
+    # ally_state
+    for al_id, al_unit in self.agents.items():
+      if al_unit.health > 0:
+        al_x = al_unit.pos.x
+        al_y = al_unit.pos.y
+        max_cd = self.unit_max_cooldown(al_unit)
+
+        ally_state[al_id, 0] = al_unit.health / al_unit.health_max  # health
+        if self.map_type == "MMM" and al_unit.unit_type == self.medivac_id:
+          ally_state[al_id, 1] = al_unit.energy / max_cd  # energy
+        else:
+          ally_state[al_id, 1] = al_unit.weapon_cooldown / max_cd  # cooldown
+
+        ind = 2
+
+        if self.add_center_xy:
+          ally_state[al_id, ind] = (
+            al_x - center_x
+          ) / self.max_distance_x  # center X
+          # center Y
+          ally_state[al_id, ind + 1] = (al_y - center_y) / self.max_distance_y
+          ind += 2
+
+        if self.shield_bits_ally > 0:
+          max_shield = self.unit_max_shield(al_unit)
+          ally_state[al_id, ind] = al_unit.shield / max_shield  # shield
+          ind += 1
+
+        if self.unit_type_bits > 0:
+          type_id = self.get_unit_type_id(al_unit, True)
+          ally_state[al_id, ind + type_id] = 1
+          ind += self.unit_type_bits
+
+        if self.state_last_action:
+          ally_state[al_id, ind:] = self.last_action[al_id]
+
+    # enemy_state
+    for e_id, e_unit in self.enemies.items():
+      if e_unit.health > 0:
+        e_x = e_unit.pos.x
+        e_y = e_unit.pos.y
+
+        enemy_state[e_id, 0] = e_unit.health / e_unit.health_max  # health
+
+        ind = 1
+        if self.add_center_xy:
+          enemy_state[e_id, ind] = (
+            e_x - center_x
+          ) / self.max_distance_x  # center X
+          # center Y
+          enemy_state[e_id, ind + 1] = (e_y - center_y) / self.max_distance_y
+          ind += 2
+
+        if self.shield_bits_enemy > 0:
+          max_shield = self.unit_max_shield(e_unit)
+          enemy_state[e_id, ind] = e_unit.shield / max_shield  # shield
+          ind += 1
+
+        if self.unit_type_bits > 0:
+          type_id = self.get_unit_type_id(e_unit, False)
+          enemy_state[e_id, ind + type_id] = 1
+          ind += self.unit_type_bits
+
+    # info_state
+    info_state[0, 0] = self.map_x
+    info_state[0, 1] = self.map_y
+    info_state[0, 2] = self.max_distance_x
+    info_state[0, 3] = self.max_distance_y
+    info_state[0, 4] = self.unit_sight_range(0)
+
+    state = np.append(ally_state.flatten(), enemy_state.flatten())
+
+    if self.add_move_state:
+      state = np.append(state, move_state.flatten())
+
+    if self.state_timestep_number:
+      state = np.append(state, self._episode_steps / self.episode_limit)
+
+    if self.global_state_include_info:
+      state = np.append(state, info_state.flatten())
+
+    state = state.astype(dtype=np.float32)
+
+    if self.debug:
+      logging.debug("STATE".center(60, "-"))
+      logging.debug("Ally state {}".format(ally_state))
+      logging.debug("Enemy state {}".format(enemy_state))
+      logging.debug("Move state {}".format(move_state))
+      logging.debug("Info state {}".format(info_state))
+      if self.state_last_action:
+        logging.debug("Last actions {}".format(self.last_action))
+
+    return state
+
+  def get_state_agent(self, agent_id):
+    """Returns observation for agent_id. The observation is composed of:
+
+    - agent movement features (where it can move to, height information and pathing grid)
+    - enemy features (available_to_attack, health, relative_x, relative_y, shield, unit_type)
+    - ally features (visible, distance, relative_x, relative_y, shield, unit_type)
+    - agent unit features (health, shield, unit_type)
+
+    All of this information is flattened and concatenated into a list,
+    in the aforementioned order. To know the sizes of each of the
+    features inside the final list of features, take a look at the
+    functions ``get_obs_move_feats_size()``,
+    ``get_obs_enemy_feats_size()``, ``get_obs_ally_feats_size()`` and
+    ``get_obs_own_feats_size()``.
+
+    The size of the observation vector may vary, depending on the
+    environment configuration and type of units present in the map.
+    For instance, non-Protoss units will not have shields, movement
+    features may or may not include terrain height and pathing grid,
+    unit_type is not included if there is only one type of unit in the
+    map etc.).
+
+    NOTE: Agents should have access only to their local observations
+    during decentralised execution.
+    """
+    if self.obs_instead_of_state:
+      obs_concat = np.concatenate(self.get_obs(), axis=0).astype(np.float32)
+      return obs_concat
+
     unit = self.get_unit_by_id(agent_id)
 
     move_feats_dim = self.get_obs_move_feats_size()
@@ -1531,12 +1663,13 @@ class SMAC(gym.Env):
     enemy_feats = np.zeros(enemy_feats_dim, dtype=np.float32)
     ally_feats = np.zeros(ally_feats_dim, dtype=np.float32)
     own_feats = np.zeros(own_feats_dim, dtype=np.float32)
-    agent_id_feats = np.zeros(self.n_units, dtype=np.float32)
+    agent_id_feats = np.zeros(self.n_agents, dtype=np.float32)
 
     center_x = self.map_x / 2
     center_y = self.map_y / 2
 
-    if (self.use_mustalive and unit.health > 0) or (not self.use_mustalive):  # otherwise dead, return all zeros
+    # otherwise dead, return all zeros
+    if (self.use_mustalive and unit.health > 0) or (not self.use_mustalive):
       x = unit.pos.x
       y = unit.pos.y
       sight_range = self.unit_sight_range(agent_id)
@@ -1549,7 +1682,9 @@ class SMAC(gym.Env):
       ind = self.n_actions_move
 
       if self.state_pathing_grid:
-        move_feats[ind: ind + self.n_obs_pathing] = self.get_surrounding_pathing(unit)
+        move_feats[
+          ind : ind + self.n_obs_pathing
+        ] = self.get_surrounding_pathing(unit)
         ind += self.n_obs_pathing
 
       if self.state_terrain_height:
@@ -1564,7 +1699,10 @@ class SMAC(gym.Env):
         if e_unit.health > 0:  # visible and alive
           # Sight range > shoot range
           if unit.health > 0:
-            enemy_feats[e_id, 0] = avail_actions[self.n_actions_no_attack + e_id]  # available
+            # available
+            enemy_feats[e_id, 0] = avail_actions[
+              self.n_actions_no_attack + e_id
+            ]
             enemy_feats[e_id, 1] = dist / sight_range  # distance
             enemy_feats[e_id, 2] = (e_x - x) / sight_range  # relative X
             enemy_feats[e_id, 3] = (e_y - y) / sight_range  # relative Y
@@ -1573,11 +1711,15 @@ class SMAC(gym.Env):
 
           ind = 5
           if self.obs_all_health:
-            enemy_feats[e_id, ind] = (e_unit.health / e_unit.health_max)  # health
+            enemy_feats[e_id, ind] = (
+              e_unit.health / e_unit.health_max
+            )  # health
             ind += 1
             if self.shield_bits_enemy > 0:
               max_shield = self.unit_max_shield(e_unit)
-              enemy_feats[e_id, ind] = (e_unit.shield / max_shield)  # shield
+              enemy_feats[e_id, ind] = (
+                e_unit.shield / max_shield
+              )  # shield
               ind += 1
 
           if self.unit_type_bits > 0:
@@ -1586,13 +1728,17 @@ class SMAC(gym.Env):
             ind += self.unit_type_bits
 
           if self.add_center_xy:
-            enemy_feats[e_id, ind] = (e_x - center_x) / self.max_distance_x  # center X
-            enemy_feats[e_id, ind+1] = (e_y - center_y) / self.max_distance_y  # center Y
+            enemy_feats[e_id, ind] = (
+              e_x - center_x
+            ) / self.max_distance_x  # center X
+            # center Y
+            enemy_feats[e_id, ind + 1] = (
+              e_y - center_y
+            ) / self.max_distance_y
 
       # Ally features
-      al_ids = [al_id for al_id in range(self.n_units) if al_id != agent_id]
+      al_ids = [al_id for al_id in range(self.n_agents) if al_id != agent_id]
       for i, al_id in enumerate(al_ids):
-
         al_unit = self.get_unit_by_id(al_id)
         al_x = al_unit.pos.x
         al_y = al_unit.pos.y
@@ -1607,23 +1753,28 @@ class SMAC(gym.Env):
             ally_feats[i, 2] = (al_x - x) / sight_range  # relative X
             ally_feats[i, 3] = (al_y - y) / sight_range  # relative Y
 
-          if (self.map_type == "MMM" and al_unit.unit_type == self.medivac_id):
+          if self.map_type == "MMM" and al_unit.unit_type == self.medivac_id:
             ally_feats[i, 4] = al_unit.energy / max_cd  # energy
           else:
-            ally_feats[i, 4] = (al_unit.weapon_cooldown / max_cd)  # cooldown
+            ally_feats[i, 4] = al_unit.weapon_cooldown / max_cd  # cooldown
 
           ind = 5
           if self.obs_all_health:
-            ally_feats[i, ind] = (al_unit.health / al_unit.health_max)  # health
+            ally_feats[i, ind] = (
+              al_unit.health / al_unit.health_max
+            )  # health
             ind += 1
             if self.shield_bits_ally > 0:
               max_shield = self.unit_max_shield(al_unit)
-              ally_feats[i, ind] = (al_unit.shield / max_shield)  # shield
+              ally_feats[i, ind] = al_unit.shield / max_shield  # shield
               ind += 1
 
           if self.add_center_xy:
-            ally_feats[i, ind] = (al_x - center_x) / self.max_distance_x  # center X
-            ally_feats[i, ind+1] = (al_y - center_y) / self.max_distance_y  # center Y
+            ally_feats[i, ind] = (
+              al_x - center_x
+            ) / self.max_distance_x  # center X
+            # center Y
+            ally_feats[i, ind + 1] = (al_y - center_y) / self.max_distance_y
             ind += 2
 
           if self.unit_type_bits > 0:
@@ -1651,7 +1802,7 @@ class SMAC(gym.Env):
 
       if self.add_center_xy:
         own_feats[ind] = (x - center_x) / self.max_distance_x  # center X
-        own_feats[ind+1] = (y - center_y) / self.max_distance_y  # center Y
+        own_feats[ind + 1] = (y - center_y) / self.max_distance_y  # center Y
         ind += 2
 
       if self.unit_type_bits > 0:
@@ -1662,32 +1813,37 @@ class SMAC(gym.Env):
       if self.state_last_action:
         own_feats[ind:] = self.last_action[agent_id]
 
-    state = np.concatenate((ally_feats.flatten(), 
-                enemy_feats.flatten(),
-                move_feats.flatten(),
-                own_feats.flatten()))
+    state = np.concatenate(
+      (
+        ally_feats.flatten(),
+        enemy_feats.flatten(),
+        move_feats.flatten(),
+        own_feats.flatten(),
+      )
+    )
 
     # Agent id features
     if self.state_agent_id:
-      agent_id_feats[agent_id] = 1.
+      agent_id_feats[agent_id] = 1.0
       state = np.append(state, agent_id_feats.flatten())
 
     if self.state_timestep_number:
-      state = np.append(state, self._episode_steps / self.max_episode_steps)
+      state = np.append(state, self._episode_steps / self.episode_limit)
 
-    # if self.debug:
-    #   print("Obs Agent: {}".format(agent_id).center(60, "-"))
-    #   print("Avail. actions {}".format(
-    #     self.get_avail_agent_actions(agent_id)))
-    #   print("Move feats {}".format(move_feats))
-    #   print("Enemy feats {}".format(enemy_feats))
-    #   print("Ally feats {}".format(ally_feats))
-    #   print("Own feats {}".format(own_feats))
+    if self.debug:
+      logging.debug("Obs Agent: {}".format(agent_id).center(60, "-"))
+      logging.debug(
+        "Avail. actions {}".format(self.get_avail_agent_actions(agent_id))
+      )
+      logging.debug("Move feats {}".format(move_feats))
+      logging.debug("Enemy feats {}".format(enemy_feats))
+      logging.debug("Ally feats {}".format(ally_feats))
+      logging.debug("Own feats {}".format(own_feats))
 
     return state
 
   def get_obs_enemy_feats_size(self):
-    """ Returns the dimensions of the matrix containing enemy features.
+    """Returns the dimensions of the matrix containing enemy features.
     Size is n_enemies x n_features.
     """
     nf_en = 4 + self.unit_type_bits
@@ -1698,7 +1854,7 @@ class SMAC(gym.Env):
     return self.n_enemies, nf_en
 
   def get_state_enemy_feats_size(self):
-    """ Returns the dimensions of the matrix containing enemy features.
+    """Returns the dimensions of the matrix containing enemy features.
     Size is n_enemies x n_features.
     """
     nf_en = 5 + self.unit_type_bits
@@ -1723,7 +1879,7 @@ class SMAC(gym.Env):
     if self.obs_last_action:
       nf_al += self.n_actions
 
-    return self.n_units - 1, nf_al
+    return self.n_agents - 1, nf_al
 
   def get_state_ally_feats_size(self):
     """Returns the dimensions of the matrix containing ally features.
@@ -1736,15 +1892,14 @@ class SMAC(gym.Env):
 
     if self.obs_last_action:
       nf_al += self.n_actions
-    
+
     if self.add_center_xy:
       nf_al += 2
 
-    return self.n_units - 1, nf_al
+    return self.n_agents - 1, nf_al
 
   def get_obs_own_feats_size(self):
-    """Returns the size of the vector containing the agents' own features.
-    """
+    """Returns the size of the vector containing the agents' own features."""
     own_feats = 4 + self.unit_type_bits
     if self.obs_own_health:
       own_feats += 1 + self.shield_bits_ally
@@ -1755,8 +1910,7 @@ class SMAC(gym.Env):
     return own_feats
 
   def get_state_own_feats_size(self):
-    """Returns the size of the vector containing the agents' own features.
-    """
+    """Returns the size of the vector containing the agents' own features."""
     own_feats = 4 + self.unit_type_bits
     if self.obs_own_health:
       own_feats += 1 + self.shield_bits_ally
@@ -1789,6 +1943,16 @@ class SMAC(gym.Env):
 
     return move_feats
 
+  def get_state_move_feats_size_global(self):
+    """Returns the size of the vector containing the agents's movement-related features. global"""
+    move_feats = self.n_actions
+    if self.state_pathing_grid:
+      move_feats += self.n_obs_pathing
+    if self.state_terrain_height:
+      move_feats += self.n_obs_height
+
+    return move_feats
+
   def get_obs_size(self):
     """Returns the size of the observation."""
     own_feats = self.get_obs_own_feats_size()
@@ -1806,23 +1970,28 @@ class SMAC(gym.Env):
     timestep_feats = 0
 
     if self.obs_agent_id:
-      agent_id_feats = self.n_units
+      agent_id_feats = self.n_agents
       all_feats += agent_id_feats
 
     if self.obs_timestep_number:
       timestep_feats = 1
       all_feats += timestep_feats
 
-    return [all_feats * self.stacked_frames if self.use_stacked_frames else all_feats, 
-        [n_allies, n_ally_feats], 
-        [n_enemies, n_enemy_feats], 
-        [1, move_feats], 
-        [1, own_feats+agent_id_feats+timestep_feats]]
+    return [
+      all_feats * self.stacked_frames if self.use_stacked_frames else all_feats,
+      [n_allies, n_ally_feats],
+      [n_enemies, n_enemy_feats],
+      [1, move_feats],
+      [1, own_feats + agent_id_feats + timestep_feats],
+    ]
 
   def get_state_size(self):
     """Returns the size of the global state."""
     if self.obs_instead_of_state:
-      return [self.get_obs_size()[0] * self.n_units, [self.n_units, self.get_obs_size()[0]]]
+      return [
+        self.get_obs_size()[0] * self.n_agents,
+        [self.n_agents, self.get_obs_size()[0]],
+      ]
 
     if self.use_state_agent:
       own_feats = self.get_state_own_feats_size()
@@ -1840,16 +2009,66 @@ class SMAC(gym.Env):
       timestep_feats = 0
 
       if self.state_agent_id:
-        agent_id_feats = self.n_units
+        agent_id_feats = self.n_agents
         all_feats += agent_id_feats
 
       if self.state_timestep_number:
         timestep_feats = 1
         all_feats += timestep_feats
 
-      return [all_feats * self.stacked_frames if self.use_stacked_frames else all_feats, [n_allies, n_ally_feats], [n_enemies, n_enemy_feats], [1, move_feats], [1, own_feats+agent_id_feats+timestep_feats]]
+      return [
+        all_feats * self.stacked_frames
+        if self.use_stacked_frames
+        else all_feats,
+        [n_allies, n_ally_feats],
+        [n_enemies, n_enemy_feats],
+        [1, move_feats],
+        [1, own_feats + agent_id_feats + timestep_feats],
+      ]
 
-    
+    if self.use_global_state:
+      nf_al = 2 + self.shield_bits_ally + self.unit_type_bits
+      nf_en = 1 + self.shield_bits_enemy + self.unit_type_bits
+
+      if self.add_center_xy:
+        nf_al += 2
+        nf_en += 2
+
+      if self.state_last_action:
+        nf_al += self.n_actions
+
+      nf_mv_glb = self.get_state_move_feats_size_global()
+
+      enemy_state = self.n_enemies * nf_en
+      ally_state = self.n_agents * nf_al
+
+      size = enemy_state + ally_state
+
+      move_state = 0
+      timestep_state = 0
+      info_state = 0
+
+      if self.add_move_state:
+        move_state = self.n_agents * nf_mv_glb
+        size += move_state
+
+      if self.state_timestep_number:
+        timestep_state = 1
+        size += timestep_state
+
+      if self.global_state_include_info:
+        info_state = 5
+        size += info_state
+
+      return [
+        size * self.stacked_frames if self.use_stacked_frames else size,
+        [self.n_agents, nf_al],
+        [self.n_enemies, nf_en],
+        [self.n_agents, nf_mv_glb if self.add_move_state else 0],
+        [1, timestep_state],
+        [1, info_state],
+      ]
+
     nf_al = 2 + self.shield_bits_ally + self.unit_type_bits
     nf_en = 1 + self.shield_bits_enemy + self.unit_type_bits
     nf_mv = self.get_state_move_feats_size()
@@ -1878,9 +2097,9 @@ class SMAC(gym.Env):
       nf_en += 1
 
     enemy_state = self.n_enemies * nf_en
-    ally_state = self.n_units * nf_al
+    ally_state = self.n_agents * nf_al
 
-    size = enemy_state + ally_state 
+    size = enemy_state + ally_state
 
     move_state = 0
     obs_agent_size = 0
@@ -1890,7 +2109,7 @@ class SMAC(gym.Env):
     if self.add_move_state:
       move_state = nf_mv
       size += move_state
-    
+
     if self.add_local_obs:
       obs_agent_size = self.get_obs_size()[0]
       size += obs_agent_size
@@ -1900,19 +2119,24 @@ class SMAC(gym.Env):
       size += timestep_state
 
     if self.add_agent_id:
-      agent_id_feats = self.n_units
+      agent_id_feats = self.n_agents
       size += agent_id_feats
 
-    return [size * self.stacked_frames if self.use_stacked_frames else size, [self.n_units, nf_al], [self.n_enemies, nf_en], [1, move_state + obs_agent_size + timestep_state + agent_id_feats]]
-  
+    return [
+      size * self.stacked_frames if self.use_stacked_frames else size,
+      [self.n_agents, nf_al],
+      [self.n_enemies, nf_en],
+      [1, move_state + obs_agent_size + timestep_state + agent_id_feats],
+    ]
+
   def get_visibility_matrix(self):
-    """Returns a boolean numpy array of dimensions 
-    (n_units, n_units + n_enemies) indicating which units
+    """Returns a boolean numpy array of dimensions
+    (n_agents, n_agents + n_enemies) indicating which units
     are visible to each agent.
     """
-    arr = np.zeros((self.n_units, self.n_units + self.n_enemies), dtype=bool)
+    arr = np.zeros((self.n_agents, self.n_agents + self.n_enemies), dtype=np.bool)
 
-    for agent_id in range(self.n_units):
+    for agent_id in range(self.n_agents):
       current_agent = self.get_unit_by_id(agent_id)
       if current_agent.health > 0:  # it agent not dead
         x = current_agent.pos.x
@@ -1925,22 +2149,19 @@ class SMAC(gym.Env):
           e_y = e_unit.pos.y
           dist = self.distance(x, y, e_x, e_y)
 
-          if (dist < sight_range and e_unit.health > 0):
+          if dist < sight_range and e_unit.health > 0:
             # visible and alive
-            arr[agent_id, self.n_units + e_id] = 1
+            arr[agent_id, self.n_agents + e_id] = 1
 
         # The matrix for allies is filled symmetrically
-        al_ids = [
-          al_id for al_id in range(self.n_units)
-          if al_id > agent_id
-        ]
+        al_ids = [al_id for al_id in range(self.n_agents) if al_id > agent_id]
         for i, al_id in enumerate(al_ids):
           al_unit = self.get_unit_by_id(al_id)
           al_x = al_unit.pos.x
           al_y = al_unit.pos.y
           dist = self.distance(x, y, al_x, al_y)
 
-          if (dist < sight_range and al_unit.health > 0):
+          if dist < sight_range and al_unit.health > 0:
             # visible and alive
             arr[agent_id, al_id] = arr[al_id, agent_id] = 1
 
@@ -2026,7 +2247,7 @@ class SMAC(gym.Env):
   def get_avail_actions(self):
     """Returns the available actions of all agents in a list."""
     avail_actions = []
-    for agent_id in range(self.n_units):
+    for agent_id in range(self.n_agents):
       avail_agent = self.get_avail_agent_actions(agent_id)
       avail_actions.append(avail_agent)
     return avail_actions
@@ -2040,15 +2261,15 @@ class SMAC(gym.Env):
     """Returns the random seed used by the environment."""
     self._seed = seed
 
-  def render(self, **kwargs):
-    """Not implemented."""
+  def render(self):
+    """Use save_replay instead"""
     pass
 
   def _kill_all_units(self):
     """Kill all units on the map."""
-    units_alive = [
-      unit.tag for unit in self.agents.values() if unit.health > 0
-    ] + [unit.tag for unit in self.enemies.values() if unit.health > 0]
+    units_alive = [unit.tag for unit in self.agents.values() if unit.health > 0] + [
+      unit.tag for unit in self.enemies.values() if unit.health > 0
+    ]
     debug_command = [
       d_pb.DebugCommand(kill_unit=d_pb.DebugKillUnit(tag=units_alive))
     ]
@@ -2062,9 +2283,7 @@ class SMAC(gym.Env):
       self.enemies = {}
 
       ally_units = [
-        unit
-        for unit in self._obs.observation.raw_data.units
-        if unit.owner == 1
+        unit for unit in self._obs.observation.raw_data.units if unit.owner == 1
       ]
       ally_units_sorted = sorted(
         ally_units,
@@ -2075,7 +2294,7 @@ class SMAC(gym.Env):
       for i in range(len(ally_units_sorted)):
         self.agents[i] = ally_units_sorted[i]
         if self.debug:
-          print(
+          logging.debug(
             "Unit {} is {}, x = {}, y = {}".format(
               len(self.agents),
               self.agents[i].unit_type,
@@ -2091,13 +2310,11 @@ class SMAC(gym.Env):
             self.max_reward += unit.health_max + unit.shield_max
 
       if self._episode_count == 0:
-        min_unit_type = min(
-          unit.unit_type for unit in self.agents.values()
-        )
+        min_unit_type = min(unit.unit_type for unit in self.agents.values())
         self._init_ally_unit_types(min_unit_type)
 
-      all_agents_created = (len(self.agents) == self.n_units)
-      all_enemies_created = (len(self.enemies) == self.n_enemies)
+      all_agents_created = len(self.agents) == self.n_agents
+      all_enemies_created = len(self.enemies) == self.n_enemies
 
       if all_agents_created and all_enemies_created:  # all good
         return
@@ -2144,11 +2361,13 @@ class SMAC(gym.Env):
       if not updated:  # dead
         e_unit.health = 0
 
-    if (n_ally_alive == 0 and n_enemy_alive > 0
-        or self.only_medivac_left(ally=True)):
+    if n_ally_alive == 0 and n_enemy_alive > 0 or self.only_medivac_left(ally=True):
       return -1  # lost
-    if (n_ally_alive > 0 and n_enemy_alive == 0
-        or self.only_medivac_left(ally=False)):
+    if (
+      n_ally_alive > 0
+      and n_enemy_alive == 0
+      or self.only_medivac_left(ally=False)
+    ):
       return 1  # won
     if n_ally_alive == 0 and n_enemy_alive == 0:
       return 0
@@ -2223,29 +2442,3 @@ class SMAC(gym.Env):
       "restarts": self.force_restarts,
     }
     return stats
-
-if __name__ == '__main__':
-  config = dict(
-    name='corridor',
-    add_local_obs=False,
-    add_move_state=False,
-    add_visible_state=False,
-    add_distance_state=False,
-    add_xy_state=False,
-    add_enemy_action_state=False,
-    add_agent_id=True,
-    use_state_agent=True,
-    use_mustalive=True,
-    add_center_xy=True,
-    use_stacked_frames=False,
-    stacked_frames=False,
-  )
-  env = SMAC(**config)
-  o = env.reset()
-  for _ in range(100000):
-    a = env.random_action()
-    o, r, d, _ = env.step(a)
-    print(r[0], o['obs'][0].shape, o['global_state'][0].shape)
-    if np.all(d):
-      break
-      env.reset()

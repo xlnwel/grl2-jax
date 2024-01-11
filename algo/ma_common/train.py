@@ -1,3 +1,5 @@
+import os
+import importlib
 import ray
 
 from core.elements.builder import ElementsBuilder
@@ -5,51 +7,54 @@ from core.log import do_logging
 from core.names import ANCILLARY
 from core.typing import get_basic_model_name
 from core.utils import configure_gpu, set_seed, save_code_for_seed
+from env.utils import divide_env_output
 from tools.display import print_dict
 from tools.utils import modify_config, flatten_dict
-from tools.timer import Timer, timeit
+from tools.timer import Timer, timeit, Every
 from algo.ma_common.run import Runner
 
 
-def init_running_stats(agent, runner: Runner, n_steps=None):
+def init_running_stats(agents, runner: Runner, n_steps=None):
   if n_steps is None:
     n_steps = min(100, runner.env.max_episode_steps)
   do_logging(f'Pre-training running steps: {n_steps}')
 
-  if agent.actor.is_obs_or_reward_normalized:
-    runner.run(
-      agent, 
-      n_steps=n_steps, 
-      collect_data=agent.actor.is_obs_or_reward_normalized
-    )
-    data = agent.buffer.get_data()
-    agent.actor.update_reward_rms(data.reward, data.discount)
-    agent.actor.update_obs_rms(data)
-    agent.actor.reset_reward_rms_return()
-  agent.actor.print_rms()
+  if agents[0].actor.is_obs_or_reward_normalized:
+    runner.run(agents, n_steps=n_steps)
+    for agent in agents:
+      data = agent.buffer.get_data()
+      agent.actor.update_reward_rms(data.reward, data.discount)
+      agent.actor.update_obs_rms(data)
+      agent.actor.reset_reward_rms_return()
+  for agent in agents:
+    agent.actor.print_rms()
 
 
 @timeit
-def env_run(agent, runner: Runner, routine_config, prepare_buffer=None, name='real'):
+def env_run(agents, runner: Runner, routine_config, prepare_buffer=None, name='real'):
   env_output = runner.run(
-    agent, 
+    agents, 
     n_steps=routine_config.n_steps, 
     name=name, 
     store_info=True
   )
   if prepare_buffer is not None:
-    prepare_buffer(agent, env_output, routine_config.compute_return_at_once)
+    agent_env_outputs = divide_env_output(env_output)
+    for agent, eo in zip(agents, agent_env_outputs):
+      prepare_buffer(agent, eo, routine_config.compute_return_at_once)
 
   env_steps_per_run = runner.get_steps_per_run(routine_config.n_steps)
-  agent.add_env_step(env_steps_per_run)
+  for agent in agents:
+    agent.add_env_step(env_steps_per_run)
 
   return agent.get_env_step()
 
 
 @timeit
-def ego_optimize(agent, **kwargs):
-  agent.train_record(**kwargs)
-  train_step = agent.get_train_step()
+def ego_optimize(agents, **kwargs):
+  for agent in agents:
+    agent.train_record(**kwargs)
+    train_step = agent.get_train_step()
 
   return train_step
 
@@ -63,22 +68,24 @@ def ego_train(agent, runner, routine_config, train_aids, lka_aids, run_fn, opt_f
 
 
 @timeit
-def eval_and_log(agent, runner: Runner, routine_config, record_video=False, name='eval'):
+def eval_and_log(agents, runner: Runner, routine_config, record_video=False, name='eval'):
   if routine_config.EVAL_PERIOD:
     scores, epslens, _, video = runner.eval_with_video(
-      agent, 
+      agents, 
       n_envs=routine_config.n_eval_envs, 
       record_video=record_video, 
       name=name
     )
-    agent.store(**{
-      'eval_score': scores, 
-      'eval_epslen': epslens, 
-    })
-    if video is not None:
-      agent.video_summary(video, step=agent.get_env_step(), fps=1)
-  save(agent)
-  log(agent)
+    for agent in agents:
+      agent.store(**{
+        'eval_score': scores, 
+        'eval_epslen': epslens, 
+      })
+      if video is not None:
+        agent.video_summary(video, step=agent.get_env_step(), fps=1)
+  for agent in agents:
+    save(agent)
+    log(agent)
 
 
 @timeit
@@ -128,7 +135,7 @@ def log(agent):
 @timeit
 def build_agent(config, env_stats, save_monitor_stats_to_disk=True, save_config=True):
   model_name = get_basic_model_name(config.model_name)
-  new_model_name = '/'.join([model_name, f'a0'])
+  new_model_name = os.path.join(model_name, 'a0')
   modify_config(
     config, 
     model_name=new_model_name, 
@@ -148,7 +155,33 @@ def build_agent(config, env_stats, save_monitor_stats_to_disk=True, save_config=
   return agent
 
 
-def main(configs, train, Runner=Runner):
+def train(
+  agents, 
+  runner: Runner, 
+  routine_config, 
+):
+  do_logging('Training starts...')
+  env_step = agents[0].get_env_step()
+  to_record = Every(
+    routine_config.LOG_PERIOD, 
+    start=env_step, 
+    init_next=env_step != 0, 
+    final=routine_config.MAX_STEPS
+  )
+  init_running_stats(agents, runner, n_steps=routine_config.n_steps)
+  algo = agents[0].name
+  prepare_buffer = importlib.import_module(f'algo.{algo}.run').prepare_buffer
+
+  while env_step < routine_config.MAX_STEPS:
+    env_step = env_run(agents, runner, routine_config, prepare_buffer)
+    ego_optimize(agents)
+    time2record = to_record(env_step)
+
+    if time2record:
+      eval_and_log(agents, runner, routine_config)
+
+
+def main(configs, train=train, Runner=Runner):
   config = configs[0]
   if config.routine.compute_return_at_once:
     config.buffer.sample_keys += ['advantage', 'v_target']
@@ -172,14 +205,14 @@ def main(configs, train, Runner=Runner):
   env_stats.n_envs = config.env.n_runners * config.env.n_envs
   print_dict(env_stats)
 
-  agent = build_agent(config, env_stats)
   save_code_for_seed(config)
+  agents = [build_agent(config, env_stats) for config in configs]
 
   routine_config = config.routine.copy()
   train(
-    agent, 
+    agents, 
     runner, 
-    routine_config,
+    routine_config, 
   )
 
   do_logging('Training completed')

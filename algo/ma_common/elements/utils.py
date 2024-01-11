@@ -3,6 +3,7 @@ import jax
 from jax import lax
 import jax.numpy as jnp
 
+from core.names import DEFAULT_ACTION, PATH_SPLIT
 from core.typing import AttrDict
 from tools.utils import expand_dims_match, expand_shape_match
 from jax_tools import jax_assert, jax_math, jax_loss, jax_utils
@@ -83,15 +84,15 @@ def compute_policy_dist(
       x, state_reset, state, action_mask, bptt=bptt
     )
   state = get_initial_state(state, 0)
-  act_out, _ = model.modules.policy(
+  act_outs, _ = model.modules.policy(
     params, rng, x, state_reset, state, action_mask=action_mask
   )
   if state is not None and bptt is not None:
-    act_out = jax.tree_util.tree_map(
-      lambda x: x.reshape(*shape, -1), act_out
+    act_outs = jax.tree_util.tree_map(
+      lambda x: x.reshape(*shape, -1), act_outs
     )
-  act_dist = model.policy_dist(act_out)
-  return act_dist
+  act_dists = model.policy_dist(act_outs)
+  return act_dists
 
 
 def compute_policy(
@@ -106,21 +107,26 @@ def compute_policy(
   action_mask=None, 
   bptt=None, 
 ):
-  act_dist = compute_policy_dist(
+  act_dists = compute_policy_dist(
     model, params, rng, x, state_reset, state, action_mask, bptt=bptt)
-  pi_logprob = act_dist.log_prob(action)
+  if len(act_dists) == 1:
+    act_dist = act_dists[DEFAULT_ACTION]
+    pi_logprob = act_dist.log_prob(action[DEFAULT_ACTION])
+  else:
+    # assert set(action) == set(act_dists), (set(action), set(act_dists))
+    pi_logprob = sum([ad.log_prob(a) for ad, a in zip(act_dists.values(), action.values())])
   jax_assert.assert_shape_compatibility([pi_logprob, mu_logprob])
   log_ratio = pi_logprob - mu_logprob
   ratio = lax.exp(log_ratio)
-  return act_dist, pi_logprob, log_ratio, ratio
+  return act_dists, pi_logprob, log_ratio, ratio
 
 
 def prefix_name(terms, name):
   if name is not None:
     new_terms = AttrDict()
     for k, v in terms.items():
-      if '/' not in k:
-        new_terms[f'{name}/{k}'] = v
+      if PATH_SPLIT not in k:
+        new_terms[f'{name}{PATH_SPLIT}{k}'] = v
       else:
         new_terms[k] = v
     return new_terms
@@ -159,7 +165,7 @@ def compute_actor_loss(
   config, 
   data, 
   stats, 
-  act_dist, 
+  act_dists, 
   entropy_coef, 
 ):
   if config.get('policy_sample_mask', True):
@@ -213,7 +219,12 @@ def compute_actor_loss(
   stats.scaled_pg_loss = scaled_pg_loss
   stats.pg_loss = pg_loss
 
-  entropy = act_dist.entropy()
+  if len(act_dists) == 1:
+    entropy = act_dists[DEFAULT_ACTION].entropy()
+  entropy = {k: ad.entropy() for k, ad in act_dists.items()}
+  for k, v in entropy.items():
+    stats[f'{k}_entropy'] = v
+  entropy = sum(entropy.values())
   scaled_entropy_loss, entropy_loss = jax_loss.entropy_loss(
     entropy_coef=entropy_coef, 
     entropy=entropy, 
@@ -298,14 +309,18 @@ def record_target_adv(stats):
   return stats
 
 
-def record_policy_stats(data, stats, act_dist):
+def record_policy_stats(data, stats, act_dists):
   # stats.diff_frac = jax_math.mask_mean(
   #   lax.abs(stats.pi_logprob - data.mu_logprob) > 1e-5, 
   #   data.sample_mask, data.n)
   # stats.approx_kl = .5 * jax_math.mask_mean(
   #   (stats.log_ratio)**2, data.sample_mask, data.n)
   # stats.approx_kl_max = jnp.max(.5 * (stats.log_ratio)**2)
-  stats.update(act_dist.get_stats(prefix='pi'))
+  if len(act_dists) == 1:
+    stats.update(act_dists[DEFAULT_ACTION].get_stats(prefix='pi'))
+  else:
+    for k, ad in act_dists.items():
+      stats.update(ad.get_stats(prefix=f'{k}_pi'))
 
   return stats
 

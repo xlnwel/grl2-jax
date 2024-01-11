@@ -238,7 +238,7 @@ def save_video(name, video, fps=30, out_dir='results'):
   f1, *frames = [Image.fromarray(f) for f in frames]
   if not os.path.isdir(out_dir):
     os.makedirs(out_dir)
-  path = f'{out_dir}/{name}.gif'
+  path = os.path.join(out_dir, f'{name}.gif')
   f1.save(fp=path, format='GIF', append_images=frames,
      save_all=True, duration=1000//fps, loop=0)
   do_logging(f"video is saved to '{path}'")
