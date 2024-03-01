@@ -4,6 +4,7 @@ import ray
 from core.typing import dict2AttrDict
 from core.utils import configure_gpu, set_seed
 from core.log import do_logging
+from distributed.common.local.controller import Controller
 from tools.ray_setup import init_ray
 from tools.utils import modify_config
 from tools import yaml_op, pkg
@@ -46,6 +47,7 @@ def modify_configs(configs):
     config.runner.is_ma_algo = config.is_ma_algo
   return configs
 
+
 def main(configs):
   init_ray()
 
@@ -58,8 +60,9 @@ def main(configs):
   seed = config.get('seed')
   set_seed(seed)
 
-  Controller = pkg.import_module('local.controller', config=config).Controller
-  controller = Controller(config)
+  # Construct controller
+  ControllerCls = pkg.import_module('local.controller', config=config).Controller
+  controller: Controller = ControllerCls(config)
   controller.build_managers(configs)
   controller.pbt_train()
 

@@ -74,18 +74,20 @@ def _compute_action_logprob(
     act_out = jax.tree_util.tree_map(
       lambda x: x.reshape(*shape, -1), act_out
     )
-  act_dist = model.policy_dist(act_out)
-  if model.is_action_discrete:
-    raw_action, raw_logprob = act_dist.sample_and_log_prob(seed=rngs[1])
-    action, logprob = raw_action, raw_logprob
-  else:
-    raw_action, raw_logprob = act_dist.sample_and_log_prob(
-      seed=rngs[1], joint=True)
-    action = jnp.tanh(raw_action)
-    logprob = logprob_correction(
-      raw_action, raw_logprob, is_action_squashed=False)
-  
-  return action, logprob, act_dist
+  act_dists = model.policy_dist(act_out)
+  action = {}
+  logprob = {}
+  for k, ad in act_dists.items():
+    if model.is_action_discrete[k]:
+      raw_action, raw_logprob = ad.sample_and_log_prob(seed=rngs[1]) 
+      action[k], logprob[k] = raw_action, raw_logprob
+    else:
+      raw_action, raw_logprob = ad.sample_and_log_prob(seed=rngs[1], joint=True)
+      action[k] = jnp.tanh(raw_action)
+      logprob[k] = logprob_correction(
+        raw_action, raw_logprob, is_action_squashed=False)
+ 
+  return action, logprob, act_dists
 
 
 def compute_action_logprob(
@@ -150,6 +152,7 @@ def compute_qs(
 def compute_target(
   reward, discount, gamma, next_q, temp, next_logprob
 ):
+  next_logprob = sum(next_logprob.values())
   jax_assert.assert_shape_compatibility([
     reward, discount, next_q, next_logprob
   ])

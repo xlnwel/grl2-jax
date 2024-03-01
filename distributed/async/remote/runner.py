@@ -10,5 +10,5 @@ class MultiAgentRunner(MultiAgentRunnerBase):
     # wait for asynchronous sampling
     time.sleep(self.id)
     while self.run_signal:
-      mids = ray.get(self.parameter_server.get_strategies.remote(self.id))
+      mids = ray.get(self.parameter_server.get_prepared_strategies.remote(self.id))
       self.run_with_model_weights(mids)

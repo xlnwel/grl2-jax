@@ -149,7 +149,7 @@ def do_logging(
   if isinstance(x, dict):
     for k, v in x.items():
       if isinstance(v, dict):
-        log_func(decorate_content(f'{prefix}{k}'))
+        log_func(decorate_content(f'{prefix}{k}'), **log_kwargs)
         do_logging(
           v, 
           logger=logger, 
@@ -161,10 +161,10 @@ def do_logging(
           highlight=highlight
         )
       else:
-        log_func(decorate_content(f'{prefix}{k}: {v}'))
+        log_func(decorate_content(f'{prefix}{k}: {v}'), **log_kwargs)
   elif isinstance(x, (list, tuple)):
     if any([isinstance(v, dict) for v in x]):
-      log_func(decorate_content(f'{prefix}{x.__class__.__name__}'))
+      log_func(decorate_content(f'{prefix}{x.__class__.__name__}'), **log_kwargs)
       for v in x:
         do_logging(
           v, 
@@ -177,9 +177,9 @@ def do_logging(
           highlight=highlight
         )
     else:
-      log_func(decorate_content(f'{prefix}{x}'))
+      log_func(decorate_content(f'{prefix}{x}'), **log_kwargs)
   else:
-    log_func(decorate_content(f'{prefix}{x}'))
+    log_func(decorate_content(f'{prefix}{x}'), **log_kwargs)
 
 def get_frame(backtrack):
   frame = inspect.currentframe()

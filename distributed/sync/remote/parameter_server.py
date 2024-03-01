@@ -2,7 +2,7 @@ from distributed.common.remote.parameter_server import ParameterServer as Parame
 
 
 class ParameterServer(ParameterServerBase):
-  def _reset_prepared_strategy(self, rid=None):
+  def _reset_prepared_strategy(self, rid=-1):
     if rid < 0:
       self._prepared_strategies = [
         [None for _ in range(self.n_agents)] 

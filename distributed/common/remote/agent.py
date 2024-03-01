@@ -62,6 +62,7 @@ class Agent(RayBase):
     )
     if wait:
       ray.get(ids)
+      # do_logging(f'Weights published with train step {model_weights.weights["train_step"]}', flush=True)
 
   """ Training """
   def start_training(self):
@@ -87,6 +88,12 @@ class Agent(RayBase):
     stats.update(Timer.all_stats())
     model_stats = ModelStats(self.get_model_path(), stats)
     self.monitor.store_train_stats.remote(model_stats)
+
+  def train(self):
+    stats = self.strategy.train_record()
+    self.publish_weights()
+    self._send_train_stats(stats)
+    return self.strategy.get_train_step()
 
   """ Data Management """
   # def merge_episode(self, train_step, episode, n):

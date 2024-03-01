@@ -61,8 +61,9 @@ class Model(MAModelBase):
         action = AttrDict()
         logprob = AttrDict()
         stats = AttrDict(mu_logprob=0)
-        for k, ad in act_dists.items():
-          a, lp = ad.sample_and_log_prob(seed=rngs[1])
+        rngs = random.split(rngs[1], 2)
+        for i, (k, ad) in enumerate(act_dists.items()):
+          a, lp = ad.sample_and_log_prob(seed=rngs[i])
           action[k] = a
           logprob[k] = lp
           stats.update(ad.get_stats(f'{k}_mu'))

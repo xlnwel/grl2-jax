@@ -142,7 +142,7 @@ class GRF:
         self._left_score > self._right_score)
       self._score[self.n_left_units:] *= -1
     else:
-      self._score = diff_score > 0
+      self._score = diff_score
     dones = np.tile(done, self.n_units)
 
     info = {

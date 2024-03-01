@@ -168,7 +168,7 @@ class MultiAgentRunner(RayBase):
 
   def run_loop(self):
     while self.run_signal:
-      mids = ray.get(self.parameter_server.get_strategies.remote(self.id))
+      mids = ray.get(self.parameter_server.get_prepared_strategies.remote(self.id))
       self.run_with_model_weights(mids)
 
   def run_with_model_weights(self, mids: List[ModelWeights]):
@@ -180,6 +180,7 @@ class MultiAgentRunner(RayBase):
         self.current_models[aid] = model_weights.model
         assert set(model_weights.weights).issubset(set([MODEL, ANCILLARY, 'train_step'])) or set(model_weights.weights) == set(['aid', 'vid', 'path']), set(model_weights.weights)
         self.agents[aid].set_strategy(model_weights, env=self.env)
+        # do_logging(f'Runner {self.id} receives weights of train step {model_weights.weights["train_step"]}')
       if self.self_play:
         self.is_agent_active = [True, False]
       assert any(self.is_agent_active), (self.active_models, self.current_models)
@@ -644,6 +645,7 @@ class MultiAgentRunner(RayBase):
     return config
 
   def _update_payoffs(self):
+    pid = None
     if self.self_play:
       if len(self.scores) > 0:
         pid = self.parameter_server.update_payoffs.remote(

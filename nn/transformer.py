@@ -71,10 +71,16 @@ class TXEncoderBlock(hk.Module):
     self.mlp_config = mlp_config
     self.attn_config = attn_config
 
-  def __call__(self, x, mask=None, training=False):
+  def __call__(self, x, mask=None, 
+               data_mask=None, query_mask=None, 
+               kv_mask=None, training=False):
     attn, mlp = self.build_net(x)
 
-    x = attn(x, mask=mask, training=training)
+    x = attn(
+      x, mask=mask, 
+      data_mask=data_mask, query_mask=query_mask, 
+      kv_mask=kv_mask, training=training
+    )
     x = mlp(x, training=training)
 
     return x
@@ -95,7 +101,9 @@ class AttentionBlock(hk.Module):
     super().__init__(name=name)
     self.attn_config = attn_config
 
-  def __call__(self, x, kv=None, mask=None, training=False):
+  def __call__(self, x, kv=None, mask=None, 
+               data_mask=None, query_mask=None, 
+               kv_mask=None, training=False):
     if kv is None:
       attn, ln = self.build_net(kv)
       x_ln = ln(x)
@@ -103,7 +111,11 @@ class AttentionBlock(hk.Module):
       attn, ln, ln2 = self.build_net(kv)
       x_ln = ln(x)
       kv = ln2(kv)
-    x_attn = attn(x_ln, kv, mask=mask, training=training)
+    x_attn = attn(
+      x_ln, kv, mask=mask, 
+      data_mask=data_mask, query_mask=query_mask, 
+      kv_mask=kv_mask, training=training
+    )
     x = x + x_attn
 
     return x

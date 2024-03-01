@@ -89,7 +89,7 @@ def compute_policy_dist(
   )
   if state is not None and bptt is not None:
     act_outs = jax.tree_util.tree_map(
-      lambda x: x.reshape(*shape, -1), act_outs
+      lambda x: x.reshape(*shape, -1) if x.ndim > len(shape) else x, act_outs
     )
   act_dists = model.policy_dist(act_outs)
   return act_dists

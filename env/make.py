@@ -23,7 +23,6 @@ def process_single_agent_env(env, config):
     env = wrappers.ContinuousActionMapper(
       env, 
       bound_method=config.get('bound_method', 'clip'), 
-      to_rescale=config.get('to_rescale', True),
       action_low=config.get('action_low', -1), 
       action_high=config.get('action_high', 1)
     )

@@ -10,7 +10,7 @@ archive_training_strategies
 
 get_runner_stats
 
-get_strategies
+get_prepared_strategies
 
 reset_payoffs
 

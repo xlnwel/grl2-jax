@@ -11,7 +11,6 @@ from .agent_manager import AgentManager
 from .runner_manager import RunnerManager
 from ..remote.monitor import Monitor
 from ..remote.parameter_server import ParameterServer
-from ..remote.parameter_server_sp import SPParameterServer
 from core.ckpt.base import YAMLCheckpointBase
 from core.log import do_logging
 from core.typing import ModelPath, get_basic_model_name, AttrDict, dict2AttrDict
@@ -23,7 +22,7 @@ from tools.process import run_ray_process
 from tools.schedule import PiecewiseSchedule
 from tools.timer import Every, Timer, timeit
 from tools.utils import batch_dicts, eval_config, modify_config, prefix_name
-from tools import yaml_op
+from tools import yaml_op, pkg
 
 
 timeit = partial(timeit, period=1)
@@ -141,15 +140,16 @@ class Controller(YAMLCheckpointBase):
     self.steps_per_run = self.n_runners * self.n_envs * self.n_steps
 
     if config.self_play:
-      ParameterServerCls = SPParameterServer
+      PSCls = pkg.import_module('remote.parameter_server_sp', config=config).SPParameterServer
     else:
-      ParameterServerCls = ParameterServer
+      PSCls = pkg.import_module('remote.parameter_server', config=config).ParameterServer
     do_logging('Building Parameter Server...', color='blue')
-    self.parameter_server: ParameterServerCls = \
-      ParameterServerCls.as_remote().remote(
+    self.parameter_server: ParameterServer = \
+      PSCls.as_remote().remote(
         config=config.asdict(),
         to_restore_params=True, 
       )
+    # Build elements builder
     ray.get(self.parameter_server.build.remote(
       configs=[c.asdict() for c in self.configs],
       env_stats=env_stats.asdict(),
@@ -198,8 +198,8 @@ class Controller(YAMLCheckpointBase):
 
   def _get_iteration_step_scheduler(
     self, 
-    max_version_iterations: Union[int, List, Tuple], 
-    max_steps_per_iteration: int
+    max_version_iterations: int, 
+    max_steps_per_iteration: Union[int, List, Tuple]
   ):
     if isinstance(max_steps_per_iteration, (List, Tuple)):
       iteration_step_scheduler = PiecewiseSchedule(max_steps_per_iteration)
@@ -222,6 +222,7 @@ class Controller(YAMLCheckpointBase):
     self.agent_manager.build_agents(configs)
     self.agent_manager.set_model_weights(model_weights, wait=True)
     self.agent_manager.publish_weights(wait=True)
+    do_logging(f'Finish Building Agents', color='blue')
 
     self.active_models = [model for model, _ in model_weights]
     self.active_configs = [
@@ -292,10 +293,10 @@ class Controller(YAMLCheckpointBase):
 
   """ Implementation for <train> """
   def _retrieve_model_weights(self):
-    model_weights = ray.get(self.parameter_server.get_strategies.remote())
+    model_weights = ray.get(self.parameter_server.get_prepared_strategies.remote())
     while model_weights is None:
       time.sleep(.025)
-      model_weights = ray.get(self.parameter_server.get_strategies.remote())
+      model_weights = ray.get(self.parameter_server.get_prepared_strategies.remote())
     assert len(model_weights) == self.n_runners, (len(model_weights), self.n_runners)
     return model_weights
 

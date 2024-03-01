@@ -95,7 +95,8 @@ class Policy(hk.Module):
     net = MLP(**self.config)
     out_kwargs = net.out_kwargs
     if isinstance(self.action_dim, dict):
-      heads = {k: Layer(v, **out_kwargs, name=f'head_{k}') for k, v in self.action_dim.items()}
+      heads = {k: Layer(v, **out_kwargs, name=f'head_{k}') 
+               for k, v in self.action_dim.items()}
     else:
       raise NotImplementedError(self.action_dim)
 

@@ -1,4 +1,5 @@
 import yaml
+import numpy as np
 from pathlib import Path
 
 from core.log import do_logging
@@ -13,6 +14,34 @@ def default_path(path):
     return Path(path)
   else:
     return Path('.') / path
+
+def simplify_datatype(config):
+  """ Converts ndarray to list, useful for saving config as a yaml file """
+  if isinstance(config, AttrDict):
+    config = config.asdict()
+  if isinstance(config, (int, float, np.floating, np.integer, str)):
+    return config
+  if config is None:
+    return config
+  if isinstance(config, np.ndarray):
+    return config.tolist()
+  if isinstance(config, (list, tuple)):
+    return [simplify_datatype(v) for v in config]
+  try:
+    for k, v in config.items():
+      if isinstance(v, dict):
+        config[k] = simplify_datatype(v)
+      elif isinstance(v, (list, tuple)):
+        config[k] = simplify_datatype(v)
+      elif isinstance(v, np.ndarray):
+        config[k] = v.tolist()
+      else:
+        config[k] = v
+  except Exception as e:
+    do_logging(str(config), color='red')
+    do_logging(f'Exception: {e}', color='red')
+    exit()
+  return config
 
 # load arguments from config.yaml
 def load_config(path='config', to_attrdict=True, to_eval=True):
@@ -33,13 +62,12 @@ def load_config(path='config', to_attrdict=True, to_eval=True):
         return config
     except yaml.YAMLError as exc:
       do_logging(f'Fail loading configuration: {path}', level='pwc', backtrack=4)
-      print(exc)
+      do_logging(f'Error message: {exc}', level='pwc', backtrack=4)
 
 # save config to config.yaml
 def save_config(config: dict, config_to_update={}, path='config'):
   assert isinstance(config, dict)
-  if isinstance(config, AttrDict):
-    config = config.asdict()
+  config = simplify_datatype(config)
   if not path.endswith(YAML_SUFFIX):
     path = path + YAML_SUFFIX
   
@@ -56,7 +84,7 @@ def save_config(config: dict, config_to_update={}, path='config'):
       config_to_update.update(config)
       yaml.dump(config_to_update, f)
     except yaml.YAMLError as exc:
-      print(exc)
+      do_logging(f'Error message: {exc}', level='pwc', backtrack=4)
 
 def load(path: str):
   if not Path(path).exists():
@@ -65,15 +93,14 @@ def load(path: str):
     try:
       data = yaml.load(f, Loader=yaml.FullLoader)
     except yaml.YAMLError as exc:
-      print(f'Fail loading configuration: {path}')
-      print(exc)
+      do_logging(f'Fail loading configuration: {path}', level='pwc', backtrack=4)
+      do_logging(f'Error message: {exc}', level='pwc', backtrack=4)
       return {}
 
   return data
 
 def dump(path: str, config={}, **kwargs):
-  if isinstance(config, AttrDict):
-    config = config.asdict()
+  config = simplify_datatype(config)
   config = {'config': config, **kwargs}
   path = default_path(path)
   if not path.exists():
@@ -83,7 +110,7 @@ def dump(path: str, config={}, **kwargs):
     try:
       yaml.dump(config, f)
     except yaml.YAMLError as exc:
-      print(exc)
+      do_logging(f'Error message: {exc}', level='pwc', backtrack=4)
 
 def yaml2json(yaml_path, json_path, flatten=False):
   config = load_config(yaml_path)

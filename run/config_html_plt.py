@@ -5,6 +5,7 @@ import json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from tools import yaml_op
 
+
 def parse_args():
   parser = argparse.ArgumentParser()
   parser.add_argument('--directory',

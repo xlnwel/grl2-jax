@@ -143,7 +143,7 @@ class ParameterServer(RayBase):
 
   def get_opponent_distributions_for_active_models(self):
     dists = {
-      m: self.payoff_manager.get_opponent_distribution(i, m, False) 
+      m: self.payoff_manager.compute_opponent_distribution(i, m, False) 
       for i, m in enumerate(self._active_models)
     }
     for m, (p, d) in dists.items():
@@ -206,9 +206,9 @@ class ParameterServer(RayBase):
     self._active_models = models
 
   def _reset_prepared_strategy(self, rid: int=-1):
-    pass
+    raise NotImplementedError
 
-  def get_strategies(self, rid: int=-1):
+  def get_prepared_strategies(self, rid: int=-1):
     if rid < 0:
       if not all(self._ready):
         return None
@@ -239,7 +239,7 @@ class ParameterServer(RayBase):
           else:
             # if error happens here
             # it's likely that you retrive the latest model 
-            # in self.payoff_manager.sample_strategies
+            # in self.payoff_manager.sample_opponent_strategies
             weights = {
               k: self._params[i][m][k] 
               for k in [MODEL, 'train_step', ANCILLARY]
@@ -251,7 +251,7 @@ class ParameterServer(RayBase):
     def get_historical_mids(aid, mid, model_weights: ModelWeights):
       model = model_weights.model
       assert aid == get_aid(model.model_name), (aid, model)
-      models = self.sample_strategies(aid, model, step)
+      models = self.sample_opponent_strategies(aid, model, step)
       assert model in models, (model, models)
       assert len(models) == self.n_agents, (self.n_agents, models)
       mids = put_model_weights(aid, mid, models)
@@ -298,6 +298,7 @@ class ParameterServer(RayBase):
     self._params[aid][model_weights.model].update(model_weights.weights)
     model_weights = ModelWeights(model_weights.model, model_weights.weights.copy())
     prepare_models(aid, model_weights)
+    # do_logging(f'Receiving weights of train step {model_weights.weights["train_step"]}')
 
   def update_aux_stats(self, aid, model_weights: ModelWeights):
     assert len(model_weights.weights) == 1, list(model_weights.weights)
@@ -311,30 +312,6 @@ class ParameterServer(RayBase):
       )
     else:
       self._params[aid][model_weights.model][ANCILLARY] = model_weights.weights[ANCILLARY]
-
-  def sample_training_strategies(self, iteration=None):
-    if iteration is not None:
-      assert iteration == self._iteration, (iteration, self._iteration)
-    strategies = []
-    is_raw_strategy = [False for _ in range(self.n_agents)]
-    if any([am is not None for am in self._active_models]):
-      strategies = self._restore_active_strategies()
-    else:
-      assert all([am is None for am in self._active_models]), self._active_models
-      for aid in range(self.n_agents):
-        if self._iteration == 1 or random.random() < self.train_from_scratch_frac:
-          model_weights = self._construct_raw_strategy(aid, self._iteration)
-          is_raw_strategy[aid] = True
-        else:
-          model_weights = self._sample_historical_strategy(aid, self._iteration)
-        strategies.append(model_weights)
-      models = [s.model for s in strategies]
-      self.add_strategies_to_payoff(models)
-      self._update_active_models(models)
-      self._save_active_models()
-      self.save()
-
-    return strategies, is_raw_strategy
 
   def _update_runner_distribution(self):
     if self._iteration == 1:
@@ -415,7 +392,31 @@ class ParameterServer(RayBase):
     self.save()
 
   """ Strategy Sampling """
-  def sample_strategies(self, aid, model: ModelPath, step=None):
+  def sample_training_strategies(self, iteration=None):
+    if iteration is not None:
+      assert iteration == self._iteration, (iteration, self._iteration)
+    strategies = []
+    is_raw_strategy = [False for _ in range(self.n_agents)]
+    if any([am is not None for am in self._active_models]):
+      strategies = self._restore_active_strategies()
+    else:
+      assert all([am is None for am in self._active_models]), self._active_models
+      for aid in range(self.n_agents):
+        if self._iteration == 1 or random.random() < self.train_from_scratch_frac:
+          model_weights = self._construct_raw_strategy(aid, self._iteration)
+          is_raw_strategy[aid] = True
+        else:
+          model_weights = self._sample_historical_strategy(aid, self._iteration)
+        strategies.append(model_weights)
+      models = [s.model for s in strategies]
+      self.add_strategies_to_payoff(models)
+      self._update_active_models(models)
+      self._save_active_models()
+      self.save()
+
+    return strategies, is_raw_strategy
+
+  def sample_opponent_strategies(self, aid, model: ModelPath, step=None):
     assert model == self._active_models[aid], (model, self._active_models)
     if step is None or self._to_update[model](step):
       self._update_opp_distributions(aid, model)
@@ -441,12 +442,6 @@ class ParameterServer(RayBase):
     ]
     return models
 
-  def _update_opp_distributions(self, aid, model: ModelPath):
-    assert isinstance(model, ModelPath), model
-    payoffs, self._opp_dist[model] = self.payoff_manager.\
-      get_opponent_distribution(aid, model)
-    do_logging(f'Updating opponent distributions for agent {aid}: {self._opp_dist[model]} with payoffs {payoffs}', color='green')
-
   def sample_strategies_for_evaluation(self):
     if self._all_strategies is None:
       strategies = self.payoff_manager.get_all_strategies()
@@ -470,6 +465,12 @@ class ParameterServer(RayBase):
   def update_payoffs(self, models: List[ModelPath], scores: List[List[float]]):
     self.payoff_manager.update_payoffs(models, scores)
     self.payoff_manager.save(to_print=False)
+
+  def _update_opp_distributions(self, aid, model: ModelPath):
+    assert isinstance(model, ModelPath), model
+    payoffs, self._opp_dist[model] = self.payoff_manager.\
+      compute_opponent_distribution(aid, model)
+    do_logging(f'Updating opponent distributions for agent {aid}: {self._opp_dist[model]} with payoffs {payoffs}', color='green')
 
   """ Checkpoints """
   def save_active_model(self, model: ModelPath, train_step: int, env_step: int):

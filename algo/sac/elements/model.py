@@ -32,7 +32,8 @@ class Model(MAModelBase):
     global_state = data.global_state[:, :, :1]
     for rng in random.split(q_rng, self.config.n_Qs):
       self.params.Qs.append(q_init(
-        rng, global_state, data.action, data.state_reset, data.state
+        rng, global_state, data.action, 
+        data.state_reset, data.state
       ))
     self.params.temp, self.modules.temp = self.build_net(name='temp')
 
@@ -56,24 +57,36 @@ class Model(MAModelBase):
       self.params, self.target_params, self.config.polyak)
 
   def raw_action(self, params, rng, data, evaluation=False):
-    agent_rngs = random.split(rng, 2)
+    rngs = random.split(rng, 2)
     if self.has_rnn:
       state = data.pop('state', AttrDict())
       data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , data)
       data.state = state
     else:
       state = AttrDict()
-    act_out, state = self.forward_policy(params.policy, agent_rngs[0], data)
-    act_dist = self.policy_dist(act_out, evaluation)
+    act_out, state = self.forward_policy(params.policy, rngs[0], data)
+    act_dists = self.policy_dist(act_out, evaluation)
 
     if evaluation:
-      action = act_dist.sample(seed=agent_rngs[1])
+      action = {k: ad.sample(seed=rngs[1]) for k, ad in act_dists.items()}
       stats = None
     else:
-      action = act_dist.sample(seed=agent_rngs[1])
-      stats = act_dist.get_stats('mu')
-    if not self.is_action_discrete:
-      action = jnp.tanh(action)
+      if len(act_dists) == 1:
+        action = act_dists[DEFAULT_ACTION].sample(seed=rngs[1])
+        action = {DEFAULT_ACTION: action}
+        stats = act_dists[DEFAULT_ACTION].get_stats('mu')
+      else:
+        action = AttrDict()
+        stats = AttrDict()
+        rngs = random.split(rngs[1], 2)
+        for i, (k, ad) in enumerate(act_dists.items()):
+          a = ad.sample(seed=rngs[i])
+          action[k] = a
+          stats.update(ad.get_stats(f'{k}_mu'))
+    
+    for k, v in action.items():
+      if not self.is_action_discrete[k]:
+        action[k] = jnp.tanh(v)
     if self.has_rnn:
       action, stats = jax.tree_util.tree_map(
         lambda x: jnp.squeeze(x, 1), (action, stats))
@@ -103,8 +116,9 @@ def setup_config_from_envstats(config, env_stats):
   config.policy.action_dim = env_stats.action_dim[aid]
   config.policy.is_action_discrete = env_stats.is_action_discrete[aid]
   config.Q.is_action_discrete = env_stats.is_action_discrete[aid]
-  if config.Q.is_action_discrete:
-    config.Q.out_size = env_stats.action_dim[aid]
+  # for k in env_stats.is_action_discrete[aid]:
+  #   config.Q.out_size[k] = env_stats.action_dim[aid][k] if v else 1
+  config.Q.out_size = 1
 
   return config
 

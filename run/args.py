@@ -93,6 +93,12 @@ def parse_train_args():
     '--train_entry', '-te', 
     type=str, 
     default='train')
+  parser.add_argument(
+    '--new_kws', 
+    type=str,
+    nargs='*',
+    default=[],
+    help='Add new key-values to config.yaml')
   args = parser.parse_args()
 
   return args

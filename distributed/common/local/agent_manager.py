@@ -61,6 +61,9 @@ class AgentManager(ManagerBase):
   def stop_training(self, wait=False):
     self._remote_call(self.agents, 'stop_training', wait=wait)
 
+  def train(self, wait=True):
+    return self._remote_call(self.agents, 'train', wait=wait)
+
   """ Hanlder Registration """
   def register_handler(self, wait=True, **kwargs):
     self._remote_call_with_args(

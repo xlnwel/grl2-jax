@@ -134,7 +134,7 @@ class SPParameterServer(RayBase):
     return stats
 
   def get_opponent_distributions_for_active_models(self):
-    payoff, dist = self.payoff_manager.get_opponent_distribution(
+    payoff, dist = self.payoff_manager.compute_opponent_distribution(
       0, self._active_model, False)
     
     for x in dist:
@@ -193,7 +193,7 @@ class SPParameterServer(RayBase):
   def _reset_prepared_strategy(self, rid: int=-1):
     pass
 
-  def get_strategies(self, rid: int=-1):
+  def get_prepared_strategies(self, rid: int=-1):
     if rid < 0:
       if not all(self._ready):
         return None
@@ -218,7 +218,7 @@ class SPParameterServer(RayBase):
       else:
         # if error happens here
         # it's likely that you retrive the latest model 
-        # in self.payoff_manager.sample_strategies
+        # in self.payoff_manager.sample_opponent_strategies
         weights = {
           k: self._params[model][k] 
           for k in [MODEL, 'train_step', ANCILLARY]
@@ -286,29 +286,6 @@ class SPParameterServer(RayBase):
       )
     else:
       self._params[model_weights.model][ANCILLARY] = model_weights.weights[ANCILLARY]
-
-  def sample_training_strategies(self, iteration=None):
-    if iteration is not None:
-      assert iteration == self._iteration, (iteration, self._iteration)
-    strategies = []
-    is_raw_strategy = [False for _ in range(self.n_active_agents)]
-    if self._active_model is not None:
-      strategies = self._restore_active_strategies()
-    else:
-      assert self._active_model is None, self._active_model
-      if self._iteration == 1 or random.random() < self.train_from_scratch_frac:
-        model_weights = self._construct_raw_strategy(self._iteration)
-        is_raw_strategy[0] = True
-      else:
-        model_weights = self._sample_historical_strategy(self._iteration)
-      strategies.append(model_weights)
-      model = strategies[0].model
-      self._add_strategy_to_payoff(model)
-      self._update_active_model(model)
-      self._save_active_model()
-      self.save()
-
-    return strategies, is_raw_strategy
 
   def _update_runner_distribution(self):
     if self._iteration == 1:
@@ -384,6 +361,29 @@ class SPParameterServer(RayBase):
     self.save()
 
   """ Strategy Sampling """
+  def sample_training_strategies(self, iteration=None):
+    if iteration is not None:
+      assert iteration == self._iteration, (iteration, self._iteration)
+    strategies = []
+    is_raw_strategy = [False for _ in range(self.n_active_agents)]
+    if self._active_model is not None:
+      strategies = self._restore_active_strategies()
+    else:
+      assert self._active_model is None, self._active_model
+      if self._iteration == 1 or random.random() < self.train_from_scratch_frac:
+        model_weights = self._construct_raw_strategy(self._iteration)
+        is_raw_strategy[0] = True
+      else:
+        model_weights = self._sample_historical_strategy(self._iteration)
+      strategies.append(model_weights)
+      model = strategies[0].model
+      self._add_strategy_to_payoff(model)
+      self._update_active_model(model)
+      self._save_active_model()
+      self.save()
+
+    return strategies, is_raw_strategy
+
   def sample_strategies_with_opp_dists(self, step, model: ModelPath):
     if step is None or self._to_update[model](step):
       self._update_opp_distributions(model)
@@ -393,12 +393,6 @@ class SPParameterServer(RayBase):
       assert isinstance(m, ModelPath), m
     model = random.choices(sid2model[:-1], weights=opp_dist[0][:-1])[0]
     return model
-
-  def _update_opp_distributions(self, model: ModelPath):
-    assert isinstance(model, ModelPath), model
-    payoffs, self._opp_dist[model] = self.payoff_manager.\
-      get_opponent_distribution(0, model)
-    do_logging(f'Updating opponent distributions: {self._opp_dist[model]} with payoffs {payoffs}', color='green')
 
   def sample_strategies_for_evaluation(self):
     if self._all_strategies is None:
@@ -422,6 +416,12 @@ class SPParameterServer(RayBase):
   def update_payoffs(self, models: List[ModelPath], scores: List[List[float]]):
     self.payoff_manager.update_payoffs(models, scores)
     self.payoff_manager.save(to_print=False)
+
+  def _update_opp_distributions(self, model: ModelPath):
+    assert isinstance(model, ModelPath), model
+    payoffs, self._opp_dist[model] = self.payoff_manager.\
+      compute_opponent_distribution(0, model)
+    do_logging(f'Updating opponent distributions: {self._opp_dist[model]} with payoffs {payoffs}', color='green')
 
   """ Checkpoints """
   def save_active_model(self, model: ModelPath, train_step: int, env_step: int):

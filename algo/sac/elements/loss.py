@@ -84,12 +84,15 @@ class Loss(LossBase):
       stats = dict2AttrDict(self.config.stats, to_copy=True)
     rngs = random.split(rng, 3)
 
-    action, logprob, act_dist = compute_action_logprob(
+    actions, logprobs, act_dists = compute_action_logprob(
       self.model, theta, rngs[0], data, bptt=self.config.prnn_bptt
     )
+    for k in logprobs:
+      stats[f'{k}_logprob'] = logprobs[k]
+      stats.update(act_dists[k].get_stats(f'{k}_pi'))
+      stats[f'{k}_entropy'] = act_dists[k].entropy()
+    logprob = sum(logprobs.values())
     stats.logprob = logprob
-    stats.update(act_dist.get_stats('pi'))
-    stats.entropy = act_dist.entropy()
 
     qs_state = None if data.state is None else data.state.qs
     q = compute_qs(
@@ -97,7 +100,7 @@ class Loss(LossBase):
       qs_params, 
       rngs[1], 
       data.global_state, 
-      action, 
+      actions, 
       data.state_reset, 
       qs_state, 
       bptt=self.config.qrnn_bptt, 

@@ -131,6 +131,8 @@ class SelectedAgents(gym.Wrapper):
       actions.append(np.random.randint(self.action_dim))
     for _ in range(self.n_right_controlled_units):
       actions.append(np.random.randint(self.action_dim))
+    actions = [{'action': np.stack(actions)}]
+
     return actions
 
   def reset(self):

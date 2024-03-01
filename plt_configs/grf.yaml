@@ -2,7 +2,7 @@
 config:
   old: base
   # new: 0601-mujoco
-  new: 1124
+  new: rnn_exp
 rename:
   metrics/score: score
   metrics/dense_score: dense_score
@@ -17,6 +17,6 @@ rename:
 data:
   # - date: 1127
   #   env_suite: grf
-  - date: 1129
-    env_suite: grf
-  - date: 1201
+  # - date: "0223"
+  # - date: "0228"
+  - date: "0229"

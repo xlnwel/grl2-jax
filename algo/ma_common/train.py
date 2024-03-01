@@ -133,13 +133,15 @@ def log(agent):
 
 
 @timeit
-def build_agent(config, env_stats, save_monitor_stats_to_disk=True, save_config=True):
-  model_name = get_basic_model_name(config.model_name)
-  new_model_name = os.path.join(model_name, 'a0')
-  modify_config(
-    config, 
-    model_name=new_model_name, 
-  )
+def build_agent(config, env_stats, rename_model_name=True, 
+                save_monitor_stats_to_disk=True, save_config=True):
+  if rename_model_name:
+    model_name = get_basic_model_name(config.model_name)
+    new_model_name = os.path.join(model_name, 'a0')
+    modify_config(
+      config, 
+      model_name=new_model_name, 
+    )
   builder = ElementsBuilder(
     config, 
     env_stats, 
@@ -203,7 +205,7 @@ def main(configs, train=train, Runner=Runner):
 
   env_stats = runner.env_stats()
   env_stats.n_envs = config.env.n_runners * config.env.n_envs
-  print_dict(env_stats)
+  do_logging(env_stats, prefix='Env stats', color='blue')
 
   save_code_for_seed(config)
   agents = [build_agent(config, env_stats) for config in configs]

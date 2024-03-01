@@ -141,6 +141,10 @@ def setup_configs(cmd_args, algo_env_config):
     do_logging(f'Setup configs for algo({algo}) and env({env})', color='yellow')
     algo = _get_algo_name(algo)
     config = load_config_with_algo_env(algo, env, config)
+    if cmd_args.new_kws:
+      for s in cmd_args.new_kws:
+        key, value = s.split('=', 1)
+        config[key] = value
     if i in kwidx:
       change_config_with_kw_string(cmd_args.kwargs, config, i)
     if model_name == '':

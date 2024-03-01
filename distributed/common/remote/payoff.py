@@ -77,7 +77,7 @@ class PayoffManager:
     assert len(models) == self.n_agents, (models, self.n_agents)
     self.payoff_table.update(models, scores)
 
-  def get_opponent_distribution(
+  def compute_opponent_distribution(
     self, 
     aid: int, 
     model: ModelPath, 

@@ -10,12 +10,18 @@ def print_dict(tree, prefix='', level='pwt', backtrack=3):
     print_dict(tree._asdict(), prefix+':\t', level=level, backtrack=backtrack+1)
   elif isinstance(tree, Dict):
     for k, v in tree.items():
-      if prefix:
-        new_prefix = prefix + '.'
-      else:
-        new_prefix = prefix
-      new_prefix = new_prefix + k
+      new_prefix = prefix + '.' if prefix else prefix
+      new_prefix += f'{k}'
       if isinstance(v, Dict):
+        do_logging(new_prefix, backtrack=backtrack)
+        print_dict(v, prefix='\t'+new_prefix, level=level, backtrack=backtrack+1)
+      else:
+        print_dict(v, prefix=new_prefix, level=level, backtrack=backtrack+1)
+  elif isinstance(tree, (list, tuple)):
+    for i, v in enumerate(tree):
+      new_prefix = prefix + '.' if prefix else prefix
+      new_prefix += f'{i}'
+      if isinstance(v, dict):
         do_logging(new_prefix, backtrack=backtrack)
         print_dict(v, prefix='\t'+new_prefix, level=level, backtrack=backtrack+1)
       else:

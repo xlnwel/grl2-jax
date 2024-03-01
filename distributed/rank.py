@@ -1,7 +1,8 @@
 import ray
 
-from .sync.local.controller import Controller
+from distributed.common.local.controller import Controller
 from tools.ray_setup import sigint_shutdown_ray
+from tools import pkg
 
 
 def main(config, payoff_name, n):
@@ -15,6 +16,8 @@ def main(config, payoff_name, n):
     config.env.render = True
     config.runner.n_steps = config.env.max_episode_steps = 3000
 
+  ControllerCls = pkg.import_module('local.controller', config=config).Controller
+  controller: Controller = ControllerCls(config)
   controller = Controller(config, to_restore=False)
   controller.build_managers_for_evaluation(config)
 

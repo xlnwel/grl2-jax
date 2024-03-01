@@ -1,0 +1,31 @@
+#!/bin/bash
+
+source activate grl
+
+
+dir=$1
+shift
+
+sleep=3
+while true
+do
+    tomorrow=$(date -v+1d "+%m%d")
+    today=$(date +"%m%d")
+    yesterday=$(date -v-1d "+%m%d")
+    dby=$(date -v-2d "+%m%d")
+    # tda=$(date -v-3d "+%m%d")
+    # fda=$(date -v-4d "+%m%d")
+
+    py_script="python run/config_html_plt.py"
+    echo $py_script
+    eval $py_script
+    # rm -rf html-logs
+    py_script="python run/html_plt.py $dir -fl 7 $@ "
+    echo $py_script
+    eval $py_script
+    py_script="python run/html_plt.py $dir -fl 8 -ln i1-v1 $@ "
+    echo $py_script
+    eval $py_script
+    echo "sleeping for $sleep seconds"
+    sleep $sleep
+done

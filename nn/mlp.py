@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
 from core.log import do_logging
 from nn.layers import Layer
 from nn.registry import layer_registry, nn_registry
+from nn.utils import call_norm
 
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class MLP(hk.Module):
     out_b_init=None, 
     rnn_type=None, 
     rnn_units=None, 
+    rnn_norm=None, 
     out_kwargs={}, 
     **kwargs
   ):
@@ -81,6 +83,9 @@ class MLP(hk.Module):
       out_w_init = w_init
     if out_b_init is None:
       out_b_init = b_init
+    self.norm = norm
+    self.norm_kwargs = norm_kwargs
+    self.rnn_norm = rnn_norm
     self.out_kwargs = dict(
       layer_type=out_layer_type, 
       w_init=out_w_init, 
@@ -110,11 +115,11 @@ class MLP(hk.Module):
       x, shape = _prepare_for_rnn(x)
       reset, _ = _prepare_for_rnn(reset)
       x = (x, reset)
-      
       state = _rnn_reshape(state, (shape[1] * shape[2], -1))
       x, state = hk.dynamic_unroll(core, x, state)
       x = _recover_shape(x, shape)
       state = _rnn_reshape(state, (shape[1], shape[2], -1))
+      x = call_norm(x, self.rnn_norm, self.norm_kwargs, is_training=is_training)
 
       for l in out_layers:
         x = l(x, is_training)
@@ -136,11 +141,12 @@ class MLP(hk.Module):
       for u in self.units_list:
         layers.append(Layer(u, **self.layer_kwargs))
 
-      if self.rnn_type == 'lstm':
-        core = hk.LSTM(self.rnn_units)
-      elif self.rnn_type == 'gru':
-        core = hk.GRU(self.rnn_units)
-      core = hk.ResetCore(core)
+      if self.rnn_type is not None:
+        if self.rnn_type == 'lstm':
+          core = hk.LSTM(self.rnn_units)
+        elif self.rnn_type == 'gru':
+          core = hk.GRU(self.rnn_units)
+        core = hk.ResetCore(core)
 
       out_layers = []
       if self.out_size:

@@ -189,8 +189,15 @@ class UniformReplay(Buffer):
       fn = lambda x: np.expand_dims(np.stack(x), 1)
     else:
       fn = np.stack
-    samples = [memory[i] for i in idxes]
-    samples = batch_dicts(samples, func=fn, keys=sample_keys)
+    raw_samples = [memory[i] for i in idxes]
+    raw_samples = batch_dicts(raw_samples, func=fn, keys=sample_keys)
+    samples = AttrDict()
+    samples.action = AttrDict()
+    for k, v in raw_samples.items():
+      if k.startswith('action'):
+        samples.action[k] = v
+      else:
+        samples[k] = v
 
     return samples
 

@@ -15,7 +15,7 @@ routine:
   algorithm: *algo
 
   MAX_STEPS: 1e7
-  n_steps: &nsteps 200
+  n_steps: &nsteps 400
   LOG_PERIOD: 5e4
   EVAL_PERIOD: null
 
@@ -23,7 +23,7 @@ routine:
   N_EVAL_EPISODES: 1
   size: [256, 256]
 
-  compute_return_at_once: True
+  compute_return_at_once: False
   ignore_ratio_for_ego: False
   perm: null
 
@@ -31,7 +31,7 @@ env:
   env_name: &env_name smac-5m_vs_6m
   n_runners: &nrunners 8
   n_envs: &nenvs 1
-  timeout_done: &td False
+  timeout_done: &td True
   use_sample_mask: &sm True
   use_action_mask: &am True
   sample_mask_at_done: 0
@@ -60,7 +60,7 @@ model:
     out_scale: .01
     rnn_type: &prnn null
     rnn_units: 64
-    use_feature_norm: False
+    use_feature_norm: True
     use_action_mask: *am
   value:
     nn_id: value
@@ -70,7 +70,7 @@ model:
     norm: null
     rnn_type: &vrnn null
     rnn_units: 64
-    use_feature_norm: False
+    use_feature_norm: True
 
 loss:
   # hyperparams for value target and advantage
@@ -94,7 +94,7 @@ loss:
   huber_threshold: 10
   value_clip_range: .2
   value_sample_mask: False
-  popart: &popart True
+  popart: &popart False
 
   stats:
     gamma: *gamma
@@ -113,7 +113,7 @@ trainer:
   n_steps: *nsteps
   update_scheme: whole
   popart: *popart
-  debug: True
+  debug: False
 
   policy_opt:
     opt_name: adam
@@ -134,7 +134,7 @@ actor:
       obs_names: [obs, global_state]
       obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
       obs_normalized_ndim: 2
-      normalize_obs: True
+      normalize_obs: False
       obs_clip: 10
     reward:
       reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension

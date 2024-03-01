@@ -5,6 +5,7 @@ from nn.registry import layer_registry
 from nn.utils import get_initializer, get_activation, \
   call_norm, calculate_scale, FixedInitializer
 
+layer_registry.register('linear')(hk.Linear)
 
 @layer_registry.register('layer')
 class Layer:
@@ -42,6 +43,7 @@ class Layer:
     if self.layer_args:
       x = self.layer_cls(
         *self.layer_args, 
+        with_bias=self.norm is None or self._norm_after_activation, 
         w_init=self.w_init, 
         b_init=self.b_init, 
         name=self.name, 
@@ -49,11 +51,11 @@ class Layer:
       )(x)
     
     if not self._norm_after_activation:
-      x = call_norm(self.norm, self.norm_kwargs, x, is_training=is_training)
+      x = call_norm(x, self.norm, self.norm_kwargs, is_training=is_training)
     if self.activation is not None:
       x = self.activation(x)
     if self._norm_after_activation:
-      x = call_norm(self.norm, self.norm_kwargs, x, is_training=is_training)
+      x = call_norm(x, self.norm, self.norm_kwargs, is_training=is_training)
 
     return x
 
@@ -109,8 +111,6 @@ class ELinear(hk.Module):
 
     return w, b
 
-
-layer_registry.register('linear')(hk.Linear)
 
 if __name__ == '__main__':
   import jax

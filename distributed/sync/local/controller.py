@@ -23,13 +23,12 @@ class Controller(ControllerBase):
     to_eval = Every(self.config.eval_period, start=self._steps, final=max_steps)
     to_store = Every(self.config.store_period, start=self._steps, final=max_steps)
     eval_pids = []
+
     while self._steps < max_steps:
       self._preprocessing(to_eval, to_restart_runners, to_store, eval_pids)
       model_weights = self._retrieve_model_weights()
-
       steps = sum(runner_manager.run_with_model_weights(model_weights))
-      self._steps += self.steps_per_run   # adding a fixed number of steps gives nicer logging stats for plotting
-      # self._steps += steps
-      # do_logging(f'finishing sampling: total steps={self._steps}, steps={steps}')
+      self._steps += self.steps_per_run
+      # agent_manager.train()
 
     self._finish_iteration(eval_pids)

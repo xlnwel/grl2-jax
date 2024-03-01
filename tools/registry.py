@@ -25,6 +25,9 @@ class Registry:
   def get_all(self):
     return self._mapping
 
+  def merge(self, other):
+    self._mapping.update(other.get_all())
+
 
 def register_all(registry, globs):
   for k, v in globs.items():

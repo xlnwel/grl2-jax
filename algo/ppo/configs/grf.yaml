@@ -45,8 +45,8 @@ env:
   use_action_mask: False
   uid2aid: null
 
-  n_runners: &nrunners 5
-  n_envs: &nenvs 4
+  n_runners: &nrunners 10
+  n_envs: &nenvs 2
 
   use_idx: False
   timeout_done: &td True
@@ -70,9 +70,11 @@ model:
     w_init: orthogonal
     activation: relu
     norm: null
+    norm_after_activation: True
     out_scale: .01
     rnn_type: &prnn null
     rnn_units: 64
+    rnn_norm: null
     use_feature_norm: False
   value:
     nn_id: value
@@ -80,8 +82,10 @@ model:
     w_init: orthogonal
     activation: relu
     norm: null
+    norm_after_activation: True
     rnn_type: &vrnn null
     rnn_units: 64
+    rnn_norm: null
     use_feature_norm: False
 
 loss:

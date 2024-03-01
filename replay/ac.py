@@ -217,10 +217,10 @@ class ACBuffer(Buffer):
     # sample = {k: self._queue[0][k] for k in sample_keys}
     raw_sample = self._queue.pop()
     sample = AttrDict()
-    sample['action'] = AttrDict()
+    sample.action = AttrDict()
     for k, v in raw_sample.items():
       if k.startswith('action'):
-        sample['action'][k] = v
+        sample.action[k] = v
       else:
         sample[k] = v
     # sample = self._queue[0].copy()

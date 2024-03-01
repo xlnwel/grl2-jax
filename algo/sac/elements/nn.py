@@ -2,8 +2,10 @@ from jax import lax, nn
 import jax.numpy as jnp
 import haiku as hk
 
+from core.names import DEFAULT_ACTION
 from core.typing import dict2AttrDict
 from nn.func import nn_registry
+from nn.layers import Layer
 from nn.mlp import MLP
 from jax_tools import jax_assert
 from algo.masac.elements.utils import concat_sa
@@ -31,33 +33,43 @@ class Policy(hk.Module):
     self.use_feature_norm = use_feature_norm
 
   def __call__(self, x, reset=None, state=None, action_mask=None):
-    net = self.build_net()
+    net, heads = self.build_net()
 
     x = net(x, reset, state)
     if isinstance(x, tuple):
       assert len(x) == 2, x
       x, state = x
     
-    if self.is_action_discrete:
-      if action_mask is not None:
-        jax_assert.assert_shape_compatibility([x, action_mask])
-        x = jnp.where(action_mask, x, -1e10)
-      return x, state
-    else:
-      mu, logstd = jnp.split(x, 2, -1)
-      logstd = jnp.clip(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-      scale = lax.exp(logstd)
-      return (mu, scale), state
+    outs = {}
+    for name, layer in heads.items():
+      x = layer(x)
+      if self.is_action_discrete[name]:
+        if action_mask is not None:
+          jax_assert.assert_shape_compatibility([x, action_mask])
+          x = jnp.where(action_mask, x, -jnp.inf)
+        outs[name] = x
+      else:
+        mu, logstd = jnp.split(x, 2, -1)
+        logstd = jnp.clip(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+        scale = lax.exp(logstd)
+        outs[name] = (mu, scale)
+
+    return outs, state
 
   @hk.transparent
   def build_net(self):
-    out_size = self.action_dim if self.is_action_discrete else 2 * self.action_dim
-    net = MLP(
-      **self.config, 
-      out_size=out_size, 
-    )
+    net = MLP(**self.config)
+    out_kwargs = net.out_kwargs
+    if isinstance(self.action_dim, dict):
+      heads = {}
+      for k, v in self.action_dim.items():
+        if not self.is_action_discrete[k]:
+          v = 2 * v
+        heads[k] = Layer(v, **out_kwargs, name=f'head_{k}')
+    else:
+      raise NotImplementedError(self.action_dim)
 
-    return net
+    return net, heads
 
 
 @nn_registry.register('Q')
@@ -81,21 +93,21 @@ class Q(hk.Module):
       ln = hk.LayerNorm(-1, True, True)
       x = ln(x)
 
-    if not self.is_action_discrete:
-      x = concat_sa(x, a)
+    a = jnp.concatenate([x, *a.values()], -1)
     net = self.build_net()
 
     x = net(x, reset, state)
     if isinstance(x, tuple):
       assert len(x) == 2, x
       x, state = x
-    if self.is_action_discrete:
-      if a.ndim < x.ndim:
-        a = nn.one_hot(a, self.out_size)
-      assert x.ndim == a.ndim, (x.shape, a.shape)
-      x = jnp.sum(x * a, -1)
-    else:
-      x = jnp.squeeze(x, -1)
+    # if self.is_action_discrete:
+    #   if a.ndim < x.ndim:
+    #     a = nn.one_hot(a, self.out_size)
+    #   assert x.ndim == a.ndim, (x.shape, a.shape)
+    #   x = jnp.sum(x * a, -1)
+    # else:
+    #   x = jnp.squeeze(x, -1)
+    x = jnp.squeeze(x, -1)
 
     return x, state
 

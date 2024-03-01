@@ -4,7 +4,7 @@ from jax import random
 import jax.numpy as jnp
 
 from env.utils import get_action_mask
-from core.names import DEFAULT_ACTION
+from core.names import DEFAULT_ACTION, TRAIN_AXIS
 from core.typing import AttrDict, tree_slice
 from jax_tools import jax_utils
 from tools.file import source_file
@@ -198,12 +198,14 @@ class Model(MAModelBase):
       if k.endswith('_mask'):
         action_mask[k.replace('_mask', '')] = v
     states = []
-    for p, v in zip(self.params.policies, self.params.vs):
+    for uids, p, v in zip(self.gid2uids, self.params.policies, self.params.vs):
       state = AttrDict()
+      d = data.slice(indices=uids, axis=TRAIN_AXIS.UNIT)
+      am = action_mask.slice(indices=uids, axis=TRAIN_AXIS.UNIT)
       _, state.policy = self.modules.policy(
-        p, self.act_rng, data.obs, reset=data.state_reset, action_mask=action_mask)
+        p, self.act_rng, d.obs, reset=d.state_reset, action_mask=am)
       _, state.value = self.modules.value(
-        v, self.act_rng, data.global_state, reset=data.state_reset)
+        v, self.act_rng, d.global_state, reset=d.state_reset)
       states.append(state)
     states = tuple(states)
     self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, states)

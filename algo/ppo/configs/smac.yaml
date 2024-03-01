@@ -53,10 +53,12 @@ model:
     units_list: [64, 64]
     w_init: orthogonal
     activation: relu
-    norm: null
+    norm: layer
+    norm_after_activation: False
     out_scale: .01
     rnn_type: &prnn null
     rnn_units: 64
+    rnn_norm: null
     use_feature_norm: True
     use_action_mask: *am
   value:
@@ -64,9 +66,11 @@ model:
     units_list: [64, 64]
     w_init: orthogonal
     activation: relu
-    norm: null
+    norm: layer
+    norm_after_activation: False
     rnn_type: &vrnn null
     rnn_units: 64
+    rnn_norm: null
     use_feature_norm: True
 
 loss:

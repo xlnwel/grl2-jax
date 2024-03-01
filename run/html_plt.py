@@ -128,7 +128,7 @@ def convert_data(d, directory, target, plt_config):
     else:
       do_logging(f'{yaml_path} does not exist', color='magenta')
       return
-  config = yaml_op.load_config(yaml_path)
+  config = yaml_op.load_config(yaml_path, to_eval=False)
   root_dir = config.root_dir
   model_name = config.model_name
   strs = f'{root_dir}/{model_name}'.split('/')

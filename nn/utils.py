@@ -94,7 +94,7 @@ def reset_weights(weights, rng, name, **params):
 
 
 @hk.transparent
-def call_norm(norm_type, norm_kwargs, x, is_training, name=None):
+def call_norm(x, norm_type, norm_kwargs, is_training, name=None):
   if norm_type is None:
     return x
   norm_layer = get_norm(norm_type)(**norm_kwargs, name=name)
@@ -105,7 +105,7 @@ def call_norm(norm_type, norm_kwargs, x, is_training, name=None):
   return y
 
 
-def dropout(dropout, training, x):
+def dropout(x, dropout, training):
   if training and dropout > 0:
     x = hk.dropout(hk.next_rng_key(), dropout, x)
   return x
