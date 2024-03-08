@@ -55,12 +55,13 @@ class PayoffTable(PayoffTableCheckpoint):
     self.restore()
 
   """ Payoff Retrieval """
-  def get_payoffs(self, fill_nan=False):
+  def get_payoffs(self, fill_nan=None):
     payoffs = []
     for p in self.payoffs:
       p = p.copy()
-      if fill_nan:
-        p[np.isnan(p)] = 0
+      if fill_nan is not None:
+        assert isinstance(fill_nan, (int, float)), fill_nan
+        p[np.isnan(p)] = fill_nan
       payoffs.append(p)
     return payoffs
 
@@ -244,10 +245,11 @@ class SelfPlayPayoffTable(PayoffTableCheckpoint):
     self.restore()
   
   """ Payoff Retrieval """
-  def get_payoffs(self, fill_nan=False, *, sid: int=None):
+  def get_payoffs(self, fill_nan=None, *, sid: int=None):
     payoffs = self.payoffs.copy()
-    if fill_nan:
-      payoffs[np.isnan(payoffs)] = 0
+    if fill_nan is not None:
+      assert isinstance(fill_nan, (int, float)), fill_nan
+      payoffs[np.isnan(payoffs)] = fill_nan
     if sid is not None:
       payoffs = payoffs[sid]
     return payoffs
@@ -327,7 +329,7 @@ class SelfPlayPayoffTableWithModel(SelfPlayPayoffTable):
     return self.model2sid
 
   """ Payoff Retrieval """
-  def get_payoffs(self, fill_nan=False, *, sid: int=None, model: ModelPath=None):
+  def get_payoffs(self, fill_nan=None, *, sid: int=None, model: ModelPath=None):
     if sid is None and model is not None:
       sid = self.model2sid[model]
     payoff = super().get_payoffs(fill_nan=fill_nan, sid=sid)

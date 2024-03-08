@@ -128,9 +128,8 @@ class Temperature(hk.Module):
     return self._type != CONSTANT_TEMP
 
   def __call__(self):
-    temp_init = hk.initializers.Constant(lax.log(self._value))
-    temp = jnp.array(self._value)
     if self._type == VARIABLE_TEMP:
+      temp_init = hk.initializers.Constant(lax.log(self._value))
       log_temp = hk.get_parameter(
         'log_temp', 
         shape=(), 
@@ -139,5 +138,6 @@ class Temperature(hk.Module):
       temp = lax.exp(log_temp)
       return log_temp, temp
     else:
+      temp = jnp.array(self._value)
       log_temp = lax.log(temp)
       return log_temp, temp

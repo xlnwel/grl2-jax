@@ -17,7 +17,7 @@ from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
   get_aid, get_basic_model_name
 from core.typing import ModelWeights
-from nn.utils import reset_weights
+from nn.utils import reset_linear_weights
 from distributed.common.remote.payoff import PayoffManager
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
@@ -64,11 +64,11 @@ class ParameterServer(RayBase):
     # the probability of training an agent from scratch
     self.train_from_scratch_frac = self.config.get('train_from_scratch_frac', 1)
     self.train_from_latest_frac = self.config.get('train_from_latest_frac', 0)
+    self.reset_policy_head_frac = self.config.get('reset_policy_head_frac', 1)
     # fraction of runners devoted to the play of the most recent strategies 
     self.online_frac = self.config.get('online_frac', .2)
     self.online_scheduler = PiecewiseSchedule(self.online_frac, interpolation='stage')
     self.self_play = self.config.get('self_play', False)
-    self._reset_policy_head = self.config.get('reset_policy_head', True)
     assert not self.self_play, self.self_play
 
     model_name = get_basic_model_name(config.model_name)
@@ -158,7 +158,7 @@ class ParameterServer(RayBase):
 
   def get_runner_stats(self):
     self._update_runner_distribution()
-    if self._iteration == 1:
+    if self._iteration == 1 and not self._rule_strategies:
       stats = AttrDict(
         iteration=self._iteration, 
         online_frac=1,
@@ -191,6 +191,7 @@ class ParameterServer(RayBase):
       models.append(model)
       do_logging(f'Adding rule strategy {model}', color='green')
       if not local:
+        # Add the rule strategy to the payoff table if the payoff manager is not restored from a checkpoint
         do_logging(f'Adding rule strategy to payoff table', color='green')
         self.payoff_manager.add_strategy(model, aid=aid)
 
@@ -281,13 +282,9 @@ class ParameterServer(RayBase):
         self._params[aid][model_weights.model].get(ANCILLARY, RMSStats({}, None))
       mid = ray.put(model_weights)
 
-      if self._iteration == 1 or self.n_runners == self.n_online_runners:
-        # prepare the most recent model for all runners
-        prepare_recent_models(aid, mid, self.n_runners)
-      else:
-        # prepare the most recent model for online runners
-        prepare_recent_models(aid, mid, self.n_online_runners)
-        
+      # prepare the most recent model for online runners
+      prepare_recent_models(aid, mid, self.n_online_runners)
+      if self.n_online_runners < self.n_runners:
         # prepare historical models for selected runners
         prepare_historical_models(aid, mid, model_weights)
 
@@ -314,7 +311,7 @@ class ParameterServer(RayBase):
       self._params[aid][model_weights.model][ANCILLARY] = model_weights.weights[ANCILLARY]
 
   def _update_runner_distribution(self):
-    if self._iteration == 1:
+    if self._iteration == 1 and not self._rule_strategies:
       self.n_online_runners = self.n_runners
       self.n_agent_runners = 0
     else:
@@ -361,18 +358,21 @@ class ParameterServer(RayBase):
     model, config = self.builders[aid].get_sub_version(config, iteration)
     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
     assert model not in self._params[aid], f'{model} is already in {list(self._params[aid])}'
-    if self._reset_policy_head:
+    if random.random() < self.reset_policy_head_frac:
       rng = jax.random.PRNGKey(random.randint(0, 2**32))
       if 'policies' in weights[MODEL]:
         for policy in weights[MODEL]['policies']:
           for k, v in policy.items():
             if k.startswith('policy/head'):
-              policy[k] = v
+              policy[k] = reset_linear_weights(
+                v, rng, 'orthogonal', scale=.01)
+              do_logging(f'{k} is reset', color='green')
       elif 'policy' in weights[MODEL]:
         for k, v in weights[MODEL]['policy'].items():
           if k.startswith('policy/head'):
-            weights[MODEL]['policy'][k] = reset_weights(
+            weights[MODEL]['policy'][k] = reset_linear_weights(
               v, rng, 'orthogonal', scale=.01)
+            do_logging(f'{k} is reset', color='green')
     self._params[aid][model] = weights
     model_weights = ModelWeights(model, weights)
     

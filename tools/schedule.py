@@ -48,18 +48,12 @@ class PiecewiseSchedule:
               for i in range(len(self._endpoints)-1)]
     self._outside_value = self._endpoints[-1][1]
 
-  def __call__(self, t, to_int=False):
-    val = self._compute_value(t)
-    if to_int:
-      val = int(val)
-    return val
-
-  def _compute_value(self, t):
-    if t < self._endpoints[0][0]:
+  def __call__(self, t):
+    if t <= self._endpoints[0][0]:
       return self._endpoints[0][1]
     else:
       for (l_t, l), (r_t, r) in zip(self._endpoints[:-1], self._endpoints[1:]):
-        if l_t <= t and t < r_t:
+        if l_t < t and t <= r_t:
           return self._interpolation(l_t, l, r_t, r, t)
 
     # t does not belong to any of the pieces, so doom.

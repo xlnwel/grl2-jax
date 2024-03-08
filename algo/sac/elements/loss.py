@@ -121,21 +121,14 @@ class Loss(LossBase):
     stats, 
   ):
     log_temp, temp = self.modules.temp(theta, rng)
-    target_entropy = self.config.get(
-      'target_entropy', -self.model.config.policy.action_dim)
-    stats.target_entropy = target_entropy
-    stats.temp = temp
-    raw_temp_loss = - log_temp * (stats.logprob + target_entropy)
-    stats.scaled_temp_loss, loss = jax_loss.to_loss(
-      raw_temp_loss, 
-      coef=stats.temp_coef, 
-    )
-    stats.temp_loss = loss
+    act_dim = sum(self.model.config.policy.action_dim.values())
+    target_entropy = self.config.get('target_entropy', -act_dim)
+    loss, stats = compute_temp_loss(temp, log_temp, target_entropy, stats)
 
     return loss, stats
 
 
-def create_loss(config, model, name='masac'):
+def create_loss(config, model, name='sac'):
   loss = Loss(config=config, model=model, name=name)
 
   return loss

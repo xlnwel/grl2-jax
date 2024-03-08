@@ -63,9 +63,18 @@ class RunnerManager(ManagerBase):
       ray.kill(r)
     self.runners = None
 
+  def get_total_steps(self):
+    return self._remote_call(self.runners, 'get_total_steps', wait=True)
+
   """ Running Routines """
   def random_run(self, aids=None, wait=False):
     self._remote_call_with_value(self.runners, 'random_run', aids, wait)
+
+  def start_running(self):
+    self._remote_call(self.runners, 'start_running')
+    
+  def stop_running(self):
+    self._remote_call(self.runners, 'stop_running')
 
   def run_with_model_weights(self, mids, wait=True):
     oids = [runner.run_with_model_weights.remote(mid) 

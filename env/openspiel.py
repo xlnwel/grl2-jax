@@ -61,7 +61,6 @@ class OpenSpiel:
       (action, self._time_step.observations['legal_actions'][self._current_player])
     return action
     
-
   def seed(self, seed=None):
     self.env.seed(seed)
 

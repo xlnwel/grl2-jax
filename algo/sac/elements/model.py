@@ -41,8 +41,6 @@ class Model(MAModelBase):
 
   def compile_model(self):
     self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
-    self.jit_forward_policy = jax.jit(
-      self.forward_policy, static_argnames=('return_state'))
 
   @property
   def target_theta(self):
@@ -78,10 +76,9 @@ class Model(MAModelBase):
       else:
         action = AttrDict()
         stats = AttrDict()
-        rngs = random.split(rngs[1], 2)
+        rngs = random.split(rngs[1])
         for i, (k, ad) in enumerate(act_dists.items()):
-          a = ad.sample(seed=rngs[i])
-          action[k] = a
+          action[k] = ad.sample(seed=rngs[i])
           stats.update(ad.get_stats(f'{k}_mu'))
     
     for k, v in action.items():
@@ -105,7 +102,10 @@ class Model(MAModelBase):
     data = construct_fake_data(self.env_stats, batch_size)
     state = AttrDict()
     _, state.policy = self.modules.policy(self.params.policy, self.act_rng, data.obs)
-    _, state.q = self.modules.Q(self.params.qs, self.act_rng, data.global_state)
+    state.qs = []
+    for q_params in self.params.qs:
+      _, q_state = self.modules.Q(q_params, self.act_rng, data.global_state)
+      state.qs.append(q_state)
     self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, state)
 
     return self._initial_states[name]

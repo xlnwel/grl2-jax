@@ -143,6 +143,10 @@ class FrameSkip(gym.Wrapper):
     super().__init__(env)
     self.frame_skip = frame_skip
 
+  def reset(self, **kwargs):
+    self._epslen = 0
+    self.env.reset()
+
   def step(self, action, frame_skip=None, **kwargs):
     total_reward = []
     frame_skip = frame_skip or self.frame_skip
@@ -153,6 +157,8 @@ class FrameSkip(gym.Wrapper):
         break
     total_reward = [sum(r) for r in zip(*total_reward)]
     info['frame_skip'] = i
+    self._epslen += 1
+    info['skipped_epslen'] = self._epslen
     
     return obs, total_reward, done, info
 

@@ -85,12 +85,22 @@ def get_initializer(name, scale=1., **kwargs):
 
 
 def reset_weights(weights, rng, name, **params):
+  w = getattr(jax.nn.initializers, name)(**params)(rng, weights.shape)
+  return w
+
+def reset_linear_weights(weights, rng, name, **params):
   rngs = jax.random.split(rng, 2)
-  w = getattr(jax.nn.initializers, 'orthogonal')(**params)(rngs[0], weights['w'].shape)
+  w = getattr(jax.nn.initializers, name)(**params)(rngs[0], weights['w'].shape)
   b = jax.nn.initializers.zeros(rngs[1], weights['b'].shape)
   weights['w'] = w
   weights['b'] = b
   return weights
+
+
+@hk.transparent
+def call_activation(x, activation):
+  act = get_activation(activation)
+  return act(x)
 
 
 @hk.transparent

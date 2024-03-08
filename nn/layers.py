@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import haiku as hk
 
 from nn.registry import layer_registry
-from nn.utils import get_initializer, get_activation, \
+from nn.utils import get_initializer, call_activation, \
   call_norm, calculate_scale, FixedInitializer
 
 layer_registry.register('linear')(hk.Linear)
@@ -37,7 +37,7 @@ class Layer:
     self.norm = norm
     self.norm_kwargs = norm_kwargs
     self._norm_after_activation = norm_after_activation
-    self.activation = get_activation(activation)
+    self.activation = activation
 
   def __call__(self, x, is_training=True, **kwargs):
     if self.layer_args:
@@ -52,8 +52,7 @@ class Layer:
     
     if not self._norm_after_activation:
       x = call_norm(x, self.norm, self.norm_kwargs, is_training=is_training)
-    if self.activation is not None:
-      x = self.activation(x)
+    x = call_activation(x, self.activation)
     if self._norm_after_activation:
       x = call_norm(x, self.norm, self.norm_kwargs, is_training=is_training)
 

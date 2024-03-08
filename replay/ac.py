@@ -7,6 +7,7 @@ from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
+from tools.display import print_dict_info
 from tools.utils import batch_dicts, batch_states, stack_data_with_state
 from replay import replay_registry
 
@@ -160,12 +161,13 @@ class ACBuffer(Buffer):
         if k == 'action':
           for kk in keys:
             if kk.startswith(k):
-              data[kk] =  np.concatenate(
+              data[kk] = np.concatenate(
                 [np.concatenate(b[kk]) for b in self._buffers.values() if b]
               )[-self.batch_size:]
         elif k == 'state':
           data[k] = batch_states(
-            [batch_states(b[k], func=np.concatenate) for b in self._buffers.values() if b], 
+            [batch_states(b[k], axis=0, func=np.concatenate) 
+             for b in self._buffers.values() if b], 
             axis=0, func=np.concatenate)
         elif k not in self._buffers[rid]:
           continue

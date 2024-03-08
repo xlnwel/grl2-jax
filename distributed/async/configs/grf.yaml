@@ -147,7 +147,7 @@ trainer:
   aid: 0
   n_runners: &nrunners 2
   n_envs: *nenvs
-  n_epochs: &nepochs 5
+  n_epochs: &nepochs 1
   n_mbs: &nmbs 1
   n_steps: *nsteps
   update_scheme: whole

@@ -203,10 +203,10 @@ class Trainer(TrainerBase):
           
           if return_stats:
             vts[gid] = stats.pop('raw_v_target')
-            if e == n_epochs-1 and i == n_mbs - 1:
-              all_stats.update(**prefix_name(stats, name=f'agent{gid}_last_epoch'))
-            elif e == 0 and i == 0:
+            if e == 0 and i == 0:
               all_stats.update(**prefix_name(stats, name=f'agent{gid}_first_epoch'))
+            elif e == n_epochs-1 and i == n_mbs - 1:
+              all_stats.update(**prefix_name(stats, name=f'agent{gid}_last_epoch'))
         v_target.append(vts)
 
     if return_stats:

@@ -47,7 +47,7 @@ class MultiAgentRunner(RayBase):
 
     self.id = runner_id
     self.evaluation = evaluation
-    self.algo_type = config.get("algo_type", 'online')
+    self.algo_type = config.get("algo_type", 'onpolicy')
 
     env_config = self._setup_env_config(config.env)
     self.env = create_env(env_config, no_remote=True)
@@ -87,6 +87,9 @@ class MultiAgentRunner(RayBase):
     self.builder = ElementsBuilder(config, self.env_stats)
 
     self.build_from_configs(configs)
+  
+  def _get_local_buffer_type(self):
+    return 'local' if self.is_simultaneous_move else 'tblocal'
 
   def build_from_configs(self, configs: Union[List[Dict], Dict]):
     if self.self_play:
@@ -111,12 +114,12 @@ class MultiAgentRunner(RayBase):
 
     for aid, config in enumerate(configs):
       config.model.seed += self.id * SEED_MULTIPLIER
-      config.buffer.type = 'local' if self.is_simultaneous_move else 'tblocal'
+      config.buffer.type = self._get_local_buffer_type()
       # update n_steps for consistency
       config.buffer.n_steps = self.n_steps
       elements = self.builder.build_acting_agent_from_scratch(
         config, 
-        env_stats=self.env_stats,
+        env_stats=self.env_stats, 
         build_monitor=True, 
         to_build_for_eval=self.evaluation, 
         to_restore=False
@@ -351,7 +354,7 @@ class MultiAgentRunner(RayBase):
           buffer = self.buffers[aid]
           if self.is_agent_active[aid]:
             assert buffer.is_full(), len(buffer)
-            if self.algo_type == 'online':
+            if self.algo_type == 'onpolicy':
               value = agent.compute_value(out)
               rid, data, n = buffer.retrieve_all_data({
                 'value': value,

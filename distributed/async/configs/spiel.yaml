@@ -1,8 +1,8 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo sync-ppo
-name: sync-ppo
-info: sync-ppo
+algorithm: &algo async-ppo
+name: async-ppo
+info: async-ppo
 version: 0
 
 precision: 32
@@ -63,10 +63,10 @@ ray_config:
 monitor: {}
 
 runner:
-  n_runners: &nrunners 8
+  n_runners: 12
   n_steps: &nsteps 2
   push_every_episode: False
-  algo_type: online
+  algo_type: onpolicy
 
 env:
   env_name: &env_name spiel-leduc_poker
@@ -135,7 +135,7 @@ loss:
 trainer:
   algorithm: *algo
   aid: 0
-  n_runners: *nrunners
+  n_runners: &nrunners 4
   n_envs: *nenvs
   n_epochs: &nepochs 1
   n_mbs: &nmbs 1

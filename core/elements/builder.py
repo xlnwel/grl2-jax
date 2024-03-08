@@ -519,7 +519,6 @@ class ElementsBuilderVC(ElementsBuilder):
     self._model_path = ModelPath(root_dir, model_name)
     self.config = set_path(self.config, self._model_path)
     self._all_versions.add(version)
-    self.save_config()
     self.save()
 
   def get_sub_version(self, config: AttrDict, iteration: int) -> Tuple[ModelPath, AttrDict]:
@@ -558,14 +557,13 @@ class ElementsBuilderVC(ElementsBuilder):
     )
     model_path = ModelPath(root_dir, model_name)
     model_dir = os.path.join(*model_path)
-    config = set_path(config, model_path)
+    self.config = set_path(config, model_path)
     if not os.path.isdir(model_dir):
       os.makedirs(model_dir, exist_ok=True)
     self._all_versions.add(version)
-    self.save_config(config)
     self.save()
 
-    return model_path, config
+    return model_path
 
   """ Save & Restore """
   def restore(self):

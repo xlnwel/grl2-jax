@@ -8,7 +8,6 @@ from nn.func import nn_registry
 from nn.layers import Layer
 from nn.mlp import MLP
 from jax_tools import jax_assert
-from algo.masac.elements.utils import concat_sa
 
 
 @nn_registry.register('policy')
@@ -42,14 +41,15 @@ class Policy(hk.Module):
     
     outs = {}
     for name, layer in heads.items():
-      x = layer(x)
       if self.is_action_discrete[name]:
+        logits = layer(x)
         if action_mask is not None:
-          jax_assert.assert_shape_compatibility([x, action_mask])
-          x = jnp.where(action_mask, x, -jnp.inf)
-        outs[name] = x
+          jax_assert.assert_shape_compatibility([logits, action_mask])
+          logits = jnp.where(action_mask, logits, -jnp.inf)
+        outs[name] = logits
       else:
-        mu, logstd = jnp.split(x, 2, -1)
+        mu = layer[0](x)
+        logstd = layer[1](x)
         logstd = jnp.clip(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
         scale = lax.exp(logstd)
         outs[name] = (mu, scale)
@@ -63,9 +63,13 @@ class Policy(hk.Module):
     if isinstance(self.action_dim, dict):
       heads = {}
       for k, v in self.action_dim.items():
-        if not self.is_action_discrete[k]:
-          v = 2 * v
-        heads[k] = Layer(v, **out_kwargs, name=f'head_{k}')
+        if self.is_action_discrete[k]:
+          heads[k] = Layer(v, **out_kwargs, name=f'head_{k}')
+        else:
+          heads[k] = (
+            Layer(v, **out_kwargs, name=f'head_{k}_mu'), 
+            Layer(v, **out_kwargs, name=f'head_{k}_logstd')
+          )
     else:
       raise NotImplementedError(self.action_dim)
 
@@ -93,7 +97,7 @@ class Q(hk.Module):
       ln = hk.LayerNorm(-1, True, True)
       x = ln(x)
 
-    a = jnp.concatenate([x, *a.values()], -1)
+    x = jnp.concatenate([x, *a.values()], -1)
     net = self.build_net()
 
     x = net(x, reset, state)
@@ -146,9 +150,8 @@ class Temperature(hk.Module):
     return self._type != CONSTANT_TEMP
 
   def __call__(self):
-    temp_init = hk.initializers.Constant(lax.log(self._value))
-    temp = jnp.array(self._value)
     if self._type == VARIABLE_TEMP:
+      temp_init = hk.initializers.Constant(lax.log(float(self._value)))
       log_temp = hk.get_parameter(
         'log_temp', 
         shape=(), 
@@ -157,5 +160,6 @@ class Temperature(hk.Module):
       temp = lax.exp(log_temp)
       return log_temp, temp
     else:
+      temp = jnp.array(self._value, dtype=jnp.float32)
       log_temp = lax.log(temp)
       return log_temp, temp

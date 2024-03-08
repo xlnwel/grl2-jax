@@ -5,7 +5,6 @@ import json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from tools import yaml_op
 
-
 def parse_args():
   parser = argparse.ArgumentParser()
   parser.add_argument('--directory',
@@ -60,7 +59,7 @@ def plot_config(config, plt_config):
 
 
 def generate_config(args, f):
-  plt_config = yaml_op.load_config(f, to_eval=True)
+  plt_config = yaml_op.load_config(f, to_eval=False)
   old_config = str(plt_config['config']['old'])
   new_configs = plt_config['config']['new']
   if not isinstance(new_configs, (list, tuple)):

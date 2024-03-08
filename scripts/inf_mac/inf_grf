@@ -4,13 +4,7 @@ export PYTHONPATH=.
 
 suite=grf
 algos=(
-  sync-ppo
-  sync-ppo
-  sync-ppo
-  sync-ppo
-  ppo
-  ppo
-  ppo
+  # sync-ppo
   ppo
 )
 envs=(
@@ -28,17 +22,18 @@ configs=(
 )
 # shift
 args1=(
-  layer
+  True
+  True
+  True
+  True
+  False
+  False
+  False
+  False
 )
 args2=(
-  1
-  1
-  1
-  1
-  2
-  2
-  2
-  2
+  True
+  False
 )
 args3=(
   None
@@ -50,7 +45,6 @@ args4=(
   .2
 )
 date=$(date +"%m%d")
-date="0301"
 info=""
 ld="${suite}-logs"
 
@@ -103,17 +97,16 @@ kws=$@
 #     echo $py_script
 #   done
 # fi
-kws=""
-model="${config}"
-# for a in "${algos[@]}"; do
+kws="rnn_type=None compute_return_at_once=$a1"
+for a in "${algos[@]}"; do
 # for e in "${envs[@]}"; do
-env="${suite}-${e}"
-for s in {0..4}; do
-  py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s -n $model"
-  commands+=("$py_script")
-  echo $py_script
+  env="${suite}-${e}"
+  for s in {0..4}; do
+    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+    commands+=("$py_script")
+    echo $py_script
+  done
 done
-# done
 # done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 5 -L 1 bash -c COMMAND 
 echo "Script completed"

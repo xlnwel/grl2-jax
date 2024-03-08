@@ -160,15 +160,13 @@ def compute_target(
   return reward + discount * gamma * next_value
 
 
-def compute_q_loss(
-  config, qs, q_target, data, stats
-):
+def compute_q_loss(config, qs, q_target, data, stats):
   if config.get('value_sample_mask', False):
     sample_mask = data.sample_mask
   else:
     sample_mask = None
 
-  reps = (len(qs), 1, 1, 1)
+  reps = (len(qs),) + (1,) * len(qs[0].shape)
   qs = jnp.stack(qs)
   assert q_target.ndim == 3, q_target.ndim
   q_target = jnp.tile(q_target, reps)
@@ -205,5 +203,20 @@ def compute_policy_loss(
   stats.raw_policy_loss = raw_loss
   stats.scaled_policy_loss = scaled_loss
   stats.policy_loss = loss
+
+  return loss, stats
+
+
+def compute_temp_loss(
+  temp, log_temp, target_entropy, stats
+):
+  stats.target_entropy = target_entropy
+  stats.temp = temp
+  raw_temp_loss = - temp * lax.stop_gradient(stats.logprob + target_entropy)
+  stats.scaled_temp_loss, loss = jax_loss.to_loss(
+    raw_temp_loss, 
+    coef=stats.temp_coef, 
+  )
+  stats.temp_loss = loss
 
   return loss, stats

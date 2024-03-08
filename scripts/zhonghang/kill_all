@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python multi_exec.py -c "./scripts/zhonghang/kill"

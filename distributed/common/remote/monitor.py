@@ -32,6 +32,7 @@ class Monitor(RayBase):
   ):
     super().__init__(seed=config.get('seed'))
     self.config = dict2AttrDict(config['monitor'])
+    self.print_terminal_info = bool(self.config.print_terminal_info)
     self.n_agents = config['n_agents']
     self.self_play = config.get('self_play', False)
     self.parameter_server = parameter_server
@@ -91,7 +92,7 @@ class Monitor(RayBase):
     self._monitor.store(**stats)
     self._monitor.set_step(step)
     if record:
-      self._monitor.record(step, print_terminal_info=True)
+      self._monitor.record(step, print_terminal_info=self.print_terminal_info)
 
   def store_train_stats(
     self, 
@@ -150,7 +151,7 @@ class Monitor(RayBase):
     self._env_steps_in_period[model] = 0
     self._episodes_in_period[model] = 0
     self.monitors[model].set_step(step)
-    self.monitors[model].record(print_terminal_info=True)
+    self.monitors[model].record(print_terminal_info=self.print_terminal_info)
     self._last_save_time[model] = time.time()
 
   def clear_iteration_stats(self):

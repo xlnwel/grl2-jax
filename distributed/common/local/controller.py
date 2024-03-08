@@ -1,5 +1,4 @@
 import os
-from math import ceil
 import cloudpickle
 from functools import partial
 import time
@@ -7,10 +6,6 @@ from typing import List, Tuple, Union
 import numpy as np
 import ray
 
-from .agent_manager import AgentManager
-from .runner_manager import RunnerManager
-from ..remote.monitor import Monitor
-from ..remote.parameter_server import ParameterServer
 from core.ckpt.base import YAMLCheckpointBase
 from core.log import do_logging
 from core.typing import ModelPath, get_basic_model_name, AttrDict, dict2AttrDict
@@ -23,6 +18,10 @@ from tools.schedule import PiecewiseSchedule
 from tools.timer import Every, Timer, timeit
 from tools.utils import batch_dicts, eval_config, modify_config, prefix_name
 from tools import yaml_op, pkg
+from .agent_manager import AgentManager
+from .runner_manager import RunnerManager
+from ..remote.monitor import Monitor
+from ..remote.parameter_server import ParameterServer
 
 
 timeit = partial(timeit, period=1)
@@ -61,15 +60,6 @@ def _setup_configs(
   return configs
 
 
-def _compute_pbt_steps(n_runners, n_steps, n_online_runners, n_agent_runners):
-  worker_steps = n_runners * n_steps
-  n_agent_runners = n_online_runners + n_agent_runners
-  n_pbt_steps = ceil(worker_steps / n_agent_runners)
-  assert n_agent_runners * n_pbt_steps >= worker_steps, (n_agent_runners, n_pbt_steps)
-
-  return n_pbt_steps
-
-
 class Controller(YAMLCheckpointBase):
   def __init__(
     self, 
@@ -98,11 +88,13 @@ class Controller(YAMLCheckpointBase):
   def build_managers_for_evaluation(self, config: AttrDict):
     self.self_play = config.self_play
     if config.self_play:
-      ParameterServerCls = SPParameterServer
+      PSCls = pkg.import_module(
+        'remote.parameter_server_sp', config=config).SPParameterServer
     else:
-      ParameterServerCls = ParameterServer
-    self.parameter_server: ParameterServerCls = \
-      ParameterServerCls.as_remote().remote(
+      PSCls = pkg.import_module(
+        'remote.parameter_server', config=config).ParameterServer
+    self.parameter_server: ParameterServer = \
+      PSCls.as_remote().remote(
         config=config.asdict(),
         to_restore_params=False, 
       )
@@ -140,9 +132,11 @@ class Controller(YAMLCheckpointBase):
     self.steps_per_run = self.n_runners * self.n_envs * self.n_steps
 
     if config.self_play:
-      PSCls = pkg.import_module('remote.parameter_server_sp', config=config).SPParameterServer
+      PSCls = pkg.import_module(
+        'remote.parameter_server_sp', config=config).SPParameterServer
     else:
-      PSCls = pkg.import_module('remote.parameter_server', config=config).ParameterServer
+      PSCls = pkg.import_module(
+        'remote.parameter_server', config=config).ParameterServer
     do_logging('Building Parameter Server...', color='blue')
     self.parameter_server: ParameterServer = \
       PSCls.as_remote().remote(
@@ -262,27 +256,7 @@ class Controller(YAMLCheckpointBase):
 
   """ Implementation for <pbt_train> """
   def _prepare_configs(self, n_runners: int, n_steps: int, iteration: int):
-    configs = [dict2AttrDict(c, to_copy=True) for c in self.configs]
-    runner_stats = ray.get(self.parameter_server.get_runner_stats.remote())
-    assert self._iteration == runner_stats.iteration, (self._iteration, runner_stats.iteration)
-    n_online_runners = runner_stats.n_online_runners
-    n_agent_runners = runner_stats.n_agent_runners
-    n_pbt_steps = _compute_pbt_steps(
-      n_runners, 
-      n_steps, 
-      n_online_runners, 
-      n_agent_runners, 
-    )
-    for c in configs:
-      c.trainer.n_runners = n_online_runners + n_agent_runners
-      c.buffer.n_runners = n_online_runners + n_agent_runners
-      c.trainer.n_steps = n_pbt_steps
-      c.runner.n_steps = n_pbt_steps
-      c.buffer.n_steps = n_pbt_steps
-    runner_stats.n_pbt_steps = n_pbt_steps
-    do_logging(runner_stats, prefix=f'Runner Stats at Iteration {self._iteration}', color='blue')
-    self._log_stats(runner_stats, self._iteration)
-    return configs
+    raise NotImplementedError
 
   def _initialize_rms(self, models: List[ModelPath], is_raw_strategy: List[bool]):
     if self.config.initialize_rms and any(is_raw_strategy):
@@ -327,15 +301,25 @@ class Controller(YAMLCheckpointBase):
       self.monitor.save_all.remote(self._steps)
       self.save()
 
-  def _finish_iteration(self, eval_pids):
+  def _check_scores(self):
+    if self.config.score_threshold is not None:
+      payoffs = ray.get([
+        self.parameter_server.get_payoffs_for_model(i, m) 
+        for i, m in enumerate(self.agent_manager.models)])
+      if all([np.nanmean(p) > self.config.score_threshold for p in payoffs]):
+        return True
+    return False
+
+  def _finish_iteration(self, eval_pids, **kwargs):
     ipid = self._eval(self._iteration)
     do_logging(f'Finishing Iteration {self._iteration}', color='blue')
     ray.get([
       self.monitor.save_all.remote(self._steps),
       self.monitor.save_payoff_table.remote(self._iteration)
     ])
-    self._log_remote_stats_for_models(eval_pids, self.active_models, step=self._steps)
-    self._log_remote_stats(ipid, step=self._iteration, record=True, )
+    self._log_remote_stats_for_models(
+      eval_pids, self.active_models, step=self._steps)
+    self._log_remote_stats(ipid, step=self._iteration, record=True)
     self._steps = 0
 
   """ Statistics Logging """

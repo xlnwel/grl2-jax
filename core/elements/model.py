@@ -72,11 +72,11 @@ class Model(ParamsCheckpointBase):
   def print_params(self):
     if self.config.get('print_for_debug', True):
       for k, v in self.params.items():
-        do_logging(f'Module: {k}')
-        print_dict_info(v, prefix='\t')
+        do_logging(f'Module: {k}', color='blue')
+        print_dict_info(v, prefix='\t', color='blue')
         n = summarize_arrays(v)
         n = int2str(n)
-        do_logging(f'Total number of params of {k}: {n}')
+        do_logging(f'Total number of params of {k}: {n}', color='blue')
 
   @property
   def theta(self):

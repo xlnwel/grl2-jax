@@ -1,5 +1,6 @@
 from typing import List, Union
 
+from core.log import do_logging
 from core.typing import ModelPath, AttrDict
 from game.func import select_sampling_strategy
 from game.payoff import PayoffTableWithModel, SelfPlayPayoffTableWithModel
@@ -57,8 +58,10 @@ class PayoffManager:
     if self.self_play:
       assert aid is None or aid in (0, 1), aid
       self.payoff_table.expand(model)
+      do_logging(f'Adding strategy ({model}) to payoff table', color='green')
     else:
       self.payoff_table.expand(model, aid=aid)
+      do_logging(f'Adding strategy ({model}) for agent ({aid}) to payoff table', color='green')
 
   def add_strategies(self, models: List[ModelPath]):
     """ Add strategies for all agents at once """
@@ -67,6 +70,7 @@ class PayoffManager:
       self.payoff_table.expand(models[0])
     else:
       self.payoff_table.expand_all(models)
+    do_logging(f'Adding strategies {models} to payoff table', color='green')
 
   """ Payoff Management """
   def update_payoffs(
@@ -76,6 +80,14 @@ class PayoffManager:
   ):
     assert len(models) == self.n_agents, (models, self.n_agents)
     self.payoff_table.update(models, scores)
+
+  def get_payoffs_for_model(self, aid: int, model: ModelPath):
+    if self.self_play:
+      assert aid == 0, aid
+      payoffs = self.payoff_table.get_payoffs(model=model)
+    else:
+      payoffs = self.payoff_table.get_payoffs_for_agent(aid, model=model)
+    return payoffs
 
   def compute_opponent_distribution(
     self, 

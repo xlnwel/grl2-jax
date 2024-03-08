@@ -6,6 +6,8 @@ import jax.numpy as jnp
 from env.utils import get_action_mask
 from core.names import DEFAULT_ACTION
 from core.typing import AttrDict, dict2AttrDict
+from nn.utils import reset_weights
+from tools.display import print_dict_info
 from tools.file import source_file
 from tools.utils import batch_dicts
 from algo.ma_common.elements.model import *
@@ -18,11 +20,30 @@ class Model(MAModelBase):
   def build_nets(self):
     aid = self.config.get('aid', 0)
     data = construct_fake_data(self.env_stats, aid=aid)
+    self.policy_rnn_init = self.config.policy.pop('rnn_init', None)
+    self.value_rnn_init = self.config.value.pop('rnn_init', None)
 
     self.params.policy, self.modules.policy = self.build_net(
       data.obs, data.state_reset, data.state, data.action_mask, name='policy')
     self.params.value, self.modules.value = self.build_net(
       data.global_state, data.state_reset, data.state, name='value')
+    self._init_rnn()
+  
+  def _init_rnn(self):
+    if self.policy_rnn_init:
+      for k in self.params.policy:
+        if 'gru' in k or 'lstm' in k:
+          for kk, vv in self.params.policy[k].items():
+            if not kk.endswith('b'):
+              self.rng, rng = random.split(self.rng)
+              self.params.policy[k][kk] = reset_weights(vv, rng, self.policy_rnn_init)
+    if self.value_rnn_init:
+      for k in self.params.value:
+        if 'gru' in k or 'lstm' in k:
+          for kk, vv in self.params.value[k].items():
+            if not kk.endswith('b'):
+              self.rng, rng = random.split(self.rng)
+              self.params.value[k][kk] = reset_weights(vv, rng, self.value_rnn_init)
 
   def compile_model(self):
     self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
@@ -61,7 +82,7 @@ class Model(MAModelBase):
         action = AttrDict()
         logprob = AttrDict()
         stats = AttrDict(mu_logprob=0)
-        rngs = random.split(rngs[1], 2)
+        rngs = random.split(rngs[1])
         for i, (k, ad) in enumerate(act_dists.items()):
           a, lp = ad.sample_and_log_prob(seed=rngs[i])
           action[k] = a

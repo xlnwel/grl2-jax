@@ -112,13 +112,7 @@ class Model(MAModelBase):
     if not self.has_rnn:
       return None
     data = construct_fake_data(self.env_stats, batch_size)
-    states = []
-    for p, q, d in zip(self.params.policies, self.params.qs, data):
-      state = AttrDict()
-      _, state.policy = self.modules.policy(p, self.act_rng, d.obs)
-      _, state.q = self.modules.Q(q, self.act_rng, d.global_state, )
-      states.append(state)
-    states = tuple(states)
+    raise NotImplementedError
     self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, states)
 
     return self._initial_states[name]

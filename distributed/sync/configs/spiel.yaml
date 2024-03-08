@@ -68,7 +68,7 @@ runner:
   n_runners: &nrunners 8
   n_steps: &nsteps 2
   push_every_episode: False
-  algo_type: online
+  algo_type: onpolicy
 
 env:
   env_name: &env_name spiel-leduc_poker

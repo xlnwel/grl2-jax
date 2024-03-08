@@ -105,10 +105,10 @@ class Trainer(TrainerBase):
           )
         v_target.append(stats.raw_v_target)
         # print_dict_info(stats)
-        if e == self.config.n_epochs-1 and i == self.config.n_mbs - 1:
-          all_stats.update(**prefix_name(stats, name=f'group_last_epoch'))
-        elif e == 0 and i == 0:
+        if e == 0 and i == 0:
           all_stats.update(**prefix_name(stats, name=f'group_first_epoch'))
+        elif e == self.config.n_epochs-1 and i == self.config.n_mbs - 1:
+          all_stats.update(**prefix_name(stats, name=f'group_last_epoch'))
     self.model.set_weights(theta)
 
     if self.config.popart:

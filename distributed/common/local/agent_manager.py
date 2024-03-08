@@ -1,12 +1,12 @@
 from typing import List
 import ray
 
-from ..remote.agent import Agent
-from ..remote.parameter_server import ParameterServer
 from core.elements.monitor import Monitor
 from core.remote.base import ManagerBase
 from core.typing import AttrDict, AttrDict2dict
 from core.typing import ModelWeights
+from ..remote.agent import Agent
+from ..remote.parameter_server import ParameterServer
 
 
 class AgentManager(ManagerBase):
@@ -22,6 +22,7 @@ class AgentManager(ManagerBase):
     self.parameter_server = parameter_server
     self.monitor = monitor
     self.agents = None
+    self.models = []
 
   """ Agent Management """
   def build_agents(self, configs: List[dict]):
@@ -46,7 +47,8 @@ class AgentManager(ManagerBase):
   def get_model_paths(self, wait=True):
     return self._remote_call(self.agents, 'get_model_paths', wait=wait)
 
-  def set_model_weights(self, model_weights: ModelWeights, wait=False):
+  def set_model_weights(self, model_weights: List[ModelWeights], wait=False):
+    self.models = [m.model for m in model_weights]
     self._remote_call_with_list(
       self.agents, 'set_model_weights', model_weights, wait=wait)
 

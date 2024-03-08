@@ -1,10 +1,12 @@
 import time
 import ray
 
+from core.log import do_logging
+from core.typing import dict2AttrDict
+from tools.timer import Every, timeit
 from distributed.common.local.agent_manager import AgentManager
 from distributed.common.local.runner_manager import RunnerManager
 from distributed.common.local.controller import Controller as ControllerBase
-from tools.timer import Every, timeit
 
 
 class Controller(ControllerBase):
@@ -34,3 +36,14 @@ class Controller(ControllerBase):
       # do_logging(f'finishing sampling: total steps={steps}')
 
     self._finish_iteration(eval_pids)
+
+  """ Implementation for <pbt_train> """
+  def _prepare_configs(self, n_runners: int, n_steps: int, iteration: int):
+    configs = [dict2AttrDict(c, to_copy=True) for c in self.configs]
+    runner_stats = ray.get(self.parameter_server.get_runner_stats.remote())
+    assert self._iteration == runner_stats.iteration, (self._iteration, runner_stats.iteration)
+    n_online_runners = runner_stats.n_online_runners
+    n_agent_runners = runner_stats.n_agent_runners
+    do_logging(runner_stats, prefix=f'Runner Stats at Iteration {self._iteration}', color='blue')
+    self._log_stats(runner_stats, self._iteration)
+    return configs

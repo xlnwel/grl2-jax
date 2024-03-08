@@ -1,16 +1,15 @@
 import threading
 import ray
 
-from tools.timer import Timer
-
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.log import do_logging
 from core.names import *
 from core.remote.base import RayBase
+from core.typing import ModelStats, ModelWeights
+from tools.timer import Timer
 from .monitor import Monitor
 from .parameter_server import ParameterServer
-from core.typing import ModelStats, ModelWeights
 
 
 class Agent(RayBase):
@@ -24,7 +23,7 @@ class Agent(RayBase):
     super().__init__(config['aid'], seed=config.get('seed'))
 
     self.aid = config['aid']
-    self.parameter_server = parameter_server
+    self.parameter_server: ParameterServer = parameter_server
     self.monitor: Monitor = monitor
 
     self.builder: ElementsBuilder = ElementsBuilder(

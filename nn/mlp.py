@@ -150,7 +150,7 @@ class MLP(hk.Module):
 
       out_layers = []
       if self.out_size:
-        out_layers.append(Layer(self.out_size, **self.out_kwargs))
+        out_layers.append(Layer(self.out_size, **self.out_kwargs, name='out'))
 
       return layers, core, out_layers
 

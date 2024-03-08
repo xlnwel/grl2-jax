@@ -9,24 +9,22 @@ class RandomActor(Actor):
   def __init__(self, env, config, name='random'):
     super().__init__(config=config, model=None, name=name)
     self.env = env
-    self.uids = self.env.stats().aid2uids[config['aid']]
+    self.aid = config['aid']
   
   def __call__(self, env_out, *args, **kwargs):
-    acts = np.stack(self.env.random_action())
-    return acts[self.uids], {}
+    acts = self.env.random_action()
+    return acts[self.aid], {}
 
 
 class TBRandomActor(Actor):
   def __init__(self, env, config, name='random'):
     super().__init__(config=config, model=None, name=name)
     self.env = env
-    self.uids = self.env.stats().aid2uids[config['aid']]
   
   def __call__(self, env_out, *args, **kwargs):
-    uids = env_out.obs['eid']
-    acts = np.stack(self.env.random_action())
+    acts = self.env.random_action()
     
-    return acts[uids], {}
+    return acts[0], {}
 
 
 class RandomStrategy(Strategy):
