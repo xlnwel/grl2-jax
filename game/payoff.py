@@ -53,6 +53,9 @@ class PayoffTable(PayoffTableCheckpoint):
     self.counts = [np.zeros([0] * n_agents, dtype=np.int64) for _ in range(n_agents)]
 
     self.restore()
+  
+  def size(self, aid: int):
+    return self.payoffs[aid].shape[0]
 
   """ Payoff Retrieval """
   def get_payoffs(self, fill_nan=None):
@@ -243,6 +246,9 @@ class SelfPlayPayoffTable(PayoffTableCheckpoint):
     self.counts = np.zeros([0] * 2, dtype=np.int64)
 
     self.restore()
+  
+  def size(self):
+    return self.payoffs.shape[0]
   
   """ Payoff Retrieval """
   def get_payoffs(self, fill_nan=None, *, sid: int=None):

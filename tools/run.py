@@ -354,6 +354,7 @@ def evaluate(
   n = max(n, env.n_envs)
   n_done_eps = 0
   prev_done = np.zeros(env.n_envs)
+  env_output = env.output()
   while n_done_eps < n:
     for k in range(max_steps):
       if record_video:
@@ -364,7 +365,6 @@ def evaluate(
           for i in range(len(frames)):
             frames[i].append(img[i])
 
-      outs = [EnvOutput(*o) for o in zip(*env_output)]
       outs = divide_env_output(env_output)
       action, stats = zip(*[a(o, evaluation=True) for a, o in zip(agents, outs)])
       env_output = env.step(action)

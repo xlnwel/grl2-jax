@@ -1,8 +1,9 @@
 import collections
-import itertools
 import os
 import copy
+import filelock
 import random
+import time
 from typing import Dict, List
 import numpy as np
 import jax
@@ -14,17 +15,17 @@ from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
 from core.remote.base import RayBase
-from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
-  get_aid, get_basic_model_name
-from core.typing import ModelWeights
-from nn.utils import reset_linear_weights
-from distributed.common.remote.payoff import PayoffManager
+from core.typing import AttrDict, AttrDict2dict, ModelPath, ModelWeights, \
+  construct_model_name, exclude_subdict, get_aid, get_date, get_basic_model_name
+from nn.utils import reset_linear_weights, reset_weights
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
 from tools.schedule import PiecewiseSchedule
 from tools.timer import Every
 from tools.utils import config_attr, dict2AttrDict
 from tools import yaml_op
+from distributed.common.typing import Status
+from distributed.common.remote.payoff import PayoffManager
 
 
 """ Name Conventions:
@@ -46,6 +47,35 @@ def _divide_runners(n_agents, n_runners, online_frac):
   return n_online_runners, n_agent_runners
 
 
+def _reset_policy_head(weights, config):
+  rng = jax.random.PRNGKey(random.randint(0, 2**32))
+  if 'policies' in weights[MODEL]:
+    for policy in weights[MODEL]['policies']:
+      for k, v in policy.items():
+        if k.startswith('policy/head'):
+          policy[k] = reset_linear_weights(
+            v, rng, 'orthogonal', scale=.01)
+          do_logging(f'{k} is reset', color='green')
+        elif k == 'policy':
+          for kk, vv in policy[k].items():
+            if kk.endswith('logstd'):
+              policy[k][kk] = reset_weights(
+                vv, rng, 'constant', value=config.model.policy.init_std)
+  elif 'policy' in weights[MODEL]:
+    policy = weights[MODEL]['policy']
+    for k, v in policy.items():
+      if k.startswith('policy/head'):
+        policy[k] = reset_linear_weights(
+          v, rng, 'orthogonal', scale=.01)
+        do_logging(f'{k} is reset', color='green')
+      elif k == 'policy':
+        for kk, vv in policy[k].items():
+          if kk.endswith('logstd'):
+            policy[k][kk] = reset_weights(
+              vv, rng, 'constant', value=config.model.policy.init_std)
+  return weights
+
+
 class SPParameterServer(RayBase):
   def __init__(
     self, 
@@ -65,6 +95,7 @@ class SPParameterServer(RayBase):
     # the probability of training an agent from scratch
     self.train_from_scratch_frac = self.config.get('train_from_scratch_frac', 1)
     self.train_from_latest_frac = self.config.get('train_from_latest_frac', 0)
+    self.hist_train_scale = self.config.get('hist_train_scale', 1)
     self.reset_policy_head_frac = self.config.get('reset_policy_head_frac', 1)
     # fraction of runners devoted to the play of the most recent strategies 
     self.online_frac = self.config.get('online_frac', .2)
@@ -76,6 +107,10 @@ class SPParameterServer(RayBase):
     self._dir = os.path.join(config.root_dir, model_name)
     os.makedirs(self._dir, exist_ok=True)
     self._path = os.path.join(self._dir, f'{self.name}.yaml')
+
+    self._pool_name = self.config.get('pool_name', 'strategy_pool')
+    date = get_date(config.model_name)
+    self._pool_path = os.path.join(config.root_dir, f'{date}', f'{self._pool_name}.yaml')
 
     self._params: Dict[ModelPath, Dict] = {}
     self._prepared_strategies: List[List[ModelWeights]] = \
@@ -110,13 +145,44 @@ class SPParameterServer(RayBase):
     self._ready = [False for _ in range(self.n_runners)]
 
   def check(self):
-    pass
+    assert self.payoff_manager.size() == len(self._params), (self.payoff_manager.size(), len(self._params))
 
   def build(self, configs: List[Dict], env_stats: Dict):
     self.agent_config = dict2AttrDict(configs[0])
     model = os.path.join(self.agent_config["root_dir"], self.agent_config["model_name"])
     os.makedirs(model, exist_ok=True)
     self.builder = ElementsBuilderVC(self.agent_config, env_stats, to_save_code=False)
+
+  """ Strategy Pool Management """
+  def save_strategy_pool(self):
+    lock = filelock.FileLock(self._pool_path + '.lock')
+
+    while True:
+      with lock.acquire(timeout=5):
+        config = yaml_op.load(self._pool_path)
+        config[self._dir] = [list(m) for m in self._params]
+        yaml_op.dump(self._pool_path, **config)
+        break
+      do_logging(f'{self._pool_path} is blocked for 5s', 'red')
+    do_logging(f'Saving strategy pool to {self._pool_path}', color='green')
+
+  def load_strategy_pool(self):
+    lock = filelock.FileLock(self._pool_path + '.lock')
+
+    while True:
+      with lock.acquire(timeout=5):
+        config = yaml_op.load(self._pool_path)
+        break
+      do_logging(f'{self._pool_path} is blocked for 5s', 'red')
+
+    for k, v in config.items():
+      for model in v:
+        model = ModelPath(*model)
+        if model not in self._params:
+          self.restore_params(model)
+          self.add_strategy_to_payoff(model)
+    self.check()
+    do_logging(f'Loading strategy pool from {self._pool_path}', color='green')
 
   """ Data Retrieval """
   def get_active_models(self):
@@ -184,8 +250,8 @@ class SPParameterServer(RayBase):
         # Add the rule strategy to the payoff table if the payoff manager is not restored from a checkpoint
         self.payoff_manager.add_strategy(model)
 
-  def _add_strategy_to_payoff(self, models: ModelPath):
-    self.payoff_manager.add_strategy(models)
+  def add_strategy_to_payoff(self, model: ModelPath):
+    self.payoff_manager.add_strategy(model)
 
   def _update_active_model(self, model: ModelPath):
     self._active_model = model
@@ -253,7 +319,7 @@ class SPParameterServer(RayBase):
         self._params[model_weights.model].get(ANCILLARY, RMSStats([], None))
       mid = ray.put(model_weights)
 
-      # prepare the most recent model for online runners
+      # prepare the most recent models for online runners
       prepare_recent_models(mid)
       if self.n_online_runners < self.n_runners:
         # prepare historical models for selected runners
@@ -301,11 +367,16 @@ class SPParameterServer(RayBase):
     weights.pop(ANCILLARY, None)
     strategies.append(ModelWeights(model, weights))
     do_logging(f'Restoring active strategy: {model}', color='green')
-    self.builder.save_config()
+    config = self.builder.config.copy(shallow=False)
+    config.status = Status.TRAINING
+    self.builder.save_config(config)
     return strategies
 
   def _construct_raw_strategy(self, iteration):
     self.builder.set_iteration(iteration)
+    config = self.builder.config.copy(shallow=False)
+    config.status = Status.TRAINING
+    self.builder.save_config(config)
     model = self.builder.get_model_path()
     assert model not in self._params, (model, list(self._params))
     self._params[model] = {}
@@ -315,51 +386,46 @@ class SPParameterServer(RayBase):
     
     return model_weights
 
+  def _sample_with_prioritization(self):
+    candidates = []
+    candidate_scores = []
+    candidate_weights = []
+    for m in self._params:
+      if not is_rule_strategy(m):
+        candidates.append(m)
+        score = self.get_avg_score(0, m)
+        candidate_scores.append(score)
+    candidate_scores = np.array(candidate_scores)
+    candidate_scores = candidate_scores - np.min(candidate_scores) + .01 # avoid zero weights
+    candidate_weights = candidate_scores ** self.hist_train_scale
+    idx = random.choices(range(len(candidates)), candidate_weights)[0]
+    model = candidates[idx]
+    model_scores = [f'{m}={s}' for m, s in zip(self._params, candidate_scores)]
+    do_logging(f'Sampling historical stratgy({model}={candidate_scores[idx]})'
+                f' from {model_scores}', color='green')
+    return model
+
   def _sample_historical_strategy(self, iteration):
-    candidates = [m for m in self._params if not is_rule_strategy(m)]
     if self._former_model and random.random() < self.train_from_latest_frac:
       model = self._former_model
+      do_logging(f'Sampling historical stratgy({model}) from {list(self._params)}', color='green')
     else:
-      model = random.choice(candidates)
-    do_logging(f'Sampling historical stratgy({model}) from {list(self._params)}', color='green')
+      model = self._sample_with_prioritization()
     weights = self._params[model].copy()
     weights.pop(ANCILLARY)
     config = search_for_config(model)
-    model, config = self.builder.get_sub_version(config, iteration)
+    model = self.builder.get_sub_version(config, iteration)
+    config = self.builder.config.copy(shallow=False)
+    config.status = Status.TRAINING
+    self.builder.save_config(config)
     assert model not in self._params, f'{model} is already in {list(self._params)}'
     if random.random() < self.reset_policy_head_frac:
-      rng = jax.random.PRNGKey(random.randint(0, 2**32))
-      if 'policies' in weights[MODEL]:
-        for policy in weights[MODEL]['policies']:
-          for k, v in policy.items():
-            if k.startswith('policy/head'):
-              policy[k] = reset_linear_weights(
-                v, rng, 'orthogonal', scale=.01)
-              do_logging(f'{k} is reset', color='green')
-      elif 'policy' in weights[MODEL]:
-        for k, v in weights[MODEL]['policy'].items():
-          if k.startswith('policy/head'):
-            weights[MODEL]['policy'][k] = reset_linear_weights(
-              v, rng, 'orthogonal', scale=.01)
-            do_logging(f'{k} is reset', color='green')
+      weights = _reset_policy_head(weights, config)
     self._params[model] = weights
     model_weights = ModelWeights(model, weights)
     
     return model_weights
-  
-  def archive_training_strategies(self):
-    do_logging('Archiving training strategies', color='green')
-    self._former_model = copy.copy(self._active_model)
-    self.save_params(self._active_model)
-    self._update_active_model(None)
-    if self._active_model in self._opp_dist:
-      del self._opp_dist[self._active_model]
-    self._iteration += 1
-    self._reset_ready()
-    self._update_runner_distribution()
-    self.save()
 
-  """ Strategy Sampling """
   def sample_training_strategies(self, iteration=None):
     if iteration is not None:
       assert iteration == self._iteration, (iteration, self._iteration)
@@ -376,21 +442,37 @@ class SPParameterServer(RayBase):
         model_weights = self._sample_historical_strategy(self._iteration)
       strategies.append(model_weights)
       model = strategies[0].model
-      self._add_strategy_to_payoff(model)
+      self.add_strategy_to_payoff(model)
       self._update_active_model(model)
       self._save_active_model()
+      self.save_strategy_pool()
       self.save()
 
     return strategies, is_raw_strategy
 
+  def archive_training_strategies(self, **kwargs):
+    do_logging('Archiving training strategies', color='green')
+    config = self.builder.config.copy(shallow=False)
+    config.update(kwargs)
+    self.builder.save_config(config)
+    self._former_model = copy.copy(self._active_model)
+    self.save_params(self._active_model)
+    self._update_active_model(None)
+    if self._active_model in self._opp_dist:
+      del self._opp_dist[self._active_model]
+    self._iteration += 1
+    self._reset_ready()
+    self._update_runner_distribution()
+    self.save()
+
+  """ Strategy Sampling """
   def sample_strategies_with_opp_dists(self, step, model: ModelPath):
-    if step is None or self._to_update[model](step):
-      self._update_opp_distributions(model)
-    opp_dist = self._opp_dist[model]
+    self._update_opp_distributions(model)
     sid2model = self.payoff_manager.get_sid2model()
+    opp_dist = self._opp_dist[model][0]
     for m in sid2model:
       assert isinstance(m, ModelPath), m
-    model = random.choices(sid2model[:-1], weights=opp_dist[0][:-1])[0]
+    model = random.choices(sid2model[:-1], weights=opp_dist[:-1])[0]
     return model
 
   def sample_strategies_for_evaluation(self):
@@ -403,11 +485,22 @@ class SPParameterServer(RayBase):
     return self._all_strategies
 
   """ Payoff Operations """
+  def get_avg_score(self, aid: int, model: ModelPath):
+    payoffs = self.get_payoffs_for_model(aid, model)
+    n_valid_payoffs = np.sum(~np.isnan(payoffs))
+    if n_valid_payoffs > payoffs.size / 2:
+      return np.nanmean(payoffs)
+    else:
+      return 0
+
   def reset_payoffs(self, from_scratch=True, name=None):
     self.payoff_manager.reset(from_scratch=from_scratch, name=name)
 
   def get_payoffs(self, fill_nan=False):
     return self.payoff_manager.get_payoffs(fill_nan=fill_nan)
+
+  def get_payoffs_for_model(self, aid: int, model: ModelPath):
+    return self.payoff_manager.get_payoffs_for_model(aid, model)
 
   def get_counts(self):
     return self.payoff_manager.get_counts()

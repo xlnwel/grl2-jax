@@ -145,7 +145,7 @@ class FrameSkip(gym.Wrapper):
 
   def reset(self, **kwargs):
     self._epslen = 0
-    self.env.reset()
+    return self.env.reset()
 
   def step(self, action, frame_skip=None, **kwargs):
     total_reward = []

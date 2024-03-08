@@ -27,6 +27,7 @@ class Controller(ControllerBase):
     to_eval = Every(self.config.eval_period, final=max_steps)
     to_store = Every(self.config.store_period, final=max_steps)
     eval_pids = []
+
     while self._steps < max_steps:
       self._preprocessing(to_eval, to_restart_runners, to_store, eval_pids)
       time.sleep(1)
@@ -34,16 +35,18 @@ class Controller(ControllerBase):
       steps = runner_manager.get_total_steps()
       self._steps = sum(steps)
       # do_logging(f'finishing sampling: total steps={steps}')
+      is_score_met = self._check_scores()
+      if is_score_met:
+        break
 
-    self._finish_iteration(eval_pids)
+    status = "score_met" if is_score_met else "timeout"
+    self._finish_iteration(eval_pids, status=status)
 
   """ Implementation for <pbt_train> """
   def _prepare_configs(self, n_runners: int, n_steps: int, iteration: int):
     configs = [dict2AttrDict(c, to_copy=True) for c in self.configs]
     runner_stats = ray.get(self.parameter_server.get_runner_stats.remote())
     assert self._iteration == runner_stats.iteration, (self._iteration, runner_stats.iteration)
-    n_online_runners = runner_stats.n_online_runners
-    n_agent_runners = runner_stats.n_agent_runners
     do_logging(runner_stats, prefix=f'Runner Stats at Iteration {self._iteration}', color='blue')
     self._log_stats(runner_stats, self._iteration)
     return configs

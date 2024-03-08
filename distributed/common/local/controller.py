@@ -229,6 +229,7 @@ class Controller(YAMLCheckpointBase):
       remote_buffers=self.agent_manager.get_agents(),
       active_models=self.active_models, 
     )
+    ray.get(self.parameter_server.load_strategy_pool.remote())
     do_logging(f'Finish Building Runners', color='blue')
     self._initialize_rms(self.active_models, is_raw_strategy)
 
@@ -303,10 +304,9 @@ class Controller(YAMLCheckpointBase):
 
   def _check_scores(self):
     if self.config.score_threshold is not None:
-      payoffs = ray.get([
-        self.parameter_server.get_payoffs_for_model(i, m) 
+      scores = ray.get([self.parameter_server.get_avg_score(i, m) 
         for i, m in enumerate(self.agent_manager.models)])
-      if all([np.nanmean(p) > self.config.score_threshold for p in payoffs]):
+      if all([score > self.config.score_threshold for score in scores]):
         return True
     return False
 

@@ -457,7 +457,7 @@ class ElementsBuilder:
     config.env_stats.pop('action_dtype')
     save_config(config)
     model = ModelPath(self.config.root_dir, self.config.model_name)
-    do_logging(f'Save config: {model}', backtrack=3, color='green')
+    do_logging(f'Saving config: {model}', backtrack=3, color='green')
 
   """ Implementations"""
   def _import_element(self, name, algo=None):

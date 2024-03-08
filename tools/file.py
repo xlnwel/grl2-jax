@@ -2,6 +2,7 @@ import os, glob
 import types
 import pathlib
 import importlib
+import psutil
 import shutil
 
 from core.log import do_logging
@@ -19,6 +20,18 @@ def rm(path):
   elif os.path.isdir(path):
     # Delete the directory and its contents using shutil.rmtree
     shutil.rmtree(path)
+
+
+
+def is_file_open(file_path):
+  for proc in psutil.process_iter(['pid', 'name', 'open_files']):
+    try:
+      for file in proc.open_files():
+        if file.path == file_path:
+          return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+      pass
+  return False
 
 
 def source_file(file_path):

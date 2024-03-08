@@ -54,15 +54,15 @@ def load_config(path='config', to_attrdict=True, to_eval=True):
   with open(path, 'r') as f:
     try:
       config = yaml.load(f, Loader=yaml.FullLoader)
-      if to_eval:
-        config = eval_config(config)
-      if to_attrdict:
-        return dict2AttrDict(config)
-      else:
-        return config
     except yaml.YAMLError as exc:
       do_logging(f'Fail loading configuration: {path}', level='pwc', backtrack=4)
       do_logging(f'Error message: {exc}', level='pwc', backtrack=4)
+  if to_eval:
+    config = eval_config(config)
+  if to_attrdict:
+    return dict2AttrDict(config)
+  else:
+    return config
 
 # save config to config.yaml
 def save_config(config: dict, config_to_update={}, path='config'):
@@ -100,8 +100,11 @@ def load(path: str):
   return data
 
 def dump(path: str, config={}, **kwargs):
-  config = simplify_datatype(config)
-  config = {'config': config, **kwargs}
+  if config:
+    config = simplify_datatype(config)
+    config = {'config': config, **kwargs}
+  else:
+    config = kwargs
   path = default_path(path)
   if not path.exists():
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -45,7 +45,7 @@ class AttrDict(collections.defaultdict):
     res = AttrDict(self._default)
     for k, v in self.items():
       if isinstance(v, AttrDict):
-        res[k] = v.asdict(shallow=False)
+        res[k] = v.copy(shallow=False)
       else:
         res[k] = copy.deepcopy(v)
 
@@ -365,7 +365,7 @@ def namedtuple2dict(nt, shallow=True):
 
 """
 root_dir: logdir/env_name/algo_name
-model_name: base_name/a{id}/i{iteration}-v{version}
+model_name: basic_name/a{id}/i{iteration}-v{version}
 """
 ModelPath = collections.namedtuple('ModelPath', 'root_dir model_name')
 
@@ -402,6 +402,10 @@ def get_all_ids(model_name: str):
   assert isinstance(aid, int), aid
   assert isinstance(iid, int), iid
   return aid, iid, vid
+
+def get_date(model_name: str):
+  date = model_name.split(PATH_SPLIT)[0]
+  return date
 
 def get_basic_model_name(model_name: str):
   """ Basic model name excludes aid, iid, and vid """

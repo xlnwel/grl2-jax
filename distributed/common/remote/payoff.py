@@ -42,6 +42,12 @@ class PayoffManager:
       **self.config.sampling_strategy,
     )
 
+  def size(self, aid: int=0):
+    if self.self_play:
+      return self.payoff_table.size()
+    else:
+      return self.payoff_table.size(aid)
+
   def __getattr__(self, name):
     if name.startswith('_'):
       raise AttributeError(f"Attempted to get missing private attribute '{name}'")

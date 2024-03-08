@@ -1,7 +1,9 @@
 import collections
 import itertools
 import os
+import filelock
 import random
+import time
 from typing import Dict, List
 import numpy as np
 import jax
@@ -14,17 +16,17 @@ from core.names import PATH_SPLIT
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
 from core.remote.base import RayBase
-from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
-  get_aid, get_basic_model_name
-from core.typing import ModelWeights
-from nn.utils import reset_linear_weights
-from distributed.common.remote.payoff import PayoffManager
+from core.typing import AttrDict, AttrDict2dict, ModelPath, ModelWeights, \
+  construct_model_name, exclude_subdict, get_aid, get_date, get_basic_model_name
+from nn.utils import reset_linear_weights, reset_weights
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
 from tools.schedule import PiecewiseSchedule
 from tools.timer import Every
 from tools.utils import config_attr, dict2AttrDict
 from tools import yaml_op
+from distributed.common.typing import Status
+from distributed.common.remote.payoff import PayoffManager
 
 
 """ Name Conventions:
@@ -46,6 +48,35 @@ def _divide_runners(n_agents, n_runners, online_frac):
   return n_online_runners, n_agent_runners
 
 
+def _reset_policy_head(weights, config):
+  rng = jax.random.PRNGKey(random.randint(0, 2**32))
+  if 'policies' in weights[MODEL]:
+    for policy in weights[MODEL]['policies']:
+      for k, v in policy.items():
+        if k.startswith('policy/head'):
+          policy[k] = reset_linear_weights(
+            v, rng, 'orthogonal', scale=.01)
+          do_logging(f'{k} is reset', color='green')
+        elif k == 'policy':
+          for kk, vv in policy[k].items():
+            if kk.endswith('logstd'):
+              policy[k][kk] = reset_weights(
+                vv, rng, 'constant', value=config.model.policy.init_std)
+  elif 'policy' in weights[MODEL]:
+    policy = weights[MODEL]['policy']
+    for k, v in policy.items():
+      if k.startswith('policy/head'):
+        policy[k] = reset_linear_weights(
+          v, rng, 'orthogonal', scale=.01)
+        do_logging(f'{k} is reset', color='green')
+      elif k == 'policy':
+        for kk, vv in policy[k].items():
+          if kk.endswith('logstd'):
+            policy[k][kk] = reset_weights(
+              vv, rng, 'constant', value=config.model.policy.init_std)
+  return weights
+
+
 class ParameterServer(RayBase):
   def __init__(
     self, 
@@ -64,6 +95,7 @@ class ParameterServer(RayBase):
     # the probability of training an agent from scratch
     self.train_from_scratch_frac = self.config.get('train_from_scratch_frac', 1)
     self.train_from_latest_frac = self.config.get('train_from_latest_frac', 0)
+    self.hist_train_scale = self.config.get('hist_train_scale', 1)
     self.reset_policy_head_frac = self.config.get('reset_policy_head_frac', 1)
     # fraction of runners devoted to the play of the most recent strategies 
     self.online_frac = self.config.get('online_frac', .2)
@@ -75,6 +107,10 @@ class ParameterServer(RayBase):
     self._dir = os.path.join(config.root_dir, model_name)
     os.makedirs(self._dir, exist_ok=True)
     self._path = os.path.join(self._dir, f'{self.name}.yaml')
+
+    self._pool_name = self.config.get('pool_name', 'strategy_pool')
+    date = get_date(config.model_name)
+    self._pool_path = os.path.join(config.root_dir, f'{date}', f'{self._pool_name}.yaml')
 
     self._params: List[Dict[ModelPath, Dict]] = [{} for _ in range(self.n_agents)]
     self._prepared_strategies: List[List[ModelWeights]] = \
@@ -109,7 +145,7 @@ class ParameterServer(RayBase):
     self._ready = [False for _ in range(self.n_runners)]
 
   def check(self):
-    pass
+    assert self.payoff_manager.size() == len(self._params[0]), (self.payoff_manager.size(), len(self._params))
 
   def build(self, configs: List[Dict], env_stats: Dict):
     self.configs = [dict2AttrDict(c) for c in configs]
@@ -121,6 +157,38 @@ class ParameterServer(RayBase):
       builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
       self.builders.append(builder)
     assert len(self.builders) == self.n_agents, (len(configs), len(self.builders), self.n_agents)
+
+  """ Strategy Pool Management """
+  def save_strategy_pool(self):
+    lock = filelock.FileLock(self._pool_path + '.lock')
+
+    while True:
+      with lock.acquire(timeout=5):
+        config = yaml_op.load(self._pool_path)
+        config[self._dir] = [[list(m) for m in v] for v in self._params]
+        yaml_op.dump(self._pool_path, **config)
+        break
+      do_logging(f'{self._pool_path} is blocked for 5s', 'red')
+    do_logging(f'Saving strategy pool to {self._pool_path}', color='green')
+
+  def load_strategy_pool(self):
+    lock = filelock.FileLock(self._pool_path + '.lock')
+
+    while True:
+      with lock.acquire(timeout=5):
+        config = yaml_op.load(self._pool_path)
+        break
+      do_logging(f'{self._pool_path} is blocked for 5s', 'red')
+
+    for v in config.values():
+      for aid, models in enumerate(v):
+        for model in models:
+          model = ModelPath(*model)
+          if model not in self._params:
+            self.restore_params(model)
+            self.add_strategy_to_payoff(model, aid)
+    self.check()
+    do_logging(f'Loading strategy pool from {self._pool_path}', color='green')
 
   """ Data Retrieval """
   def get_configs(self):
@@ -189,11 +257,13 @@ class ParameterServer(RayBase):
       self._rule_strategies.add(model)
       self._params[aid][model] = AttrDict2dict(config)
       models.append(model)
-      do_logging(f'Adding rule strategy {model}', color='green')
+      do_logging(f'Adding rule strategy: {model}', color='green')
       if not local:
         # Add the rule strategy to the payoff table if the payoff manager is not restored from a checkpoint
-        do_logging(f'Adding rule strategy to payoff table', color='green')
         self.payoff_manager.add_strategy(model, aid=aid)
+
+  def add_strategy_to_payoff(self, model: ModelPath, aid: int):
+    self.payoff_manager.add_strategy(model, aid=aid)
 
   def add_strategies_to_payoff(self, models: List[ModelPath]):
     assert len(models) == self.n_agents, models
@@ -329,11 +399,17 @@ class ParameterServer(RayBase):
       weights.pop(ANCILLARY, None)
       strategies.append(ModelWeights(model, weights))
       do_logging(f'Restoring active strategy: {model}', color='green')
-      [b.save_config() for b in self.builders]
+    for b in self.builders:
+      config = b.config.copy(shallow=False)
+      config.status = Status.TRAINING
+      b.save_config(config)
     return strategies
 
   def _construct_raw_strategy(self, aid, iteration):
     self.builders[aid].set_iteration(iteration)
+    config = self.builders[aid].config.copy(shallow=False)
+    config.status = Status.TRAINING
+    self.builders[aid].save_config(config)
     model = self.builders[aid].get_model_path()
     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
     assert model not in self._params[aid], (model, list(self._params[aid]))
@@ -344,54 +420,48 @@ class ParameterServer(RayBase):
     
     return model_weights
 
+  def _sample_with_prioritization(self, aid: int):
+    candidates = []
+    candidate_scores = []
+    candidate_weights = []
+    for m in self._params:
+      if not is_rule_strategy(m):
+        candidates.append(m)
+        score = self.get_avg_score(aid, m)
+        candidate_scores.append(score)
+    candidate_scores = np.array(candidate_scores)
+    candidate_scores = candidate_scores - np.min(candidate_scores) + .01 # avoid zero weights
+    candidate_weights = candidate_scores ** self.hist_train_scale
+    idx = random.choices(range(len(candidates)), candidate_weights)[0]
+    model = candidates[idx]
+    model_scores = [f'{m}={s}' for m, s in zip(self._params, candidate_scores)]
+    do_logging(f'Sampling historical stratgy({model}={candidate_scores[idx]})'
+                f' from {model_scores}', color='green')
+    return model
+
   def _sample_historical_strategy(self, aid, iteration):
-    candidates = [m for m in self._params[aid] if not is_rule_strategy(m)]
     if self._former_models[aid] and random.random() < self.train_from_latest_frac:
       model = self._former_models[aid]
+      do_logging(f'Sampling historical stratgy({model}) from {list(self._params)}', color='green')
     else:
-      model = random.choice(candidates)
-    do_logging(f'Sampling historical stratgy({model}) from {list(self._params[aid])}', color='green')
+      model = self._sample_with_prioritization()
     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
     weights = self._params[aid][model].copy()
     weights.pop(ANCILLARY)
     config = search_for_config(model)
-    model, config = self.builders[aid].get_sub_version(config, iteration)
+    model = self.builders[aid].get_sub_version(config, iteration)
+    config = self.builders[aid].config.copy(shallow=False)
+    config.status = Status.TRAINING
+    self.builders[aid].save_config(config)
     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
     assert model not in self._params[aid], f'{model} is already in {list(self._params[aid])}'
     if random.random() < self.reset_policy_head_frac:
-      rng = jax.random.PRNGKey(random.randint(0, 2**32))
-      if 'policies' in weights[MODEL]:
-        for policy in weights[MODEL]['policies']:
-          for k, v in policy.items():
-            if k.startswith('policy/head'):
-              policy[k] = reset_linear_weights(
-                v, rng, 'orthogonal', scale=.01)
-              do_logging(f'{k} is reset', color='green')
-      elif 'policy' in weights[MODEL]:
-        for k, v in weights[MODEL]['policy'].items():
-          if k.startswith('policy/head'):
-            weights[MODEL]['policy'][k] = reset_linear_weights(
-              v, rng, 'orthogonal', scale=.01)
-            do_logging(f'{k} is reset', color='green')
+      weights = _reset_policy_head(weights, config)
     self._params[aid][model] = weights
     model_weights = ModelWeights(model, weights)
     
     return model_weights
-  
-  def archive_training_strategies(self):
-    do_logging('Archiving training strategies', color='green')
-    self._former_models = self._active_models.copy()
-    for aid, model in enumerate(self._active_models):
-      self.save_params(model)
-      self._update_active_model(aid, None)
-      if model in self._opp_dist:
-        del self._opp_dist[model]
-    self._iteration += 1
-    self._reset_ready()
-    self._update_runner_distribution()
-    self.save()
 
-  """ Strategy Sampling """
   def sample_training_strategies(self, iteration=None):
     if iteration is not None:
       assert iteration == self._iteration, (iteration, self._iteration)
@@ -412,15 +482,32 @@ class ParameterServer(RayBase):
       self.add_strategies_to_payoff(models)
       self._update_active_models(models)
       self._save_active_models()
+      self.save_strategy_pool()
       self.save()
 
     return strategies, is_raw_strategy
 
+  def archive_training_strategies(self, **kwargs):
+    do_logging('Archiving training strategies', color='green')
+    for b in self.builders:
+      config = b.config.copy(shallow=False)
+      config.update(kwargs)
+      b.save_config(config)
+    self._former_models = self._active_models.copy()
+    for aid, model in enumerate(self._active_models):
+      self.save_params(model)
+      self._update_active_model(aid, None)
+      if model in self._opp_dist:
+        del self._opp_dist[model]
+    self._iteration += 1
+    self._reset_ready()
+    self._update_runner_distribution()
+    self.save()
+
+  """ Strategy Sampling """
   def sample_opponent_strategies(self, aid, model: ModelPath, step=None):
     assert model == self._active_models[aid], (model, self._active_models)
-    if step is None or self._to_update[model](step):
-      self._update_opp_distributions(aid, model)
-
+    self._update_opp_distributions(aid, model)
     strategies = self.sample_strategies_with_opp_dists(
       aid, model, self._opp_dist[model]
     )
@@ -453,11 +540,22 @@ class ParameterServer(RayBase):
     return self._all_strategies
 
   """ Payoff Operations """
+  def get_avg_score(self, aid: int, model: ModelPath):
+    payoffs = self.get_payoffs_for_model(aid, model)
+    n_valid_payoffs = np.sum(~np.isnan(payoffs))
+    if n_valid_payoffs > payoffs.size / 2:
+      return np.nanmean(payoffs)
+    else:
+      return 0
+
   def reset_payoffs(self, from_scratch=True, name=None):
     self.payoff_manager.reset(from_scratch=from_scratch, name=name)
 
   def get_payoffs(self, fill_nan=False):
     return self.payoff_manager.get_payoffs(fill_nan=fill_nan)
+
+  def get_payoffs_for_model(self, aid: int, model: ModelPath):
+    return self.payoff_manager.get_payoffs_for_model(aid, model)
 
   def get_counts(self):
     return self.payoff_manager.get_counts()
