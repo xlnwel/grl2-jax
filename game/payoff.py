@@ -251,6 +251,11 @@ class SelfPlayPayoffTable(PayoffTableCheckpoint):
     return self.payoffs.shape[0]
   
   """ Payoff Retrieval """
+  def get_subset_payoffs(self, fill_nan=None, *, sid: int=None, other_sids):
+    payoffs = self.get_payoffs(fill_nan, sid=sid)
+    payoffs = payoffs[other_sids]
+    return payoffs
+
   def get_payoffs(self, fill_nan=None, *, sid: int=None):
     payoffs = self.payoffs.copy()
     if fill_nan is not None:
@@ -259,6 +264,11 @@ class SelfPlayPayoffTable(PayoffTableCheckpoint):
     if sid is not None:
       payoffs = payoffs[sid]
     return payoffs
+
+  def get_subset_counts(self, *, sid: int=None, other_sids):
+    counts = self.get_counts(sid=sid)
+    counts = counts[other_sids]
+    return counts
 
   def get_counts(self, *, sid: int=None):
     counts = self.counts.copy()
@@ -335,11 +345,31 @@ class SelfPlayPayoffTableWithModel(SelfPlayPayoffTable):
     return self.model2sid
 
   """ Payoff Retrieval """
+  def get_subset_payoffs(self, fill_nan=None, *, sid: int=None, model: ModelPath=None, 
+                         other_sids: List[int]=None, other_models: List[ModelPath]=None):
+    assert sid is not None or model is not None, "Must provide sid or model"
+    assert other_sids is not None or other_models is not None, "Must provide other_sids or other_models"
+    payoffs = self.get_payoffs(fill_nan, sid=sid, model=model)
+    if other_sids is None and other_models is not None:
+      other_sids = [self.model2sid[m] for m in other_models]
+    payoffs = payoffs[other_sids]
+    return payoffs
+
   def get_payoffs(self, fill_nan=None, *, sid: int=None, model: ModelPath=None):
     if sid is None and model is not None:
       sid = self.model2sid[model]
     payoff = super().get_payoffs(fill_nan=fill_nan, sid=sid)
     return payoff
+
+  def get_subset_counts(self, *, sid: int=None, model: ModelPath=None, 
+                        other_sids: List[int]=None, other_models: List[ModelPath]=None):
+    assert sid is not None or model is not None, "Must provide sid or model"
+    assert other_sids is not None or other_models is not None, "Must provide other_sids or other_models"
+    counts = self.get_counts(sid=sid, model=model)
+    if other_sids is None and other_models is not None:
+      other_sids = [self.model2sid[m] for m in other_models]
+    counts = counts[other_sids]
+    return counts
 
   def get_counts(self, *, sid: int=None, model: ModelPath=None):
     if sid is None and model is not None:
