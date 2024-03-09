@@ -304,7 +304,7 @@ class Controller(YAMLCheckpointBase):
 
   def _check_scores(self):
     if self.config.score_threshold is not None:
-      scores = ray.get([self.parameter_server.get_avg_score(i, m) 
+      scores = ray.get([self.parameter_server.get_avg_score.remote(i, m) 
         for i, m in enumerate(self.agent_manager.models)])
       if all([score > self.config.score_threshold for score in scores]):
         return True
@@ -421,3 +421,4 @@ class Controller(YAMLCheckpointBase):
   """ Checkpoints """
   def save(self):
     yaml_op.dump(self._path, iteration=self._iteration, steps=self._steps)
+    do_logging(f'Saving controller configs at {self._path}')

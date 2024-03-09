@@ -24,8 +24,8 @@ class Controller(ControllerBase):
       0 if self.config.restart_runners_period is None \
         else self._steps + self.config.restart_runners_period
     )
-    to_eval = Every(self.config.eval_period, final=max_steps)
-    to_store = Every(self.config.store_period, final=max_steps)
+    to_eval = Every(self.config.eval_period, start=self._steps, final=max_steps)
+    to_store = Every(self.config.store_period, start=self._steps, final=max_steps)
     eval_pids = []
 
     while self._steps < max_steps:

@@ -37,6 +37,11 @@ path is involved (e.g., when saving&restoring a model).
 """
 
 
+class SCORE_METRICS:
+  SCORE = 'score'
+  WIN_RATE = 'win_rate'
+
+
 def _divide_runners(n_agents, n_runners, online_frac):
   if n_runners < n_agents:
     return n_runners, 0
@@ -86,6 +91,8 @@ class SPParameterServer(RayBase):
     super().__init__(seed=config.get('seed'))
     config = dict2AttrDict(config)
     self.config = config.parameter_server
+    self.score_metrics = self.config.get('score_metrics', SCORE_METRICS.SCORE)
+    assert self.score_metrics in (SCORE_METRICS.SCORE, SCORE_METRICS.WIN_RATE)
     self.name = name
 
     self.n_agents = config.n_agents
@@ -175,7 +182,7 @@ class SPParameterServer(RayBase):
         break
       do_logging(f'{self._pool_path} is blocked for 5s', 'red')
 
-    for k, v in config.items():
+    for v in config.values():
       for model in v:
         model = ModelPath(*model)
         if model not in self._params:
@@ -444,7 +451,7 @@ class SPParameterServer(RayBase):
       model = strategies[0].model
       self.add_strategy_to_payoff(model)
       self._update_active_model(model)
-      self._save_active_model()
+      self.save_active_model(0, 0)
       self.save_strategy_pool()
       self.save()
 
@@ -491,7 +498,10 @@ class SPParameterServer(RayBase):
     if n_valid_payoffs > payoffs.size / 2:
       return np.nanmean(payoffs)
     else:
-      return 0
+      if self.score_metrics == SCORE_METRICS.SCORE:
+        return -1
+      else:
+        return 0
 
   def reset_payoffs(self, from_scratch=True, name=None):
     self.payoff_manager.reset(from_scratch=from_scratch, name=name)
@@ -524,8 +534,8 @@ class SPParameterServer(RayBase):
     self._params[model]['env_step'] = env_step
     self.save_params(model)
 
-  def _save_active_model(self):
-    self.save_active_model(self._active_model, 0, 0)
+  def save_active_models(self, train_step: int, env_step: int):
+    self.save_active_model(self._active_model, train_step, env_step)
 
   def save_params(self, model: ModelPath, name='params'):
     assert model == self._active_model, (model, self._active_model)

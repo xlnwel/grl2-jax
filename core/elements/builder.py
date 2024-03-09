@@ -544,6 +544,7 @@ class ElementsBuilderVC(ElementsBuilder):
       return version
 
     root_dir = config.root_dir
+    prev_model_name = config.model_name
     version = get_vid(config.model_name)
     assert version == f'{config.version}', (version, config.version)
     version = compute_next_version(version)
@@ -558,6 +559,8 @@ class ElementsBuilderVC(ElementsBuilder):
     model_path = ModelPath(root_dir, model_name)
     model_dir = os.path.join(*model_path)
     self.config = set_path(config, model_path)
+    self.config.prev_root_dir = root_dir
+    self.config.prev_model_name = prev_model_name
     if not os.path.isdir(model_dir):
       os.makedirs(model_dir, exist_ok=True)
     self._all_versions.add(version)

@@ -38,6 +38,11 @@ path is involved (e.g., when saving&restoring a model).
 """
 
 
+class SCORE_METRICS:
+  SCORE = 'score'
+  WIN_RATE = 'win_rate'
+
+
 def _divide_runners(n_agents, n_runners, online_frac):
   if n_runners < n_agents:
     return n_runners, 0
@@ -87,6 +92,8 @@ class ParameterServer(RayBase):
     super().__init__(seed=config.get('seed'))
     config = dict2AttrDict(config)
     self.config = config.parameter_server
+    self.score_metrics = self.config.get('score_metrics', SCORE_METRICS.SCORE)
+    assert self.score_metrics in (SCORE_METRICS.SCORE, SCORE_METRICS.WIN_RATE)
     self.name = name
 
     self.n_agents = config.n_agents
@@ -184,9 +191,9 @@ class ParameterServer(RayBase):
       for aid, models in enumerate(v):
         for model in models:
           model = ModelPath(*model)
-          if model not in self._params:
+          if model not in self._params[aid]:
             self.restore_params(model)
-            self.add_strategy_to_payoff(model, aid)
+            self.add_strategy_to_payoff(model, aid=aid)
     self.check()
     do_logging(f'Loading strategy pool from {self._pool_path}', color='green')
 
@@ -260,7 +267,7 @@ class ParameterServer(RayBase):
       do_logging(f'Adding rule strategy: {model}', color='green')
       if not local:
         # Add the rule strategy to the payoff table if the payoff manager is not restored from a checkpoint
-        self.payoff_manager.add_strategy(model, aid=aid)
+        self.add_strategy_to_payoff(model, aid=aid)
 
   def add_strategy_to_payoff(self, model: ModelPath, aid: int):
     self.payoff_manager.add_strategy(model, aid=aid)
@@ -481,7 +488,7 @@ class ParameterServer(RayBase):
       models = [s.model for s in strategies]
       self.add_strategies_to_payoff(models)
       self._update_active_models(models)
-      self._save_active_models()
+      self.save_active_models(0, 0)
       self.save_strategy_pool()
       self.save()
 
@@ -546,7 +553,10 @@ class ParameterServer(RayBase):
     if n_valid_payoffs > payoffs.size / 2:
       return np.nanmean(payoffs)
     else:
-      return 0
+      if self.score_metrics == SCORE_METRICS.SCORE:
+        return -1
+      else:
+        return 0
 
   def reset_payoffs(self, from_scratch=True, name=None):
     self.payoff_manager.reset(from_scratch=from_scratch, name=name)
@@ -580,9 +590,9 @@ class ParameterServer(RayBase):
     self._params[aid][model]['env_step'] = env_step
     self.save_params(model)
 
-  def _save_active_models(self):
+  def save_active_models(self, train_step: int, env_step: int):
     for m in self._active_models:
-      self.save_active_model(m, 0, 0)
+      self.save_active_model(m, train_step, env_step)
 
   def save_params(self, model: ModelPath, name='params'):
     assert model in self._active_models, (model, self._active_models)
