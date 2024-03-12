@@ -27,4 +27,4 @@ class FSP:
       filter_recent=filter_recent
     )
     dists = utils.compute_opponent_distribution(weights)
-    return payoffs, dists
+    return payoffs, weights, dists

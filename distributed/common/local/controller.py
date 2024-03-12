@@ -2,7 +2,7 @@ import os
 import cloudpickle
 from functools import partial
 import time
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 import numpy as np
 import ray
 
@@ -22,6 +22,8 @@ from .agent_manager import AgentManager
 from .runner_manager import RunnerManager
 from ..remote.monitor import Monitor
 from ..remote.parameter_server import ParameterServer
+from ..names import EXPLOITER_SUFFIX
+from ..utils import find_latest_model
 
 
 timeit = partial(timeit, period=1)
@@ -68,12 +70,14 @@ class Controller(YAMLCheckpointBase):
     to_restore=True,
   ):
     self.config = eval_config(config.controller)
+    self.exploiter = config.exploiter
+    self.current_models = None
     self._model_path = ModelPath(
       self.config.root_dir, 
       get_basic_model_name(self.config.model_name)
     )
     self._dir = os.path.join(*self._model_path)
-    self._path = f'{self._dir}/{name}.yaml'
+    self._path = os.path.join(self._dir, f'{name}.yaml')
     do_logging(f'Model Path: {self._model_path}', color='blue')
     save_code(self._model_path)
 
@@ -88,11 +92,13 @@ class Controller(YAMLCheckpointBase):
   def build_managers_for_evaluation(self, config: AttrDict):
     self.self_play = config.self_play
     if config.self_play:
-      PSCls = pkg.import_module(
-        'remote.parameter_server_sp', config=config).SPParameterServer
+      PSModule = pkg.import_module(
+        'remote.parameter_server_sp', config=config)
+      PSCls = PSModule.ExploiterSPParameterServer if self.exploiter else PSModule.SPParameterServer
     else:
-      PSCls = pkg.import_module(
-        'remote.parameter_server', config=config).ParameterServer
+      PSModule = pkg.import_module(
+        'remote.parameter_server', config=config)
+      PSCls = PSModule.ExploiterParameterServer if self.exploiter else PSModule.ParameterServer
     self.parameter_server: ParameterServer = \
       PSCls.as_remote().remote(
         config=config.asdict(),
@@ -132,11 +138,13 @@ class Controller(YAMLCheckpointBase):
     self.steps_per_run = self.n_runners * self.n_envs * self.n_steps
 
     if config.self_play:
-      PSCls = pkg.import_module(
-        'remote.parameter_server_sp', config=config).SPParameterServer
+      PSModule = pkg.import_module(
+        'remote.parameter_server_sp', config=config)
+      PSCls = PSModule.ExploiterSPParameterServer if self.exploiter else PSModule.SPParameterServer
     else:
-      PSCls = pkg.import_module(
-        'remote.parameter_server', config=config).ParameterServer
+      PSModule = pkg.import_module(
+        'remote.parameter_server', config=config)
+      PSCls = PSModule.ExploiterParameterServer if self.exploiter else PSModule.ParameterServer
     do_logging('Building Parameter Server...', color='blue')
     self.parameter_server: ParameterServer = \
       PSCls.as_remote().remote(
@@ -183,8 +191,9 @@ class Controller(YAMLCheckpointBase):
       self.initialize_actors()
       max_steps = iteration_step_scheduler(self._iteration)
       ray.get(self.monitor.set_max_steps.remote(max_steps))
+      periods = self.initialize_periods(max_steps)
 
-      self.train(self.agent_manager, self.runner_manager, max_steps)
+      self.train(self.agent_manager, self.runner_manager, max_steps, periods)
 
       self.cleanup()
   
@@ -206,6 +215,18 @@ class Controller(YAMLCheckpointBase):
 
   @timeit
   def initialize_actors(self):
+    if self.exploiter and self.current_models is not None:
+      prev_target_models = [
+        ModelPath(m.root_dir, m.model_name.replace(EXPLOITER_SUFFIX, '')) 
+        for m in self.current_models]
+      wait_for_new_targets = [True for _ in prev_target_models]
+      while any(wait_for_new_targets):
+        for i, m in enumerate(prev_target_models):
+          path = os.path.join(self._dir, f'a{i}')
+          target_model = find_latest_model(path)
+          wait_for_new_targets[i] = m == target_model
+        time.sleep(10)
+        do_logging(f'Exploiter is waiting for new training strategies at Iteration {self._iteration}', color='blue')
     model_weights, is_raw_strategy = ray.get(
       self.parameter_server.sample_training_strategies.remote(self._iteration))
     self.current_models = [m.model for m in model_weights]
@@ -216,7 +237,7 @@ class Controller(YAMLCheckpointBase):
     self.agent_manager.build_agents(configs)
     self.agent_manager.set_model_weights(model_weights, wait=True)
     self.agent_manager.publish_weights(wait=True)
-    do_logging(f'Finish Building Agents', color='blue')
+    do_logging(f'Finishing Building Agents', color='blue')
 
     self.active_models = [model for model, _ in model_weights]
     self.active_configs = [
@@ -230,15 +251,29 @@ class Controller(YAMLCheckpointBase):
       active_models=self.active_models, 
     )
     ray.get(self.parameter_server.load_strategy_pool.remote())
-    do_logging(f'Finish Building Runners', color='blue')
+    do_logging(f'Finishing Building Runners', color='blue')
     self._initialize_rms(self.active_models, is_raw_strategy)
+
+  def initialize_periods(self, max_steps: int):
+    periods: Dict[str, Every] = {
+      'restart_runners': Every(
+        self.config.restart_runners_period, 
+        0 if self.config.restart_runners_period is None \
+          else self._steps + self.config.restart_runners_period
+      ), 
+      'reload_strategy_pool': Every(self.config.reload_strategy_pool_period, start=self._steps, final=max_steps), 
+      'eval': Every(self.config.eval_period, start=self._steps, final=max_steps),
+      'store': Every(self.config.store_period, start=self._steps, final=max_steps)
+    }
+    return periods
 
   @timeit
   def train(
     self, 
     agent_manager: AgentManager, 
     runner_manager: RunnerManager, 
-    max_steps: int
+    max_steps: int, 
+    periods: Dict[str, Every]
   ):
     raise NotImplementedError()
 
@@ -277,16 +312,14 @@ class Controller(YAMLCheckpointBase):
 
   def _preprocessing(
     self, 
-    to_eval: Every, 
-    to_restart_runners: Every, 
-    to_store: Every, 
+    periods: Dict[str, Every], 
     eval_pids: List[ray.ObjectRef]
   ):
-    if to_eval(self._steps):
+    if periods['eval'](self._steps):
       pid = self._eval(self._steps)
       if pid:
         eval_pids.append(pid)
-    if to_restart_runners(self._steps):
+    if periods['restart_runners'](self._steps):
       do_logging('Restarting Runners', color='blue')
       self.runner_manager.destroy_runners()
       self.runner_manager.build_runners(
@@ -294,13 +327,18 @@ class Controller(YAMLCheckpointBase):
         remote_buffers=self.agent_manager.get_agents(),
         active_models=self.active_models, 
       )
+    if periods['store'](self._steps):
+      self.monitor.save_all.remote(self._steps)
+      self.parameter_server.save_active_models.remote(
+        env_step=self._steps, to_print=False)
+      self.save()
+    if periods['reload_strategy_pool'](self._steps):
+      self.parameter_server.load_strategy_pool.remote()
     if eval_pids:
       ready_pids, eval_pids = ray.wait(eval_pids, timeout=1)
       self._log_remote_stats_for_models(
         ready_pids, self.active_models, step=self._steps)
-    if to_store(self._steps):
-      self.monitor.save_all.remote(self._steps)
-      self.save()
+    return eval_pids
 
   def _check_scores(self):
     if self.config.score_threshold is not None:

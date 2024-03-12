@@ -1,12 +1,11 @@
-import collections
 import os
 import copy
 import filelock
 import random
-import time
+import cloudpickle
+from functools import partial
 from typing import Dict, List
 import numpy as np
-import jax
 import ray
 
 from core.ckpt import pickle
@@ -16,16 +15,18 @@ from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
 from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, ModelWeights, \
-  construct_model_name, exclude_subdict, get_aid, get_date, get_basic_model_name
-from nn.utils import reset_linear_weights, reset_weights
+  construct_model_name, exclude_subdict, get_aid, get_date, \
+    get_basic_model_name, decompose_model_name, get_iid_vid
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
 from tools.schedule import PiecewiseSchedule
-from tools.timer import Every
+from tools.timer import timeit
 from tools.utils import config_attr, dict2AttrDict
 from tools import yaml_op
-from distributed.common.typing import Status
+from distributed.common.names import EXPLOITER_SUFFIX
+from distributed.common.typing import *
 from distributed.common.remote.payoff import PayoffManager
+from distributed.common.utils import *
 
 
 """ Name Conventions:
@@ -37,48 +38,7 @@ path is involved (e.g., when saving&restoring a model).
 """
 
 
-class SCORE_METRICS:
-  SCORE = 'score'
-  WIN_RATE = 'win_rate'
-
-
-def _divide_runners(n_agents, n_runners, online_frac):
-  if n_runners < n_agents:
-    return n_runners, 0
-  n_agent_runners = int(n_runners * (1 - online_frac) // n_agents)
-  n_online_runners = n_runners - n_agent_runners * n_agents
-  assert n_agent_runners * n_agents + n_online_runners == n_runners, \
-    (n_agent_runners, n_agents, n_online_runners, n_runners)
-  return n_online_runners, n_agent_runners
-
-
-def _reset_policy_head(weights, config):
-  rng = jax.random.PRNGKey(random.randint(0, 2**32))
-  if 'policies' in weights[MODEL]:
-    for policy in weights[MODEL]['policies']:
-      for k, v in policy.items():
-        if k.startswith('policy/head'):
-          policy[k] = reset_linear_weights(
-            v, rng, 'orthogonal', scale=.01)
-          do_logging(f'{k} is reset', color='green')
-        elif k == 'policy':
-          for kk, vv in policy[k].items():
-            if kk.endswith('logstd'):
-              policy[k][kk] = reset_weights(
-                vv, rng, 'constant', value=config.model.policy.init_std)
-  elif 'policy' in weights[MODEL]:
-    policy = weights[MODEL]['policy']
-    for k, v in policy.items():
-      if k.startswith('policy/head'):
-        policy[k] = reset_linear_weights(
-          v, rng, 'orthogonal', scale=.01)
-        do_logging(f'{k} is reset', color='green')
-      elif k == 'policy':
-        for kk, vv in policy[k].items():
-          if kk.endswith('logstd'):
-            policy[k][kk] = reset_weights(
-              vv, rng, 'constant', value=config.model.policy.init_std)
-  return weights
+timeit = partial(timeit, period=1)
 
 
 class SPParameterServer(RayBase):
@@ -91,8 +51,8 @@ class SPParameterServer(RayBase):
     super().__init__(seed=config.get('seed'))
     config = dict2AttrDict(config)
     self.config = config.parameter_server
-    self.score_metrics = self.config.get('score_metrics', SCORE_METRICS.SCORE)
-    assert self.score_metrics in (SCORE_METRICS.SCORE, SCORE_METRICS.WIN_RATE)
+    self.score_metrics = self.config.get('score_metrics', ScoreMetrics.SCORE)
+    assert self.score_metrics in (ScoreMetrics.SCORE, ScoreMetrics.WIN_RATE)
     self.name = name
 
     self.n_agents = config.n_agents
@@ -115,9 +75,11 @@ class SPParameterServer(RayBase):
     os.makedirs(self._dir, exist_ok=True)
     self._path = os.path.join(self._dir, f'{self.name}.yaml')
 
+    self._pool_pattern = self.config.get('pool_pattern', '.*')
     self._pool_name = self.config.get('pool_name', 'strategy_pool')
     date = get_date(config.model_name)
-    self._pool_path = os.path.join(config.root_dir, f'{date}', f'{self._pool_name}.yaml')
+    self._pool_dir = os.path.join(config.root_dir, f'{date}')
+    self._pool_path = os.path.join(self._pool_dir, f'{self._pool_name}.yaml')
 
     self._params: Dict[ModelPath, Dict] = {}
     self._prepared_strategies: List[List[ModelWeights]] = \
@@ -127,12 +89,15 @@ class SPParameterServer(RayBase):
     self._rule_strategies = set()
 
     self._opp_dist: Dict[ModelPath, List[float]] = {}
-    self._to_update: Dict[ModelPath, Every] = collections.defaultdict(
-      lambda: Every(self.config.setdefault('update_interval', 1), -1))
 
-    self._former_model: ModelPath = None
+    self._models: Dict[str, ModelPath] = AttrDict()
+    self._models[ModelType.FORMER] = None
     # an active model is the one under training
-    self._active_model: ModelPath = None
+    self._models[ModelType.ACTIVE] = None
+    self._models[ModelType.HARD] = {}
+    self.hard_frac = self.config.get('hard_frac', .2)
+    self.hard_threshold = self.config.get('hard_threshold', 0.5)
+    self.n_hard_opponents = self.config.get('n_hard_opponents', 5)
     # is the first pbt iteration
     self._iteration = 1
     self._all_strategies = None
@@ -142,6 +107,7 @@ class SPParameterServer(RayBase):
 
     succ = self.restore(to_restore_params)
     self._update_runner_distribution()
+    self.load_strategy_pool()
 
     if self.config.get('rule_strategies'):
       self.add_rule_strategies(self.config.rule_strategies, local=succ)
@@ -173,30 +139,46 @@ class SPParameterServer(RayBase):
       do_logging(f'{self._pool_path} is blocked for 5s', 'red')
     do_logging(f'Saving strategy pool to {self._pool_path}', color='green')
 
-  def load_strategy_pool(self):
-    lock = filelock.FileLock(self._pool_path + '.lock')
-
-    while True:
-      with lock.acquire(timeout=5):
-        config = yaml_op.load(self._pool_path)
-        break
-      do_logging(f'{self._pool_path} is blocked for 5s', 'red')
-
-    for v in config.values():
-      for model in v:
-        model = ModelPath(*model)
-        if model not in self._params:
-          self.restore_params(model)
+  @timeit
+  def load_strategy_pool(self, to_search=True, pattern=None):
+    """ Load strategy pool
+    Args:
+      to_search: if True, search the storage system to find all strategies;
+      else, only load strategies defined in self._pool_path
+    """
+    if to_search:
+      pattern = pattern or self._pool_pattern
+      models = find_all_models(self._pool_dir, pattern)
+      for model in models:
+        self.restore_params(model)
+        if model not in self.payoff_manager:
           self.add_strategy_to_payoff(model)
+      do_logging(f'Loading strategy pool in path {self._pool_dir}', color='green')
+    else:
+      lock = filelock.FileLock(self._pool_path + '.lock')
+
+      while True:
+        with lock.acquire(timeout=5):
+          config = yaml_op.load(self._pool_path)
+          break
+        do_logging(f'{self._pool_path} is blocked for 5s', 'red')
+
+      for v in config.values():
+        for model in v:
+          model = ModelPath(*model)
+          self.restore_params(model)
+          if model not in self.payoff_manager:
+            self.add_strategy_to_payoff(model)
+      do_logging(f'Loading strategy pool from {self._pool_path}', color='green')
+    self.save()
     self.check()
-    do_logging(f'Loading strategy pool from {self._pool_path}', color='green')
 
   """ Data Retrieval """
   def get_active_models(self):
-    return [self._active_model]
+    return [self._models[ModelType.ACTIVE]]
 
   def get_active_aux_stats(self):
-    active_stats = {self._active_model: self.get_aux_stats(self._active_model)}
+    active_stats = {self._models[ModelType.ACTIVE]: self.get_aux_stats(self._models[ModelType.ACTIVE])}
 
     return active_stats
 
@@ -207,15 +189,15 @@ class SPParameterServer(RayBase):
     return stats
 
   def get_opponent_distributions_for_active_models(self):
-    payoff, dist = self.payoff_manager.compute_opponent_distribution(
-      0, self._active_model, False)
+    payoff, _, dist = self.payoff_manager.compute_opponent_distribution(
+      0, self._models[ModelType.ACTIVE], False)
     
     for x in dist:
       if x.size > 1:
         online_frac = self.online_scheduler(self._iteration)
         x /= np.nansum(x[:-1]) / (1 - online_frac)
         x[-1] = online_frac
-    dists = {self._active_model: (payoff, dist)}
+    dists = {self._models[ModelType.ACTIVE]: (payoff, dist)}
 
     return dists
 
@@ -261,7 +243,7 @@ class SPParameterServer(RayBase):
     self.payoff_manager.add_strategy(model)
 
   def _update_active_model(self, model: ModelPath):
-    self._active_model = model
+    self._models[ModelType.ACTIVE] = model
 
   def _reset_prepared_strategy(self, rid: int=-1):
     raise NotImplementedError
@@ -284,63 +266,64 @@ class SPParameterServer(RayBase):
     model_weights: ModelWeights, 
     step=None
   ):
-    def put_model_weights(model):
-      if model in self._rule_strategies:
-        # rule-based strategy
-        weights = self._params[model]
-      else:
-        # if error happens here
-        # it's likely that you retrive the latest model 
-        # in self.payoff_manager.sample_opponent_strategies
-        weights = {
-          k: self._params[model][k] 
-          for k in [MODEL, 'train_step', ANCILLARY]
-          if k in self._params[model]
-        }
-      mid = ray.put(ModelWeights(model, weights))
-      return mid
-
-    def get_historical_mids(mid, model):
-      opp_model = self.sample_strategies_with_opp_dists(step, model)
-      opp_mid = put_model_weights(opp_model)
-      mids = [mid, opp_mid]
-
-      return mids
-    
-    def prepare_recent_models(mid):
-       # prepare the most recent model for the first n_runners runners
-      for rid in range(self.n_online_runners):
-        self._prepared_strategies[rid] = [mid, mid]
-        self._ready[rid] = True
-
-    def prepare_historical_models(mid, model):
-      mids = get_historical_mids(mid, model)
-      assert len(mids) == self.n_agents, (len(mids), self.n_agents)
-      for rid in range(self.n_online_runners, self.n_runners):
-        self._prepared_strategies[rid] = mids
-        self._ready[rid] = True
-
-    def prepare_models(model_weights: ModelWeights):
-      model_weights.weights.pop(OPTIMIZER)
-      model_weights.weights[ANCILLARY] = \
-        self._params[model_weights.model].get(ANCILLARY, RMSStats([], None))
-      mid = ray.put(model_weights)
-
-      # prepare the most recent models for online runners
-      prepare_recent_models(mid)
-      if self.n_online_runners < self.n_runners:
-        # prepare historical models for selected runners
-        prepare_historical_models(mid, model_weights.model)
-
     assert aid == 0, aid
-    assert self._active_model == model_weights.model, (self._active_model, model_weights.model)
-    assert set(model_weights.weights) == set([MODEL, OPTIMIZER, 'train_step']), list(model_weights.weights)
+    assert self._models[ModelType.ACTIVE] == model_weights.model, (self._models[ModelType.ACTIVE], model_weights.model)
+    assert set(model_weights.weights) == set([MODEL, OPTIMIZER, TRAIN_STEP]), list(model_weights.weights)
     assert aid == get_aid(model_weights.model.model_name), (aid, model_weights.model)
     
     self._params[model_weights.model].update(model_weights.weights)
+    # self.save_params(model_weights.model, to_print=False)
     model_weights = ModelWeights(model_weights.model, model_weights.weights.copy())
-    prepare_models(model_weights)
+    self._prepare_models(model_weights)
     assert all(self._ready), self._ready
+
+  def _put_model_weights(self, model):
+    if model in self._rule_strategies:
+      # rule-based strategy
+      weights = self._params[model]
+    else:
+      # if error happens here
+      # it's likely that you retrive the latest model 
+      # in self.payoff_manager.sample_opponent_strategies
+      weights = {
+        k: self._params[model][k] 
+        for k in [MODEL, TRAIN_STEP, ANCILLARY]
+        if k in self._params[model]
+      }
+    mid = ray.put(ModelWeights(model, weights))
+    return mid
+
+  def _get_historical_mids(self, mid, model):
+    opp_model = self.sample_opponent_strategies(model)
+    opp_mid = self._put_model_weights(opp_model)
+    mids = [mid, opp_mid]
+
+    return mids
+  
+  def _prepare_recent_models(self, mid):
+    # prepare the most recent model for the first n_runners runners
+    for rid in range(self.n_online_runners):
+      self._prepared_strategies[rid] = [mid, mid]
+      self._ready[rid] = True
+
+  def _prepare_historical_models(self, mid, model):
+    mids = self._get_historical_mids(mid, model)
+    assert len(mids) == self.n_agents, (len(mids), self.n_agents)
+    for rid in range(self.n_online_runners, self.n_runners):
+      self._prepared_strategies[rid] = mids
+      self._ready[rid] = True
+
+  def _prepare_models(self, model_weights: ModelWeights):
+    model_weights.weights.pop(OPTIMIZER)
+    model_weights.weights[ANCILLARY] = \
+      self._params[model_weights.model].get(ANCILLARY, RMSStats([], None))
+    mid = ray.put(model_weights)
+
+    # prepare the most recent models for online runners
+    self._prepare_recent_models(mid)
+    if self.n_online_runners < self.n_runners:
+      # prepare historical models for selected runners
+      self._prepare_historical_models(mid, model_weights.model)
 
   def update_aux_stats(self, aid, model_weights: ModelWeights):
     assert aid == 0, aid
@@ -362,25 +345,32 @@ class SPParameterServer(RayBase):
       self.n_agent_runners = 0
     else:
       online_frac = self.online_scheduler(self._iteration)
-      self.n_online_runners, self.n_agent_runners = _divide_runners(
+      self.n_online_runners, self.n_agent_runners = divide_runners(
         self.n_active_agents, self.n_runners, online_frac
       )
 
-  def _restore_active_strategies(self):
-    # restore active strategies 
-    strategies = []
-    model = self._active_model
+  def _retrieve_strategy_for_training(
+      self, model: ModelPath, config=None, 
+      new_model: ModelPath=None, reset_heads=False):
+    if new_model is None:
+      new_model = model
+    do_logging(f'Retrieving strategy {model} for {new_model}', color='green')
+    self.restore_params(model)
     weights = self._params[model].copy()
     weights.pop(ANCILLARY, None)
-    strategies.append(ModelWeights(model, weights))
-    do_logging(f'Restoring active strategy: {model}', color='green')
-    config = self.builder.config.copy(shallow=False)
+    if reset_heads:
+      weights = reset_policy_head(weights, config)
+      self._params[new_model] = weights
+    model_weights = ModelWeights(new_model, weights)
+    self._params[new_model] = weights
+    if config is None:
+      config = self.builder.config.copy(shallow=False)
     config.status = Status.TRAINING
     self.builder.save_config(config)
-    return strategies
+    return model_weights
 
-  def _construct_raw_strategy(self, iteration):
-    self.builder.set_iteration(iteration)
+  def _construct_raw_strategy(self, iteration, version=None):
+    self.builder.set_iteration_version(iteration, version)
     config = self.builder.config.copy(shallow=False)
     config.status = Status.TRAINING
     self.builder.save_config(config)
@@ -413,23 +403,17 @@ class SPParameterServer(RayBase):
     return model
 
   def _sample_historical_strategy(self, iteration):
-    if self._former_model and random.random() < self.train_from_latest_frac:
-      model = self._former_model
+    if self._models[ModelType.FORMER] and random.random() < self.train_from_latest_frac:
+      model = self._models[ModelType.FORMER]
       do_logging(f'Sampling historical stratgy({model}) from {list(self._params)}', color='green')
     else:
       model = self._sample_with_prioritization()
-    weights = self._params[model].copy()
-    weights.pop(ANCILLARY)
     config = search_for_config(model)
-    model = self.builder.get_sub_version(config, iteration)
-    config = self.builder.config.copy(shallow=False)
-    config.status = Status.TRAINING
-    self.builder.save_config(config)
-    assert model not in self._params, f'{model} is already in {list(self._params)}'
-    if random.random() < self.reset_policy_head_frac:
-      weights = _reset_policy_head(weights, config)
-    self._params[model] = weights
-    model_weights = ModelWeights(model, weights)
+    new_model = self.builder.get_sub_version(config, iteration)
+    assert new_model not in self._params, f'{new_model} is already in {list(self._params)}'
+    reset_heads = random.random() < self.reset_policy_head_frac
+    model_weights = self._retrieve_strategy_for_training(
+      model, config, new_model, reset_heads=reset_heads)
     
     return model_weights
 
@@ -438,10 +422,11 @@ class SPParameterServer(RayBase):
       assert iteration == self._iteration, (iteration, self._iteration)
     strategies = []
     is_raw_strategy = [False for _ in range(self.n_active_agents)]
-    if self._active_model is not None:
-      strategies = self._restore_active_strategies()
+    if self._models[ModelType.ACTIVE] is not None:
+      model_weights = self._retrieve_strategy_for_training(self._models[ModelType.ACTIVE])
+      strategies.append(model_weights)
     else:
-      assert self._active_model is None, self._active_model
+      assert self._models[ModelType.ACTIVE] is None, self._models[ModelType.ACTIVE]
       if self._iteration == 1 or random.random() < self.train_from_scratch_frac:
         model_weights = self._construct_raw_strategy(self._iteration)
         is_raw_strategy[0] = True
@@ -451,36 +436,38 @@ class SPParameterServer(RayBase):
       model = strategies[0].model
       self.add_strategy_to_payoff(model)
       self._update_active_model(model)
-      self.save_active_model(0, 0)
+      self.save_active_models(0, 0)
       self.save_strategy_pool()
       self.save()
 
     return strategies, is_raw_strategy
 
   def archive_training_strategies(self, **kwargs):
-    do_logging('Archiving training strategies', color='green')
+    do_logging(f'Archiving training strategies: {self._models[ModelType.ACTIVE]}', color='green')
     config = self.builder.config.copy(shallow=False)
     config.update(kwargs)
     self.builder.save_config(config)
-    self._former_model = copy.copy(self._active_model)
-    self.save_params(self._active_model)
+    self._models[ModelType.FORMER] = copy.copy(self._models[ModelType.ACTIVE])
+    self.save_params(self._models[ModelType.ACTIVE])
     self._update_active_model(None)
-    if self._active_model in self._opp_dist:
-      del self._opp_dist[self._active_model]
+    if self._models[ModelType.ACTIVE] in self._opp_dist:
+      del self._opp_dist[self._models[ModelType.ACTIVE]]
     self._iteration += 1
     self._reset_ready()
     self._update_runner_distribution()
     self.save()
 
   """ Strategy Sampling """
-  def sample_strategies_with_opp_dists(self, step, model: ModelPath):
-    self._update_opp_distributions(model)
-    sid2model = self.payoff_manager.get_sid2model()
-    opp_dist = self._opp_dist[model][0]
-    for m in sid2model:
-      assert isinstance(m, ModelPath), m
-    model = random.choices(sid2model[:-1], weights=opp_dist[:-1])[0]
-    return model
+  def sample_opponent_strategies(self, model: ModelPath):
+    payoffs, weights, opp_dist = self._compute_opp_distributions(model)
+    self._update_hard_opponents(model, payoffs, opp_dist)
+    if len(self._models[ModelType.HARD][model]) > 0 \
+        and random.random() < self.hard_frac:
+      opp_model = random.choice(self._models[ModelType.HARD][model])
+    else:
+      sid2model = self.payoff_manager.get_sid2model()
+      opp_model = random.choices(sid2model[:-1], weights=opp_dist[:-1])[0]
+    return opp_model
 
   def sample_strategies_for_evaluation(self):
     if self._all_strategies is None:
@@ -498,7 +485,7 @@ class SPParameterServer(RayBase):
     if n_valid_payoffs > payoffs.size / 2:
       return np.nanmean(payoffs)
     else:
-      if self.score_metrics == SCORE_METRICS.SCORE:
+      if self.score_metrics == ScoreMetrics.SCORE:
         return -1
       else:
         return 0
@@ -519,78 +506,198 @@ class SPParameterServer(RayBase):
     self.payoff_manager.update_payoffs(models, scores)
     self.payoff_manager.save(to_print=False)
 
+  def _compute_opp_distributions(self, model: ModelPath):
+    assert isinstance(model, ModelPath), model
+    payoffs, weights, opp_dists = self.payoff_manager.\
+      compute_opponent_distribution(0, model)
+    return payoffs[0], weights[0], opp_dists[0]
+
   def _update_opp_distributions(self, model: ModelPath):
     assert isinstance(model, ModelPath), model
-    payoffs, self._opp_dist[model] = self.payoff_manager.\
-      compute_opponent_distribution(0, model)
-    do_logging(f'Updating opponent distributions: {self._opp_dist[model]} with payoffs {payoffs}', color='green')
+    payoffs, weights, opp_dist = self._compute_opp_distributions(model)
+    self._opp_dist[model] = [opp_dist]
+    do_logging(f'Updating opponent distributions ({opp_dist}) '
+               f'with weights ({weights}) and payoffs ({payoffs})', color='green')
+    return payoffs, weights, opp_dist
+
+  def _update_hard_opponents(self, model: ModelPath, payoffs, dist):
+    sid2model = self.payoff_manager.get_sid2model()
+    sids = np.argsort(dist)[-self.n_hard_opponents:][::-1]
+    sids = [sid for sid in sids if payoffs[sid] > 0]
+    self._models[ModelType.HARD][model] = [sid2model[sid] for sid in sids]
+    return self._models[ModelType.HARD][model]
 
   """ Checkpoints """
-  def save_active_model(self, model: ModelPath, train_step: int, env_step: int):
-    do_logging(f'Saving active model: {model}', color='green')
-    assert model == self._active_model, (model, self._active_model)
+  def save_active_model(self, model: ModelPath, train_step: int=None, 
+                        env_step: int=None, to_print=True):
+    if to_print:
+      do_logging(f'Saving active model: {model}', color='green')
+    assert model == self._models[ModelType.ACTIVE], (model, self._models[ModelType.ACTIVE])
     assert model in self._params, f'{model} does not in {list(self._params)}'
-    self._params[model]['train_step'] = train_step
-    self._params[model]['env_step'] = env_step
-    self.save_params(model)
+    if train_step is not None:
+      self._params[model][TRAIN_STEP] = train_step
+    if env_step is not None:
+      self._params[model][ENV_STEP] = env_step
+    self.save_params(model, to_print=to_print)
 
-  def save_active_models(self, train_step: int, env_step: int):
-    self.save_active_model(self._active_model, train_step, env_step)
+  def save_active_models(self, train_step: int=None, env_step: int=None, to_print=True):
+    self.save_active_model(self._models[ModelType.ACTIVE], train_step, 
+                           env_step, to_print=to_print)
 
-  def save_params(self, model: ModelPath, name='params'):
-    assert model == self._active_model, (model, self._active_model)
+  def save_params(self, model: ModelPath, name='params', to_print=True):
+    assert model == self._models[ModelType.ACTIVE], (model, self._models[ModelType.ACTIVE])
     if MODEL in self._params[model]:
-      pickle.save_params(
-        self._params[model][MODEL], model, f'{name}/model')
+      pickle.save_params(self._params[model][MODEL], 
+                         model, f'{name}/model', to_print=to_print)
     if OPTIMIZER in self._params[model]:
-      pickle.save_params(
-        self._params[model][OPTIMIZER], model, f'{name}/opt')
+      pickle.save_params(self._params[model][OPTIMIZER], 
+                         model, f'{name}/opt', to_print=to_print)
     rest_params = exclude_subdict(self._params[model], MODEL, OPTIMIZER)
     if rest_params:
-      pickle.save_params(rest_params, model, name)
+      pickle.save_params(rest_params, model, name, to_print=to_print)
 
   def restore_params(self, model: ModelPath, name='params'):
-    params = pickle.restore_params(model, name)
-    self._params[model] = params
+    self._params[model] = pickle.restore_params(model, name, backtrack=6)
 
   def save(self):
     self.payoff_manager.save()
-    model_paths = [list(mn) for mn in self._params]
-    active_model = None if self._active_model is None else list(self._active_model)
-    yaml_op.dump(
-      self._path, 
-      model_paths=model_paths, 
-      active_model=active_model, 
-      iteration=self._iteration, 
-      n_online_runners=self.n_online_runners, 
-      n_agent_runners=self.n_agent_runners
-    )
+    with open(self._path, 'wb') as f:
+      cloudpickle.dump((
+        self._params, 
+        self._models, 
+        self._iteration, 
+        self.n_online_runners, 
+        self.n_agent_runners
+      ), f)
+    # model_paths = [list(mn) for mn in self._params]
+    # models = jax.tree_map(
+    #   lambda x: None if x is None else list(x), self._models, 
+    #   is_leaf=lambda x: isinstance(x, ModelPath) or x is None)
+    # yaml_op.dump(
+    #   self._path, 
+    #   model_paths=model_paths, 
+    #   models=models, 
+    #   iteration=self._iteration, 
+    #   n_online_runners=self.n_online_runners, 
+    #   n_agent_runners=self.n_agent_runners
+    # )
 
   def restore(self, to_restore_params=True):
     self.payoff_manager.restore()
     if os.path.exists(self._path):
-      config = yaml_op.load(self._path)
-      if config is None:
-        return
-      active_model = config.pop('active_model')
-      if active_model is not None:
-        active_model = ModelPath(*active_model)
-      self._update_active_model(active_model)
-      config_attr(self, config, config_as_attr=False, private_attr=True)
-      model_paths = config.pop('model_paths')
-      if to_restore_params:
-        for model in model_paths:
-          model = ModelPath(*model)
-          if not is_rule_strategy(model):
-            self.restore_params(model)
+      with open(self._path, 'rb') as f:
+        self._params, \
+        self._models, \
+        self._iteration, \
+        self.n_online_runners, \
+        self.n_agent_runners = cloudpickle.load(f)
+    #   config = yaml_op.load(self._path)
+    #   if config is None:
+    #     return
+    #   models = config.pop('models')
+    #   models = jax.tree_map(
+    #     lambda x: ModelPath(*x), models, 
+    #     is_leaf=lambda x: isinstance(x, list) or x is None)
+    #   self._models = models
+
+    #   model_paths = config.pop('model_paths')
+    #   if to_restore_params:
+    #     for model in model_paths:
+    #       model = ModelPath(*model)
+    #       if not is_rule_strategy(model):
+    #         self.restore_params(model)
+      
+    #   config_attr(self, config, config_as_attr=False, private_attr=True)
       return True
     else:
       return False
+
+
+class ExploiterSPParameterServer(SPParameterServer):
+  def __init__(
+    self, 
+    config, 
+    to_restore_params=True, 
+    name='parameter_server'
+  ):
+    super().__init__(config, to_restore_params, name=name)
+    self._models[ModelType.Target] = None
+    self.online_frac = self.config.get('exploiter_online_frac', 0.2)
+    self.online_scheduler = PiecewiseSchedule(self.online_frac, interpolation='stage')
+    self.target_frac = self.config.get('target_frac', 0.7)
+
+  def sample_training_strategies(self, iteration=None):
+    if iteration is not None:
+      assert iteration == self._iteration, (iteration, self._iteration)
+    target_dir = self._dir.replace(EXPLOITER_SUFFIX, '')
+    target_dir = os.path.join(target_dir, 'a0')
+    target_model = find_latest_model(target_dir)
+    self.restore_params(target_model)
+    if target_model not in self.payoff_manager:
+      self.add_strategy_to_payoff(target_model)
+
+    model = self._get_exploiter_model(target_model)
+    assert model.model_name.replace(EXPLOITER_SUFFIX, '') == target_model.model_name, (model_name, target_model.model_name)
+    iid, vid = get_iid_vid(model.model_name)
+    self.builder.set_iteration_version(iid, vid)
+    if model in self._params:
+      model_weights = self._retrieve_strategy_for_training(model)
+      is_raw_strategy = [False]
+    else:
+      if self._iteration == 1 or random.random() < self.train_from_scratch_frac:
+        model_weights = self._construct_raw_strategy(iid, vid)
+        assert model == model_weights.model, (model, model_weights.model)
+      else:
+        payoffs, _, _ = self._compute_opp_distributions(target_model)
+        sid2model = self.payoff_manager.get_sid2model()
+        sid = np.argmin(payoffs)
+        hardest_model = sid2model[sid]
+        self.restore_params(hardest_model)
+        reset_heads = random.random() < self.reset_policy_head_frac
+        model_weights = self._retrieve_strategy_for_training(
+          hardest_model, new_model=model, reset_heads=reset_heads)
+      is_raw_strategy = [True]
+    strategies = [model_weights]
+    self.add_strategy_to_payoff(model)
+    self._update_active_model(model)
+    self.save_active_models(0, 0)
+    self.save_strategy_pool()
+    self.save()
+    return strategies, is_raw_strategy
+
+  def sample_opponent_strategies(self, model: ModelPath):
+    if random.random() < self.target_frac:
+      opp_model = self._get_exploitee_model(model)
+      if opp_model not in self._params:
+        self.restore_params(opp_model)
+    else:
+      _, _, opp_dist = self._compute_opp_distributions(model)
+      sid2model = self.payoff_manager.get_sid2model()
+      opp_model = random.choices(sid2model[:-1], weights=opp_dist[:-1])[0]
+    return opp_model
+  
+  def _get_exploiter_model(self, model: ModelPath):
+    assert EXPLOITER_SUFFIX not in model.model_name, model.model_name
+    basic_name, aid, iid, vid = decompose_model_name(model.model_name)
+    basic_name, seed = basic_name.rsplit(PATH_SPLIT, maxsplit=1)
+    basic_name = basic_name + EXPLOITER_SUFFIX
+    basic_name = os.path.join(basic_name, seed)
+    model_name = construct_model_name(basic_name, aid, iid, vid)
+    return ModelPath(model.root_dir, model_name)
+
+  def _get_exploitee_model(self, model: ModelPath):
+    assert EXPLOITER_SUFFIX in model.model_name, model.model_name
+    return ModelPath(model.root_dir, model.model_name.replace(EXPLOITER_SUFFIX, ''))
+
+  def get_avg_score(self, aid: int, model: ModelPath):
+    if self.score_metrics == ScoreMetrics.SCORE:
+      return -1
+    else:
+      return 0
 
 
 if __name__ == '__main__':
   from env.func import get_env_stats
   from tools.yaml_op import load_config
   config = load_config('algo/gd/configs/builtin.yaml')
-  env_stats = get_env_stats(config['env'])
-  ps = SPParameterServer(config, env_stats)
+  ps = SPParameterServer(config)

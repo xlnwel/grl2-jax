@@ -31,9 +31,10 @@ class PayoffTableCheckpoint:
       name='payoffs', to_print=to_print
     )
 
-  def restore(self):
+  def restore(self, to_print=True):
     data = pickle.restore(
-      filedir=self._payoff_dir, filename=self._name, name='payoffs'
+      filedir=self._payoff_dir, filename=self._name, 
+      name='payoffs', to_print=to_print
     )
     config_attr(self, data, filter_dict=False, config_as_attr=False)
 
@@ -158,6 +159,10 @@ class PayoffTableWithModel(PayoffTable):
     self.sid2model: List[List[ModelPath]] = [[] for _ in range(n_agents)]
 
     super().__init__(n_agents, step_size, payoff_dir, name=name)
+
+  def __contains__(self, aid_model: Tuple[int, ModelPath]):
+    aid, model = aid_model
+    return model in self.sid2model[aid]
 
   """ Get & Set """
   def get_all_models(self):
@@ -333,6 +338,9 @@ class SelfPlayPayoffTableWithModel(SelfPlayPayoffTable):
     self.sid2model: List[ModelPath] = []
 
     super().__init__(step_size, payoff_dir, name)
+
+  def __contains__(self, model: ModelPath):
+    return model in self.sid2model
 
   """ Get & Set """
   def get_all_models(self):

@@ -19,6 +19,9 @@ DEFAULT_ACTION = 'action'
 ROOT_DIR = 'root_dir'
 MODEL_NAME = 'model_name'
 
+TRAIN_STEP = 'train_step'
+ENV_STEP = 'env_step'
+
 if os.name == 'posix':  # Linux, macOS, or Unix
   PATH_SPLIT = '/'
 elif os.name == 'nt':  # Windows

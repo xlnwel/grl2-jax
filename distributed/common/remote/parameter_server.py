@@ -12,21 +12,20 @@ import ray
 from core.ckpt import pickle
 from core.elements.builder import ElementsBuilderVC
 from core.log import do_logging
-from core.names import PATH_SPLIT
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
 from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, ModelWeights, \
   construct_model_name, exclude_subdict, get_aid, get_date, get_basic_model_name
-from nn.utils import reset_linear_weights, reset_weights
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
 from tools.schedule import PiecewiseSchedule
 from tools.timer import Every
 from tools.utils import config_attr, dict2AttrDict
 from tools import yaml_op
-from distributed.common.typing import Status
+from distributed.common.typing import Status, ScoreMetrics
 from distributed.common.remote.payoff import PayoffManager
+from distributed.common.utils import divide_runners, reset_policy_head
 
 
 """ Name Conventions:
@@ -36,50 +35,6 @@ In general, we prefer the term "strategy" in the context of
 training and inference, and the term "model" when a model 
 path is involved (e.g., when saving&restoring a model).
 """
-
-
-class SCORE_METRICS:
-  SCORE = 'score'
-  WIN_RATE = 'win_rate'
-
-
-def _divide_runners(n_agents, n_runners, online_frac):
-  if n_runners < n_agents:
-    return n_runners, 0
-  n_agent_runners = int(n_runners * (1 - online_frac) // n_agents)
-  n_online_runners = n_runners - n_agent_runners * n_agents
-  assert n_agent_runners * n_agents + n_online_runners == n_runners, \
-    (n_agent_runners, n_agents, n_online_runners, n_runners)
-  return n_online_runners, n_agent_runners
-
-
-def _reset_policy_head(weights, config):
-  rng = jax.random.PRNGKey(random.randint(0, 2**32))
-  if 'policies' in weights[MODEL]:
-    for policy in weights[MODEL]['policies']:
-      for k, v in policy.items():
-        if k.startswith('policy/head'):
-          policy[k] = reset_linear_weights(
-            v, rng, 'orthogonal', scale=.01)
-          do_logging(f'{k} is reset', color='green')
-        elif k == 'policy':
-          for kk, vv in policy[k].items():
-            if kk.endswith('logstd'):
-              policy[k][kk] = reset_weights(
-                vv, rng, 'constant', value=config.model.policy.init_std)
-  elif 'policy' in weights[MODEL]:
-    policy = weights[MODEL]['policy']
-    for k, v in policy.items():
-      if k.startswith('policy/head'):
-        policy[k] = reset_linear_weights(
-          v, rng, 'orthogonal', scale=.01)
-        do_logging(f'{k} is reset', color='green')
-      elif k == 'policy':
-        for kk, vv in policy[k].items():
-          if kk.endswith('logstd'):
-            policy[k][kk] = reset_weights(
-              vv, rng, 'constant', value=config.model.policy.init_std)
-  return weights
 
 
 class ParameterServer(RayBase):
@@ -92,8 +47,8 @@ class ParameterServer(RayBase):
     super().__init__(seed=config.get('seed'))
     config = dict2AttrDict(config)
     self.config = config.parameter_server
-    self.score_metrics = self.config.get('score_metrics', SCORE_METRICS.SCORE)
-    assert self.score_metrics in (SCORE_METRICS.SCORE, SCORE_METRICS.WIN_RATE)
+    self.score_metrics = self.config.get('score_metrics', ScoreMetrics.SCORE)
+    assert self.score_metrics in (ScoreMetrics.SCORE, ScoreMetrics.WIN_RATE)
     self.name = name
 
     self.n_agents = config.n_agents
@@ -130,9 +85,10 @@ class ParameterServer(RayBase):
     self._to_update: Dict[ModelPath, Every] = collections.defaultdict(
       lambda: Every(self.config.setdefault('update_interval', 1), -1))
 
-    self._former_models: List[ModelPath] = [None for _ in range(self.n_agents)]
+    self._models: Dict[str, List[ModelPath]] = AttrDict()
+    self._models['former'] = [None for _ in range(self.n_agents)]
     # an active model is the one under training
-    self._active_models: List[ModelPath] = [None for _ in range(self.n_agents)]
+    self._models['active'] = [None for _ in range(self.n_agents)]
     # is the first pbt iteration
     self._iteration = 1
     self._all_strategies = None
@@ -202,10 +158,10 @@ class ParameterServer(RayBase):
     return self.configs
 
   def get_active_models(self):
-    return self._active_models
+    return self._models['active']
 
   def get_active_aux_stats(self):
-    active_stats = {m: self.get_aux_stats(m) for m in self._active_models}
+    active_stats = {m: self.get_aux_stats(m) for m in self._models['active']}
 
     return active_stats
 
@@ -219,9 +175,9 @@ class ParameterServer(RayBase):
   def get_opponent_distributions_for_active_models(self):
     dists = {
       m: self.payoff_manager.compute_opponent_distribution(i, m, False) 
-      for i, m in enumerate(self._active_models)
+      for i, m in enumerate(self._models['active'])
     }
-    for m, (p, d) in dists.items():
+    for m, (p, w, d) in dists.items():
       for x in d:
         if x.size > 1:
           online_frac = self.online_scheduler(self._iteration)
@@ -277,11 +233,11 @@ class ParameterServer(RayBase):
     self.payoff_manager.add_strategies(models)
 
   def _update_active_model(self, aid, model: ModelPath):
-    self._active_models[aid] = model
+    self._models['active'][aid] = model
 
   def _update_active_models(self, models: List[ModelPath]):
     assert len(models) == self.n_agents, models
-    self._active_models = models
+    self._models['active'] = models
 
   def _reset_prepared_strategy(self, rid: int=-1):
     raise NotImplementedError
@@ -320,7 +276,7 @@ class ParameterServer(RayBase):
             # in self.payoff_manager.sample_opponent_strategies
             weights = {
               k: self._params[i][m][k] 
-              for k in [MODEL, 'train_step', ANCILLARY]
+              for k in [MODEL, TRAIN_STEP, ANCILLARY]
               if k in self._params[i][m]
             }
           mids.append(ray.put(ModelWeights(m, weights)))
@@ -365,8 +321,8 @@ class ParameterServer(RayBase):
         # prepare historical models for selected runners
         prepare_historical_models(aid, mid, model_weights)
 
-    assert self._active_models[aid] == model_weights.model, (self._active_models, model_weights.model)
-    assert set(model_weights.weights) == set([MODEL, OPTIMIZER, 'train_step']), list(model_weights.weights)
+    assert self._models['active'][aid] == model_weights.model, (self._models['active'], model_weights.model)
+    assert set(model_weights.weights) == set([MODEL, OPTIMIZER, TRAIN_STEP]), list(model_weights.weights)
     assert aid == get_aid(model_weights.model.model_name), (aid, model_weights.model)
     
     self._params[aid][model_weights.model].update(model_weights.weights)
@@ -393,14 +349,14 @@ class ParameterServer(RayBase):
       self.n_agent_runners = 0
     else:
       online_frac = self.online_scheduler(self._iteration)
-      self.n_online_runners, self.n_agent_runners = _divide_runners(
+      self.n_online_runners, self.n_agent_runners = divide_runners(
         self.n_agents, self.n_runners, online_frac
       )
 
   def _restore_active_strategies(self):
     # restore active strategies 
     strategies = []
-    for aid, model in enumerate(self._active_models):
+    for aid, model in enumerate(self._models['active']):
       assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
       weights = self._params[aid][model].copy()
       weights.pop(ANCILLARY, None)
@@ -413,7 +369,7 @@ class ParameterServer(RayBase):
     return strategies
 
   def _construct_raw_strategy(self, aid, iteration):
-    self.builders[aid].set_iteration(iteration)
+    self.builders[aid].set_iteration_version(iteration)
     config = self.builders[aid].config.copy(shallow=False)
     config.status = Status.TRAINING
     self.builders[aid].save_config(config)
@@ -447,8 +403,8 @@ class ParameterServer(RayBase):
     return model
 
   def _sample_historical_strategy(self, aid, iteration):
-    if self._former_models[aid] and random.random() < self.train_from_latest_frac:
-      model = self._former_models[aid]
+    if self._models['former'][aid] and random.random() < self.train_from_latest_frac:
+      model = self._models['former'][aid]
       do_logging(f'Sampling historical stratgy({model}) from {list(self._params)}', color='green')
     else:
       model = self._sample_with_prioritization()
@@ -463,7 +419,7 @@ class ParameterServer(RayBase):
     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
     assert model not in self._params[aid], f'{model} is already in {list(self._params[aid])}'
     if random.random() < self.reset_policy_head_frac:
-      weights = _reset_policy_head(weights, config)
+      weights = reset_policy_head(weights, config)
     self._params[aid][model] = weights
     model_weights = ModelWeights(model, weights)
     
@@ -474,10 +430,10 @@ class ParameterServer(RayBase):
       assert iteration == self._iteration, (iteration, self._iteration)
     strategies = []
     is_raw_strategy = [False for _ in range(self.n_agents)]
-    if any([am is not None for am in self._active_models]):
+    if any([am is not None for am in self._models['active']]):
       strategies = self._restore_active_strategies()
     else:
-      assert all([am is None for am in self._active_models]), self._active_models
+      assert all([am is None for am in self._models['active']]), self._models['active']
       for aid in range(self.n_agents):
         if self._iteration == 1 or random.random() < self.train_from_scratch_frac:
           model_weights = self._construct_raw_strategy(aid, self._iteration)
@@ -500,8 +456,8 @@ class ParameterServer(RayBase):
       config = b.config.copy(shallow=False)
       config.update(kwargs)
       b.save_config(config)
-    self._former_models = self._active_models.copy()
-    for aid, model in enumerate(self._active_models):
+    self._models['former'] = self._models['active'].copy()
+    for aid, model in enumerate(self._models['active']):
       self.save_params(model)
       self._update_active_model(aid, None)
       if model in self._opp_dist:
@@ -513,16 +469,16 @@ class ParameterServer(RayBase):
 
   """ Strategy Sampling """
   def sample_opponent_strategies(self, aid, model: ModelPath, step=None):
-    assert model == self._active_models[aid], (model, self._active_models)
+    assert model == self._models['active'][aid], (model, self._models['active'])
     self._update_opp_distributions(aid, model)
-    strategies = self.sample_strategies_with_opp_dists(
+    strategies = self.sample_opponent_strategies_with_distribution(
       aid, model, self._opp_dist[model]
     )
     assert model in strategies, (model, strategies)
 
     return strategies
   
-  def sample_strategies_with_opp_dists(
+  def sample_opponent_strategies_with_distribution(
     self, aid, model: ModelPath, opp_dists: List[np.ndarray],
   ):
     sid2model = self.payoff_manager.get_sid2model()
@@ -553,7 +509,7 @@ class ParameterServer(RayBase):
     if n_valid_payoffs > payoffs.size / 2:
       return np.nanmean(payoffs)
     else:
-      if self.score_metrics == SCORE_METRICS.SCORE:
+      if self.score_metrics == ScoreMetrics.SCORE:
         return -1
       else:
         return 0
@@ -576,26 +532,31 @@ class ParameterServer(RayBase):
 
   def _update_opp_distributions(self, aid, model: ModelPath):
     assert isinstance(model, ModelPath), model
-    payoffs, self._opp_dist[model] = self.payoff_manager.\
+    payoffs, weights, self._opp_dist[model] = self.payoff_manager.\
       compute_opponent_distribution(aid, model)
-    do_logging(f'Updating opponent distributions for agent {aid}: {self._opp_dist[model]} with payoffs {payoffs}', color='green')
+    do_logging(f'Updating opponent distributions ({self._opp_dist[model]}) '
+               f'with weights ({weights}) and payoffs ({payoffs})', color='green')
 
   """ Checkpoints """
-  def save_active_model(self, model: ModelPath, train_step: int, env_step: int):
-    do_logging(f'Saving active model: {model}', color='green')
-    assert model in self._active_models, (model, self._active_models)
+  def save_active_model(self, model: ModelPath, train_step: int=None, 
+                        env_step: int=None, to_print=True):
+    if to_print:
+      do_logging(f'Saving active model: {model}', color='green')
+    assert model in self._models['active'], (model, self._models['active'])
     aid = get_aid(model.model_name)
     assert model in self._params[aid], f'{model} does not in {list(self._params[aid])}'
-    self._params[aid][model]['train_step'] = train_step
-    self._params[aid][model]['env_step'] = env_step
+    if train_step is not None:
+      self._params[aid][model][TRAIN_STEP] = train_step
+    if env_step is not None:
+      self._params[aid][model][ENV_STEP] = env_step
     self.save_params(model)
 
-  def save_active_models(self, train_step: int, env_step: int):
-    for m in self._active_models:
-      self.save_active_model(m, train_step, env_step)
+  def save_active_models(self, train_step: int=None, env_step: int=None, to_print=True):
+    for m in self._models['active']:
+      self.save_active_model(m, train_step, env_step, to_print=to_print)
 
   def save_params(self, model: ModelPath, name='params'):
-    assert model in self._active_models, (model, self._active_models)
+    assert model in self._models['active'], (model, self._models['active'])
     aid = get_aid(model.model_name)
     if MODEL in self._params[aid][model]:
       pickle.save_params(
@@ -615,7 +576,7 @@ class ParameterServer(RayBase):
   def save(self):
     self.payoff_manager.save()
     model_paths = [[list(mn) for mn in p] for p in self._params]
-    active_models = [list(m) if m is not None else m for m in self._active_models]
+    active_models = [list(m) if m is not None else m for m in self._models['active']]
     yaml_op.dump(
       self._path, 
       model_paths=model_paths, 

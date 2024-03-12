@@ -17,31 +17,38 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-  store_period: 5e4
+  store_period: 1e5
+  reload_strategy_pool_period: 1e4
   restart_runners_period: null
-  eval_period: 5e4
-  max_version_iterations: 30
-  max_steps_per_iteration: 1e7
+  eval_period: null
+  max_version_iterations: 100
+  max_steps_per_iteration: 5e7
     # - [0, 1e6]
     # - [20, 3e6]
-  initialize_rms: &irms False
+  score_threshold: .6
+  initialize_rms: &irms True
 
 parameter_server:
-  pool_name: strategy_pool
   root_dir: *algo
   model_name: *algo
 
   score_metric: score   # stats recorded in payoff tables
   train_from_scratch_frac: .1
-  train_from_latest_frac: 1
-  hist_train_scale: 1
-  reset_policy_head_frac: 1
-  online_frac: .25
-    # - [1, 1]
-    # - [5, .75]
-    # - [10, .5]
-    # - [20, .25]
-  update_interval: 1000
+  train_from_latest_frac: 0
+  hist_train_scale: 10
+  reset_policy_head_frac: .5
+  online_frac:
+    - [1, 1]
+    - [5, .75]
+    - [10, .5]
+    - [20, .25]
+  exploiter_online_frac: .2
+  hard_frac: .2
+  hard_threshold: .5
+  n_hard_opponents: 5
+
+  pool_pattern: .*
+  pool_name: strategy_pool
 
   payoff:
     step_size: 1e-1
@@ -50,21 +57,23 @@ parameter_server:
       p: 1
       threshold: .3
 
-  rule_strategies:
-    # agent name / config
-    random:
-      aid: 0
-      vid: 1
-      path: rule/random   # path to the file that defines Strategy
-      # other configs
+  # rule_strategies:
+  #   # agent name / config
+  #   random:
+  #     aid: 0
+  #     vid: 1
+  #     path: rule/random   # path to the file that defines Strategy
+  #     # other configs
 
 ray_config:
   runner:
     num_cpus: 1
   agent:
-    num_gpus: 0
+    num_cpus: 2
+    num_gpus: .5
 
-monitor: {}
+monitor:
+  print_terminal_info: True
 
 runner:
   n_runners: 90
@@ -91,9 +100,10 @@ env:
     heading_reward_scale: .001
     dist_reward_scale: .0001
     control_fire: True
+    escape_dis: False
   win_loss_reward: 20
   max_sim_time: 600
-  frame_skip: 2
+  frame_skip: 8
   n_bins: null
   born_point:
     pn: 
@@ -192,7 +202,7 @@ trainer:
   aid: 0
   n_runners: &nrunners 10
   n_envs: *nenvs
-  n_epochs: &nepochs 5
+  n_epochs: &nepochs 1
   n_mbs: &nmbs 1
   n_steps: *nsteps     # BPTT length
   popart: *popart

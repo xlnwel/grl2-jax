@@ -1,0 +1,1 @@
+EXPLOITER_SUFFIX = '-exploiter'

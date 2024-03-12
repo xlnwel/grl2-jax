@@ -12,7 +12,7 @@ from core.elements.buffer import Buffer
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.mixin.actor import RMS
-from core.names import ANCILLARY, MODEL
+from core.names import ANCILLARY, MODEL, TRAIN_STEP
 from core.remote.base import RayBase
 from core.typing import ModelStats, ModelWeights, ModelPath, dict2AttrDict
 from env.func import create_env
@@ -117,6 +117,7 @@ class MultiAgentRunner(RayBase):
       config.buffer.type = self._get_local_buffer_type()
       # update n_steps for consistency
       config.buffer.n_steps = self.n_steps
+      config.buffer.sample_keys.append(TRAIN_STEP)
       elements = self.builder.build_acting_agent_from_scratch(
         config, 
         env_stats=self.env_stats, 
@@ -181,7 +182,7 @@ class MultiAgentRunner(RayBase):
         model_weights = ray.get(mid)
         self.is_agent_active[aid] = model_weights.model in self.active_models
         self.current_models[aid] = model_weights.model
-        assert set(model_weights.weights).issubset(set([MODEL, ANCILLARY, 'train_step'])) or set(model_weights.weights) == set(['aid', 'vid', 'path']), set(model_weights.weights)
+        assert set(model_weights.weights).issubset(set([MODEL, ANCILLARY, TRAIN_STEP])) or set(model_weights.weights) == set(['aid', 'vid', 'path']), set(model_weights.weights)
         self.agents[aid].set_strategy(model_weights, env=self.env)
         # do_logging(f'Runner {self.id} receives weights of train step {model_weights.weights["train_step"]}')
       if self.self_play:
@@ -339,6 +340,7 @@ class MultiAgentRunner(RayBase):
               'discount': next_env_out.discount,
               'reset': next_env_out.reset,
               'next_obs': next_obs[aid],
+              TRAIN_STEP: agent.get_train_step() * np.ones_like(env_out.reset)
             }
             stats.update(agent_actions[aid])
             stats.update(agent_terms[aid])
@@ -448,6 +450,7 @@ class MultiAgentRunner(RayBase):
               stats = {
                 **env_out.obs,
                 'reset': env_out.reset, 
+                TRAIN_STEP: agent.get_train_step() * np.ones_like(env_out.reset)
               }
               stats.update(agent_actions[aid])
               stats.update(agent_terms[aid])

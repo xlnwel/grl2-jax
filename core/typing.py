@@ -376,6 +376,22 @@ def construct_model_name_from_version(base, iteration, version):
 def construct_model_name(base, aid, iteration, version):
   return os.path.join(base, f'a{aid}', f'i{iteration}-v{version}')
 
+def retrieve_model_path(path: str):
+  strs = path.split(PATH_SPLIT)
+  root_dir = os.path.join(*strs[:3])
+  assert strs[3].isdigit(), strs
+  model_name = os.path.join(*strs[3:])
+  return ModelPath(root_dir, model_name)
+
+def decompose_model_name(model_name: str):
+  basic_name, aid, vid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
+  aid = eval(aid[1:])
+  iid, vid = vid.split('v', maxsplit=1)
+  iid = eval(iid[1:-1])
+  assert isinstance(aid, int), aid
+  assert isinstance(iid, int), iid
+  return basic_name, aid, iid, vid
+
 def get_aid(model_name: str):
   _, aid, _ = model_name.rsplit(PATH_SPLIT, maxsplit=2)
   aid = eval(aid[1:])
@@ -393,6 +409,13 @@ def get_aid_vid(model_name: str):
   vid = vid.rsplit('v', maxsplit=1)[-1]
   assert isinstance(aid, int), aid
   return aid, vid
+
+def get_iid_vid(model_name: str):
+  _, vid = model_name.rsplit(PATH_SPLIT, maxsplit=1)
+  iid, vid = vid.split('v', maxsplit=1)
+  iid = eval(iid[1:-1])
+  assert isinstance(iid, int), iid
+  return iid, vid
 
 def get_all_ids(model_name: str):
   _, aid, vid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
@@ -418,7 +441,7 @@ def get_basic_model_name(model_name: str):
 
   return name
 
-def modelpath2outdir(model_path):
+def modelpath2outdir(model_path: ModelPath):
   root_dir, model_name = model_path
   model_name = get_basic_model_name(model_name)
   outdir = os.path.join(root_dir, model_name)

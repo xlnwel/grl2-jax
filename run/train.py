@@ -141,14 +141,17 @@ def setup_configs(cmd_args, algo_env_config):
     do_logging(f'Setup configs for algo({algo}) and env({env})', color='yellow')
     algo = _get_algo_name(algo)
     config = load_config_with_algo_env(algo, env, config)
-    if cmd_args.new_kws:
-      for s in cmd_args.new_kws:
+    if cmd_args.new_kw:
+      for s in cmd_args.new_kw:
         key, value = s.split('=', 1)
         config[key] = value
     if i in kwidx:
       change_config_with_kw_string(cmd_args.kwargs, config, i)
     if model_name == '':
       model_name = 'baseline'
+    if cmd_args.exploiter:
+      model_name = f'{model_name}-exploiter'
+      config.exploiter = True
 
     config.info, config.model_info = make_info(config, cmd_args.info, model_name)
     # model_name = config.model_info

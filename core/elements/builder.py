@@ -503,9 +503,9 @@ class ElementsBuilderVC(ElementsBuilder):
   def get_iteration(self):
     return self._iteration
 
-  def set_iteration(self, iteration):
+  def set_iteration_version(self, iteration, version=None):
     self._iteration = iteration
-    version = iteration
+    version = iteration if version is None else version
     self._all_versions.add(version)
     self.config.iteration = iteration
     self.config.version = version

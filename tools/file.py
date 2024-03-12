@@ -6,6 +6,7 @@ import psutil
 import shutil
 
 from core.log import do_logging
+from core.names import PATH_SPLIT
 
 
 def mkdir(d):
@@ -20,7 +21,6 @@ def rm(path):
   elif os.path.isdir(path):
     # Delete the directory and its contents using shutil.rmtree
     shutil.rmtree(path)
-
 
 
 def is_file_open(file_path):
@@ -53,7 +53,7 @@ def load_files(path='.', recursively_load=True):
   """
   # for _file_path in glob.glob(os.path.join(local_dir, "*.py")):
   #   source_file(_file_path)
-  for f in glob.glob(f'{path}/*'):
+  for f in glob.glob(f'{path}{PATH_SPLIT}*'):
     if os.path.isdir(f) and recursively_load:
       load_files(f)
     elif f.endswith('.py') and not f.endswith('__init__.py') \
@@ -134,7 +134,7 @@ def search_for_all_files(directory, filename, is_suffix=True, remove_dir=False):
         if f.startswith(filename):
           all_target_files.append(os.path.join(root, f))
   if remove_dir:
-    all_target_files = [f.replace(f'{directory}/', '') for f in all_target_files]
+    all_target_files = [f.replace(f'{directory}{PATH_SPLIT}', '') for f in all_target_files]
   return all_target_files
 
 
@@ -149,8 +149,8 @@ def search_for_dirs(directory, dirname, is_suffix=True, matches=None):
       continue
     if matches is not None and all([m not in root for m in matches]):
       continue
-    endnames = root.rsplit('/', n_slashes+1)[1:]
-    endname = '/'.join(endnames)
+    endnames = root.rsplit(PATH_SPLIT, n_slashes+1)[1:]
+    endname = PATH_SPLIT.join(endnames)
     if is_suffix:
       if endname.endswith(dirname):
         all_target_files.add(root)
@@ -173,10 +173,10 @@ def yield_dirs(directory, dirnames, is_suffix=True, root_matches=None):
       continue
 
     for dirname in dirnames:
-      n_slashes = dirname.count('/')
+      n_slashes = dirname.count(PATH_SPLIT)
 
-      endnames = root.rsplit('/', n_slashes+1)[1:]
-      endname = '/'.join(endnames)
+      endnames = root.rsplit(PATH_SPLIT, n_slashes+1)[1:]
+      endname = PATH_SPLIT.join(endnames)
 
       if is_suffix:
         if endname.endswith(dirname):

@@ -1,5 +1,5 @@
 from math import ceil
-import numpy as np
+from typing import Dict
 import ray
 
 from core.log import do_logging
@@ -26,20 +26,14 @@ class Controller(ControllerBase):
     self, 
     agent_manager: AgentManager, 
     runner_manager: RunnerManager, 
-    max_steps: int
+    max_steps: int, 
+    periods: Dict[str, Every]
   ):
     agent_manager.start_training()
-    to_restart_runners = Every(
-      self.config.restart_runners_period, 
-      0 if self.config.restart_runners_period is None \
-        else self._steps + self.config.restart_runners_period
-    )
-    to_eval = Every(self.config.eval_period, start=self._steps, final=max_steps)
-    to_store = Every(self.config.store_period, start=self._steps, final=max_steps)
     eval_pids = []
 
     while self._steps < max_steps:
-      self._preprocessing(to_eval, to_restart_runners, to_store, eval_pids)
+      eval_pids = self._preprocessing(periods, eval_pids)
       model_weights = self._retrieve_model_weights()
       steps = sum(runner_manager.run_with_model_weights(model_weights))
       self._steps += self.steps_per_run

@@ -36,7 +36,7 @@ def save(data, *, filedir, filename, backtrack=3, name='data', to_print=True):
     do_logging(f'Saving {name} in "{filename}"', backtrack=backtrack)
 
 
-def restore(*, filedir=None, filename, backtrack=3, default={}, name='data'):
+def restore(*, filedir=None, filename, backtrack=3, default={}, name='data', to_print=True):
   """ Retrieve data from filedir/filename
   filename specifies the whole path if filedir is None
   """
@@ -46,7 +46,8 @@ def restore(*, filedir=None, filename, backtrack=3, default={}, name='data'):
     try:
       with open(filename, 'rb') as f:
         data = cloudpickle.load(f)
-      do_logging(f'Restoring {name} from "{filename}"', backtrack=backtrack)
+      if to_print:
+        do_logging(f'Restoring {name} from "{filename}"', backtrack=backtrack)
     except Exception as e:
       do_logging(f'Failing restoring {name} from {filename}: {e}', backtrack=backtrack)
   else:
@@ -59,13 +60,14 @@ def get_filedir(model_path: ModelPath, name: str, *args):
   return os.path.join(*model_path, name, *args)
 
 
-def save_params(params, model_path: ModelPath, name, backtrack=4):
+def save_params(params, model_path: ModelPath, name, backtrack=4, to_print=True):
   filedir = get_filedir(model_path, name)
   for k, v in params.items():
-    save(v, filedir=filedir, filename=k, backtrack=backtrack, name='parameters')
+    save(v, filedir=filedir, filename=k, backtrack=backtrack, 
+         name='parameters', to_print=to_print)
 
 
-def restore_params(model_path: ModelPath, name, filenames=None, backtrack=4):
+def restore_params(model_path: ModelPath, name, filenames=None, backtrack=4, to_print=True):
   filedir = get_filedir(model_path, name)
   if filenames is None:
     filenames = search_for_all_files(filedir, '.pkl', remove_dir=True)
@@ -73,8 +75,8 @@ def restore_params(model_path: ModelPath, name, filenames=None, backtrack=4):
     filenames = [filenames]
   params = {}
   for filename in filenames:
-    weights = restore(
-      filedir=filedir, filename=filename, backtrack=backtrack, name='parameters')
+    weights = restore(filedir=filedir, filename=filename, backtrack=backtrack, 
+                      name='parameters', to_print=to_print)
     filename = filename.replace('.pkl', '')
     if weights:
       if PATH_SPLIT in filename:

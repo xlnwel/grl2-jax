@@ -10,6 +10,7 @@ import ray
 from .parameter_server import ParameterServer
 from core.typing import ModelStats
 from core.log import do_logging
+from core.names import TRAIN_STEP
 from core.elements.monitor import Monitor as ModelMonitor
 from core.remote.base import RayBase
 from core.typing import ModelPath
@@ -99,7 +100,7 @@ class Monitor(RayBase):
     model_stats: ModelStats
   ):
     model, stats = model_stats
-    train_step = stats.pop('train_step')
+    train_step = stats.pop(TRAIN_STEP)
     self._train_steps_in_period[model] = train_step - self._train_steps[model]
     self._train_steps[model] = train_step
     self.store_stats_for_model(model, stats)
@@ -186,33 +187,24 @@ class Monitor(RayBase):
       ), f)
 
   def save_all(self, step):
-    def store_stats(model, stats, pids):
-      assert model is not None, model
-      pids.append(self.parameter_server.save_active_model.remote(
-        model, self._train_steps[model], self._env_steps[model]
-      ))
-      self.store_stats_for_model(model, stats, step=step, record=True)
-
-    pids = []
     oid = self.parameter_server.get_active_aux_stats.remote()
     self.save()
     if self.n_agents != 2:
       active_stats = ray.get(oid)
       for model, stats in active_stats.items():
-        store_stats(model, stats, pids)
+        self.store_stats_for_model(model, stats, step=step, record=True)
     else:
       active_stats, dists = ray.get([
         oid, 
         self.parameter_server.get_opponent_distributions_for_active_models.remote()
       ])
       for model, (payoff, dist) in dists.items():
-        store_stats(model, active_stats[model], pids)
+        self.store_stats_for_model(model, active_stats[model], step=step, record=True)
 
         with Timer('Monitor Real-Time Plot Time', period=1):
           self.plot_recording_stats(model, 'payoff', payoff, fill_nan=True)
           self.plot_recording_stats(model, 'opp_dist', dist)
 
-    ray.get(pids)
     with open('check.txt', 'w') as f:
       f.write(datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S'))
 
@@ -310,6 +302,9 @@ class Monitor(RayBase):
     new_stats = np.reshape(new_stats, (-1, 1)).astype(np.float16)
     hist_stats = self._recording_stats[stats_name]
     if model in hist_stats:
+      if new_stats.shape[0] > hist_stats[model].shape[0]:
+        pad = ((0, new_stats.shape[0] - hist_stats[model].shape[0]), (0, 0))
+        hist_stats[model] = np.pad(hist_stats[model], pad)
       hist_stats[model] = np.concatenate([hist_stats[model], new_stats], -1)
     else:
       hist_stats[model] = new_stats

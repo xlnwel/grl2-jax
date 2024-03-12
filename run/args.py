@@ -94,11 +94,14 @@ def parse_train_args():
     type=str, 
     default='train')
   parser.add_argument(
-    '--new_kws', 
+    '--new_kw', 
     type=str,
     nargs='*',
     default=[],
     help='Add new key-values to config.yaml')
+  parser.add_argument(
+    '--exploiter', 
+    action='store_true')
   args = parser.parse_args()
 
   return args

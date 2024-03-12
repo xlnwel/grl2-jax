@@ -1,9 +1,14 @@
+import os
 import time
+from typing import Dict
 import ray
 
 from core.log import do_logging
-from core.typing import dict2AttrDict
+from core.typing import ModelPath, dict2AttrDict, decompose_model_name
 from tools.timer import Every, timeit
+from distributed.common.names import EXPLOITER_SUFFIX
+from distributed.common.utils import find_latest_model
+from distributed.common.typing import Status
 from distributed.common.local.agent_manager import AgentManager
 from distributed.common.local.runner_manager import RunnerManager
 from distributed.common.local.controller import Controller as ControllerBase
@@ -15,21 +20,15 @@ class Controller(ControllerBase):
     self, 
     agent_manager: AgentManager, 
     runner_manager: RunnerManager, 
-    max_steps: int
+    max_steps: int, 
+    periods: Dict[str, Every]
   ):
     agent_manager.start_training()
     runner_manager.start_running()
-    to_restart_runners = Every(
-      self.config.restart_runners_period, 
-      0 if self.config.restart_runners_period is None \
-        else self._steps + self.config.restart_runners_period
-    )
-    to_eval = Every(self.config.eval_period, start=self._steps, final=max_steps)
-    to_store = Every(self.config.store_period, start=self._steps, final=max_steps)
     eval_pids = []
 
     while self._steps < max_steps:
-      self._preprocessing(to_eval, to_restart_runners, to_store, eval_pids)
+      eval_pids = self._preprocessing(periods, eval_pids)
       time.sleep(1)
 
       steps = runner_manager.get_total_steps()
@@ -38,8 +37,17 @@ class Controller(ControllerBase):
       is_score_met = self._check_scores()
       if is_score_met:
         break
+      if self.exploiter:
+        model = self.current_models[0]
+        main_model = ModelPath(model.root_dir, model.model_name.replace(EXPLOITER_SUFFIX, ''))
+        basic_name, aid = decompose_model_name(main_model.model_name)[:2]
+        path = os.path.join(model.root_dir, basic_name, f'a{aid}')
+        latest_main = find_latest_model(path)
+        if latest_main != main_model:
+          do_logging(f'Latest main model has been changed from {main_model} to {latest_main}', color='blue')
+          break
 
-    status = "score_met" if is_score_met else "timeout"
+    status = Status.SCORE_MET if is_score_met else Status.TIMEOUT
     self._finish_iteration(eval_pids, status=status)
 
   """ Implementation for <pbt_train> """

@@ -119,7 +119,6 @@ class ACBuffer(Buffer):
 
     self._sleep_time = 0.025
     self._sample_wait_time = 0
-    self.max_wait_time = self.config.get('max_wait_time', 5)
 
   def __contains__(self, k):
     return k in self._queue[0]
@@ -129,6 +128,9 @@ class ACBuffer(Buffer):
 
   def ready(self):
     return len(self._queue) > 0
+
+  def get_sampling_time(self):
+    return self._sample_wait_time
 
   def reset(self):
     self._buffers = collections.defaultdict(lambda: collections.defaultdict(list))
@@ -203,15 +205,12 @@ class ACBuffer(Buffer):
 
   """ Implementations """
   def _wait_to_sample(self):
-    while len(self._queue) == 0 and (self._sample_wait_time < self.max_wait_time):
+    self._sample_wait_time = 0
+    while len(self._queue) == 0:
       time.sleep(self._sleep_time)
       self._sample_wait_time += self._sleep_time
-    # print(f'PPOBuffer starts sampling: waiting time: {self._sample_wait_time}', self._ready)
-    if len(self._queue) == 0:
-      do_logging(f'No data is received in time {self.max_wait_time}s.')
-      self._sample_wait_time = 0
-      return False
-    self._sample_wait_time = 0
+      if self._sample_wait_time % 2 == 0:
+        do_logging(f'No data is received in time {self._sample_wait_time}s.')
     return True
 
   def _sample(self, sample_keys=None):

@@ -48,6 +48,9 @@ class PayoffManager:
     else:
       return self.payoff_table.size(aid)
 
+  def __contains__(self, model: ModelPath):
+    return model in self.payoff_table
+
   def __getattr__(self, name):
     if name.startswith('_'):
       raise AttributeError(f"Attempted to get missing private attribute '{name}'")
@@ -104,7 +107,7 @@ class PayoffManager:
     """ Get the distribution of payoffs for model of the agent of aid """
     if self.self_play:
       assert aid == 0, aid
-      payoffs, dist = self.sampling_strategy(
+      payoffs, weights, dists = self.sampling_strategy(
         aid, 
         self.payoff_table.get_payoffs(model=model), 
         2, 
@@ -112,11 +115,11 @@ class PayoffManager:
         filter_recent=True
       )
     else:
-      payoffs, dist = self.sampling_strategy(
+      payoffs, weights, dists = self.sampling_strategy(
         aid, 
         self.payoff_table.get_payoffs_for_agent(aid, model=model), 
         self.n_agents, 
         prioritize_unmet, 
         filter_recent=True
       )
-    return payoffs, dist
+    return payoffs, weights, dists

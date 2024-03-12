@@ -26,6 +26,7 @@ class Agent(RayBase):
     self.parameter_server: ParameterServer = parameter_server
     self.monitor: Monitor = monitor
 
+    config.buffer['sample_keys'].append(TRAIN_STEP)
     self.builder: ElementsBuilder = ElementsBuilder(
       config=config, 
       env_stats=env_stats
@@ -55,9 +56,9 @@ class Agent(RayBase):
       self.get_model_path(), 
       self.strategy.get_weights(aux_stats=False, train_step=True, env_step=False)
     )
-    assert set(model_weights.weights) == set([MODEL, OPTIMIZER, 'train_step']), list(model_weights.weights)
+    assert set(model_weights.weights) == set([MODEL, OPTIMIZER, TRAIN_STEP]), list(model_weights.weights)
     ids = self.parameter_server.update_and_prepare_strategy.remote(
-      self.aid, model_weights, model_weights.weights['train_step']
+      self.aid, model_weights, model_weights.weights[TRAIN_STEP]
     )
     if wait:
       ray.get(ids)
@@ -83,7 +84,7 @@ class Agent(RayBase):
     do_logging('Training terminated')
 
   def _send_train_stats(self, stats):
-    stats['train_step'] = self.strategy.get_train_step()
+    stats[TRAIN_STEP] = self.strategy.get_train_step()
     stats.update(Timer.all_stats())
     model_stats = ModelStats(self.get_model_path(), stats)
     self.monitor.store_train_stats.remote(model_stats)

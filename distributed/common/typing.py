@@ -8,3 +8,15 @@ class Status:
   TRAINING = 'training'
   SCORE_MET = 'score_met'
   TIMEOUT = 'timeout'
+
+
+class ScoreMetrics:
+  SCORE = 'score'
+  WIN_RATE = 'win_rate'
+
+
+class ModelType:
+  FORMER = 'former'
+  ACTIVE = 'active'
+  HARD = 'hard'
+  Target = 'target'

@@ -39,10 +39,10 @@ class TrainingLoop:
     if n_epochs:
       train_step = 0
       for _ in range(n_epochs):
-        n, stats = self._train(**kwargs)
+        n, stats = self._train(step=step, **kwargs)
         train_step += n
     else:
-      train_step, stats = self._train(**kwargs)
+      train_step, stats = self._train(step=step, **kwargs)
     if train_step != 0:
       stats = self._after_train(stats)
     return train_step, stats
@@ -53,7 +53,7 @@ class TrainingLoop:
   def _warm_up_train(self):
     pass
 
-  def _train(self, **kwargs):
+  def _train(self, step, **kwargs):
     data = self.sample_data()
     if data is None:
       return 0, AttrDict()
@@ -64,6 +64,8 @@ class TrainingLoop:
       n, stats = stats
     else:
       n = 1
+    policy_lag = step - data['train_step'] if 'train_step' in data else 0
+    stats['policy_lag'] = policy_lag
 
     return n, stats
 

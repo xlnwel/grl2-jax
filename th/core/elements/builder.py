@@ -503,7 +503,7 @@ class ElementsBuilderVC(ElementsBuilder):
   def get_iteration(self):
     return self._iteration
 
-  def set_iteration(self, iteration):
+  def set_iteration_version(self, iteration):
     self._iteration = iteration
     version = iteration
     self._all_versions.add(version)
