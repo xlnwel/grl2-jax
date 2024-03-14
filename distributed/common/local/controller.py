@@ -8,7 +8,8 @@ import ray
 
 from core.ckpt.base import YAMLCheckpointBase
 from core.log import do_logging
-from core.typing import ModelPath, get_basic_model_name, AttrDict, dict2AttrDict
+from core.typing import ModelPath, AttrDict, dict2AttrDict, \
+  decompose_model_name, get_basic_model_name
 from core.utils import save_code
 from env.func import get_env_stats
 from game.alpharank import AlphaRank
@@ -23,6 +24,7 @@ from .runner_manager import RunnerManager
 from ..remote.monitor import Monitor
 from ..remote.parameter_server import ParameterServer
 from ..names import EXPLOITER_SUFFIX
+from ..typing import Status
 from ..utils import find_latest_model
 
 
@@ -84,6 +86,8 @@ class Controller(YAMLCheckpointBase):
     self._iteration = 1
     self._steps = 0
     self._pids = []
+
+    self._status = None
 
     if to_restore:
       self.restore()
@@ -192,6 +196,7 @@ class Controller(YAMLCheckpointBase):
       max_steps = iteration_step_scheduler(self._iteration)
       ray.get(self.monitor.set_max_steps.remote(max_steps))
       periods = self.initialize_periods(max_steps)
+      self._status = Status.TRAINING
 
       self.train(self.agent_manager, self.runner_manager, max_steps, periods)
 
@@ -281,7 +286,7 @@ class Controller(YAMLCheckpointBase):
   def cleanup(self):
     do_logging(f'Cleaning up for Training Iteration {self._iteration}...', color='blue')
     oids = [
-      self.parameter_server.archive_training_strategies.remote(),
+      self.parameter_server.archive_training_strategies.remote(status=self._status),
       self.monitor.clear_iteration_stats.remote()
     ]
     self.runner_manager.destroy_runners()
@@ -345,8 +350,38 @@ class Controller(YAMLCheckpointBase):
       scores = ray.get([self.parameter_server.get_avg_score.remote(i, m) 
         for i, m in enumerate(self.agent_manager.models)])
       if all([score > self.config.score_threshold for score in scores]):
+        self._status = Status.SCORE_MET
+        do_logging(f'Scores have met the threshold: {scores}')
         return True
     return False
+
+  def _check_target(self):
+    if self.exploiter:
+      model = self.current_models[0]
+      main_model = ModelPath(model.root_dir, model.model_name.replace(EXPLOITER_SUFFIX, ''))
+      basic_name, aid = decompose_model_name(main_model.model_name)[:2]
+      path = os.path.join(model.root_dir, basic_name, f'a{aid}')
+      latest_main = find_latest_model(path)
+      if latest_main != main_model:
+        do_logging(f'Latest main model has been changed from {main_model} to {latest_main}', color='blue')
+        self._status = Status.TARGET_SHIFT
+        return True
+    return False
+  
+  def _check_steps(self, steps, max_steps):
+    if steps >= max_steps:
+      do_logging(f'The maximum number of steps has been reached', color='blue')
+      self._status = Status.TIMEOUT
+      return True
+    return False
+
+  def _check_termination(self, steps, max_steps):
+    terminate_flag = self._check_scores()
+    if not terminate_flag:
+      terminate_flag = self._check_target()
+    if not terminate_flag:
+      terminate_flag = self._check_steps(steps, max_steps)
+    return terminate_flag
 
   def _finish_iteration(self, eval_pids, **kwargs):
     ipid = self._eval(self._iteration)

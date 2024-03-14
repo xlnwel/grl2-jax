@@ -34,16 +34,15 @@ class Controller(ControllerBase):
 
     while self._steps < max_steps:
       eval_pids = self._preprocessing(periods, eval_pids)
+
       model_weights = self._retrieve_model_weights()
-      steps = sum(runner_manager.run_with_model_weights(model_weights))
+      runner_manager.run_with_model_weights(model_weights)
       self._steps += self.steps_per_run
       
-      is_score_met = self._check_scores()
-      if is_score_met:
+      if self._check_termination(self._steps, max_steps):
         break
 
-    status = Status.SCORE_MET if is_score_met else Status.TIMEOUT
-    self._finish_iteration(eval_pids, status=status)
+    self._finish_iteration(eval_pids)
 
   """ Implementation for <pbt_train> """
   def _prepare_configs(self, n_runners: int, n_steps: int, iteration: int):

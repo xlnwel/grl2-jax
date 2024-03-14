@@ -168,7 +168,7 @@ class RunningMeanStd:
       else:
         return StatsWithVar(self._mean, self._var)
 
-  def update(self, x, mask=None, axis=None):
+  def update(self, x, mask=None, feature_mask=None, axis=None):
     x = x.astype(np.float64)
     if axis is None:
       axis = self._axis
@@ -184,6 +184,11 @@ class RunningMeanStd:
       batch_mean, batch_var = moments(x, axis, mask)
       batch_count = np.prod(x.shape[shape_slice]) \
         if mask is None else np.sum(mask)
+    if feature_mask is not None:
+      assert feature_mask.shape == batch_mean.shape, (feature_mask.shape, batch_mean.shape)
+      assert feature_mask.shape == batch_var.shape, (feature_mask.shape, batch_var.shape)
+      batch_mean = np.where(feature_mask, batch_mean, 0)
+      batch_var = np.where(feature_mask, batch_var, 1)
     if batch_count > 0:
       if self._ndim is not None:
         assert batch_mean.ndim == self._ndim, (batch_mean.shape, self._ndim)
@@ -205,7 +210,7 @@ class RunningMeanStd:
     )
     self._mean = new_mean
     self._var = new_var
-    self._std = np.sqrt(self._var + self._epsilon)
+    self._std = np.sqrt(np.maximum(self._var, self._epsilon))
     self._count = total_count
 
   def normalize(self, x, zero_center=True, mask=None, ignore_const=True):

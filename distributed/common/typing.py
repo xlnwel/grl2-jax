@@ -8,6 +8,7 @@ class Status:
   TRAINING = 'training'
   SCORE_MET = 'score_met'
   TIMEOUT = 'timeout'
+  TARGET_SHIFT = 'target_shift'
 
 
 class ScoreMetrics:
