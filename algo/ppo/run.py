@@ -22,9 +22,10 @@ def prepare_buffer(
   data.update({f'raw_{k}': v for k, v in obs.items()})
   data = agent.actor.normalize_obs(data, is_next=False)
   data = agent.actor.normalize_obs(data, is_next=True)
-  agent.actor.update_obs_rms(obs)
   if 'sample_mask' not in data:
     data.sample_mask = np.ones_like(data.reward, np.float32)
+  agent.actor.update_obs_rms(
+    obs, mask=data.sample_mask, feature_mask=agent.env_stats.feature_mask)
   
   if compute_return:
     if agent.trainer.config.popart:

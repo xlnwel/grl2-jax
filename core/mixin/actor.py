@@ -201,6 +201,7 @@ class ObsRunningMeanStd:
     self._obs_normalized_axis = tuple(
       config.get('obs_normalized_axis', (0,)))
     self._normalize_obs = config.get('normalize_obs', False)
+    self._use_feature_mask = config.get('use_feature_mask', True)
     self._clip = config.setdefault('obs_clip', 10)
 
     self._obs_names = config.get('obs_names', [OBS])
@@ -231,7 +232,7 @@ class ObsRunningMeanStd:
     return self._clip
 
   """ Processing Data with RMS """
-  def update(self, obs, name=None, mask=None, axis=None):
+  def update(self, obs, name=None, mask=None, feature_mask=None, axis=None):
     if self._normalize_obs:
       if not isinstance(obs, dict):
         if name is None:
@@ -239,20 +240,26 @@ class ObsRunningMeanStd:
         if name not in self._masked_names:
           mask = None
         assert name in self.rms, (name, list(self.rms))
-        self.rms[name].update(obs, mask=mask, axis=axis)
+        fm = feature_mask[name] if self._use_feature_mask \
+          and feature_mask is not None else None
+        self.rms[name].update(obs, mask=mask, feature_mask=fm, axis=axis)
       else:
         if name is None:
           for k in self._obs_names:
             assert not obs[k].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
             rms_mask = mask if name in self._masked_names else None
             assert k in self.rms, (k, list(self.rms))
-            self.rms[k].update(obs[k], mask=rms_mask, axis=axis)
+            fm = feature_mask[name] if self._use_feature_mask \
+              and feature_mask is not None else None
+            self.rms[k].update(obs[k], mask=rms_mask, feature_mask=fm, axis=axis)
         else:
           assert not obs[name].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
           if name not in self._masked_names:
             mask = None
           assert name in self.rms, (name, list(self.rms))
-          self.rms[name].update(obs[name], mask=mask, axis=axis)
+          fm = feature_mask[name] if self._use_feature_mask \
+            and feature_mask is not None else None
+          self.rms[name].update(obs[name], mask=mask, feature_mask=fm, axis=axis)
 
   def update_from_stats(self, rms: dict):
     for k, v in rms.items():
@@ -378,14 +385,15 @@ class RMS:
     ]
 
   def update_obs_rms(self, obs, indices=None, split_axis=None, 
-                    name=None, mask=None, axis=None):
+                    name=None, mask=None, feature_mask=None, axis=None):
     if self.n_obs == 1:
-      self.obs_rms[0].update(obs, name, mask, axis)
+      self.obs_rms[0].update(
+        obs, name, mask=mask, feature_mask=feature_mask, axis=axis)
     else:
       assert indices is not None and len(indices) == self.n_obs, (indices, self.n_obs)
       for rms, (o, m) in zip(self.obs_rms, yield_from_tree_with_indices(
             (obs, mask), indices, split_axis, keep_none=True)):
-        rms.update(o, name, m, axis)
+        rms.update(o, name, mask=m, feature_mask=feature_mask, axis=axis)
 
   def normalize_obs(self, obs, is_next=False):
     new_obs = obs.copy()

@@ -217,6 +217,7 @@ actor:
       obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
       obs_normalized_ndim: 2
       normalize_obs: *irms
+      use_feature_mask: True
       obs_clip: 10
     reward:
       reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension

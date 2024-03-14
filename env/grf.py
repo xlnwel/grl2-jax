@@ -1,5 +1,4 @@
 import numpy as np
-import gym
 from gym.spaces import Discrete
 f32 = np.float32
 
@@ -101,6 +100,20 @@ class GRF:
     self._checkpoint_reward = .1
     self._num_checkpoints = 10
     self._collected_checkpoints = [0, 0]
+
+
+    if representation == Representation.SIMPLE115:
+      self.feature_mask = {
+        'obs': np.array([1] * 88 + [1] * 6 + [0] * 21), 
+        'global_state': np.array([1] * 88 + [1] * 6 + [0] * 21)
+      }
+    else:
+      self.feature_mask = {
+        'obs': np.array([1] * 8 + [1] * 6 + [0] * 3 + [0] * 11 * self.n_units + [0] * 7), 
+        'global_state': np.array([1] * 8 + [1] * 6 + [0] * 3 + [0] * 11 + [0] * 7)
+      }
+    for k, v in self.feature_mask.items():
+      assert v.shape == self.obs_shape[k], (k, v.shape, self.obs_shape[k])
 
   def random_action(self):
     action = self.env.random_action()

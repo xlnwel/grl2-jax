@@ -119,10 +119,7 @@ class ElementsBuilder:
     config = dict2AttrDict(config or self.config.buffer)
     env_stats = dict2AttrDict(env_stats or self.env_stats)
     buffer = constructors.buffer(
-      config, 
-      model, 
-      env_stats, 
-      **kwargs
+      config, model, env_stats, **kwargs
     )
     
     return buffer
