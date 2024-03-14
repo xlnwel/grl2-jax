@@ -984,6 +984,7 @@ class EnvStatsBase(gym.Wrapper):
         use_action_mask=use_action_mask,
         is_multi_agent=getattr(env, 'is_multi_agent', len(self.uid2aid) > 1),
         is_simultaneous_move=getattr(env, 'is_simultaneous_move', True),
+        feature_mask=getattr(env, 'feature_mask', None)
       )
     self._stats.life_long = life_long
     if 'obs_keys' not in self._stats:

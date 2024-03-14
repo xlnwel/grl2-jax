@@ -29,17 +29,7 @@ routine:
 
 env:
   env_name: &env_name grf-academy_3_vs_1_with_keeper
-  representation: simple115v2
-  render: False
-  write_full_episode_dumps: False
-  write_video: False
-  dump_frequency: 1000
-  logdir: results/grf
-  extra_players: null
-  control_left: True
-  control_right: False
-  shared_policy: True
-  score_reward_scale: 1
+  n_units: 5
 
   max_episode_steps: 200
   use_action_mask: False

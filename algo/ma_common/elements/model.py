@@ -65,7 +65,7 @@ class MAModelBase(ModelCore):
         if evaluation and self.config.get('eval_act_temp', 0) > 0:
           scale = scale * self.config.eval_act_temp
         dists[k] = jax_dist.MultivariateNormalDiag(
-          loc, scale, joint_log_prob=self.config.joint_log_prob)
+          loc, scale, joint_log_prob=self.config.get('joint_log_prob', True))
     return dists
 
   """ RNN Operators """

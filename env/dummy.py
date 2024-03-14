@@ -58,35 +58,81 @@ class DummyEnv:
     return obs, reward, done, info
 
 
-class RandomEnv():
-  """ Wrapper for built-in gym environments to 
-  hide unexpected attributes. 
-  Single agent is assumed.
-  """
-  def __init__(self, obs_shape=(4,), action_dim=3, is_action_discrete=True, **kwargs):
-    self.count = 0
-    self.observation_space = gym.spaces.Box(high=float('inf'), low=0, shape=obs_shape)
-    self.action_space = gym.spaces.Discrete(action_dim)
-    self.action_dim = action_dim
-    self.is_action_discrete = is_action_discrete
+class RandomEnv:
+  def __init__(self, n_units, **kwargs):
+    self._epslen = 0
+    self.observation_space = gym.spaces.Box(high=float('inf'), low=0, shape=(56,))
+    self.obs_shape = {
+      'obs': self.observation_space.shape, 
+      'global_state': self.observation_space.shape, 
+    }
+    self.obs_dtype = {
+      'obs': np.float32,
+      'global_state': np.float32
+    }
+    self.action_space = {
+      'action_discrete': gym.spaces.Discrete(4), 
+      'action_continuous': gym.spaces.Box(low=-1, high=1, shape=(2,))}
+    self.action_shape = {k: v.shape for k, v in self.action_space.items()}
+    self.action_dtype = {k: v.dtype for k, v in self.action_space.items()}
+    self.is_action_discrete = {k: isinstance(v, gym.spaces.Discrete) 
+                               for k, v in self.action_space.items()}
+    self.action_dim = {
+      k: self.action_space[k].n if v else self.action_shape[k][0]
+      for k, v in self.is_action_discrete.items()}
+    
+    self.n_units = n_units
+    
+    self._epslen = 0
+    self._score = np.zeros(self.n_units)
+    self._dense_score = np.zeros(self.n_units)
+
     self.max_episode_steps = int(1e3)
     self.reward_range = (-float('inf'), float('inf'))
     self.metadata = {}
     self._reset_done_interval()
 
+  def seed(self, seed=None):
+    pass
+
+  def random_action(self):
+    action = {k: [None] * self.n_units for k in self.action_space}
+    for k, v in self.action_shape.items():
+      for i in range(self.n_units):
+        action[k][i] = v.sample()
+    action = {k: np.array(v) for k, v in action.items()}
+    return action
+
   def reset(self):
-    self.count = 1
+    self._epslen = 0
+    self._score = np.zeros(self.n_units)
+    self._dense_score = np.zeros(self.n_units)
+
     self._reset_done_interval()
-    return np.ones(self.observation_space.shape) * self.count
+
+    return self._get_obs()
   
   def step(self, action=None):
-    r = self.count
-    d = self.count % self.done_interval == 0
-    self.count += 1
-    o = np.ones(self.observation_space.shape) * self.count
+    r = np.ones(self.n_units) * self._epslen / self.done_interval
+    d = np.ones(self.n_units) * (self._epslen % self.done_interval == 0)
+    self._epslen += 1
+    o = self._get_obs()
 
-    return o, r, d, {}
+    self._score += r
+    self._dense_score += r
+
+    info = {
+      'score': self._score,
+      'dense_score': self._dense_score, 
+      'epslen': self._epslen, 
+      'game_over': self._epslen % self.done_interval == 0
+    }
+
+    return o, r, d, info
   
+  def _get_obs(self):
+    return {k: np.random.random((self.n_units,) + v) for k, v in self.obs_shape.items()}
+
   def _reset_done_interval(self):
     self.done_interval = np.random.randint(10, 1000)
 

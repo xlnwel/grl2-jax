@@ -256,6 +256,17 @@ def make_magw(config):
   return env
 
 
+def make_random(config):
+  assert 'random' in config['env_name'], config['env_name']
+  config = _change_env_name(config)
+  from env.dummy import RandomEnv
+  env = RandomEnv(**config)
+  env = wrappers.MultiAgentUnitsDivision(env, config)
+  env = wrappers.DataProcess(env)
+  env = wrappers.MASimEnvStats(env, seed=config.seed)
+  
+  return env
+
 def make_grf(config):
   assert 'grf' in config['env_name'], config['env_name']
   from env.grf import GRF

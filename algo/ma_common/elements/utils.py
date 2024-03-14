@@ -114,7 +114,7 @@ def compute_policy(
     pi_logprob = act_dist.log_prob(action[DEFAULT_ACTION])
   else:
     # assert set(action) == set(act_dists), (set(action), set(act_dists))
-    pi_logprob = sum([ad.log_prob(a) for ad, a in zip(act_dists.values(), action.values())])
+    pi_logprob = sum([ad.log_prob(action[k]) for k, ad in act_dists.items()])
   jax_assert.assert_shape_compatibility([pi_logprob, mu_logprob])
   log_ratio = pi_logprob - mu_logprob
   ratio = lax.exp(log_ratio)
@@ -320,6 +320,7 @@ def record_policy_stats(data, stats, act_dists):
     stats.update(act_dists[DEFAULT_ACTION].get_stats(prefix='pi'))
   else:
     for k, ad in act_dists.items():
+      k.replace('action_', '')
       stats.update(ad.get_stats(prefix=f'{k}_pi'))
 
   return stats

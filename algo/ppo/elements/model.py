@@ -87,6 +87,7 @@ class Model(MAModelBase):
           a, lp = ad.sample_and_log_prob(seed=rngs[i])
           action[k] = a
           logprob[k] = lp
+          k = k.replace('action_', '')
           stats.update(ad.get_stats(f'{k}_mu'))
           stats.mu_logprob = stats.mu_logprob + lp
         
