@@ -1,4 +1,4 @@
-import logging
+import torch
 from torch import nn
 from torch.utils._pytree import tree_map
 
@@ -9,8 +9,6 @@ from core.log import do_logging
 from th.nn.layers import RNNLayer
 from th.nn.registry import nn_registry
 from th.nn.utils import get_initializer, get_activation, calculate_scale
-
-logger = logging.getLogger(__name__)
 
 
 def _prepare_for_rnn(x):
@@ -41,6 +39,7 @@ class MLP(nn.Module):
     b_init='zeros', 
     name=None, 
     out_scale=1, 
+    norm=None, 
     norm_after_activation=False, 
     norm_kwargs={
       'elementwise_affine': True, 
@@ -51,12 +50,12 @@ class MLP(nn.Module):
     rnn_type=None, 
     rnn_layers=1, 
     rnn_units=None, 
+    rnn_init='orthogonal',
     rnn_norm=False, 
   ):
     super().__init__()
     if activation is None and (len(units_list) > 1 or (units_list and out_size)):
-      do_logging(f'MLP({name}) with units_list({units_list}) and out_size({out_size}) has no activation.', 
-        logger=logger, level='pwc')
+      do_logging(f'MLP({name}) with units_list({units_list}) and out_size({out_size}) has no activation.', color='red')
 
     w_init = get_initializer(w_init)
     gain = calculate_scale(activation)
@@ -64,22 +63,26 @@ class MLP(nn.Module):
     units_list = [input_dim] + units_list
     self.layers = nn.Sequential()
     for i, u in enumerate(units_list[1:]):
+      layers = nn.Sequential()
       l = nn.Linear(units_list[i], u)
       w_init(l.weight.data, gain=gain)
       b_init(l.bias.data)
-      self.layers.append(l)
-      if not norm_after_activation:
-        self.layers.append(nn.LayerNorm(u, **norm_kwargs))
-      self.layers.append(get_activation(activation))
-      if norm_after_activation:
-        self.layers.append(nn.LayerNorm(u, **norm_kwargs))
+      layers.append(l)
+      if norm == 'layer' and not norm_after_activation:
+        layers.append(nn.LayerNorm(u, **norm_kwargs))
+      layers.append(get_activation(activation))
+      if norm == 'layer' and norm_after_activation:
+        layers.append(nn.LayerNorm(u, **norm_kwargs))
+      self.layers.append(layers)
 
+    self.rnn_type = rnn_type
+    self.rnn_layers = rnn_layers
     self.rnn_units = rnn_units
     if rnn_type is None:
       self.rnn = None
       input_dim = u
     else:
-      self.rnn = RNNLayer(u, rnn_units, rnn_layers=rnn_layers, rnn_norm=rnn_norm)
+      self.rnn = RNNLayer(u, rnn_units, rnn_type, rnn_layers=rnn_layers, rnn_norm=rnn_norm)
       input_dim = rnn_units
     
     if out_size is not None:
@@ -91,7 +94,7 @@ class MLP(nn.Module):
     else:
       self.out_layer = None
 
-  def __call__(self, x, reset=None, state=None, is_training=True):
+  def forward(self, x, reset=None, state=None):
     if self.rnn is None:
       x = self.layers(x)
       if self.out_layer is not None:
@@ -102,11 +105,16 @@ class MLP(nn.Module):
       x, shape = _prepare_for_rnn(x)
       reset, _ = _prepare_for_rnn(reset)
       if state is None:
-        state = torch.zeros(1, shape[1], shape[2], self.rnn_units)
-      state = _rnn_reshape(state, (shape[1] * shape[2], -1))
+        if self.rnn_type == 'lstm':
+          state = (
+            torch.zeros(self.rnn_layers, shape[1], shape[2], self.rnn_units), 
+            torch.zeros(self.rnn_layers, shape[1], shape[2], self.rnn_units))
+        else:
+          state = torch.zeros(self.rnn_layers, shape[1], shape[2], self.rnn_units)
+      state = _rnn_reshape(state, (self.rnn_layers, shape[1] * shape[2], -1))
       x, state = self.rnn(x, state, 1-reset.float())
       x = _recover_shape(x, shape)
-      state = _rnn_reshape(state, (shape[1], shape[2], -1))
+      state = _rnn_reshape(state, (self.rnn_layers, shape[1], shape[2], -1))
       if self.out_layer is not None:
         x = self.out_layer(x)
       return x, state
@@ -119,14 +127,16 @@ if __name__ == '__main__':
   d = 5
   config = dict(
     input_dim=d, 
-    units_list=[2, 3], 
-    w_init='orthogonal', 
+    units_list=[64, 64],
+    w_init='orthogonal',
     activation='relu', 
+    norm='layer',
     norm_after_activation=True,
-    out_scale=.01, 
-    out_size=1, 
-    rnn_type='gru', 
-    rnn_units=2
+    out_scale=.01,
+    rnn_type='lstm',
+    rnn_units=64,
+    rnn_init=None,
+    rnn_norm='layer',
   )
   import torch
   mlp = MLP(**config)

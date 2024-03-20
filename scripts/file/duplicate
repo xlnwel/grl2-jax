@@ -2,6 +2,5 @@
 
 rm -rf ~/github/grl2
 rsync -avz --exclude=".*" --exclude __pycache__ ~/github/grl ~/github/grl2
-cd ~/github/grl2
-rm -rf .*
-find "$directory" -mindepth 1 -type d -exec rm -rf {} \;
+cd ~/github/grl2/grl
+find env -maxdepth 1 -mindepth 1 -type d -exec rm -rf {} \;

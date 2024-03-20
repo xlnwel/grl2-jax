@@ -314,7 +314,7 @@ class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
         f'loc{i}': self._loc[..., i] for i in range(self._loc.shape[-1])
       })
       stats.update({
-        f'scale{i}': self._scale_diag[..., i] for i in range(self._scale_diag.shape[-1])
+        f'scale{i}': self.scale_diag[..., i] for i in range(self.scale_diag.shape[-1])
       })
     else:
       stats= {
@@ -325,7 +325,7 @@ class MultivariateNormalDiag(distrax.MultivariateNormalDiag):
         f'{prefix}_loc{i}': self._loc[..., i] for i in range(self._loc.shape[-1])
       })
       stats.update({
-        f'{prefix}_scale{i}': self._scale_diag[..., i] for i in range(self._scale_diag.shape[-1])
+        f'{prefix}_scale{i}': self.scale_diag[..., i] for i in range(self.scale_diag.shape[-1])
       })
     return stats
 

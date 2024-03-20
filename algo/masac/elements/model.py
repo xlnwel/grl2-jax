@@ -48,8 +48,6 @@ class Model(MAModelBase):
 
   def compile_model(self):
     self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
-    self.jit_forward_policy = jax.jit(
-      self.forward_policy, static_argnames=('return_state'))
 
   @property
   def target_theta(self):
@@ -77,7 +75,7 @@ class Model(MAModelBase):
         d.state = state
       else:
         state = AttrDict()
-      act_out, state = self.forward_policy(p, agent_rngs[0], d)
+      act_out, state.policy = self.forward_policy(p, agent_rngs[0], d, state=state.policy)
       act_dist = self.policy_dist(act_out, evaluation)
 
       if evaluation:

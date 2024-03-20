@@ -38,6 +38,7 @@ class GRF:
     control_right=False,
     # custom grf configs
     score_reward_scale=1, 
+    reward_type='sum',
     # required configs for grl
     max_episode_steps=3000,
     use_action_mask=False,
@@ -50,6 +51,7 @@ class GRF:
     self.representation = representation
     self.to_render = render
     self.score_reward_scale = score_reward_scale
+    self.reward_type = reward_type
 
     rewards = 'scoring'
     # print('other config options', other_config_options)
@@ -139,7 +141,10 @@ class GRF:
     action = action[0][DEFAULT_ACTION]
     obs, reward, done, info = self.env.step(action)
 
-    reward = self._get_reward(reward, info)
+    if self.reward_type == 'sum':
+      reward = np.sum(reward) * np.ones(self.n_left_units)
+    else:
+      reward = self._get_reward(reward, info)
 
     self._epslen += 1
     self._dense_score += reward

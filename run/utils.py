@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_configs_dir(algo):
+  if ':' in algo:
+    algo = algo.split(':')[0]
   algo_dir = pkg.get_package_from_algo(algo, 0, PATH_SPLIT)
   if algo_dir is None:
     raise RuntimeError(f'Algorithm({algo}) is not implemented')

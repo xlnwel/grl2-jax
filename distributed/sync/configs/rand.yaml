@@ -20,7 +20,7 @@ controller:
   restart_runners_period: null
   max_version_iterations: 1
   max_steps_per_iteration: &ms 2e7
-  initialize_rms: &irms True
+  initialize_rms: &irms False
 
 parameter_server:
   root_dir: *algo
@@ -60,19 +60,8 @@ runner:
   push_every_episode: False
 
 env:
-  env_name: &env_name grf-academy_pass_and_shoot_with_keeper
-  representation: simple115v2
-  render: False
-  write_full_episode_dumps: False
-  write_video: False
-  dump_frequency: 1000
-  logdir: results/grf
-  extra_players: null
-  control_left: True
-  control_right: False
-  shared_policy: True
-  score_reward_scale: 1
-  reward_type: shared
+  env_name: &env_name random-rand
+  n_units: 5
 
   max_episode_steps: 200
   use_action_mask: False
@@ -105,7 +94,7 @@ model:
     rnn_units: 64
     rnn_init: null
     rnn_norm: layer
-    use_feature_norm: False
+    use_feature_norm: True
   value:
     nn_id: value
     units_list: [64, 64]
@@ -117,7 +106,7 @@ model:
     rnn_units: 64
     rnn_init: null
     rnn_norm: layer
-    use_feature_norm: False
+    use_feature_norm: True
 
 loss:
   # hyperparams for value target and advantage
@@ -157,7 +146,7 @@ trainer:
   n_runners: *nrunners
   n_envs: *nenvs
   n_epochs: &nepochs 15
-  n_mbs: &nmbs 1
+  n_mbs: &nmbs 2
   n_steps: *nsteps
   update_scheme: whole
   popart: *popart

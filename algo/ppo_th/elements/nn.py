@@ -1,12 +1,70 @@
-import torch as nn
+import numpy as np
+from typing import Dict
+import torch
+import torch.nn as nn
 
 from core.names import DEFAULT_ACTION
 from core.typing import dict2AttrDict
 from nn.func import nn_registry
-from nn.layers import Layer
-from nn.mlp import MLP
-from nn.utils import get_activation
+from th.nn.mlp import MLP
+from th.nn.utils import get_activation, init_linear
 """ Source this file to register Networks """
+
+
+
+class Categorical(nn.Module):
+  def __init__(
+    self, 
+    num_inputs, 
+    num_outputs, 
+    out_w_init='orthogonal', 
+    out_b_init='zeros', 
+    out_scale=0.01
+  ):
+    super().__init__()
+    self.linear = nn.Linear(num_inputs, num_outputs)
+    init_linear(self.linear, out_w_init, out_b_init, out_scale)
+
+  def forward(self, x, action_mask=None):
+    x = self.linear(x)
+    if action_mask is not None:
+      x[action_mask == 0] = -1e10
+    return x
+    # return torch.distributions.Categorical(logits=x)
+
+
+class DiagGaussian(nn.Module):
+  def __init__(
+    self, 
+    num_inputs, 
+    num_outputs, 
+    out_w_init='orthogonal', 
+    out_b_init='zeros', 
+    out_scale=0.01, 
+    sigmoid_scale=True, 
+    std_x_coef=1., 
+    std_y_coef=.5, 
+    init_std=.2
+  ):
+    super().__init__()
+    self.linear = nn.Linear(num_inputs, num_outputs)
+    init_linear(self.linear, out_w_init, out_b_init, out_scale)
+    self.sigmoid_scale = sigmoid_scale
+    self.std_x_coef = std_x_coef
+    self.std_y_coef = std_y_coef
+    if sigmoid_scale:
+      self.logstd = nn.Parameter(std_x_coef + torch.zeros(num_outputs))
+    else:
+      self.logstd = nn.Parameter(np.log(init_std) + torch.zeros(num_outputs))
+
+  def forward(self, x):
+    mean = self.linear(x)
+    if self.sigmoid_scale:
+      scale = torch.sigmoid(self.logstd / self.std_x_coef) * self.std_y_coef
+    else:
+      scale = torch.exp(self.logstd)
+    return mean, scale
+    # return torch.distributions.Normal(mean, scale)
 
 
 @nn_registry.register('policy')
@@ -17,16 +75,18 @@ class Policy(nn.Module):
     is_action_discrete, 
     action_dim, 
     out_act=None, 
-    init_std=1., 
-    sigmoid_scale=False, 
+    init_std=.2, 
+    sigmoid_scale=True, 
     std_x_coef=1., 
     std_y_coef=.5, 
     use_action_mask={DEFAULT_ACTION: False}, 
     use_feature_norm=False, 
-    name='policy', 
+    out_w_init='orthogonal', 
+    out_b_init='zeros', 
+    out_scale=.01, 
     **config
   ):
-    super().__init__(name=name)
+    super().__init__()
     self.config = dict2AttrDict(config, to_copy=True)
     self.action_dim = action_dim
     self.is_action_discrete = is_action_discrete
@@ -39,198 +99,111 @@ class Policy(nn.Module):
     self.use_action_mask = use_action_mask
     self.use_feature_norm = use_feature_norm
     if self.use_feature_norm:
-      self.pre_ln = nn.LayerNorm(input_dim.shape[-1])
+      self.pre_ln = nn.LayerNorm(input_dim)
     self.mlp = MLP(input_dim, **self.config)
-    self.out = 
+    self.heads: Dict[str, nn.Module] = {}
+    for k in action_dim:
+      if is_action_discrete[k]:
+        self.heads[k] = Categorical(
+          self.config.rnn_units, action_dim[k], 
+          out_w_init, out_b_init, out_scale)
+      else:
+        self.heads[k] = DiagGaussian(
+          self.config.rnn_units, action_dim[k], 
+          out_w_init, out_b_init, out_scale, 
+          sigmoid_scale=sigmoid_scale, std_x_coef=std_x_coef, 
+          std_y_coef=std_y_coef, init_std=init_std)
+    for k, v in self.heads.items():
+      setattr(self, f'head_{k}', v)
 
-  def __call__(self, x, reset=None, state=None, action_mask=None, no_state_return=False):
+  def forward(self, x, reset=None, state=None, action_mask=None):
     if self.use_feature_norm:
       x = self.pre_ln(x)
-    x = net(x, reset, state)
+    x = self.mlp(x, reset, state)
     if isinstance(x, tuple):
       assert len(x) == 2, x
       x, state = x
     
     outs = {}
-    if action_mask is not None and not isinstance(action_mask, dict):
-      assert len(heads) == 1, heads
-      action_mask = {k: action_mask for k in heads}
-
-    for name, layer in heads.items():
-      v = layer(x)
+    for name, layer in self.heads.items():
       if self.is_action_discrete[name]:
-        if self.use_action_mask.get(name, False):
-          assert action_mask[name] is not None, action_mask
-          am = action_mask[name]
-          jax_assert.assert_shape_compatibility([v, am])
-          v = jnp.where(am, v, -float('inf'))
-          v = jnp.where(jnp.all(am == 0, axis=-1, keepdims=True), 1, v)
-        outs[name] = v
+        am = action_mask[name] if action_mask is not None else None
+        d = layer(x, action_mask=am)
       else:
-        if self.out_act == 'tanh':
-          v = jnp.tanh(v)
-        if self.sigmoid_scale:
-          logstd_init = self.std_x_coef
-        else:
-          logstd_init = lax.log(self.init_std)
-        logstd_init = hk.initializers.Constant(logstd_init)
-        logstd = hk.get_parameter(
-          f'{name}_logstd', 
-          shape=(self.action_dim[name],), 
-          init=logstd_init
-        )
-        if self.sigmoid_scale:
-          scale = nn.sigmoid(logstd / self.std_x_coef) * self.std_y_coef
-        else:
-          scale = lax.exp(logstd)
-        outs[name] = (v, scale)
-    if no_state_return:
-      return outs
-    else:
-      return outs, state
+        d = layer(x)
+      outs[name] = d
+    return outs, state
 
 
 @nn_registry.register('value')
-class Value(hk.Module):
+class Value(nn.Module):
   def __init__(
     self, 
+    input_dim, 
     out_act=None, 
     out_size=1, 
-    name='value', 
     use_feature_norm=False, 
     **config
   ):
-    super().__init__(name=name)
+    super().__init__()
     self.config = dict2AttrDict(config, to_copy=True)
     self.out_act = get_activation(out_act)
     self.out_size = out_size
     self.use_feature_norm = use_feature_norm
+    if self.use_feature_norm:
+      self.pre_ln = nn.LayerNorm(input_dim)
+    self.net = MLP(
+      input_dim, 
+      **self.config, 
+      out_size=self.out_size, 
+    )
 
   def __call__(self, x, reset=None, state=None):
     if self.use_feature_norm:
-      ln = hk.LayerNorm(-1, True, True)
-      x = ln(x)
-    net = self.build_net()
-    x = net(x, reset, state)
+      x = self.pre_ln(x)
+    x = self.mlp(x, reset, state)
     if isinstance(x, tuple):
       assert len(x) == 2, x
       x, state = x
 
     if x.shape[-1] == 1:
-      x = jnp.squeeze(x, -1)
+      x = x.squeeze(-1)
     value = self.out_act(x)
 
     return value, state
 
-  @hk.transparent
-  def build_net(self):
-    net = MLP(
-      **self.config, 
-      out_size=self.out_size, 
-    )
-
-    return net
-
 
 if __name__ == '__main__':
-  import jax
-  # config = dict( 
-  #   w_init='orthogonal', 
-  #   scale=1, 
-  #   activation='relu', 
-  #   norm='layer', 
-  #   out_scale=.01, 
-  #   out_size=2
-  # )
-  # def layer_fn(x, *args):
-  #   layer = HyperParamEmbed(**config)
-  #   return layer(x, *args)
-  # import jax
-  # rng = jax.random.PRNGKey(42)
-  # x = jax.random.normal(rng, (2, 3))
-  # net = hk.transform(layer_fn)
-  # params = net.init(rng, x, 1, 2, 3.)
-  # print(params)
-  # print(net.apply(params, None, x, 1., 2, 3))
-  # print(hk.experimental.tabulate(net)(x, 1, 2, 3.))
-  import os, sys
-  os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
-  os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
+  b = 4
+  s = 3
+  u = 2
+  d = 5
+  is_action_discrete = {'action_disc': True, 'action_cont': False}
+  action_dim = {'action_disc': 4, 'action_cont': 3}
+  use_action_mask={'action_disc': False, 'action_cont': False}
+  config = dict(
+    input_dim=d, 
+    is_action_discrete=is_action_discrete, 
+    action_dim=action_dim, 
+    use_action_mask=use_action_mask, 
+    units_list=[64, 64],
+    w_init='orthogonal',
+    activation='relu', 
+    norm='layer',
+    norm_after_activation=True,
+    out_scale=.01,
+    rnn_type='lstm',
+    rnn_units=64,
+    rnn_init=None,
+    rnn_norm='layer',
+  )
 
-  config = {
-    'units_list': [3], 
-    'w_init': 'orthogonal', 
-    'activation': 'relu', 
-    'norm': None, 
-    'out_scale': .01,
-  }
-  def layer_fn(x, *args):
-    layer = EnsembleModels(5, 3, **config)
-    return layer(x, *args)
-  import jax
-  rng = jax.random.PRNGKey(42)
-  x = jax.random.normal(rng, (2, 3, 3))
-  a = jax.random.normal(rng, (2, 3, 2))
-  net = hk.transform(layer_fn)
-  params = net.init(rng, x, a)
-  print(params)
-  print(net.apply(params, rng, x, a))
-  print(hk.experimental.tabulate(net)(x, a))
-
-  # config = {
-  #   'units_list': [64,64], 
-  #   'w_init': 'orthogonal', 
-  #   'activation': 'relu', 
-  #   'norm': None, 
-  #   'index': 'all', 
-  #   'index_config': {
-  #     'use_shared_bias': False, 
-  #     'use_bias': True, 
-  #     'w_init': 'orthogonal', 
-  #   }
-  # }
-  # def net_fn(x, *args):
-  #   net = Value(**config)
-  #   return net(x, *args)
-
-  # rng = jax.random.PRNGKey(42)
-  # x = jax.random.normal(rng, (2, 3, 4))
-  # hx = jnp.eye(3)
-  # hx = jnp.tile(hx, [2, 1, 1])
-  # net = hk.transform(net_fn)
-  # params = net.init(rng, x, hx)
-  # print(params)
-  # print(net.apply(params, rng, x, hx))
-  # print(hk.experimental.tabulate(net)(x, hx))
-
-  # config = {
-  #   'units_list': [2, 3], 
-  #   'w_init': 'orthogonal', 
-  #   'activation': 'relu', 
-  #   'norm': None, 
-  #   'out_scale': .01,
-  #   'rescale': .1, 
-  #   'out_act': 'atan', 
-  #   'combine_xa': True, 
-  #   'out_size': 3, 
-  #   'index': 'all', 
-  #   'index_config': {
-  #     'use_shared_bias': False, 
-  #     'use_bias': True, 
-  #     'w_init': 'orthogonal', 
-  #   }
-  # }
-  # def net_fn(x, *args):
-  #   net = Reward(**config)
-  #   return net(x, *args)
-
-  # rng = jax.random.PRNGKey(42)
-  # x = jax.random.normal(rng, (2, 3, 4))
-  # action = jax.random.randint(rng, (2, 3), minval=0, maxval=3)
-  # hx = jnp.eye(3)
-  # hx = jnp.tile(hx, [2, 1, 1])
-  # net = hk.transform(net_fn)
-  # params = net.init(rng, x, action, hx)
-  # print(params)
-  # print(net.apply(params, rng, x, action, hx))
-  # print(hk.experimental.tabulate(net)(x, action, hx))
+  policy = Policy(**config)
+  print(policy)
+  x = torch.rand(b, s, u, d)
+  reset = torch.randn(b, s, u) < .5
+  # state = torch.zeros(1, b, u, d)
+  x, state = policy(x, reset, return_action=True)
+  for k, v in x.items():
+    print('output', k, v.shape)
+  print('state', state.shape)

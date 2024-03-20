@@ -18,7 +18,7 @@ model_name: *algo
 
 controller:
   store_period: 1e5
-  reload_strategy_pool_period: 1e4
+  reload_strategy_pool_period: 1e5
   restart_runners_period: null
   eval_period: null
   max_version_iterations: 100
@@ -33,7 +33,7 @@ parameter_server:
   model_name: *algo
 
   score_metric: score   # stats recorded in payoff tables
-  train_from_scratch_frac: .1
+  train_from_scratch_frac: 0
   train_from_latest_frac: 0
   hist_train_scale: 10
   reset_policy_head_frac: .5
@@ -69,7 +69,7 @@ ray_config:
   runner:
     num_cpus: 1
   agent:
-    num_cpus: 2
+    num_cpus: 1
     num_gpus: .5
 
 monitor:
@@ -97,8 +97,10 @@ env:
     attack_reward_scale: 5
     missile_terminal_penalty_scale: 1
     escape_reward_scale: 5
-    heading_reward_scale: .001
+    heading_reward_scale: .002
     dist_reward_scale: .0001
+    rollangle_penalty_scale: 1
+    roll_rate_penalty_scale: 1
     control_fire: True
     escape_dis: False
   win_loss_reward: 20

@@ -249,7 +249,7 @@ class ObsRunningMeanStd:
             assert not obs[k].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
             rms_mask = mask if name in self._masked_names else None
             assert k in self.rms, (k, list(self.rms))
-            fm = feature_mask[name] if self._use_feature_mask \
+            fm = feature_mask[k] if self._use_feature_mask \
               and feature_mask is not None else None
             self.rms[k].update(obs[k], mask=rms_mask, feature_mask=fm, axis=axis)
         else:

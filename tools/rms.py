@@ -214,7 +214,7 @@ class RunningMeanStd:
     self._count = total_count
 
   def normalize(self, x, zero_center=True, mask=None, ignore_const=True):
-    assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
+    assert not np.isinf(np.std(x)), f'{np.std(x)}\t{np.min(x)}\t{np.max(x)}'
     assert self._std is not None, (self._mean, self._std, self._count)
     if self._count == self._epsilon:
       if self._clip:

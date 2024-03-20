@@ -1,4 +1,3 @@
-import logging
 import jax
 import jax.numpy as jnp
 import haiku as hk
@@ -10,9 +9,6 @@ from core.log import do_logging
 from nn.layers import Layer
 from nn.registry import layer_registry, nn_registry
 from nn.utils import call_norm
-
-
-logger = logging.getLogger(__name__)
 
 
 def _prepare_for_rnn(x):
@@ -61,8 +57,7 @@ class MLP(hk.Module):
   ):
     super().__init__(name=name)
     if activation is None and (len(units_list) > 1 or (units_list and out_size)):
-      do_logging(f'MLP({name}) with units_list({units_list}) and out_size({out_size}) has no activation.', 
-        logger=logger, level='pwc')
+      do_logging(f'MLP({name}) with units_list({units_list}) and out_size({out_size}) has no activation.', color='red')
 
     self.units_list = units_list
     self.layer_kwargs = dict(
@@ -76,7 +71,7 @@ class MLP(hk.Module):
     )
 
     self.out_size = out_size
-    do_logging(f'{self.name} out scale: {out_scale}', logger=logger, level='info')
+    do_logging(f'{self.name} out scale: {out_scale}')
     if out_layer_type is None:
       out_layer_type = layer_type
     if out_w_init is None:
@@ -98,7 +93,7 @@ class MLP(hk.Module):
     assert self.rnn_type in (None, 'gru', 'lstm'), self.rnn_type
     self.rnn_units = rnn_units
 
-  def __call__(self, x, reset=None, state=None, is_training=True):
+  def __call__(self, x, reset=None, state=None, prev_info=None, is_training=True):
     if self.rnn_type is None:
       layers = self.build_net()
       for l in layers:
@@ -112,6 +107,8 @@ class MLP(hk.Module):
         state = core.initial_state(x.shape[0] * x.shape[2])
       
       # we assume the original data is of form [B, T, U, *]
+      if prev_info is not None:
+        x = jnp.concatenate([x, prev_info], -1)
       x, shape = _prepare_for_rnn(x)
       reset, _ = _prepare_for_rnn(reset)
       x = (x, reset)

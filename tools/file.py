@@ -184,3 +184,13 @@ def yield_dirs(directory, dirnames, is_suffix=True, root_matches=None):
       else:
         if endname.startswith(dirname):
           yield root
+
+
+def write_file(path, content):
+  if not path.endswith('.txt'):
+    path = path + '.txt'
+  d, f = path.rsplit('/', 1)
+  if not os.path.isdir(d):
+    pathlib.Path(d).mkdir(parents=True)
+  with open(path, 'a') as f:
+    f.write(content)

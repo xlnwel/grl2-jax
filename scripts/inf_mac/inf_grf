@@ -4,8 +4,8 @@ export PYTHONPATH=.
 
 suite=grf
 algos=(
-  # sync-ppo
-  ppo
+  sync-ppo
+  # ppo
 )
 envs=(
   academy_counterattack_hard
@@ -22,18 +22,24 @@ configs=(
 )
 # shift
 args1=(
-  True
-  True
-  True
-  True
-  False
-  False
-  False
-  False
+  1
+  1
+  1
+  1
+  2
+  2
+  2
+  2
 )
 args2=(
-  True
-  False
+  shared
+  shared
+  shared
+  shared
+  sum
+  sum
+  sum
+  sum
 )
 args3=(
   None
@@ -45,7 +51,7 @@ args4=(
   .2
 )
 date=$(date +"%m%d")
-info=""
+info="orig_env"
 ld="${suite}-logs"
 
 if [ -z "$info" ]; then
@@ -97,7 +103,7 @@ kws=$@
 #     echo $py_script
 #   done
 # fi
-kws="rnn_type=None compute_return_at_once=$a1"
+kws="initialize_rms=True normalize_obs=True use_feature_norm=False reward_type=$a2"
 for a in "${algos[@]}"; do
 # for e in "${envs[@]}"; do
   env="${suite}-${e}"

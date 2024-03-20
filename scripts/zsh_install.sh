@@ -33,9 +33,9 @@
 # # mkdir -p $HOME/.conda/envs
 # # conda config --add envs_dirs $HOME/.conda/envs  # add $HOME/.conda/envs to conda environment directories
 # yes y | conda create -n grl python==3.9.15
-conda activate grl
+# source activate grl
 # install libboost for gfootball
-conda install -c statiskit libboost-dev
+# conda install -c statiskit libboost-dev
 # yes y | conda install -c "nvidia/label/cuda-11.8.0" cuda-nvcc
 # yes y | conda install -c conda-forge cudatoolkit
 # python -m pip install nvidia-cudnn-cu11==8.6.0.163 "tensorflow==2.12.*"
@@ -45,7 +45,7 @@ conda install -c statiskit libboost-dev
 # source $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
 python -m pip install --upgrade pip
 
-python -m pip install --upgrade setuptools psutil wheel
+# python -m pip install --upgrade setuptools psutil wheel
 python -m pip install opencv-python
 python -m pip install gym==0.23.1
 # python -m pip install atari_py procgen mujoco-py mujoco
@@ -56,8 +56,9 @@ python -m pip install tensorflow_probability
 python -m pip install ray
 python -m pip install scipy pandas Pillow matplotlib plotly seaborn
 python -m pip install ipython
+python -m pip install jupyter
 python -m pip install tqdm
-python -m pip install gfootball
+# python -m pip install gfootball
 # python -m pip install pysc2
 
 # rsync -avz ~/chenxinwei/StarCraftII ~/

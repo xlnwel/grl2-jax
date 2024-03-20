@@ -28,7 +28,7 @@ routine:
   perm: null
 
 env:
-  env_name: &env_name grf-academy_3_vs_1_with_keeper
+  env_name: &env_name random-rand
   n_units: 5
 
   max_episode_steps: 200

@@ -50,24 +50,15 @@ def process_node(params):
   # sftp.close()
 
   try:
-    # stdin, stdout, stderr = ssh.exec_command(
-    #   'mkdir -p ./multi_exec_working_dir && tar -xvf {0} -C ./multi_exec_working_dir'\
-    #     .format(working_tar))
-    # retcd = stdout.channel.recv_exit_status()
-    # if retcd != 0:
-    #   logger.info('node: {} failed to extract working dir'.format(node_name))
-    #   return False, stdout.read(), stderr.read()
-
-    # if sudo:
-    #   cmd = f'cd multi_exec_working_dir && sudo MULTI_EXEC_NODE_NAME={node_name} MULTI_EXEC_NODE_IP={ip_address} {command}'
-    # else:
-    #   cmd = f'cd multi_exec_working_dir && MULTI_EXEC_NODE_NAME={node_name} MULTI_EXEC_NODE_IP={ip_address} {command}'
-    #   pass
-    
+    cmd = f'NODE_ID={node_id} bash -i -c "{command}"'
     if sudo:
-      cmd = f'cd {working_dir} && source {conda_activate} grl && sudo NODE_ID={node_id} {command}'
-    else:
-      cmd = f'cd {working_dir} && source {conda_activate} grl && NODE_ID={node_id} {command}'
+      cmd = f'sudo {cmd}'
+    if conda_activate:
+      cmd = f'source {conda_activate} && {cmd}'
+    if working_dir:
+      cmd = f'cd {working_dir} && {cmd}'
+    cmd = f'source ~/.bashrc && {cmd}'
+    print(cmd)
     stdin, stdout, stderr = ssh.exec_command(cmd, get_pty=True)
     
     # for sudo
@@ -78,7 +69,7 @@ def process_node(params):
     retcd = stdout.channel.recv_exit_status()
     if retcd != 0:
       logger.info('node: {} failed to execute command'.format(node_name))
-      return False, stdout.read(), stderr.read()
+      return False, stdout.read().decode('utf8'), stderr.read().decode('utf8')
 
     out = stdout.read().decode('utf8')
     err = stderr.read().decode('utf8')
@@ -113,11 +104,13 @@ def main(inventory_file, working_dir, conda_activate, node_range, command, num_w
     thread_pool = mp.Pool(num_workers)
 
     params = [
-      (i, k, working_dir, conda_activate, v['ip_address'], v['port'], v['username'], v['password'], command, sudo)
+      (i, k, working_dir, conda_activate, 
+       v['ip_address'], v['port'], v['username'], 
+       v['password'], command, sudo)
       for i, (k, v) in enumerate(nodes.items())]
     results = thread_pool.imap(process_node, params)
 
-    for r, n in zip(results, [p[0] for p in params]):
+    for r, n in zip(results, [p[1] for p in params]):
       print(f'node {n}, results: [{r[0]}]=========================================>')
       print(f'stdout: \n{r[1]}')
       print(f'stderr: \n{r[2]}')

@@ -51,6 +51,13 @@ def calculate_scale(name, param=None):
   return m.get(name, 1)
 
 
+def init_linear(module, w_init, b_init, scale):
+  w_init = get_initializer(w_init)
+  b_init = get_initializer(b_init)
+  w_init(module.weight.data, gain=scale)
+  b_init(module.bias.data)
+  return module
+
 def get_initializer(name, **kwargs):
   """ 
   Return a parameter initializer by name

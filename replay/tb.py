@@ -1,5 +1,6 @@
 import collections
 import numpy as np
+import jax
 
 from core.elements.buffer import Buffer
 from core.elements.model import Model
@@ -82,7 +83,10 @@ class TurnBasedLocalBuffer(Buffer):
         assert self._buff_lens[(eid, uid)] == 0, (eid, uid, self._buff_lens[(eid, uid)])
         assert len(self._buffers[(eid, uid)]) == 0, (eid, uid, len(self._buffers[(eid, uid)])) 
       for k, v in data.items():
-        self._buffers[(eid, uid)][k].append(v[i])
+        if k == 'state':
+          self._buffers[(eid, uid)]['state'].append(jax.tree_map(lambda x: x[i], v))
+        else:
+          self._buffers[(eid, uid)][k].append(v[i])
 
   def add_reward(self, eids, uids, reward, discount):
     assert len(eids) == len(uids), (eids, uids)

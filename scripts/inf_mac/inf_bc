@@ -26,6 +26,7 @@ else
 fi
 
 for s in {0..5}; do
+    kws="n_runners=50 runner:num_cpus=1"
     py_script="python run/train.py -a ${a} -e $env -c ${config} -ld $ld -n $nn -s $s -na $na -kw $kws &"
     echo $py_script
     eval $py_script

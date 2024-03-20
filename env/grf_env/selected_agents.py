@@ -40,28 +40,40 @@ class SelectedAgents(gym.Wrapper):
       env_name = env_name.replace('_single_agent', '')
     else:
       if env_name == 'academy_pass_and_shoot_with_keeper':
-        n_left_units = 3
+        if representation == Representation.SIMPLE115:
+          n_left_units = 2
+        else:
+          n_left_units = 3
         n_right_units = 2
         if control_left:
           self._left_controlled_units = [1, 2]
         if control_right:
           self._right_controlled_units = [0, 1]
       elif env_name == 'academy_run_pass_and_shoot_with_keeper':
-        n_left_units = 3
-        n_left_units = 2
+        if representation == Representation.SIMPLE115:
+          n_left_units = 2
+        else:
+          n_left_units = 3
+        n_right_units = 2
         if control_left:
           self._left_controlled_units = [1, 2]
         if control_right:
           self._right_controlled_units = [0, 1]
       elif env_name == 'academy_3_vs_1_with_keeper':
-        n_left_units = 4
+        if representation == Representation.SIMPLE115:
+          n_left_units = 3
+        else:
+          n_left_units = 4
         n_right_units = 2
         if control_left:
           self._left_controlled_units = [1, 2, 3]
         if control_right:
           self._right_controlled_units = [0, 1]
       elif env_name == 'academy_corner':
-        n_left_units = 11
+        if representation == Representation.SIMPLE115:
+          n_left_units = 10
+        else:
+          n_left_units = 11
         n_right_units = 11
         if control_left:
           self._left_controlled_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -86,7 +98,7 @@ class SelectedAgents(gym.Wrapper):
     other_config_options = {'action_set':'v2'}
     self.env = football_env.create_environment(
       env_name, 
-      representation=representation,
+      representation=Representation.SIMPLE115,
       rewards=rewards,
       write_goal_dumps=write_goal_dumps,
       write_full_episode_dumps=write_full_episode_dumps,
@@ -101,6 +113,7 @@ class SelectedAgents(gym.Wrapper):
     )
     super().__init__(self.env)
 
+    self.representation = representation
     self.action_dim = 19
     self.n_left_units = n_left_units
     self.n_right_units = n_right_units
@@ -137,15 +150,18 @@ class SelectedAgents(gym.Wrapper):
 
   def reset(self):
     obs = self.env.reset()
-    obs = self.get_controlled_players_data(obs)
+    if self.representation != Representation.SIMPLE115:
+      obs = self.get_controlled_players_data(obs)
     return obs
 
   def step(self, action):
     assert len(action) == self.n_controlled_units, (action, self.n_controlled_units)
-    action = self.fill_actions(action)
+    if self.representation != Representation.SIMPLE115:
+      action = self.fill_actions(action)
     obs, reward, done, info = self.env.step(action)
-    obs = self.get_controlled_players_data(obs)
-    reward = self.get_controlled_players_data(reward)
+    if self.representation != Representation.SIMPLE115:
+      obs = self.get_controlled_players_data(obs)
+      reward = self.get_controlled_players_data(reward)
     
     return obs, reward, done, info
 
