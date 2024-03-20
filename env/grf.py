@@ -53,8 +53,7 @@ class GRF:
     self.score_reward_scale = score_reward_scale
     self.reward_type = reward_type
 
-    rewards = 'scoring'
-    # print('other config options', other_config_options)
+    rewards = 'scoring,checkpoints'
     self.env = SelectedAgents(
       self.name, 
       representation=representation,
@@ -102,7 +101,6 @@ class GRF:
     self._checkpoint_reward = .1
     self._num_checkpoints = 10
     self._collected_checkpoints = [0, 0]
-
 
     if representation == Representation.SIMPLE115:
       self.feature_mask = {

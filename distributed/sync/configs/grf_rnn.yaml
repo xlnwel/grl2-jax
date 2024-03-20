@@ -208,6 +208,7 @@ buffer:
     - obs
     - global_state
     - action
+    - prev_action
     - value
     - reward
     - discount

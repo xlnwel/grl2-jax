@@ -4,8 +4,8 @@ export PYTHONPATH=.
 
 suite=grf
 algos=(
-  sync-ppo
-  # ppo
+  # sync-ppo
+  ppo
 )
 envs=(
   academy_counterattack_hard
@@ -103,7 +103,7 @@ kws=$@
 #     echo $py_script
 #   done
 # fi
-kws="initialize_rms=True normalize_obs=True use_feature_norm=False reward_type=$a2"
+kws="n_epochs=15 n_mbs=2 normalize_reward=True"
 for a in "${algos[@]}"; do
 # for e in "${envs[@]}"; do
   env="${suite}-${e}"

@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import chex
 
 from core.mixin.model import update_params
+from core.names import DEFAULT_ACTION
 from core.typing import AttrDict
 from tools.file import source_file
 from algo.ma_common.elements.model import *
@@ -62,7 +63,8 @@ class Model(MAModelBase):
       data.state = state
     else:
       state = AttrDict()
-    act_out, state = self.forward_policy(params.policy, rngs[0], data)
+    act_out, state.policy = self.forward_policy(
+      params.policy, rngs[0], data, state=state.policy)
     act_dists = self.policy_dist(act_out, evaluation)
 
     if evaluation:

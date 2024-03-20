@@ -10,6 +10,8 @@ def pkg_str(root_dir, separator, base_name=None):
 
 
 def get_package_from_algo(algo, place=0, separator='.'):
+  if ':' in algo:
+    algo = algo.split(':')[0]
   algo = algo.split('-', 1)[place]
 
   pkg = get_package('algo', algo, separator)

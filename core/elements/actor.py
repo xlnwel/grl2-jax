@@ -166,7 +166,8 @@ class Actor:
 
   def update_obs_rms(self, obs, mask=None, feature_mask=None):
     obs = {k: obs[k] for k in self.rms.get_obs_names()}
-    self.rms.update_obs_rms(obs, self.gid2uids, split_axis=2, mask=mask, feature_mask=feature_mask)
+    self.rms.update_obs_rms(obs, self.gid2uids, split_axis=2, 
+                            mask=mask, feature_mask=feature_mask)
 
   def get_weights(self):
     weights = {

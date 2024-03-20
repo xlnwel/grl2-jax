@@ -78,8 +78,7 @@ class Agent:
       if algo not in self.strategies:
         self.strategies[algo] = \
           self.builder.build_rule_based_strategy(
-            env, 
-            strategy.weights
+            env, strategy.weights
           )
       self.monitor.reset_model_path(None)
     else:

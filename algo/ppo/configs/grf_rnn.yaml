@@ -40,6 +40,7 @@ env:
   control_right: False
   shared_policy: True
   score_reward_scale: 1
+  reward_type: sum
 
   max_episode_steps: 200
   use_action_mask: False
@@ -76,7 +77,7 @@ model:
     rnn_units: 64
     rnn_init: null
     rnn_norm: layer
-    use_feature_norm: True
+    use_feature_norm: False
   value:
     nn_id: value
     units_list: [64, 64]
@@ -88,7 +89,7 @@ model:
     rnn_units: 64
     rnn_init: null
     rnn_norm: layer
-    use_feature_norm: True
+    use_feature_norm: False
 
 loss:
   # hyperparams for value target and advantage
@@ -153,7 +154,7 @@ actor:
       obs_names: [obs, global_state]
       obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
       obs_normalized_ndim: 2
-      normalize_obs: False
+      normalize_obs: True
       use_feature_mask: True
       obs_clip: 10
     reward:

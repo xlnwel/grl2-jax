@@ -10,11 +10,9 @@
       "request": "launch",
       "program": "run/train.py",
       "args": [
-        "-a", "happo", 
-      //   "-e", "grf-academy_pass_and_shoot_with_keeper", 
-        "-e", "grf-academy_counterattack_hard", 
-        "-c", "grf", 
-        "-kw", "n_runners=1", "n_envs=1", "rnn_type=lstm"
+        "-a", "sac", 
+        "-e", "mujoco-HalfCheetah", 
+        "-c", "mujoco"
       ],
       "python": "/opt/anaconda3/envs/chenxw/bin/python3",
       "console": "integratedTerminal",

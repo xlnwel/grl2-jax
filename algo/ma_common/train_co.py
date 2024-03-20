@@ -5,7 +5,6 @@ import ray
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.names import ANCILLARY
-from core.typing import get_basic_model_name
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from env.utils import divide_env_output
 from tools.display import print_dict

@@ -67,8 +67,6 @@ class Model(MAModelBase):
 
   def compile_model(self):
     self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
-    self.jit_forward_policy = jax.jit(
-      self.forward_policy, static_argnames=('return_state'))
     self.jit_action_logprob = jax.jit(self.action_logprob)
 
   def action(self, data, evaluation):
@@ -77,13 +75,7 @@ class Model(MAModelBase):
         d.global_state = d.obs
     return super().action(data, evaluation)
 
-  def raw_action(
-    self, 
-    params, 
-    rng, 
-    data, 
-    evaluation=False, 
-  ):
+  def raw_action(self, params, rng, data, evaluation=False):
     rngs = random.split(rng, self.n_groups)
     all_actions = []
     all_stats = []
@@ -94,7 +86,7 @@ class Model(MAModelBase):
       state = d.pop('state', AttrDict())
       if self.has_rnn:
         d = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , d)
-      act_outs, state = self.forward_policy(p, agent_rngs[0], d, state)
+      act_outs, state.policy = self.forward_policy(p, agent_rngs[0], d, state.policy)
       act_dists = self.policy_dist(act_outs, evaluation)
 
       if evaluation:
@@ -117,12 +109,8 @@ class Model(MAModelBase):
             logprob[k] = lp
             stats.update(ad.get_stats(f'{k}_mu'))
             stats.mu_logprob = stats.mu_logprob + lp
-        value, state.value = self.modules.value(
-          v, 
-          agent_rngs[2], 
-          d.global_state, 
-          d.state_reset, 
-          state.value
+        value, state.value = self.forward_value(
+          v, agent_rngs[2], d, state=state.value, return_state=True
         )
         stats['value'] = value
       if self.has_rnn:
@@ -141,19 +129,14 @@ class Model(MAModelBase):
 
     return action, stats, all_states
 
-  def action_logprob(
-    self,
-    params,
-    rng,
-    data,
-  ):
+  def action_logprob(self, params, rng, data):
     data.state_reset, _ = jax_utils.split_data(
       data.state_reset, axis=1)
     if 'state' in data:
       data.state = tree_slice(data.state, indices=0, axis=1)
     state = data.pop('state', AttrDict())
     data.action_mask = get_action_mask(data.action)
-    act_out, _ = self.forward_policy(params, rng, data, state=state)
+    act_out = self.forward_policy(params, rng, data, state=state.policy, return_state=False)
     act_dists = self.policy_dist(act_out)
     if len(act_dists) == 1:
       logprob = act_dists[DEFAULT_ACTION].log_prob(data.action[DEFAULT_ACTION])
@@ -170,12 +153,7 @@ class Model(MAModelBase):
         state = d.pop('state', AttrDict())
         if self.has_rnn:
           d = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , d)
-        v, _ = self.modules.value(
-          p, rng, 
-          d.global_state, 
-          d.state_reset, 
-          state.value
-        )
+        v = self.forward_value(p, rng, d, state.value, return_state=False)
         vs.append(v)
       vs = jnp.concatenate(vs, -1)
       if self.has_rnn:

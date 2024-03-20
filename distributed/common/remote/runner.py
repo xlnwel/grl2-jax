@@ -559,13 +559,20 @@ class MultiAgentRunner(RayBase):
       if len(out.obs) == 0:
         continue
       uids = [self.gid2uids[gid] for gid in gids]
-      rms.update_obs_rms(out.obs, indices=uids, split_axis=1, mask=out.obs.get('sample_mask'), axis=0)
+      rms.update_obs_rms(
+        out.obs, indices=uids, split_axis=1, 
+        mask=out.obs.get('sample_mask'), 
+        feature_mask=self.env_stats.feature_mask, 
+        axis=0)
       rms.update_reward_rms(out.reward, out.discount, axis=0)
 
   @timeit
   def _update_rms_from_batch(self, aid: int, data: Dict[str, Any]):
     uids = [self.gid2uids[gid] for gid in self.aid2gids[aid]]
-    self.rms[aid].update_obs_rms(data, indices=uids, split_axis=2, mask=data.sample_mask)
+    self.rms[aid].update_obs_rms(
+      data, indices=uids, split_axis=2, 
+      mask=data.sample_mask, 
+      feature_mask=self.env_stats.feature_mask)
     self.rms[aid].update_reward_rms(data.reward, data.discount, mask=data.sample_mask)
 
   @timeit

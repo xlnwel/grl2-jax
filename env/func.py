@@ -28,7 +28,8 @@ def create_env(
   env_fn: FunctionType=None, 
   agents={}, 
   force_envvec=True, 
-  no_remote=False
+  no_remote=False, 
+  reset_at_init=True
 ):
   """ Creates an Env/VecEnv from config """
   config = config.copy()
@@ -53,17 +54,19 @@ def create_env(
     from env.ray_env import RayVecEnv
     EnvType = VecEnv
     env = RayVecEnv(EnvType, config, env_fn)
+  if reset_at_init:
+    env.reset()
   return env
 
 def get_env_stats(config):
-  # TODO (cxw): store env_stats in a standalone file for costly environments
   config.setdefault('n_envs', 1)
   tmp_env_config = config.copy()
   tmp_env_config['n_runners'] = 1
   # we cannot change n_envs for unity environments
   if not config.env_name.startswith('unity'):
     tmp_env_config['n_envs'] = 1
-  env = create_env(tmp_env_config, force_envvec=False, no_remote=True)
+  env = create_env(
+    tmp_env_config, force_envvec=False, no_remote=True, reset_at_init=False)
   env_stats = env.stats()
   env_stats.n_runners = config.get('n_runners', 1)
   env_stats.n_envs = env_stats.n_runners * config.n_envs

@@ -2,9 +2,8 @@ import numpy as np
 import jax.numpy as jnp
 import haiku as hk
 
-from core.names import DEFAULT_ACTION
 from core.elements.model import Model as ModelCore
-from core.typing import AttrDict, dict2AttrDict, tree_slice
+from core.typing import AttrDict, dict2AttrDict
 from jax_tools import jax_dist
 
 
@@ -39,10 +38,10 @@ def setup_config_from_envstats(config, env_stats):
 
 
 class MAModelBase(ModelCore):
-  def forward_policy(self, params, rng, data, state=AttrDict(), return_state=True):
-    act_outs, state.policy = self.modules.policy(
+  def forward_policy(self, params, rng, data, state=None, return_state=True):
+    act_outs, state = self.modules.policy(
       params, rng, data.obs, data.state_reset, 
-      state.policy, action_mask=data.action_mask, 
+      state, action_mask=data.action_mask, 
     )
 
     if return_state:
@@ -67,6 +66,15 @@ class MAModelBase(ModelCore):
         dists[k] = jax_dist.MultivariateNormalDiag(
           loc, scale, joint_log_prob=self.config.get('joint_log_prob', True))
     return dists
+  
+  def forward_value(self, params, rng, data, state=None, return_state=True):
+    value, state = self.modules.value(
+      params, rng, data.global_state, data.state_reset, state
+    )
+
+    if return_state:
+      return value, state
+    return value  
 
   """ RNN Operators """
   @property

@@ -42,12 +42,12 @@ class Policy(hk.Module):
     self.use_action_mask = use_action_mask
     self.use_feature_norm = use_feature_norm
 
-  def __call__(self, x, reset=None, state=None, action_mask=None, no_state_return=False):
+  def __call__(self, x, reset=None, state=None, prev_info=None, action_mask=None, no_state_return=False):
     if self.use_feature_norm:
       ln = hk.LayerNorm(-1, True, True)
       x = ln(x)
     net, heads = self.build_net()
-    x = net(x, reset, state)
+    x = net(x, reset, state=state, prev_info=prev_info)
     if isinstance(x, tuple):
       assert len(x) == 2, x
       x, state = x
@@ -119,12 +119,12 @@ class Value(hk.Module):
     self.out_size = out_size
     self.use_feature_norm = use_feature_norm
 
-  def __call__(self, x, reset=None, state=None):
+  def __call__(self, x, reset=None, state=None, prev_info=None):
     if self.use_feature_norm:
       ln = hk.LayerNorm(-1, True, True)
       x = ln(x)
     net = self.build_net()
-    x = net(x, reset, state)
+    x = net(x, reset, state=state, prev_info=prev_info)
     if isinstance(x, tuple):
       assert len(x) == 2, x
       x, state = x

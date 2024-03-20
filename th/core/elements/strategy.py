@@ -105,9 +105,9 @@ class Strategy:
     if self.actor is not None and aux_stats:
       weights[ANCILLARY] = self.actor.get_auxiliary_stats()
     if train_step:
-      weights[f'train_step'] = self.step_counter.get_train_step()
+      weights[TRAIN_STEP] = self.step_counter.get_train_step()
     if env_step:
-      weights[f'env_step'] = self.step_counter.get_env_step()
+      weights[ENV_STEP] = self.step_counter.get_env_step()
 
     return weights
 
@@ -118,10 +118,10 @@ class Strategy:
       self.trainer.set_optimizer_weights(weights[OPTIMIZER])
     if ANCILLARY in weights:
       self.actor.set_auxiliary_stats(weights[ANCILLARY])
-    if 'train_step' in weights:
-      self.step_counter.set_train_step(weights['train_step'])
-    if 'env_step' in weights:
-      self.step_counter.set_env_step(weights['env_step'])
+    if TRAIN_STEP in weights:
+      self.step_counter.set_train_step(weights[TRAIN_STEP])
+    if ENV_STEP in weights:
+      self.step_counter.set_env_step(weights[ENV_STEP])
 
   def train_record(self, **kwargs):
     n, stats = self.train_loop.train(

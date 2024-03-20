@@ -275,6 +275,33 @@ class CumulativeRewardObs(gym.Wrapper):
     return self._get_ob(ob), reward, done, info
 
 
+class ActionRecorder(gym.Wrapper):
+  def __init__(self, env: Env):
+    super().__init__(env)
+    self._init_prev_action()
+  
+  def _init_prev_action(self):
+    self._prev_action = [
+      {k: np.zeros(v) for k, v in ad.items()} for ad in self.env.action_dim
+    ]
+  
+  def reset(self):
+    self._init_prev_action()
+    return self.env.reset()
+  
+  def step(self, action):
+    obs, reward, done, info = self.env.step(action)
+    assert len(obs) == len(self._prev_action), (len(obs), len(self._prev_action))
+    for o, pa in zip(obs, self._prev_action):
+      for k, v in pa.items():
+        o[f'prev_{k}'] = v
+    self._prev_action = action
+    return obs, reward, done, info
+  
+  def get_prev_action(self):
+    return self._prev_action
+
+
 class RewardHack(gym.Wrapper):
   def __init__(self, env, reward_scale=1, reward_min=None, reward_max=None, **kwargs):
     super().__init__(env)
@@ -895,7 +922,7 @@ class EnvStatsBase(gym.Wrapper):
     timeout_done=False, 
     life_long=False, 
     auto_reset=True, 
-    seed=None
+    seed=None, 
   ):
     """ Records environment statistics """
     super().__init__(env)
@@ -921,7 +948,7 @@ class EnvStatsBase(gym.Wrapper):
     self._epslen = 0
     self._info = {}
     self._prev_output = None
-    self._output = None
+    self._output = AttrDict(reset=False)
     self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
     if hasattr(self.env, 'stats'):
       self._stats = dict2AttrDict(self.env.stats())
@@ -997,7 +1024,6 @@ class EnvStatsBase(gym.Wrapper):
     if timeout_done:
       do_logging('Timeout is treated as done', logger=logger, once=True)
     self.env.seed(seed)
-    self._reset()
 
   def stats(self):
     # return a copy to avoid being modified from outside
@@ -1169,6 +1195,7 @@ class SqueezeObs(gym.Wrapper):
       obs = np.squeeze(obs, 0)
     return obs
 
+
 class MASimEnvStats(EnvStatsBase):
   """ Wrapper for multi-agent simutaneous environments
   <MASimEnvStats> expects agent-wise reward and done signal per step.
@@ -1180,14 +1207,14 @@ class MASimEnvStats(EnvStatsBase):
     max_episode_steps=None, 
     timeout_done=False, 
     auto_reset=True, 
-    seed=None
+    seed=None, 
   ):
     super().__init__(
       env, 
       max_episode_steps=max_episode_steps, 
       timeout_done=timeout_done, 
       auto_reset=auto_reset, 
-      seed=seed
+      seed=seed, 
     )
     self._stats.is_multi_agent = True
 
@@ -1278,14 +1305,14 @@ class MATurnBasedEnvStats(EnvStatsBase):
     max_episode_steps=None, 
     timeout_done=False, 
     auto_reset=True, 
-    seed=None
+    seed=None, 
   ):
     super().__init__(
       env, 
       max_episode_steps=max_episode_steps, 
       timeout_done=timeout_done, 
       auto_reset=auto_reset, 
-      seed=seed
+      seed=seed, 
     )
     self._stats.is_multi_agent = True
     self._stats.is_simultaneous_move = False

@@ -24,7 +24,8 @@ def init_running_stats(agents, runner: Runner, n_steps=None):
     for agent in agents:
       data = agent.buffer.get_data()
       agent.actor.update_reward_rms(data.reward, data.discount)
-      agent.actor.update_obs_rms(data)
+      agent.actor.update_obs_rms(
+        data, mask=data.sample_mask, feature_mask=agent.env_stats.feature_mask)
       agent.actor.reset_reward_rms_return()
   for agent in agents:
     agent.actor.print_rms()

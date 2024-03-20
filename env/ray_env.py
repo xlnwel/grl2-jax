@@ -5,7 +5,7 @@ from core.typing import AttrDict2dict
 from env.cls import *
 from env.typing import EnvOutput
 from env.utils import batch_env_output
-from tools.utils import convert_batch_with_func
+from tools.utils import convert_batch_with_func, batch_dicts
 
 
 class RayVecEnv:
@@ -45,17 +45,7 @@ class RayVecEnv:
 
   def random_action(self, *args, **kwargs):
     action = ray.get([env.random_action.remote() for env in self.envs])
-    if self._stats.is_multi_agent:
-      # get a list of agent-wise actions
-      if isinstance(self.env, Env):
-        action = np.stack(action)
-      else:
-        action = [np.concatenate(a) for a in zip(*action)]
-    elif isinstance(self.env, Env):
-      action = np.stack(action)
-    else:
-      action = np.concatenate(action)
-    # action = action[0]
+    action = [batch_dicts(a, np.concatenate) for a in zip(*action)]
     return action
 
   def step(self, actions, **kwargs):

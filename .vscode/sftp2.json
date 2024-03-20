@@ -35,13 +35,15 @@
         "algo2",
         "algo3", 
         ".tmp*", 
-        "*.tar"
+        "*.tar", 
+        "build", 
+        "saved_model"
     ]
 }
 
 {
     "host": "116.172.93.164",
-    "port": 16336,
+    "port": 60897,
     "username": "ubuntu",
     "password": "imin",
     "protocol": "sftp",
@@ -76,48 +78,9 @@
         "algo2",
         "algo3", 
         ".tmp*", 
-        "*.tar"
+        "*.tar", 
+        "build", 
+        "saved_model"
     ]
 }
 
-
-{
-    "host": "172.16.20.124",
-    "port": 22,
-    "username": "root",
-    "password": "polixir",
-    "protocol": "sftp",
-    "agent": null,
-    "privateKeyPath": null,
-    "passphrase": null,
-    "passive": true, 
-    "interactiveAuth": false,
-    "remotePath": "/home/ubuntu/grl",
-    "uploadOnSave": true,
-    "syncMode": "update",
-
-    "watcher": {
-        "files": "glob",
-        "autoUpload": true,
-        "autoDelete": true
-    },
-    "ignore": [
-        ".vscode",
-        ".git",
-        ".gitignore",
-        ".DS_Store",
-        "old-logs**",
-        "*.pyc",
-        "logs**",
-        "**-logs",
-        "**.md",
-        "**__pycache__**",
-        "**results**",
-        "trial",
-        "gpo_meta",
-        "algo2",
-        "algo3", 
-        ".tmp*", 
-        "*.tar"
-    ]
-}

@@ -24,7 +24,8 @@ class Model(MAModelBase):
     self.value_rnn_init = self.config.value.pop('rnn_init', None)
 
     self.params.policy, self.modules.policy = self.build_net(
-      data.obs, data.state_reset, data.state, data.action_mask, name='policy')
+      data.obs, data.state_reset, data.state, 
+      action_mask=data.action.action_mask, name='policy')
     self.params.value, self.modules.value = self.build_net(
       data.global_state, data.state_reset, data.state, name='value')
     self._init_rnn()
@@ -53,19 +54,13 @@ class Model(MAModelBase):
       data.global_state = data.obs
     return super().action(data, evaluation)
 
-  def raw_action(
-    self, 
-    params, 
-    rng, 
-    data, 
-    evaluation=False, 
-  ):
+  def raw_action(self, params, rng, data, evaluation=False):
     rngs = random.split(rng, 3)
     state = data.pop('state', AttrDict())
     # add the sequential dimension
     if self.has_rnn:
       data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
-    act_outs, state = self.forward_policy(params.policy, rngs[0], data, state)
+    act_outs, state.policy = self.forward_policy(params.policy, rngs[0], data, state.policy)
     act_dists = self.policy_dist(act_outs, evaluation)
 
     if evaluation:
@@ -90,13 +85,9 @@ class Model(MAModelBase):
           k = k.replace('action_', '')
           stats.update(ad.get_stats(f'{k}_mu'))
           stats.mu_logprob = stats.mu_logprob + lp
-        
-      value, state.value = self.modules.value(
-        params.value, 
-        rngs[2], 
-        data.global_state, 
-        data.state_reset, 
-        state.value
+      
+      value, state.value = self.forward_value(
+        params.value, rngs[2], data, state=state.value, return_state=True
       )
       stats['value'] = value
     if self.has_rnn:
@@ -114,12 +105,8 @@ class Model(MAModelBase):
       state = data.pop('state', AttrDict())
       if self.has_rnn:
         data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , data)
-      v, _ = self.modules.value(
-        params, 
-        rng, 
-        data.global_state, 
-        data.state_reset, 
-        state.value
+      v = self.forward_value(
+        params, rng, data, state=state.value, return_state=False
       )
       if self.has_rnn:
         v = jnp.squeeze(v, 1)

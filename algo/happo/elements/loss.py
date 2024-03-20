@@ -18,38 +18,24 @@ class Loss(LossBase):
     teammate_log_ratio,
     name='train', 
   ):
+    data = data.copy()
     rngs = random.split(rng, 2)
     stats = dict2AttrDict(self.config.stats, to_copy=True)
 
-    action_mask = get_action_mask(data.action)
     if data.sample_mask is not None:
       stats.n_alive_units = jnp.sum(data.sample_mask, -1)
 
     stats.value, next_value = compute_values(
-      self.modules.value, 
-      theta.value, 
-      rngs[0], 
-      data.global_state, 
-      data.next_global_state, 
-      data.state_reset, 
+      self.model.forward_value, theta.value, rngs[0], data, 
       None if data.state is None else data.state.value, 
-      bptt=self.config.vrnn_bptt, 
-      seq_axis=TRAIN_AXIS.SEQ, 
+      bptt=self.config.vrnn_bptt, seq_axis=TRAIN_AXIS.SEQ, 
     )
 
-    act_dists, stats.pi_logprob, stats.log_ratio, stats.ratio = \
-      compute_policy(
-        self.model, 
-        theta.policy, 
-        rngs[1], 
-        data.obs, 
-        data.action, 
-        data.mu_logprob, 
-        data.state_reset[:, :-1] if 'state_reset' in data else None, 
-        state=None if data.state is None else data.state.policy, 
-        action_mask=action_mask, 
-        bptt=self.config.prnn_bptt, 
-      )
+    data.action_mask = get_action_mask(data.action)
+    data.state_reset = data.state_reset[:, :-1] if 'state_reset' in data else None
+    state = None if data.state is None else data.state.policy
+    act_dists, stats.pi_logprob, stats.log_ratio, stats.ratio = compute_policy(
+      self.model, theta.policy, rngs[1], data, state, self.config.prnn_bptt)
     stats = record_policy_stats(data, stats, act_dists)
 
     if 'advantage' in data:
@@ -82,6 +68,7 @@ class Loss(LossBase):
       stats.v_target = stats.raw_v_target
     stats.v_target = lax.stop_gradient(stats.v_target)
     stats = record_target_adv(stats)
+
     stats.norm_adv, stats.advantage = norm_adv(
       self.config, 
       stats.raw_adv, 
@@ -93,11 +80,7 @@ class Loss(LossBase):
     )
 
     actor_loss, stats = compute_actor_loss(
-      self.config, 
-      data, 
-      stats, 
-      act_dists=act_dists, 
-      entropy_coef=stats.entropy_coef
+      self.config, data, stats, act_dists, stats.entropy_coef
     )
 
     value_loss, stats = compute_vf_loss(self.config, data, stats)
@@ -116,36 +99,24 @@ class Loss(LossBase):
     teammate_log_ratio, 
     name='train/value', 
   ):
+    data = data.copy()
     rngs = random.split(rng, 2)
     stats = dict2AttrDict(self.config.stats, to_copy=True)
 
-    action_mask = get_action_mask(data.action)
     if data.sample_mask is not None:
       stats.n_alive_units = jnp.sum(data.sample_mask, -1)
 
     stats.value, next_value = compute_values(
-      self.modules.value, 
-      theta, 
-      rngs[0], 
-      data.global_state, 
-      data.next_global_state, 
-      data.state_reset, 
+      self.model.forward_value, theta, rngs[0], data, 
       None if data.state is None else data.state.value, 
-      bptt=self.config.vrnn_bptt, 
-      seq_axis=TRAIN_AXIS.SEQ, 
+      bptt=self.config.vrnn_bptt, seq_axis=TRAIN_AXIS.SEQ, 
     )
 
+    data.action_mask = get_action_mask(data.action)
+    data.state_reset = data.state_reset[:, :-1] if 'state_reset' in data else None
+    state = None if data.state is None else data.state.policy, 
     _, _, _, ratio = compute_policy(
-      self.model, 
-      policy_theta, 
-      rngs[1], 
-      data.obs, 
-      data.action, 
-      data.mu_logprob, 
-      data.state_reset[:, :-1] if 'state_reset' in data else None, 
-      None if data.state is None else data.state.policy, 
-      action_mask=action_mask, 
-      bptt=self.config.prnn_bptt, 
+      self.model, policy_theta, rngs[1], data, state, self.config.prnn_bptt
     )
 
     if 'advantage' in data:
@@ -200,30 +171,16 @@ class Loss(LossBase):
     stats, 
     name='train/policy', 
   ):
-    rngs = random.split(rng, 2)
-
-    action_mask = get_action_mask(data.action)
+    data = data.copy()
+    data.action_mask = get_action_mask(data.action)
+    data.state_reset = data.state_reset[:, :-1] if 'state_reset' in data else None
+    state = None if data.state is None else data.state.policy
     act_dists, stats.pi_logprob, stats.log_ratio, stats.ratio = \
-      compute_policy(
-        self.model, 
-        theta, 
-        rngs[1], 
-        data.obs, 
-        data.action, 
-        data.mu_logprob, 
-        data.state_reset[:, :-1] if 'state_reset' in data else None, 
-        None if data.state is None else data.state.policy, 
-        action_mask=action_mask, 
-        bptt=self.config.prnn_bptt, 
-      )
+      compute_policy(self.model, theta, rng, data, state, self.config.prnn_bptt)
     stats = record_policy_stats(data, stats, act_dists)
 
     actor_loss, stats = compute_actor_loss(
-      self.config, 
-      data, 
-      stats, 
-      act_dists=act_dists, 
-      entropy_coef=stats.entropy_coef
+      self.config, data, stats, act_dists, stats.entropy_coef
     )
 
     stats = summarize_adv_ratio(stats, data)

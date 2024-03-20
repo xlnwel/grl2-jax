@@ -272,6 +272,8 @@ def make_grf(config):
   from env.grf import GRF
   config = _change_env_name(config)
   env = GRF(**config)
+  if config.record_prev_action:
+    env = wrappers.ActionRecorder(env)
   env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.DataProcess(env)
   env = wrappers.MASimEnvStats(env, seed=config.seed)

@@ -23,7 +23,7 @@ from tools.schedule import PiecewiseSchedule
 from tools.timer import timeit
 from tools.utils import config_attr, dict2AttrDict
 from tools import yaml_op
-from distributed.common.names import EXPLOITER_SUFFIX
+from distributed.common.names import *
 from distributed.common.typing import *
 from distributed.common.remote.payoff import PayoffManager
 from distributed.common.utils import *
@@ -118,7 +118,7 @@ class SPParameterServer(RayBase):
     self._ready = [False for _ in range(self.n_runners)]
 
   def check(self):
-    assert self.payoff_manager.size() == len(self._params), (self.payoff_manager.size(), len(self._params))
+    assert self.payoff_manager.size() == len(self._params), (f'{self.payoff_manager.get_all_models()}\n{list(self._params)}')
 
   def build(self, configs: List[Dict], env_stats: Dict):
     self.agent_config = dict2AttrDict(configs[0])
@@ -150,7 +150,8 @@ class SPParameterServer(RayBase):
       pattern = pattern or self._pool_pattern
       models = find_all_models(self._pool_dir, pattern)
       for model in models:
-        self.restore_params(model)
+        if model not in self._params or self._params[model][STATUS] == Status.TRAINING:
+          self.restore_params(model)
         if model not in self.payoff_manager:
           self.add_strategy_to_payoff(model)
       do_logging(f'Loading strategy pool in path {self._pool_dir}', color='green')
@@ -166,7 +167,8 @@ class SPParameterServer(RayBase):
       for v in config.values():
         for model in v:
           model = ModelPath(*model)
-          self.restore_params(model)
+          if model not in self._params or self._params[model][STATUS] == Status.TRAINING:
+            self.restore_params(model)
           if model not in self.payoff_manager:
             self.add_strategy_to_payoff(model)
       do_logging(f'Loading strategy pool from {self._pool_path}', color='green')
@@ -363,6 +365,7 @@ class SPParameterServer(RayBase):
       self._params[new_model] = weights
     model_weights = ModelWeights(new_model, weights)
     self._params[new_model] = weights
+    self._params[model][STATUS] = Status.TRAINING
     if config is None:
       config = self.builder.config.copy(shallow=False)
     config.status = Status.TRAINING
@@ -377,6 +380,7 @@ class SPParameterServer(RayBase):
     model = self.builder.get_model_path()
     assert model not in self._params, (model, list(self._params))
     self._params[model] = {}
+    self._params[model][STATUS] = Status.TRAINING
     weights = None
     model_weights = ModelWeights(model, weights)
     do_logging(f'Sampling raw strategy for training: {model}', color='green')
@@ -442,12 +446,13 @@ class SPParameterServer(RayBase):
 
     return strategies, is_raw_strategy
 
-  def archive_training_strategies(self, **kwargs):
+  def archive_training_strategies(self, status: Status):
     do_logging(f'Archiving training strategies: {self._models[ModelType.ACTIVE]}', color='green')
     config = self.builder.config.copy(shallow=False)
-    config.update(kwargs)
+    config.status = status
     self.builder.save_config(config)
     self._models[ModelType.FORMER] = copy.copy(self._models[ModelType.ACTIVE])
+    self._params[self._models[ModelType.FORMER]][STATUS] = status
     self.save_params(self._models[ModelType.ACTIVE])
     self._update_active_model(None)
     if self._models[ModelType.ACTIVE] in self._opp_dist:

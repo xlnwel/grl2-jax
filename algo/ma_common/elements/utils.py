@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 from core.names import DEFAULT_ACTION, PATH_SPLIT
 from core.typing import AttrDict
-from tools.utils import expand_dims_match, expand_shape_match
+from tools.utils import expand_shape_match
 from jax_tools import jax_assert, jax_math, jax_loss, jax_utils
 
 
@@ -17,77 +17,48 @@ def get_initial_state(state, i):
 
 def reshape_for_bptt(*args, bptt):
   return jax.tree_util.tree_map(
-    lambda x: None if x is None else x.reshape(-1, bptt, *x.shape[2:]), args
+    lambda x: x.reshape(-1, bptt, *x.shape[2:]), args
   )
 
 
-def compute_values(
-  func, 
-  params, 
-  rng, 
-  x, 
-  next_x, 
-  state_reset, 
-  state, 
-  bptt, 
-  seq_axis=1,
-  **kwargs
-):
+def compute_values(func, params, rng, data, state, bptt, seq_axis=1):
   if state is None:
-    value, _ = func(params, rng, x)
-    if next_x is None:
-      next_value = None
-    else:
-      next_value, _ = func(params, rng, next_x) 
+    curr_data = AttrDict(global_state=data.global_state)
+    next_data = AttrDict(global_staet=data.next_global_state)
+    value = func(params, rng, curr_data, return_state=False)
+    next_value = func(params, rng, next_data, return_state=False)
   else:
-    state_reset, next_state_reset = jax_utils.split_data(
-      state_reset, axis=seq_axis)
-    if bptt is not None:
-      shape = x.shape[:-1]
-      assert x.shape[1] % bptt == 0, (x.shape, bptt)
-      x, next_x, state_reset, next_state_reset, state = \
-        reshape_for_bptt(
-          x, next_x, state_reset, next_state_reset, state, bptt=bptt
-        )
-    state0 = get_initial_state(state, 0)
-    value, _ = func(params, rng, x, state_reset, state0)
-    if next_x is None:
-      next_value = None
-    else:
-      state1 = get_initial_state(state, 1)
-      next_value, _ = func(params, rng, next_x, next_state_reset, state1)
-    if bptt is not None:
-      value, next_value = jax.tree_util.tree_map(
-        lambda x: x if x is None else x.reshape(shape), (value, next_value)
-      )
-  if next_value is not None:
-    next_value = lax.stop_gradient(next_value)
-    jax_assert.assert_shape_compatibility([value, next_value])
+    state_reset, next_state_reset = jax_utils.split_data(data.state_reset, axis=seq_axis)
+    curr_data = AttrDict(global_state=data.global_state, state_reset=state_reset)
+    next_data = AttrDict(global_state=data.next_global_state, state_reset=next_state_reset)
+    shape = data.global_state.shape[:-1]
+    assert isinstance(bptt, int), bptt
+    curr_data, next_data, state = reshape_for_bptt(
+      curr_data, next_data, state, bptt=bptt
+    )
+    curr_state = get_initial_state(state, 0)
+    next_state = get_initial_state(state, 1)
+    value = func(params, rng, curr_data, curr_state, return_state=False)
+    next_value = func(params, rng, next_data, next_state, return_state=False)
+    value, next_value = jax.tree_util.tree_map(
+      lambda x: x.reshape(shape), (value, next_value)
+    )
+
+  next_value = lax.stop_gradient(next_value)
+  jax_assert.assert_shape_compatibility([value, next_value])
 
   return value, next_value
 
 
-def compute_policy_dist(
-  model, 
-  params, 
-  rng, 
-  x, 
-  state_reset, 
-  state, 
-  action_mask=None, 
-  bptt=None
-):
-  if state is not None and bptt is not None:
-    shape = x.shape[:-1]
-    assert x.shape[1] % bptt == 0, (x.shape, bptt)
-    x, state_reset, state, action_mask = reshape_for_bptt(
-      x, state_reset, state, action_mask, bptt=bptt
-    )
-  state = get_initial_state(state, 0)
-  act_outs, _ = model.modules.policy(
-    params, rng, x, state_reset, state, action_mask=action_mask
-  )
-  if state is not None and bptt is not None:
+def compute_policy_dist(model, params, rng, data, state, bptt):
+  data = AttrDict(obs=data.obs, state_reset=data.state_reset, action_mask=data.action_mask)
+  shape = data.obs.shape[:-1]
+  if state is None:
+    act_outs = model.forward_policy(params, rng, data, return_state=False)
+  else:
+    data, state = reshape_for_bptt(data, state, bptt=bptt)
+    state = get_initial_state(state, 0)
+    act_outs = model.forward_policy(params, rng, data, state, return_state=False)
     act_outs = jax.tree_util.tree_map(
       lambda x: x.reshape(*shape, -1) if x.ndim > len(shape) else x, act_outs
     )
@@ -95,28 +66,11 @@ def compute_policy_dist(
   return act_dists
 
 
-def compute_policy(
-  model, 
-  params, 
-  rng, 
-  x, 
-  action, 
-  mu_logprob, 
-  state_reset, 
-  state, 
-  action_mask=None, 
-  bptt=None, 
-):
-  act_dists = compute_policy_dist(
-    model, params, rng, x, state_reset, state, action_mask, bptt=bptt)
-  if len(act_dists) == 1:
-    act_dist = act_dists[DEFAULT_ACTION]
-    pi_logprob = act_dist.log_prob(action[DEFAULT_ACTION])
-  else:
-    # assert set(action) == set(act_dists), (set(action), set(act_dists))
-    pi_logprob = sum([ad.log_prob(action[k]) for k, ad in act_dists.items()])
-  jax_assert.assert_shape_compatibility([pi_logprob, mu_logprob])
-  log_ratio = pi_logprob - mu_logprob
+def compute_policy(model, params, rng, data, state, bptt):
+  act_dists = compute_policy_dist(model, params, rng, data, state, bptt)
+  pi_logprob = sum([ad.log_prob(data.action[k]) for k, ad in act_dists.items()])
+  jax_assert.assert_shape_compatibility([pi_logprob, data.mu_logprob])
+  log_ratio = pi_logprob - data.mu_logprob
   ratio = lax.exp(log_ratio)
   return act_dists, pi_logprob, log_ratio, ratio
 
@@ -133,15 +87,8 @@ def prefix_name(terms, name):
   return terms
 
 
-def compute_gae(
-  reward, 
-  discount, 
-  value, 
-  gamma, 
-  gae_discount, 
-  next_value=None, 
-  reset=None, 
-):
+def compute_gae(reward, discount, value, gamma, gae_discount, 
+                next_value=None, reset=None):
   if next_value is None:
     value, next_value = value[:, :-1], value[:, 1:]
   elif next_value.ndim < value.ndim:
@@ -161,13 +108,7 @@ def compute_gae(
   return advs, traj_ret
 
 
-def compute_actor_loss(
-  config, 
-  data, 
-  stats, 
-  act_dists, 
-  entropy_coef, 
-):
+def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
   if config.get('policy_sample_mask', True):
     sample_mask = data.sample_mask
   else:
@@ -251,11 +192,7 @@ def compute_actor_loss(
   return loss, stats
 
 
-def compute_vf_loss(
-  config, 
-  data, 
-  stats, 
-):
+def compute_vf_loss(config, data, stats):
   if config.get('value_sample_mask', False):
     sample_mask = data.sample_mask
   else:

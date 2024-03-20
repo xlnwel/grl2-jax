@@ -185,8 +185,8 @@ class RunningMeanStd:
       batch_count = np.prod(x.shape[shape_slice]) \
         if mask is None else np.sum(mask)
     if feature_mask is not None:
-      assert feature_mask.shape == batch_mean.shape, (feature_mask.shape, batch_mean.shape)
-      assert feature_mask.shape == batch_var.shape, (feature_mask.shape, batch_var.shape)
+      assert feature_mask.shape[-1] == batch_mean.shape[-1], (feature_mask.shape, batch_mean.shape)
+      assert feature_mask.shape[-1] == batch_var.shape[-1], (feature_mask.shape, batch_var.shape)
       batch_mean = np.where(feature_mask, batch_mean, 0)
       batch_var = np.where(feature_mask, batch_var, 1)
     if batch_count > 0:
