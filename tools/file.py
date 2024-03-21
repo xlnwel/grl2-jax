@@ -193,4 +193,4 @@ def write_file(path, content):
   if not os.path.isdir(d):
     pathlib.Path(d).mkdir(parents=True)
   with open(path, 'a') as f:
-    f.write(content)
+    f.write(content + '\n')

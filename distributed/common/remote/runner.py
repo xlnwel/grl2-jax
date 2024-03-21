@@ -346,6 +346,8 @@ class MultiAgentRunner(RayBase):
     def send_data(env_outs: List[Tuple]):
       if to_store_data:
         sent = False
+        prev_env_output = self.env.prev_output()
+        prev_agent_env_output = divide_env_output(prev_env_output)
         # NOTE: currently we send all data at once
         for aid in range(self.n_agents):
           agent = self.agents[aid]
@@ -354,7 +356,7 @@ class MultiAgentRunner(RayBase):
           if self.is_agent_active[aid]:
             assert buffer.is_full(), len(buffer)
             if self.algo_type == 'onpolicy':
-              value = agent.compute_value(out)
+              value = agent.compute_value(prev_agent_env_output[aid])
               rid, data, n = buffer.retrieve_all_data({
                 'value': value,
                 'state_reset': out.reset
@@ -545,33 +547,21 @@ class MultiAgentRunner(RayBase):
 
   @timeit
   def _update_rms(self, agent_env_outs: Union[EnvOutput, List[EnvOutput]]):
-    # if isinstance(agent_env_outs, EnvOutput):
-    #   assert len(self.aid2gids) == 1, self.aid2gids
-    #   self.rms[0].update_obs_rms(
-    #     agent_env_outs.obs, 
-    #     mask=agent_env_outs.obs.get('sample_mask'), 
-    #     axis=0
-    #   )
-    #   self.rms[0].update_reward_rms(agent_env_outs.reward, agent_env_outs.discount, axis=0)
-    # else:
     assert len(self.rms) == len(agent_env_outs), (len(self.rms), len(agent_env_outs))
     for rms, out, gids in zip(self.rms, agent_env_outs, self.aid2gids):
       if len(out.obs) == 0:
         continue
       uids = [self.gid2uids[gid] for gid in gids]
       rms.update_obs_rms(
-        out.obs, indices=uids, split_axis=1, 
-        mask=out.obs.get('sample_mask'), 
-        feature_mask=self.env_stats.feature_mask, 
-        axis=0)
+        out.obs, indices=uids, split_axis=1, mask=out.obs.sample_mask, 
+        feature_mask=self.env_stats.feature_mask, axis=0)
       rms.update_reward_rms(out.reward, out.discount, axis=0)
 
   @timeit
   def _update_rms_from_batch(self, aid: int, data: Dict[str, Any]):
     uids = [self.gid2uids[gid] for gid in self.aid2gids[aid]]
     self.rms[aid].update_obs_rms(
-      data, indices=uids, split_axis=2, 
-      mask=data.sample_mask, 
+      data, indices=uids, split_axis=2, mask=data.sample_mask, 
       feature_mask=self.env_stats.feature_mask)
     self.rms[aid].update_reward_rms(data.reward, data.discount, mask=data.sample_mask)
 

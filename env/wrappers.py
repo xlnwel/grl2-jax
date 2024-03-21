@@ -1123,7 +1123,7 @@ class EnvStats(EnvStatsBase):
       self._score = info['score']
     else:
       self._score += info.get('reward', reward)
-    self._dense_score = info['dense_score'] = info.get('dense_score', self._score)
+    self._dense_score = info.setdefault('dense_score', self._score)
     if 'epslen' in info:
       self._epslen = info['epslen']
     else:
@@ -1267,21 +1267,17 @@ class MASimEnvStats(EnvStatsBase):
 
     # store previous env output for later retrieval
     reset = self._get_agent_wise_zeros()
-    self._prev_output = EnvOutput(obs, reward, discount, reset)
+    prev_output = EnvOutput(obs, reward, discount, reset)
 
     # reset env
     if self._game_over and self.auto_reset:
-      # when resetting, we override the obs and reset but keep the others
+      # when the environemnt is reset, we override the obs and reset 
+      # but keep the others intact
       obs, _, _, reset = self._reset()
+    self._prev_output = prev_output
     obs = self.observation(obs)
     self._info = info
-
-    # we return reward and discount for all agents so that
-    # 
-    # while obs and reset is for the current agent only
     self._output = EnvOutput(obs, reward, discount, reset)
-    # assert np.all(done) == info.get('game_over', False), (reset, info['game_over'])
-    # assert np.all(reset) == info.get('game_over', False), (reset, info['game_over'])
     return self._output
 
   def observation(self, obs):

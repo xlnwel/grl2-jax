@@ -157,8 +157,10 @@ class GRF:
         self._left_score < self._right_score, -1, 
         self._left_score > self._right_score)
       self._score[self.n_left_units:] *= -1
+      win_score = diff_score > 0
     else:
       self._score = diff_score
+      win_score = info['score_reward'] > 0
     dones = np.tile(done, self.n_units)
 
     info = {
@@ -167,7 +169,7 @@ class GRF:
       'left_score': self._left_score,
       'right_score': self._right_score,
       'diff_score': diff_score,
-      'win_score': diff_score > 0,
+      'win_score': win_score,
       'checkpoint_score': self._ckpt_score,
       'epslen': self._epslen,
       'game_over': done

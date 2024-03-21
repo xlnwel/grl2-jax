@@ -24,7 +24,7 @@ def reshape_for_bptt(*args, bptt):
 def compute_values(func, params, rng, data, state, bptt, seq_axis=1):
   if state is None:
     curr_data = AttrDict(global_state=data.global_state)
-    next_data = AttrDict(global_staet=data.next_global_state)
+    next_data = AttrDict(global_state=data.next_global_state)
     value = func(params, rng, curr_data, return_state=False)
     next_value = func(params, rng, next_data, return_state=False)
   else:

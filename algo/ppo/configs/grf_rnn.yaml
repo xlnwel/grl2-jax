@@ -40,7 +40,7 @@ env:
   control_right: False
   shared_policy: True
   score_reward_scale: 1
-  reward_type: sum
+  reward_type: shared
 
   max_episode_steps: 200
   use_action_mask: False

@@ -309,8 +309,8 @@ class MASimVecEnv(VecEnvBase):
   def prev_output(self, idxes=None, convert_batch=True):
     idxes = self._get_idxes(idxes)
     out = [self.envs[i].prev_output() for i in idxes]
-
-    return self.process_output(out, convert_batch=convert_batch)
+    out = self.process_output(out, convert_batch=convert_batch)
+    return out
 
   def output(self, idxes=None, convert_batch=True):
     idxes = self._get_idxes(idxes)
@@ -418,8 +418,8 @@ class MATBVecEnv(VecEnvBase):
   def prev_output(self, idxes=None, convert_batch=True):
     idxes = self._get_idxes(idxes)
     out = [self.envs[i].prev_output() for i in idxes]
-
-    return self.process_output(out, convert_batch=convert_batch)
+    out = self.process_output(out, convert_batch=convert_batch)
+    return out
 
   def output(self, idxes=None, convert_batch=True):
     idxes = self._get_idxes(idxes)

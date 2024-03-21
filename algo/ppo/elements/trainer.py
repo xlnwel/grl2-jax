@@ -80,7 +80,6 @@ class Trainer(TrainerBase):
     self.haiku_tabulate()
 
   def train(self, data: AttrDict):
-    return AttrDict()
     if self.config.n_runners * self.config.n_envs < self.config.n_mbs:
       self.indices = np.arange(self.config.n_mbs)
       data = jax.tree_util.tree_map(
