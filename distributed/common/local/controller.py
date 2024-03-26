@@ -220,18 +220,6 @@ class Controller(YAMLCheckpointBase):
 
   @timeit
   def initialize_actors(self):
-    if self.exploiter and self.current_models is not None:
-      prev_target_models = [
-        ModelPath(m.root_dir, m.model_name.replace(EXPLOITER_SUFFIX, '')) 
-        for m in self.current_models]
-      wait_for_new_targets = [True for _ in prev_target_models]
-      while any(wait_for_new_targets):
-        for i, m in enumerate(prev_target_models):
-          path = os.path.join(self._dir, f'a{i}')
-          target_model = find_latest_model(path)
-          wait_for_new_targets[i] = m == target_model
-        time.sleep(10)
-        do_logging(f'Exploiter is waiting for new training strategies at Iteration {self._iteration}', color='blue')
     model_weights, is_raw_strategy = ray.get(
       self.parameter_server.sample_training_strategies.remote(self._iteration))
     self.current_models = [m.model for m in model_weights]
@@ -351,21 +339,21 @@ class Controller(YAMLCheckpointBase):
         for i, m in enumerate(self.agent_manager.models)])
       if all([score > self.config.score_threshold for score in scores]):
         self._status = Status.SCORE_MET
-        do_logging(f'Scores have met the threshold: {scores}')
+        do_logging(f'Scores have met the threshold: {scores}', color='blue')
         return True
     return False
 
   def _check_target(self):
     if self.exploiter:
-      model = self.current_models[0]
-      main_model = ModelPath(model.root_dir, model.model_name.replace(EXPLOITER_SUFFIX, ''))
-      basic_name, aid = decompose_model_name(main_model.model_name)[:2]
-      path = os.path.join(model.root_dir, basic_name, f'a{aid}')
-      latest_main = find_latest_model(path)
-      if latest_main != main_model:
-        do_logging(f'Latest main model has been changed from {main_model} to {latest_main}', color='blue')
-        self._status = Status.TARGET_SHIFT
-        return True
+      for model in self.current_models:
+        main_model = ModelPath(model.root_dir, model.model_name.replace(EXPLOITER_SUFFIX, ''))
+        basic_name, aid = decompose_model_name(main_model.model_name)[:2]
+        path = os.path.join(model.root_dir, basic_name, f'a{aid}')
+        latest_main = find_latest_model(path)
+        if latest_main != main_model:
+          do_logging(f'Latest main model has been changed from {main_model} to {latest_main}', color='blue')
+          self._status = Status.TARGET_SHIFT
+          return True
     return False
   
   def _check_steps(self, steps, max_steps):
@@ -494,4 +482,4 @@ class Controller(YAMLCheckpointBase):
   """ Checkpoints """
   def save(self):
     yaml_op.dump(self._path, iteration=self._iteration, steps=self._steps)
-    do_logging(f'Saving controller configs at {self._path}')
+    do_logging(f'Saving controller configs at {self._path}', color='blue')

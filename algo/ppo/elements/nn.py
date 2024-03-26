@@ -92,7 +92,7 @@ class Policy(hk.Module):
 
   @hk.transparent
   def build_net(self):
-    net = MLP(**self.config)
+    net = MLP(**self.config, name=self.name)
     out_kwargs = net.out_kwargs
     if isinstance(self.action_dim, dict):
       heads = {k: Layer(v, **out_kwargs, name=f'head_{k}') 
@@ -140,6 +140,7 @@ class Value(hk.Module):
     net = MLP(
       **self.config, 
       out_size=self.out_size, 
+      name=self.name
     )
 
     return net

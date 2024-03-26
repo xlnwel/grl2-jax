@@ -1,3 +1,4 @@
+import numpy as np
 import jax
 import haiku as hk
 from typing import Dict, Union
@@ -51,7 +52,7 @@ class Model(ParamsCheckpointBase):
     self.n_groups = len(self.gids)
     gid2uids = [self.env_stats.gid2uids[i] for i in self.gids]
     min_uid = gid2uids[0][0]
-    self.gid2uids = [uid - min_uid for uid in gid2uids] # starts uids from zero
+    self.gid2uids = [np.array(uid) - min_uid for uid in gid2uids] # starts uids from zero
     self.is_action_discrete = self.env_stats.is_action_discrete[self.aid]
 
   def build_net(self, *args, name, return_init=False, **kwargs):

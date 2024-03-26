@@ -63,6 +63,8 @@ def find_latest_model(path):
   assert a.startswith('a') and a[1:].isdigit(), path
   max_iid = 0
   latest_model = ''
+  if not os.path.isdir(path):
+    return None
   for d in os.listdir(path):
     if d.startswith('i'):
       iid = int(d.split('-')[0][1:])

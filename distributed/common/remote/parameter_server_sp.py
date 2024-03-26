@@ -1,5 +1,6 @@
 import os
 import copy
+import time
 import filelock
 import random
 import cloudpickle
@@ -150,7 +151,8 @@ class SPParameterServer(RayBase):
       pattern = pattern or self._pool_pattern
       models = find_all_models(self._pool_dir, pattern)
       for model in models:
-        if model not in self._params or self._params[model][STATUS] == Status.TRAINING:
+        if model not in self._params or STATUS not in self._params[model] \
+            or self._params[model][STATUS] == Status.TRAINING:
           self.restore_params(model)
         if model not in self.payoff_manager:
           self.add_strategy_to_payoff(model)
@@ -167,7 +169,8 @@ class SPParameterServer(RayBase):
       for v in config.values():
         for model in v:
           model = ModelPath(*model)
-          if model not in self._params or self._params[model][STATUS] == Status.TRAINING:
+          if model not in self._params or STATUS not in self._params[model] \
+              or self._params[model][STATUS] == Status.TRAINING:
             self.restore_params(model)
           if model not in self.payoff_manager:
             self.add_strategy_to_payoff(model)
@@ -637,12 +640,16 @@ class ExploiterSPParameterServer(SPParameterServer):
     target_dir = self._dir.replace(EXPLOITER_SUFFIX, '')
     target_dir = os.path.join(target_dir, 'a0')
     target_model = find_latest_model(target_dir)
+    while target_model is None:
+      time.sleep(10)
+      do_logging(f'Exploiter is waiting for new training strategies at Iteration {self._iteration}', color='green')
+      target_model = find_latest_model(target_dir)
     self.restore_params(target_model)
     if target_model not in self.payoff_manager:
       self.add_strategy_to_payoff(target_model)
 
     model = self._get_exploiter_model(target_model)
-    assert model.model_name.replace(EXPLOITER_SUFFIX, '') == target_model.model_name, (model_name, target_model.model_name)
+    assert model.model_name.replace(EXPLOITER_SUFFIX, '') == target_model.model_name, (model.model_name, target_model.model_name)
     iid, vid = get_iid_vid(model.model_name)
     self.builder.set_iteration_version(iid, vid)
     if model in self._params:
@@ -663,7 +670,8 @@ class ExploiterSPParameterServer(SPParameterServer):
           hardest_model, new_model=model, reset_heads=reset_heads)
       is_raw_strategy = [True]
     strategies = [model_weights]
-    self.add_strategy_to_payoff(model)
+    if model not in self.payoff_manager:
+      self.add_strategy_to_payoff(model)
     self._update_active_model(model)
     self.save_active_models(0, 0)
     self.save_strategy_pool()

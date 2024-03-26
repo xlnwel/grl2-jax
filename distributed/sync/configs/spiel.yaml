@@ -18,9 +18,10 @@ model_name: *algo
 
 controller:
   store_period: 5e4
+  reload_strategy_pool_period: 5e4
   restart_runners_period: null
-  eval_period: 5e4
-  max_version_iterations: 30
+  eval_period: null
+  max_version_iterations: 100
   max_steps_per_iteration: 1e6
     # - [0, 1e6]
     # - [20, 3e6]
@@ -33,7 +34,7 @@ parameter_server:
   score_metric: score   # stats recorded in payoff tables
   train_from_scratch_frac: 1
   train_from_latest_frac: 1
-  reset_policy_head: True
+  reset_policy_head: False
   online_frac: .25
     # - [1, 1]
     # - [5, .75]

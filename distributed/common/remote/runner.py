@@ -143,15 +143,29 @@ class MultiAgentRunner(RayBase):
   """ Running Routines """
   def random_run(self, aids=None):
     """ Random run the environment to collect running stats """
+    def add_env_output(data):
+      agent_env_outs = divide_env_output(self.env_output)
+      for d, eo in zip(data, agent_env_outs):
+        for k in self.rms[0].get_obs_names():
+          d[k].append(eo.obs[k])
+        if 'sample_mask' in eo.obs:
+          d['sample_mask'].append(eo.obs['sample_mask'])
+        d['reward'].append(eo.reward)
+        d['discount'].append(eo.discount)
+      return data
+
+    data = [collections.defaultdict(list) for _ in range(self.n_agents)]
     step = 0
-    agent_env_outs = divide_env_output(self.env_output)
-    self._update_rms(agent_env_outs)
+    data = add_env_output(data)
     while step < self.n_steps:
       action = self.env.random_action()
       self.env_output = self.env.step(action)
-      agent_env_outs = divide_env_output(self.env_output)
-      self._update_rms(agent_env_outs)
+      data = add_env_output(data)
       step += 1
+    for i, d in enumerate(data):
+      for k, v in d.items():
+        d[k] = np.array(v)
+      self._update_rms_from_batch(i, dict2AttrDict(d))
 
     if aids is None:
       aids = range(self.n_agents)
@@ -297,8 +311,7 @@ class MultiAgentRunner(RayBase):
       for aid in range(self.n_agents):
         agent = agents[aid]
         env_out = agent_env_outs[aid]
-        with Timer(f'a{aid}/infer'):
-          a, t = agent(env_out, evaluation=self.evaluation)
+        a, t = agent(env_out, evaluation=self.evaluation)
         action.append(a)
         terms.append(t)
       return action, terms
@@ -399,8 +412,7 @@ class MultiAgentRunner(RayBase):
           action.append([])
           terms.append([])
           continue
-        with Timer(f'a{aid}/infer'):
-          a, t = agent(o, evaluation=self.evaluation)
+        a, t = agent(o, evaluation=self.evaluation)
         action.append(a)
         terms.append(t)
       return action, terms

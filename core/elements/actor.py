@@ -29,7 +29,7 @@ class Actor:
   ):
     self._raw_name = name
     self._name = f'{name}_actor'
-    if config.get('root_dir'):
+    if config.root_dir:
       self._model_path = ModelPath(config.root_dir, config.model_name)
     else:
       self._model_path = None
@@ -129,9 +129,8 @@ class Actor:
         'state_reset': inp.state_reset, 
         'state': inp.state, 
       })
-    if self.config.get('update_obs_at_execution', True) \
-      and not evaluation and self.rms is not None \
-        and self.config.rms.obs.normalize_obs:
+    if self.config.get('update_obs_at_execution', False) \
+      and not evaluation and self.config.rms.obs.normalize_obs:
       if isinstance(inp, (list, tuple)):
         inp = batch_dicts(inp, concat_along_unit_dim)
       stats.update({k: inp[k] 

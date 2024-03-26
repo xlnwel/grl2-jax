@@ -521,19 +521,11 @@ class ElementsBuilderVC(ElementsBuilder):
   def get_sub_version(self, config: AttrDict, iteration: int) -> Tuple[ModelPath, AttrDict]:
     self._iteration = iteration
     def compute_next_version(version: str):
-      if '.' in version:
-        base_version, sub_version = version.rsplit('.', maxsplit=1)
-        sub_version = eval(sub_version)
-        version = '.'.join([base_version, str(sub_version+1)])
-      else:
-        base_version = version
-        sub_version = 1
-        version = '.'.join([base_version, str(sub_version)])
+      base_version = version
+      sub_version = 1
+      version = '.'.join([base_version, str(sub_version)])
 
       if version in self._all_versions:
-        base_version = '.'.join([base_version, str(sub_version)])
-        sub_version = 1
-        version = '.'.join([base_version, str(sub_version)])
         while version in self._all_versions:
           sub_version += 1
           version = '.'.join([base_version, str(sub_version)])

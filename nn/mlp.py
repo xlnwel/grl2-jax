@@ -116,7 +116,7 @@ class MLP(hk.Module):
       x, state = hk.dynamic_unroll(core, x, state)
       x = _recover_shape(x, shape)
       state = _rnn_reshape(state, (shape[1], shape[2], -1))
-      x = call_norm(x, self.rnn_norm, self.norm_kwargs, is_training=is_training)
+      x = call_norm(x, self.rnn_norm, self.norm_kwargs, is_training=is_training, name='rnn_norm')
 
       for l in out_layers:
         x = l(x, is_training)
