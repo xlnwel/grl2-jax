@@ -12,6 +12,8 @@ from th.nn.utils import get_initializer, get_activation, calculate_scale
 
 
 def _prepare_for_rnn(x):
+  if x is None:
+    return x, None
   x = x.transpose(0, 1)
   shape = x.shape
   x = x.reshape(x.shape[0], -1, *x.shape[3:])
@@ -112,7 +114,7 @@ class MLP(nn.Module):
         else:
           state = torch.zeros(self.rnn_layers, shape[1], shape[2], self.rnn_units)
       state = _rnn_reshape(state, (self.rnn_layers, shape[1] * shape[2], -1))
-      x, state = self.rnn(x, state, 1-reset.float())
+      x, state = self.rnn(x, state, reset)
       x = _recover_shape(x, shape)
       state = _rnn_reshape(state, (self.rnn_layers, shape[1], shape[2], -1))
       if self.out_layer is not None:

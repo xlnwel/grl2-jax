@@ -198,12 +198,12 @@ if __name__ == '__main__':
     with open(anc_ckpt, 'rb') as f:
       anc = cloudpickle.load(f)
     idx = np.random.randint(len(anc.obs))
-    print('ancillary data', anc)
+    # print('ancillary data', anc)
     obs_anc = anc.obs[idx]
   if obs_anc:
     obs_anc = obs_anc['obs']
-    mean = anc.mean[0]
-    std = np.sqrt(anc.var)[0]
+    mean = obs_anc.mean[0]
+    std = np.sqrt(obs_anc.var)[0]
     obs_dim = mean.shape[-1]
   else:
     obs_dim = config.env_stats.obs_shape[0].obs[0]
@@ -214,10 +214,12 @@ if __name__ == '__main__':
   algo_name = config.algorithm
   env_name = config.env['env_name']
   # construct a fake obs
-  obs = np.arange(obs_dim).reshape(1, 1, 1, obs_dim).astype(np.float32) / obs_dim
-  reset = np.ones((1, 1, 1))
+  b, s, u = 1, 10, 1
+  total = b*s*u*obs_dim
+  obs = np.arange(total).reshape(b, s, u, obs_dim).astype(np.float32) / total
+  reset = np.random.randint(0, 1, size=(b, s, u))
   action_dim = env_stats.action_dim[config.aid]
-  action_mask = {k: np.random.randint(0, 2, (1, 1, 1, v)) for k, v in action_dim.items()}
+  action_mask = {k: np.random.randint(0, 2, (b, s, u, v)) for k, v in action_dim.items()}
 
   # build the policy model
   algo = algo_name.split('-')[-1]
@@ -241,13 +243,18 @@ if __name__ == '__main__':
     if isinstance(params, list):
       params = params[idx]
     jax_out, state = policy(params, obs, reset, None, action_mask=action_mask)
+    jax_out, jax_final_state = policy(params, obs, reset, state, action_mask=action_mask)
+    # state = jax.tree_map(lambda x: np.zeros_like(x), jax_final_state)
   else:
     init_params = init(rng, obs, no_state_return=True)
     policy = lambda p, x: apply(p, x, no_state_return=True)
     if isinstance(params, list):
       params = params[idx]
     jax_out = policy(params, obs)
-  print('jax out', jax_out)
+    state = None
+  # print('state', state)
+  # print(jax_final_state)
+  # print('jax out', jax_out)
 
   # # convert model to tf.function
   # tf_params = tf.nest.map_structure(tf.Variable, params)
@@ -296,35 +303,66 @@ if __name__ == '__main__':
 
   # convert onnx to torch
   # torch_model = onnx2torch.convert(onnx_model_path)
-  x = torch.from_numpy(obs)
+  to_np = lambda x: np.array(x)
+  swapaxes = lambda x: np.swapaxes(x, 0, 1)
+  to_tensor = lambda x: torch.tensor(x)
+  jax2np = lambda x: swapaxes(to_np(x)) if len(x.shape) == 2 else to_np(x)
+  state = jax.tree_map(to_np, state)
+  x, reset, state = jax.tree_map(to_tensor, [obs, reset, state])
+
   th_policy = TorchPolicy(
     x.shape[-1], 
     env_stats.is_action_discrete[config.aid], 
     env_stats.action_dim[config.aid], 
     **model_config
   )
-  print(th_policy)
-  to_np = lambda x: np.array(x)
-  swapaxes = lambda x: np.swapaxes(x, 0, 1)
-  jax2np = lambda x: swapaxes(to_np(x)) if len(x.shape) == 2 else to_np(x)
+  # print(th_policy)
   th_params = jax.tree_map(jax2np, params)
+  th_params = jax.tree_map(to_tensor, th_params)
   with torch.no_grad():
     if th_policy.use_feature_norm:
-      th_policy.pre_ln.weight.copy_(torch.tensor(th_params['policy/layer_norm']['scale']))
-      th_policy.pre_ln.bias.copy_(torch.tensor(th_params['policy/layer_norm']['offset']))
+      th_policy.pre_ln.weight.copy_(th_params['policy/layer_norm']['scale'])
+      th_policy.pre_ln.bias.copy_(th_params['policy/layer_norm']['offset'])
     for i, layers in enumerate(th_policy.mlp.layers):
       suffix = '' if i == 0 else f'_{i}'
-      layers[0].weight.copy_(torch.tensor(th_params[f'policy/mlp/linear'+suffix]['w']))
-      layers[0].bias.copy_(torch.tensor(th_params[f'policy/mlp/linear'+suffix]['b']))
-      layers[2].weight.copy_(torch.tensor(th_params[f'policy/mlp/layer_norm'+suffix]['scale']))
-      layers[2].bias.copy_(torch.tensor(th_params[f'policy/mlp/layer_norm'+suffix]['offset']))
-    th_policy.head_disc.linear.weight.copy_(torch.tensor(th_params['policy/head_action']['w']))
-    th_policy.head_disc.linear.bias.copy_(torch.tensor(th_params['policy/head_action']['b']))
+      layers[0].weight.copy_(th_params[f'policy/policy/linear'+suffix]['w'])
+      layers[0].bias.copy_(th_params[f'policy/policy/linear'+suffix]['b'])
+      layers[2].weight.copy_(th_params[f'policy/policy/layer_norm'+suffix]['scale'])
+      layers[2].bias.copy_(th_params[f'policy/policy/layer_norm'+suffix]['offset'])
+    if th_policy.mlp.rnn is not None:
+      # size = th_params[f'policy/policy/lstm/linear']['w'].size(1)
+      # size = (size // 2, ) * 2
+      # wih, whh = torch.split(th_params[f'policy/policy/lstm/linear']['w'], size, 1)
+      # size = wih.size(0)
+      # size = (size // 4, ) * 4
+      # wihs = torch.split(wih, size, 0)
+      # wihs = [wihs[0], wihs[2], wihs[1], wihs[3]]
+      # whhs = torch.split(whh, size, 0)
+      # whhs = [whhs[0], whhs[2], whhs[1], whhs[3]]
+      # wih = torch.concat(wihs)
+      # whh = torch.concat(whhs)
+      # bih = th_params[f'policy/policy/lstm/linear']['b']
+      # bihs = torch.split(bih, size, 0)
+      # bihs = [bihs[0], bihs[2], bihs[1], bihs[3]]
+      # bih = torch.concat(bihs)
+      # bhh = torch.zeros_like(bih)
+      th_policy.mlp.rnn.rnn.linear.weight.copy_(th_params[f'policy/policy/lstm/linear']['w'])
+      th_policy.mlp.rnn.rnn.linear.bias.copy_(th_params[f'policy/policy/lstm/linear']['b'])
+      if th_policy.mlp.rnn.norm:
+        th_policy.mlp.rnn.norm.weight.copy_(th_params[f'policy/policy/rnn_norm']['scale'])
+        th_policy.mlp.rnn.norm.bias.copy_(th_params[f'policy/policy/rnn_norm']['offset'])
+    th_policy.head_disc.linear.weight.copy_(th_params['policy/head_action']['w'])
+    th_policy.head_disc.linear.bias.copy_(th_params['policy/head_action']['b'])
   # traced_model = torch.jit.trace(torch_model, x)
   torch_model_path = f'{model_path}/torch_model.pt'
-  scripted_model = torch.jit.trace(th_policy, x)
+  if th_policy.mlp.rnn is None:
+    scripted_model = torch.jit.trace(th_policy, x)
+    torch_out = th_policy(x).detach().numpy()
+  else:
+    scripted_model = torch.jit.trace(th_policy, (x, reset, state))
+    torch_out, torch_state = jax.tree_map(lambda x: x.detach().numpy(), th_policy(x, reset, state))
+
   scripted_model.save(torch_model_path)
-  torch_out = th_policy(x).detach().numpy()
   # torch.save(torch_model, torch_model_path)
   print('torch out', torch_out)
 
