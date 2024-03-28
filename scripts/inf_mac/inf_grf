@@ -4,8 +4,8 @@ export PYTHONPATH=.
 
 suite=grf
 algos=(
-  # sync-ppo
-  ppo
+  sync-ppo
+  # ppo
 )
 envs=(
   academy_counterattack_hard
@@ -22,14 +22,14 @@ configs=(
 )
 # shift
 args1=(
-  1
-  1
-  1
-  1
-  2
-  2
-  2
-  2
+  lstm
+  lstm
+  lstm
+  lstm
+  gru
+  gru
+  gru
+  gru
 )
 args2=(
   shared
@@ -103,16 +103,16 @@ kws=$@
 #     echo $py_script
 #   done
 # fi
-kws="n_epochs=15 n_mbs=2 normalize_reward=True"
-for a in "${algos[@]}"; do
+kws="n_epochs=10 rnn_type=$a1"
+# for a in "${algos[@]}"; do
 # for e in "${envs[@]}"; do
-  env="${suite}-${e}"
-  for s in {0..4}; do
-    py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
-    commands+=("$py_script")
-    echo $py_script
-  done
+env="${suite}-${e}"
+for s in {0..4}; do
+  py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $s"
+  commands+=("$py_script")
+  echo $py_script
 done
+# done
 # done
 printf '%s\n' "${commands[@]}" | xargs -I COMMAND -P 5 -L 1 bash -c COMMAND 
 echo "Script completed"

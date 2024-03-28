@@ -281,18 +281,24 @@ class ActionRecorder(gym.Wrapper):
     self._init_prev_action()
   
   def _init_prev_action(self):
+    action_shape = self.env.action_shape
     self._prev_action = [
-      {k: np.zeros(v) for k, v in ad.items()} for ad in self.env.action_dim
+      {k: np.zeros((len(uids), *v)) for k, v in action_shape[aid].items()} 
+      for aid, uids in enumerate(self.env.aid2uids)
     ]
   
   def reset(self):
     self._init_prev_action()
-    return self.env.reset()
+    obs = self.env.reset()
+    for o, pa in zip(obs, self._prev_action):
+      for k, v in pa.items():
+        o[f'prev_{k}'] = v
+    return obs
   
   def step(self, action):
     obs, reward, done, info = self.env.step(action)
     assert len(obs) == len(self._prev_action), (len(obs), len(self._prev_action))
-    for o, pa in zip(obs, self._prev_action):
+    for o, pa in zip(obs, action):
       for k, v in pa.items():
         o[f'prev_{k}'] = v
     self._prev_action = action
@@ -1206,6 +1212,7 @@ class MASimEnvStats(EnvStatsBase):
     env, 
     max_episode_steps=None, 
     timeout_done=False, 
+    life_long=False, 
     auto_reset=True, 
     seed=None, 
   ):
@@ -1213,6 +1220,7 @@ class MASimEnvStats(EnvStatsBase):
       env, 
       max_episode_steps=max_episode_steps, 
       timeout_done=timeout_done, 
+      life_long=life_long, 
       auto_reset=auto_reset, 
       seed=seed, 
     )

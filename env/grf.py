@@ -79,7 +79,8 @@ class GRF:
     self.use_sample_mask = use_sample_mask              # if life mask is used
     self.use_idx = use_idx
 
-    self.action_space = Discrete(19)
+    self.action_space = {DEFAULT_ACTION: Discrete(19)}
+    self.action_dim = {DEFAULT_ACTION: 19}
 
     self.observation_space = self.env.observation_space
     self.reward_range = self.env.reward_range

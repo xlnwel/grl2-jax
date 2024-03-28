@@ -4,7 +4,7 @@ config:
   # new: 0601-mujoco
   new: rnn_exp
 rename:
-  metrics/score: score
+  metrics/win_score: score
   metrics/dense_score: dense_score
   metrics/epslen: epslen
   train/group0_first_epoch/entropy: entropy
@@ -26,5 +26,10 @@ data:
   # - date: "0314"
   # - date: "0315"
   # - date: "0316"
-  - date: "0317"
-  - date: "0320"
+  # - date: "0317"
+  # - date: "0321"
+  - date: "0322"
+  - date: "0323"
+  - date: "0324"
+  - date: "0325"
+  - date: "0326"

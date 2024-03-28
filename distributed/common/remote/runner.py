@@ -361,7 +361,6 @@ class MultiAgentRunner(RayBase):
         sent = False
         prev_env_output = self.env.prev_output()
         prev_agent_env_output = divide_env_output(prev_env_output)
-        # NOTE: currently we send all data at once
         for aid in range(self.n_agents):
           agent = self.agents[aid]
           out = env_outs[aid]

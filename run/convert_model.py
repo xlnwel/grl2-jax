@@ -6,18 +6,13 @@ import os, sys
 import cloudpickle
 os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
 
-import random
+# import random
 import numpy as np
 import jax
-from jax.experimental import jax2tf
 import haiku as hk
-import tensorflow as tf
-import tf2onnx
-import onnx
 import torch
 from torch import nn
-import onnx2torch
-import onnxruntime
+from torch.utils._pytree import tree_map
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -26,10 +21,147 @@ from core.utils import configure_gpu
 from tools.display import print_dict_info
 from tools import pkg
 from th.nn.mlp import MLP
-from th.nn.utils import get_activation, init_linear
+from th.nn.utils import get_activation, init_linear, get_initializer, calculate_scale
 from run.utils import search_for_config
 
 
+class LSTM(nn.Module):
+  def __init__(self, input_dim, hidden_size):
+    super(LSTM, self).__init__()
+    self.hidden_size = hidden_size
+    self.linear = nn.Linear(input_dim + hidden_size, 4 * hidden_size)
+  
+  def forward(self, x, state, reset):
+    state = tree_map(lambda s: s * (1 - reset)[..., None], state)
+    xh = torch.concat((x, state[0]), dim=-1)
+    gated = self.linear(xh)
+    i, g, f, o = torch.split(gated, (self.hidden_size, ) * 4, -1)
+    f = torch.sigmoid(f + 1)
+    c = f * state[1] + torch.sigmoid(i) * torch.tanh(g)
+    h = torch.sigmoid(o) * torch.tanh(c)
+    return h, (h, c)
+
+
+class RNNLayer(nn.Module):
+  def __init__(self, inputs_dim, outputs_dim, rnn_type, rnn_layers=1, rnn_norm=False):
+    super(RNNLayer, self).__init__()
+    self.rnn_type = rnn_type
+    self._rnn_layers = rnn_layers
+
+    if rnn_type == 'lstm':
+      self.rnn = LSTM(inputs_dim, outputs_dim)
+    elif rnn_type == 'gru':
+      self.rnn = nn.GRU(inputs_dim, outputs_dim, num_layers=self._rnn_layers)
+    else:
+      raise NotImplementedError(rnn_type)
+    for name, param in self.rnn.named_parameters():
+      if 'bias' in name:
+        nn.init.constant_(param, 0)
+      elif 'weight' in name:
+        nn.init.orthogonal_(param)
+    if rnn_norm:
+      self.norm = nn.LayerNorm(outputs_dim)
+    else:
+      self.norm = None
+
+  def forward(self, x, state, reset):
+    outputs = []
+    if len(x.shape) > len(state[0].shape):
+      for i in range(x.size(0)):
+        h, state = self.rnn(x[i], state, reset[i])
+        outputs.append(h)
+      x = torch.cat(outputs, dim=0)
+    else:
+      x, state = self.rnn(x, state, reset)
+    if self.norm:
+      x = self.norm(x)
+    return x, state
+
+
+class MLP(nn.Module):
+  def __init__(
+    self, 
+    input_dim, 
+    units_list=[], 
+    out_size=None, 
+    activation=None, 
+    w_init='glorot_uniform', 
+    b_init='zeros', 
+    name=None, 
+    out_scale=1, 
+    norm=None, 
+    norm_after_activation=False, 
+    norm_kwargs={
+      'elementwise_affine': True, 
+      'bias': True, 
+    }, 
+    out_w_init='orthogonal', 
+    out_b_init='zeros', 
+    rnn_type=None, 
+    rnn_layers=1, 
+    rnn_units=None, 
+    rnn_init='orthogonal',
+    rnn_norm=False, 
+  ):
+    super().__init__()
+
+    w_init = get_initializer(w_init)
+    gain = calculate_scale(activation)
+    b_init = get_initializer(b_init)
+    units_list = [input_dim] + units_list
+    self.layers = nn.Sequential()
+    for i, u in enumerate(units_list[1:]):
+      layers = nn.Sequential()
+      l = nn.Linear(units_list[i], u)
+      w_init(l.weight.data, gain=gain)
+      b_init(l.bias.data)
+      layers.append(l)
+      if norm == 'layer' and not norm_after_activation:
+        layers.append(nn.LayerNorm(u, **norm_kwargs))
+      layers.append(get_activation(activation))
+      if norm == 'layer' and norm_after_activation:
+        layers.append(nn.LayerNorm(u, **norm_kwargs))
+      self.layers.append(layers)
+
+    self.rnn_type = rnn_type
+    self.rnn_layers = rnn_layers
+    self.rnn_units = rnn_units
+    if rnn_type is None:
+      self.rnn = None
+      input_dim = u
+    else:
+      self.rnn = RNNLayer(u, rnn_units, rnn_type, rnn_layers=rnn_layers, rnn_norm=rnn_norm)
+      input_dim = rnn_units
+    
+    if out_size is not None:
+      self.out_layer = nn.Linear(input_dim, out_size)
+      w_init = get_initializer(out_w_init)
+      b_init = get_initializer(out_b_init)
+      w_init(self.out_layer.weight.data, gain=out_scale)
+      b_init(self.out_layer.bias.data)
+    else:
+      self.out_layer = None
+
+  def forward(self, x, state=None, reset=None):
+    if self.rnn is None:
+      x = self.layers(x)
+      if self.out_layer is not None:
+        x = self.out_layer(x)
+      return x
+    else:
+      x = self.layers(x)
+      shape = x.shape # (S, B, U, D)
+      if state is None:
+        if self.rnn_type == 'lstm':
+          state = (
+            torch.zeros(shape[1], shape[2], self.rnn_units), 
+            torch.zeros(shape[1], shape[2], self.rnn_units))
+        else:
+          state = torch.zeros(shape[1], shape[2], self.rnn_units)
+      x, state = self.rnn(x, state, reset)
+      if self.out_layer is not None:
+        x = self.out_layer(x)
+      return x, state
 
 
 class Categorical(nn.Module):
@@ -133,10 +265,10 @@ class TorchPolicy(nn.Module):
           sigmoid_scale=sigmoid_scale, std_x_coef=std_x_coef, 
           std_y_coef=std_y_coef, init_std=init_std)
 
-  def forward(self, x, reset=None, state=None):
+  def forward(self, x, state=None, reset=None):
     if self.use_feature_norm:
       x = self.pre_ln(x)
-    x = self.mlp(x, reset, state)
+    x = self.mlp(x, state, reset)
     if isinstance(x, tuple):
       assert len(x) == 2, x
       x, state = x
@@ -217,7 +349,10 @@ if __name__ == '__main__':
   b, s, u = 1, 10, 1
   total = b*s*u*obs_dim
   obs = np.arange(total).reshape(b, s, u, obs_dim).astype(np.float32) / total
-  reset = np.random.randint(0, 1, size=(b, s, u))
+  reset = np.zeros(s, dtype=np.float32)
+  reset[5] = 1
+  reset = reset.reshape((b, s, u))
+  # reset = np.random.randint(0, 1, size=(b, s, u))
   action_dim = env_stats.action_dim[config.aid]
   action_mask = {k: np.random.randint(0, 2, (b, s, u, v)) for k, v in action_dim.items()}
 
@@ -252,6 +387,7 @@ if __name__ == '__main__':
       params = params[idx]
     jax_out = policy(params, obs)
     state = None
+  jax_out = np.squeeze(jax_out['action'])
   # print('state', state)
   # print(jax_final_state)
   # print('jax out', jax_out)
@@ -308,7 +444,7 @@ if __name__ == '__main__':
   to_tensor = lambda x: torch.tensor(x)
   jax2np = lambda x: swapaxes(to_np(x)) if len(x.shape) == 2 else to_np(x)
   state = jax.tree_map(to_np, state)
-  x, reset, state = jax.tree_map(to_tensor, [obs, reset, state])
+  x, reset, state = jax.tree_map(lambda x: to_tensor(swapaxes(x)), [obs, reset, state])
 
   th_policy = TorchPolicy(
     x.shape[-1], 
@@ -330,22 +466,6 @@ if __name__ == '__main__':
       layers[2].weight.copy_(th_params[f'policy/policy/layer_norm'+suffix]['scale'])
       layers[2].bias.copy_(th_params[f'policy/policy/layer_norm'+suffix]['offset'])
     if th_policy.mlp.rnn is not None:
-      # size = th_params[f'policy/policy/lstm/linear']['w'].size(1)
-      # size = (size // 2, ) * 2
-      # wih, whh = torch.split(th_params[f'policy/policy/lstm/linear']['w'], size, 1)
-      # size = wih.size(0)
-      # size = (size // 4, ) * 4
-      # wihs = torch.split(wih, size, 0)
-      # wihs = [wihs[0], wihs[2], wihs[1], wihs[3]]
-      # whhs = torch.split(whh, size, 0)
-      # whhs = [whhs[0], whhs[2], whhs[1], whhs[3]]
-      # wih = torch.concat(wihs)
-      # whh = torch.concat(whhs)
-      # bih = th_params[f'policy/policy/lstm/linear']['b']
-      # bihs = torch.split(bih, size, 0)
-      # bihs = [bihs[0], bihs[2], bihs[1], bihs[3]]
-      # bih = torch.concat(bihs)
-      # bhh = torch.zeros_like(bih)
       th_policy.mlp.rnn.rnn.linear.weight.copy_(th_params[f'policy/policy/lstm/linear']['w'])
       th_policy.mlp.rnn.rnn.linear.bias.copy_(th_params[f'policy/policy/lstm/linear']['b'])
       if th_policy.mlp.rnn.norm:
@@ -355,15 +475,30 @@ if __name__ == '__main__':
     th_policy.head_disc.linear.bias.copy_(th_params['policy/head_action']['b'])
   # traced_model = torch.jit.trace(torch_model, x)
   torch_model_path = f'{model_path}/torch_model.pt'
+
   if th_policy.mlp.rnn is None:
-    scripted_model = torch.jit.trace(th_policy, x)
-    torch_out = th_policy(x).detach().numpy()
+    scripted_model = torch.jit.trace(th_policy, x[0])
   else:
-    scripted_model = torch.jit.trace(th_policy, (x, reset, state))
-    torch_out, torch_state = jax.tree_map(lambda x: x.detach().numpy(), th_policy(x, reset, state))
+    scripted_model = torch.jit.trace(th_policy, (x[0], state, reset[0]))
+  outs = []
+  for xx, r in zip(x, reset):
+    if th_policy.mlp.rnn is None:
+      out = scripted_model(xx)
+    else:
+      out, state = scripted_model(xx, state, r)
+    outs.append(np.squeeze(out.detach().numpy()))
+  torch_out = np.stack(outs)
+  # if th_policy.mlp.rnn is None:
+  #   scripted_model = torch.jit.trace(th_policy, x)
+  #   torch_out = np.squeeze(scripted_model(x).detach().numpy())
+  # else:
+  #   scripted_model = torch.jit.trace(th_policy, (x, state, reset))
+  #   torch_out, torch_state = jax.tree_map(
+  #     lambda x: np.squeeze(x.detach().numpy()), scripted_model(x, state, reset))
 
   scripted_model.save(torch_model_path)
   # torch.save(torch_model, torch_model_path)
+  print('jax out', jax_out.shape)
   print('torch out', torch_out)
 
-  np.testing.assert_allclose(jax_out['action'], torch_out, rtol=1e-3, atol=1e-3)
+  np.testing.assert_allclose(jax_out, torch_out, rtol=1e-3, atol=1e-3)

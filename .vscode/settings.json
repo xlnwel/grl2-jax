@@ -13,5 +13,12 @@
     },
     "files.autoSave": "onFocusChange",
     "editor.inlineSuggest.showToolbar": "onHover",
-    "cmake.sourceDirectory": "/Users/aptx4869/github/grl/cpp"
+    "cmake.sourceDirectory": "/Users/aptx4869/github/grl/cpp",
+    "files.associations": {
+      "vector": "cpp",
+      "variant": "cpp",
+      "chrono": "cpp",
+      "ostream": "cpp",
+      "locale": "cpp"
+    }
 }

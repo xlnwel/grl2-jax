@@ -52,6 +52,8 @@ env:
   use_idx: False
   timeout_done: &td True
 
+  record_prev_action: True
+
 agent: {}
 
 monitor:
@@ -129,11 +131,11 @@ trainer:
   n_runners: *nrunners
   n_envs: *nenvs
   n_epochs: &nepochs 15
-  n_mbs: &nmbs 2
+  n_mbs: &nmbs 1
   n_steps: *nsteps
   update_scheme: whole
   popart: *popart
-  debug: True
+  debug: False
 
   policy_opt:
     opt_name: adam

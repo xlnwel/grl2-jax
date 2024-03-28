@@ -262,6 +262,8 @@ def make_random(config):
   from env.dummy import RandomEnv
   env = RandomEnv(**config)
   env = wrappers.MultiAgentUnitsDivision(env, config)
+  if config.record_prev_action:
+    env = wrappers.ActionRecorder(env)
   env = wrappers.DataProcess(env)
   env = wrappers.MASimEnvStats(env, seed=config.seed)
   
@@ -272,9 +274,9 @@ def make_grf(config):
   from env.grf import GRF
   config = _change_env_name(config)
   env = GRF(**config)
+  env = wrappers.MultiAgentUnitsDivision(env, config)
   if config.record_prev_action:
     env = wrappers.ActionRecorder(env)
-  env = wrappers.MultiAgentUnitsDivision(env, config)
   env = wrappers.DataProcess(env)
   env = wrappers.MASimEnvStats(env, seed=config.seed)
 

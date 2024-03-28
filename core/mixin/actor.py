@@ -120,7 +120,7 @@ class RewardRunningMeanStd:
         https://github.com/openai/phasic-policy-gradient/blob/master/phasic_policy_gradient/reward_normalizer.py
         Yeah, you may not find the pseudocode. That's why I quote:-)
         """
-        assert discount is not None, f"Normalizing rewards with backward return requires environment's reset signals"
+        assert discount is not None, f"Normalizing rewards with backward return requires environment's discount signals"
         assert reward.ndim == discount.ndim, (reward.shape, discount.shape)
         self._return, ret = backward_discounted_sum(
           self._return, reward, discount, self._gamma)
