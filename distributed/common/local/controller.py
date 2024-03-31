@@ -125,7 +125,7 @@ class Controller(YAMLCheckpointBase):
       'ray_config', 
       'monitor', 
       'runner', 
-      'env', 
+      # 'env', 
     ])
 
     do_logging('Retrieving Environment Stats...', color='blue')
@@ -221,7 +221,7 @@ class Controller(YAMLCheckpointBase):
   @timeit
   def initialize_actors(self):
     model_weights, is_raw_strategy = ray.get(
-      self.parameter_server.sample_training_strategies.remote(self._iteration))
+      self.parameter_server.sample_training_strategies.remote())
     self.current_models = [m.model for m in model_weights]
     do_logging(f'Training Strategies at Iteration {self._iteration}: {self.current_models}', color='blue')
 

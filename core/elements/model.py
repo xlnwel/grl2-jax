@@ -71,7 +71,7 @@ class Model(ParamsCheckpointBase):
     raise NotImplementedError
 
   def print_params(self):
-    if self.config.get('print_for_debug', True):
+    if self.config.get('print_params', True):
       for k, v in self.params.items():
         do_logging(f'Module: {k}', color='blue')
         print_dict_info(v, prefix='\t', color='blue')

@@ -85,6 +85,8 @@ env:
   use_idx: False
   timeout_done: &td True
 
+  record_prev_action: True
+
 agent: {}
 
 strategy:
@@ -94,6 +96,7 @@ strategy:
 model:
   aid: 0
   gamma: &gamma .99
+  use_prev_info: True
 
   policy:
     nn_id: policy
@@ -107,7 +110,7 @@ model:
     rnn_units: 64
     rnn_init: null
     rnn_norm: layer
-    use_feature_norm: True
+    use_feature_norm: False
   value:
     nn_id: value
     units_list: [64, 64]
@@ -119,7 +122,7 @@ model:
     rnn_units: 64
     rnn_init: null
     rnn_norm: layer
-    use_feature_norm: True
+    use_feature_norm: False
 
 loss:
   # hyperparams for value target and advantage
@@ -163,7 +166,7 @@ trainer:
   n_steps: *nsteps
   update_scheme: whole
   popart: *popart
-  debug: True
+  debug: False
 
   policy_opt:
     opt_name: adam

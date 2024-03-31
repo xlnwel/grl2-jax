@@ -16,13 +16,13 @@ from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
 from core.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, ModelWeights, \
-  construct_model_name, exclude_subdict, get_aid, get_date, \
-    get_basic_model_name, decompose_model_name, get_iid_vid
+  construct_model_name, exclude_subdict, get_aid, get_iid_vid, get_date, \
+    get_basic_model_name, decompose_model_name
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
 from tools.schedule import PiecewiseSchedule
 from tools.timer import timeit
-from tools.utils import config_attr, dict2AttrDict
+from tools.utils import dict2AttrDict, modify_config
 from tools import yaml_op
 from distributed.common.names import *
 from distributed.common.typing import *
@@ -74,7 +74,7 @@ class SPParameterServer(RayBase):
     model_name = get_basic_model_name(config.model_name)
     self._dir = os.path.join(config.root_dir, model_name)
     os.makedirs(self._dir, exist_ok=True)
-    self._path = os.path.join(self._dir, f'{self.name}.yaml')
+    self._path = os.path.join(self._dir, f'{self.name}.pkl')
 
     self._pool_pattern = self.config.get('pool_pattern', '.*')
     self._pool_name = self.config.get('pool_name', 'strategy_pool')
@@ -151,11 +151,8 @@ class SPParameterServer(RayBase):
       pattern = pattern or self._pool_pattern
       models = find_all_models(self._pool_dir, pattern)
       for model in models:
-        if model not in self._params or STATUS not in self._params[model] \
-            or self._params[model][STATUS] == Status.TRAINING:
-          self.restore_params(model)
-        if model not in self.payoff_manager:
-          self.add_strategy_to_payoff(model)
+        self.restore_params(model)
+        self.add_strategy_to_payoff(model)
       do_logging(f'Loading strategy pool in path {self._pool_dir}', color='green')
     else:
       lock = filelock.FileLock(self._pool_path + '.lock')
@@ -169,11 +166,8 @@ class SPParameterServer(RayBase):
       for v in config.values():
         for model in v:
           model = ModelPath(*model)
-          if model not in self._params or STATUS not in self._params[model] \
-              or self._params[model][STATUS] == Status.TRAINING:
-            self.restore_params(model)
-          if model not in self.payoff_manager:
-            self.add_strategy_to_payoff(model)
+          self.restore_params(model)
+          self.add_strategy_to_payoff(model)
       do_logging(f'Loading strategy pool from {self._pool_path}', color='green')
     self.save()
     self.check()
@@ -245,7 +239,8 @@ class SPParameterServer(RayBase):
         self.payoff_manager.add_strategy(model)
 
   def add_strategy_to_payoff(self, model: ModelPath):
-    self.payoff_manager.add_strategy(model)
+    if model not in self.payoff_manager:
+      self.payoff_manager.add_strategy(model)
 
   def _update_active_model(self, model: ModelPath):
     self._models[ModelType.ACTIVE] = model
@@ -359,11 +354,20 @@ class SPParameterServer(RayBase):
       new_model: ModelPath=None, reset_heads=False):
     if new_model is None:
       new_model = model
+    if config is None:
+      config = search_for_config(model)
+      config = modify_config(
+        config, 
+        root_dir=new_model.root_dir, 
+        model_name=new_model.model_name
+      )
     do_logging(f'Retrieving strategy {model} for {new_model}', color='green')
     self.restore_params(model)
     weights = self._params[model].copy()
     weights.pop(ANCILLARY, None)
     if reset_heads:
+      if config is None:
+        config = search_for_config(model)
       weights = reset_policy_head(weights, config)
       self._params[new_model] = weights
     model_weights = ModelWeights(new_model, weights)
@@ -424,9 +428,7 @@ class SPParameterServer(RayBase):
     
     return model_weights
 
-  def sample_training_strategies(self, iteration=None):
-    if iteration is not None:
-      assert iteration == self._iteration, (iteration, self._iteration)
+  def sample_training_strategies(self):
     strategies = []
     is_raw_strategy = [False for _ in range(self.n_active_agents)]
     if self._models[ModelType.ACTIVE] is not None:
@@ -564,8 +566,11 @@ class SPParameterServer(RayBase):
     if rest_params:
       pickle.save_params(rest_params, model, name, to_print=to_print)
 
-  def restore_params(self, model: ModelPath, name='params'):
-    self._params[model] = pickle.restore_params(model, name, backtrack=6)
+  def restore_params(self, model: ModelPath, name='params', force=False):
+    if force or model not in self._params \
+        or STATUS not in self._params[model] \
+        or self._params[model][STATUS] == Status.TRAINING:
+      self._params[model] = pickle.restore_params(model, name, backtrack=6)
 
   def save(self):
     self.payoff_manager.save()
@@ -629,28 +634,34 @@ class ExploiterSPParameterServer(SPParameterServer):
     name='parameter_server'
   ):
     super().__init__(config, to_restore_params, name=name)
+    self._prev_target_model = None
     self._models[ModelType.Target] = None
-    self.online_frac = self.config.get('exploiter_online_frac', 0.2)
+    self.online_frac = self.config.get('exploiter_online_frac', 0.1)
     self.online_scheduler = PiecewiseSchedule(self.online_frac, interpolation='stage')
-    self.target_frac = self.config.get('target_frac', 0.7)
+    self.target_frac = self.config.get('target_frac', 0.5)
 
-  def sample_training_strategies(self, iteration=None):
-    if iteration is not None:
-      assert iteration == self._iteration, (iteration, self._iteration)
+  def sample_training_strategies(self):
     target_dir = self._dir.replace(EXPLOITER_SUFFIX, '')
     target_dir = os.path.join(target_dir, 'a0')
-    target_model = find_latest_model(target_dir)
-    while target_model is None:
-      time.sleep(10)
-      do_logging(f'Exploiter is waiting for new training strategies at Iteration {self._iteration}', color='green')
+    while True:
       target_model = find_latest_model(target_dir)
+      if target_model is not None and target_model != self._prev_target_model:
+        break
+      if target_model is None:
+        do_logging(f'Exploiter fails to build because no target model presents', color='green')
+      if target_model == self._prev_target_model:
+        do_logging(f'Exploiter fails to build because no new target model is built. The previous model is {target_model}', color='green')
+      time.sleep(10)
     self.restore_params(target_model)
-    if target_model not in self.payoff_manager:
-      self.add_strategy_to_payoff(target_model)
+    self.add_strategy_to_payoff(target_model)
 
     model = self._get_exploiter_model(target_model)
     assert model.model_name.replace(EXPLOITER_SUFFIX, '') == target_model.model_name, (model.model_name, target_model.model_name)
     iid, vid = get_iid_vid(model.model_name)
+    if self._iteration < iid:
+      # Synchronize iteration
+      self._iteration = iid
+    assert iid == self._iteration, (self._iteration, model.model_name)
     self.builder.set_iteration_version(iid, vid)
     if model in self._params:
       model_weights = self._retrieve_strategy_for_training(model)
@@ -670,8 +681,8 @@ class ExploiterSPParameterServer(SPParameterServer):
           hardest_model, new_model=model, reset_heads=reset_heads)
       is_raw_strategy = [True]
     strategies = [model_weights]
-    if model not in self.payoff_manager:
-      self.add_strategy_to_payoff(model)
+    self._prev_target_model = target_model
+    self.add_strategy_to_payoff(model)
     self._update_active_model(model)
     self.save_active_models(0, 0)
     self.save_strategy_pool()

@@ -346,13 +346,13 @@ class MultiAgentRunner(RayBase):
           if self.is_agent_active[aid]:
             stats = {
               'obs': env_out.obs, 
+              'action': agent_actions[aid], 
               'reward': agent.actor.normalize_reward(next_env_out.reward),
               'discount': next_env_out.discount,
               'reset': next_env_out.reset,
               'next_obs': next_obs[aid],
               TRAIN_STEP: agent.get_train_step() * np.ones_like(env_out.reset)
             }
-            stats.update(agent_actions[aid])
             stats.update(agent_terms[aid])
             buffer.collect(**stats)
 
@@ -459,10 +459,10 @@ class MultiAgentRunner(RayBase):
               assert len(agent_actions[aid]) != 0, agent_actions[aid]
               stats = {
                 **env_out.obs,
+                'action': agent_actions[aid], 
                 'reset': env_out.reset, 
                 TRAIN_STEP: agent.get_train_step() * np.ones_like(env_out.reset)
               }
-              stats.update(agent_actions[aid])
               stats.update(agent_terms[aid])
               buffer.add(**stats)
             else:

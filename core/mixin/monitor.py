@@ -200,9 +200,8 @@ class Recorder:
 
   def record_stats(self, stats, print_terminal_info=True):
     if not self._first_row and not set(stats).issubset(set(self._headers)):
-      if self._headers and not set(stats).issubset(set(self._headers)):
-        do_logging(f'Header Mismatch!\nDifference: {set(stats) - set(self._headers)}', 
-          logger=logger)
+      # if self._headers and not set(stats).issubset(set(self._headers)):
+      #   do_logging(f'Header Mismatch!\nDifference: {set(stats) - set(self._headers)}')
       self._out_file.close()
       data = merge_data(self.record_filename, self.record_suffix)
       path = self.record_filename + self.record_suffix
@@ -210,7 +209,7 @@ class Recorder:
       path = get_new_path(self.record_filename, self.record_suffix)
       self.record_path = path
       self._out_file = open(path, 'w')
-      do_logging(f'Record data to "{self._out_file.name}"', logger=logger)
+      # do_logging(f'Record data to "{self._out_file.name}"')
       self._first_row = True
     [self.record_tabular(k, v) for k, v in stats.items()]
     self.dump_tabular(print_terminal_info=print_terminal_info)

@@ -384,9 +384,9 @@ def retrieve_model_path(path: str):
   return ModelPath(root_dir, model_name)
 
 def decompose_model_name(model_name: str):
-  basic_name, aid, vid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
+  basic_name, aid, ivid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
   aid = eval(aid[1:])
-  iid, vid = vid.split('v', maxsplit=1)
+  iid, vid = ivid.split('v', maxsplit=1)
   iid = eval(iid[1:-1])
   assert isinstance(aid, int), aid
   assert isinstance(iid, int), iid
@@ -398,33 +398,51 @@ def get_aid(model_name: str):
   assert isinstance(aid, int), aid
   return aid
 
+def get_iid(model_name: str):
+  _, ivid = model_name.rsplit(PATH_SPLIT, maxsplit=1)
+  iid = ivid.split('v', maxsplit=1)[-1]
+  iid = eval(iid[1:-1])
+  assert isinstance(iid, int), iid
+  return iid
+
 def get_vid(model_name: str):
-  _, vid = model_name.rsplit(PATH_SPLIT, maxsplit=1)
-  vid = vid.rsplit('v', maxsplit=1)[-1]
+  _, ivid = model_name.rsplit(PATH_SPLIT, maxsplit=1)
+  vid = ivid.rsplit('v', maxsplit=1)[-1]
   return vid
 
 def get_aid_vid(model_name: str):
-  _, aid, vid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
+  _, aid, ivid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
   aid = eval(aid[1:])
-  vid = vid.rsplit('v', maxsplit=1)[-1]
+  vid = ivid.rsplit('v', maxsplit=1)[-1]
   assert isinstance(aid, int), aid
   return aid, vid
 
 def get_iid_vid(model_name: str):
-  _, vid = model_name.rsplit(PATH_SPLIT, maxsplit=1)
-  iid, vid = vid.split('v', maxsplit=1)
+  _, ivid = model_name.rsplit(PATH_SPLIT, maxsplit=1)
+  iid, vid = ivid.split('v', maxsplit=1)
   iid = eval(iid[1:-1])
   assert isinstance(iid, int), iid
   return iid, vid
 
 def get_all_ids(model_name: str):
-  _, aid, vid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
+  _, aid, ivid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
   aid = eval(aid[1:])
-  iid, vid = vid.split('v', maxsplit=1)
+  iid, vid = ivid.split('v', maxsplit=1)
   iid = eval(iid[1:-1])
   assert isinstance(aid, int), aid
   assert isinstance(iid, int), iid
   return aid, iid, vid
+
+def replace_ids(model_name: str, aid: int=None, iid: int=None, vid: str=None):
+  base, prev_aid, prev_ivid = model_name.rsplit(PATH_SPLIT, maxsplit=2)
+  prev_aid = eval(prev_aid[1:])
+  prev_iid, prev_vid = prev_ivid.split('v', maxsplit=1)
+  prev_iid = eval(prev_iid[1:-1])
+  aid = aid if aid is not None else prev_aid
+  iid = iid if iid is not None else prev_iid
+  vid = vid if vid is not None else prev_vid
+  model_name = construct_model_name(base, aid, iid, vid)
+  return model_name
 
 def get_date(model_name: str):
   date = model_name.split(PATH_SPLIT)[0]

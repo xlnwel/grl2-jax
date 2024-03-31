@@ -425,9 +425,7 @@ class ParameterServer(RayBase):
     
     return model_weights
 
-  def sample_training_strategies(self, iteration=None):
-    if iteration is not None:
-      assert iteration == self._iteration, (iteration, self._iteration)
+  def sample_training_strategies(self):
     strategies = []
     is_raw_strategy = [False for _ in range(self.n_agents)]
     if any([am is not None for am in self._models['active']]):
