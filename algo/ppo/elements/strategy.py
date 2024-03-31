@@ -1,6 +1,6 @@
 from functools import partial
 
-from core.typing import AttrDict
+from core.typing import AttrDict, dict2AttrDict
 from core.elements.strategy import Strategy as StrategyBase, create_strategy
 from tools.run import concat_along_unit_dim
 from tools.utils import batch_dicts
@@ -23,14 +23,15 @@ class Strategy(StrategyBase):
 
   def compute_value(self, env_output, states=None):
     if isinstance(env_output.obs, list):
-      inp = batch_dicts([AttrDict(
-        global_state=o.get('global_state', o['obs'])
-      ) for o in env_output.obs], concat_along_unit_dim)
+      inp = []
+      for o in env_output.obs:
+        o.setdefault('global_state', o['obs'])
+        inp.append(o)
+      inp = batch_dicts(inp)
       reset = concat_along_unit_dim(env_output.reset)
     else:
-      inp = AttrDict(
-        global_state=env_output.obs.get('global_state', env_output.obs['obs'])
-      )
+      inp = dict2AttrDict(env_output.obs)
+      inp.setdefault('global_state', inp['obs'])
       reset = env_output.reset
     inp = self._memory.add_memory_state_to_input(inp, reset, states)
     value = self.actor.compute_value(inp)

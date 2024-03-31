@@ -66,9 +66,7 @@ class Strategy(StrategyBase):
     if isinstance(env_output.obs, list):
       assert len(env_output.obs) == 1, len(env_output.obs)
       env_output = EnvOutput(*[x[0] for x in env_output])
-    inps = [AttrDict(
-      global_state=env_output.obs.get('global_state', env_output.obs['obs'])[:, uids]
-    ) for uids in self.gid2uids]
+    inps = [env_output.obs.slice(indices=uids, axis=1) for uids in self.gid2uids]
     resets = [env_output.reset[:, uids] for uids in self.gid2uids]
     inps = self._memory.add_memory_state_to_input(inps, resets, states)
     value = self.actor.compute_value(inps)

@@ -2,6 +2,7 @@ import collections
 import logging
 import time
 import numpy as np
+import jax
 
 from core.elements.buffer import Buffer
 from core.elements.model import Model
@@ -161,11 +162,19 @@ class ACBuffer(Buffer):
       data = AttrDict()
       for k in self.sample_keys:
         if k == 'action':
+          v = batch_dicts(
+            sum([b[k] for b in self._buffers.values()], []), 
+            np.concatenate
+          )
+          data[k] = jax.tree_map(lambda x: x[-self.batch_size:], v)
+        elif k == 'prev_info':
           for kk in keys:
-            if kk.startswith(k):
-              data[kk] = np.concatenate(
-                [np.concatenate(b[kk]) for b in self._buffers.values() if b]
-              )[-self.batch_size:]
+            if k in kk:
+              v = batch_dicts(
+                sum([b[kk] for b in self._buffers.values()], []), 
+                np.concatenate
+              )
+              data[kk] = jax.tree_map(lambda x: x[-self.batch_size:], v)
         elif k == 'state':
           data[k] = batch_states(
             [batch_states(b[k], axis=0, func=np.concatenate) 
@@ -216,14 +225,7 @@ class ACBuffer(Buffer):
   def _sample(self, sample_keys=None):
     assert len(self._queue) == 1, len(self._queue)
     # sample = {k: self._queue[0][k] for k in sample_keys}
-    raw_sample = self._queue.pop()
-    sample = AttrDict()
-    sample.action = AttrDict()
-    for k, v in raw_sample.items():
-      if k.startswith('action'):
-        sample.action[k] = v
-      else:
-        sample[k] = v
+    sample = self._queue.pop()
     # sample = self._queue[0].copy()
     # self._queue[0]['used'] = True
 

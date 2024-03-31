@@ -53,6 +53,7 @@ strategy:
 model:
   aid: 0
   gamma: &gamma .99
+  print_params: True
 
   policy:
     nn_id: policy

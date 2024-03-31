@@ -68,6 +68,10 @@ def flatten_dict(d: dict, prefix=None, suffix=None):
 
   return result
 
+def dict2str(d, *, sep=',', kv_sep='=', prefix='', suffix=''):
+  s = sep.join([f'{k}{kv_sep}{v}' for k, v in d.items()])
+  return prefix + s + suffix
+
 def recursively_remove(d: dict, keys: list):
   for k in keys:
     if k in d:
@@ -568,13 +572,18 @@ def stack_data_with_state(buffer, keys=None, seq_axis=1):
   data = AttrDict()
   for k in keys:
     if k == 'action':
+      data[k] = batch_dicts(
+        buffer[k], lambda x: np.stack(x, seq_axis))
+      continue
+    if k == 'prev_info':
       for kk in buffer:
-        if kk.startswith(k):
-          data[kk] = np.stack(buffer[kk], seq_axis)
+        if k in kk:
+          data[kk] = batch_dicts(
+            buffer[kk], lambda x: np.stack(x, seq_axis))
       continue
     if k not in buffer:
       continue
-    if k == 'state':
+    elif k == 'state':
       v = batch_states(buffer[k], axis=seq_axis)
     else:
       v = np.stack(buffer[k], seq_axis)

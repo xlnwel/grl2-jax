@@ -142,7 +142,7 @@ class VecEnvBase:
 
   def divide_actions(self, actions):
     new_actions = [
-      [{k: v[i] for k, v in action.items()} for action in actions]
+      [{k: v if v.shape == () else v[i] for k, v in action.items()} for action in actions]
       for i in range(self.n_envs)
     ]
     return new_actions

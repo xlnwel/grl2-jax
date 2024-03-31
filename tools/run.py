@@ -127,12 +127,12 @@ def run(
       for i, agent in enumerate(agents):
         data = dict(
           obs=env_output[i].obs, 
+          action=actions[i], 
           reward=new_agent_env_outputs[i].reward, 
           discount=new_agent_env_outputs[i].discount, 
           next_obs=next_obs[i], 
           reset=new_agent_env_outputs[i].reset,
         )
-        data.update(actions[i])
         data.update(stats[i])
         agent.buffer.collect(**data)
 

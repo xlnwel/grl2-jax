@@ -84,7 +84,6 @@ class Trainer(TrainerBase):
       self.indices = np.arange(self.config.n_mbs)
       data = jax.tree_util.tree_map(
         lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[2:])), data)
-
     theta = self.model.theta.copy()
     all_stats = AttrDict()
     for e in range(self.config.n_epochs):

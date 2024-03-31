@@ -35,8 +35,8 @@ def make_env(config, eid=None, agents={}):
   suite = env_name.split('-', 1)[0]
   builtin_env = env_dict.pop('gym')
   env_func = env_dict.get(suite, builtin_env)
-  if eid is not None:
-    config['eid'] = eid
+  # if eid is not None:
+  config['eid'] = eid
   if agents != {}:
     config.update(agents)
   env = env_func(config)

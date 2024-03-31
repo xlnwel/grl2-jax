@@ -20,8 +20,10 @@ def construct_fake_data(env_stats, aid, batch_size=1):
   data = dict2AttrDict(data)
   data.setdefault('global_state', data.obs)
   data.action = AttrDict()
+  data.prev_info = AttrDict()
   for k in action_dim.keys():
     data.action[k] = jnp.zeros((*basic_shape, action_dim[k]), action_dtype[k])
+    data.prev_info[k] = jnp.zeros((*basic_shape, action_dim[k]), action_dtype[k])
     if use_action_mask[k]:
       data.action[f'{k}_mask'] = jnp.ones((*basic_shape, action_dim[k]), action_dtype[k])
   data.state_reset = jnp.zeros(basic_shape, jnp.float32)
@@ -39,9 +41,11 @@ def setup_config_from_envstats(config, env_stats):
 
 class MAModelBase(ModelCore):
   def forward_policy(self, params, rng, data, state=None, return_state=True):
+    prev_info = jnp.concatenate(list(data.prev_info.values()), -1) \
+      if self.config.use_prev_info and data.prev_info else None
     act_outs, state = self.modules.policy(
-      params, rng, data.obs, data.state_reset, 
-      state, action_mask=data.action_mask, 
+      params, rng, data.obs, data.state_reset, state, 
+      prev_info=prev_info, action_mask=data.action_mask, 
     )
 
     if return_state:
@@ -68,8 +72,11 @@ class MAModelBase(ModelCore):
     return dists
   
   def forward_value(self, params, rng, data, state=None, return_state=True):
+    prev_info = jnp.concatenate(list(data.prev_info.values()), -1) \
+      if self.config.use_prev_info and data.prev_info else None
     value, state = self.modules.value(
-      params, rng, data.global_state, data.state_reset, state
+      params, rng, data.global_state, data.state_reset, 
+      state, prev_info=prev_info
     )
 
     if return_state:

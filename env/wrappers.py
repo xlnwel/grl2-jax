@@ -290,20 +290,31 @@ class ActionRecorder(gym.Wrapper):
   def reset(self):
     self._init_prev_action()
     obs = self.env.reset()
-    for o, pa in zip(obs, self._prev_action):
-      for k, v in pa.items():
-        o[f'prev_{k}'] = v
+    obs = self.record_prev_action(obs, self._prev_action)
     return obs
   
   def step(self, action):
     obs, reward, done, info = self.env.step(action)
     assert len(obs) == len(self._prev_action), (len(obs), len(self._prev_action))
-    for o, pa in zip(obs, action):
-      for k, v in pa.items():
-        o[f'prev_{k}'] = v
     self._prev_action = action
+    obs = self.record_prev_action(obs, action)
     return obs, reward, done, info
   
+  def record_prev_action(self, obs, action):
+    for aid, (o, pa) in enumerate(zip(obs, action)):
+      o.setdefault('prev_info', AttrDict())
+      iad = self.env.is_action_discrete[aid]
+      ad = self.env.action_dim[aid]
+      uids = self.env.aid2uids[aid]
+      for k, v in pa.items():
+        if iad[k]:
+          v = v.astype(np.int32)
+          new_v = np.zeros((len(uids), ad[k]), dtype=np.float32)
+          new_v[np.arange(len(uids)), v] = 1
+          v = new_v
+        o['prev_info'][k] = v
+    return obs
+
   def get_prev_action(self):
     return self._prev_action
 
@@ -423,9 +434,12 @@ class ContinuousActionMapper(gym.ActionWrapper):
       self._is_random_action = False
       return actions
     new_actions = []
-    for action in actions:
+    for i, action in enumerate(actions):
+      is_action_discrete = self.env.is_action_discrete[i]
       new_actions.append({})
       for name, act in action.items():
+        if is_action_discrete.get(name, True):
+          new_actions[-1][name] = act
         if self.bound_method == 'clip':
           new_actions[-1][name] = np.clip(act, -1, 1)
         elif self.bound_method == 'tanh':
@@ -787,7 +801,11 @@ class MultiAgentUnitsDivision(gym.Wrapper):
     return obs, reward, done, info
   
   def _convert_obs(self, obs):
-    return [{k: v[uids] for k, v in obs.items()} for uids in self.aid2uids]
+    if isinstance(obs, list):
+      assert len(obs) == self.n_agents, (len(obs), self.n_agents)
+      return obs
+    else:
+      return [{k: v[uids] for k, v in obs.items()} for uids in self.aid2uids]
 
 
 class PopulationSelection(gym.Wrapper):
@@ -872,13 +890,7 @@ class DataProcess(gym.Wrapper):
         self.obs_dtype = {'obs': infer_dtype(self.observation_space.dtype, precision)}
 
   def observation(self, observation):
-    if isinstance(observation, list):
-      return [self.observation(o) for o in observation]
-    elif isinstance(observation, dict):
-      for k, v in observation.items():
-        observation[k] = convert_dtype(v, self.precision)
-    else:
-      observation = {'obs': o for o in observation}
+    observation = jax.tree_map(lambda x: convert_dtype(x, self.precision), observation)
     return observation
 
   def reset(self):

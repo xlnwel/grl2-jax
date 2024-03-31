@@ -23,14 +23,22 @@ def reshape_for_bptt(*args, bptt):
 
 def compute_values(func, params, rng, data, state, bptt, seq_axis=1):
   if state is None:
-    curr_data = AttrDict(global_state=data.global_state)
-    next_data = AttrDict(global_state=data.next_global_state)
+    curr_data = AttrDict(
+      global_state=data.global_state, prev_info=data.prev_info
+    )
+    next_data = AttrDict(
+      global_state=data.next_global_state, prev_info=data.next_prev_info
+    )
     value = func(params, rng, curr_data, return_state=False)
     next_value = func(params, rng, next_data, return_state=False)
   else:
     state_reset, next_state_reset = jax_utils.split_data(data.state_reset, axis=seq_axis)
-    curr_data = AttrDict(global_state=data.global_state, state_reset=state_reset)
-    next_data = AttrDict(global_state=data.next_global_state, state_reset=next_state_reset)
+    curr_data = AttrDict(
+      global_state=data.global_state, prev_info=data.prev_info, state_reset=state_reset
+    )
+    next_data = AttrDict(
+      global_state=data.next_global_state, prev_info=data.next_prev_info, state_reset=next_state_reset
+    )
     shape = data.global_state.shape[:-1]
     assert isinstance(bptt, int), bptt
     curr_data, next_data, state = reshape_for_bptt(
@@ -51,7 +59,10 @@ def compute_values(func, params, rng, data, state, bptt, seq_axis=1):
 
 
 def compute_policy_dist(model, params, rng, data, state, bptt):
-  data = AttrDict(obs=data.obs, state_reset=data.state_reset, action_mask=data.action_mask)
+  data = AttrDict(
+    obs=data.obs, state_reset=data.state_reset, 
+    action_mask=data.action_mask, prev_info=data.prev_info
+  )
   shape = data.obs.shape[:-1]
   if state is None:
     act_outs = model.forward_policy(params, rng, data, return_state=False)

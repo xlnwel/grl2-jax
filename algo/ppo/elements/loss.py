@@ -11,13 +11,7 @@ from .utils import *
 
 
 class Loss(LossBase):
-  def loss(
-    self, 
-    theta, 
-    rng, 
-    data,
-    name='train', 
-  ):
+  def loss(self, theta, rng, data,name='train'):
     data = data.copy()
     rngs = random.split(rng, 2)
     stats = dict2AttrDict(self.config.stats, to_copy=True)
@@ -87,14 +81,7 @@ class Loss(LossBase):
 
     return loss, stats
 
-  def value_loss(
-    self, 
-    theta, 
-    rng, 
-    policy_theta, 
-    data, 
-    name='train/value', 
-  ):
+  def value_loss(self, theta, rng, policy_theta, data, name='train/value'):
     data = data.copy()
     rngs = random.split(rng, 2)
     stats = dict2AttrDict(self.config.stats, to_copy=True)
@@ -158,14 +145,7 @@ class Loss(LossBase):
 
     return loss, stats
 
-  def policy_loss(
-    self, 
-    theta, 
-    rng, 
-    data, 
-    stats, 
-    name='train/policy', 
-  ):
+  def policy_loss(self, theta, rng, data, stats, name='train/policy'):
     data = data.copy()
     data.action_mask = get_action_mask(data.action)
     data.state_reset = data.state_reset[:, :-1] if 'state_reset' in data else None

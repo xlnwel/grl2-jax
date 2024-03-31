@@ -23,11 +23,13 @@ class Model(MAModelBase):
     self.policy_rnn_init = self.config.policy.pop('rnn_init', None)
     self.value_rnn_init = self.config.value.pop('rnn_init', None)
 
+    prev_info = jnp.concatenate([v for v in data.prev_info.values()], -1) \
+      if self.config.use_prev_info and data.prev_info else None
     self.params.policy, self.modules.policy = self.build_net(
-      data.obs, data.state_reset, data.state, 
+      data.obs, data.state_reset, data.state, prev_info, 
       action_mask=data.action.action_mask, name='policy')
     self.params.value, self.modules.value = self.build_net(
-      data.global_state, data.state_reset, data.state, name='value')
+      data.global_state, data.state_reset, data.state, prev_info, name='value')
     self._init_rnn()
   
   def _init_rnn(self):
@@ -48,28 +50,30 @@ class Model(MAModelBase):
 
   def compile_model(self):
     self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
+    self.jit_value = jax.jit(self.raw_value)
 
   def action(self, data, evaluation):
     if 'global_state' not in data:
       data.global_state = data.obs
-    return super().action(data, evaluation)
+    action, stats, state = super().action(data, evaluation)
+    return action, stats, state
 
   def raw_action(self, params, rng, data, evaluation=False):
     rngs = random.split(rng, 3)
     state = data.pop('state', AttrDict())
     # add the sequential dimension
     if self.has_rnn:
-      data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
+      data = jax.tree_map(lambda x: jnp.expand_dims(x, 1), data)
     act_outs, state.policy = self.forward_policy(params.policy, rngs[0], data, state.policy)
     act_dists = self.policy_dist(act_outs, evaluation)
 
     if evaluation:
-      action = {k: ad.sample(seed=rngs[1]) for k, ad in act_dists.items()}
+      action = dict2AttrDict({k: ad.sample(seed=rngs[1]) for k, ad in act_dists.items()})
       stats = AttrDict()
     else:
       if len(act_dists) == 1:
         action, logprob = act_dists[DEFAULT_ACTION].sample_and_log_prob(seed=rngs[1])
-        action = {DEFAULT_ACTION: action}
+        action = dict2AttrDict({DEFAULT_ACTION: action})
         stats = act_dists[DEFAULT_ACTION].get_stats('mu')
         stats = dict2AttrDict(stats)
         stats.mu_logprob = logprob
@@ -87,32 +91,32 @@ class Model(MAModelBase):
           stats.mu_logprob = stats.mu_logprob + lp
       
       value, state.value = self.forward_value(
-        params.value, rngs[2], data, state=state.value, return_state=True
+        params.value, rngs[2], data, state.value, return_state=True
       )
-      stats['value'] = value
+      stats.value = value
     if self.has_rnn:
       # squeeze the sequential dimension
-      action, stats = jax.tree_util.tree_map(
+      action, stats = jax.tree_map(
         lambda x: jnp.squeeze(x, 1), (action, stats))
     if state.policy is None and state.value is None:
       state = None
     
     return action, stats, state
 
+  def raw_value(self, params, rng, data):
+    state = data.pop('state', AttrDict())
+    if self.has_rnn:
+      data = jax.tree_map(lambda x: jnp.expand_dims(x, 1) , data)
+    v = self.forward_value(
+      params, rng, data, state.value, return_state=False
+    )
+    if self.has_rnn:
+      v = jnp.squeeze(v, 1)
+    return v
+
   def compute_value(self, data):
-    @jax.jit
-    def comp_value(params, rng, data):
-      state = data.pop('state', AttrDict())
-      if self.has_rnn:
-        data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , data)
-      v = self.forward_value(
-        params, rng, data, state=state.value, return_state=False
-      )
-      if self.has_rnn:
-        v = jnp.squeeze(v, 1)
-      return v
     self.act_rng, rng = random.split(self.act_rng)
-    value = comp_value(self.params.value, rng, data)
+    value = self.jit_value(self.params.value, rng, data)
     return value
 
   """ RNN Operators """
@@ -123,6 +127,8 @@ class Model(MAModelBase):
     if not self.has_rnn:
       return None
     data = construct_fake_data(self.env_stats, self.aid, batch_size=batch_size)
+    prev_info = jnp.concatenate([v for v in data.prev_info.values()], -1) \
+      if self.config.use_prev_info and data.prev_info else None
     action_mask = get_action_mask(data.action)
     state = AttrDict()
     _, state.policy = self.modules.policy(
@@ -130,13 +136,15 @@ class Model(MAModelBase):
       self.act_rng, 
       data.obs, 
       reset=data.state_reset, 
+      prev_info=prev_info, 
       action_mask=action_mask
     )
     _, state.value = self.modules.value(
       self.params.value, 
       self.act_rng, 
       data.global_state, 
-      reset=data.state_reset
+      reset=data.state_reset, 
+      prev_info=prev_info, 
     )
     self._initial_states[name] = jax.tree_util.tree_map(jnp.zeros_like, state)
 

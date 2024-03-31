@@ -259,7 +259,7 @@ def make_magw(config):
 def make_random(config):
   assert 'random' in config['env_name'], config['env_name']
   config = _change_env_name(config)
-  from env.dummy import RandomEnv
+  from env.random import RandomEnv
   env = RandomEnv(**config)
   env = wrappers.MultiAgentUnitsDivision(env, config)
   if config.record_prev_action:
