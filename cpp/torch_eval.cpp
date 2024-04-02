@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <typeinfo>
 #include <torch/torch.h>
 #include <torch/script.h>
 
@@ -49,11 +50,14 @@ void call_neural_network_API() {
 	auto anc_mean_path = "/home/ubuntu/chenxinwei/grl/saved_model/anc_mean.txt";
 	auto anc_std_path = "/home/ubuntu/chenxinwei/grl/saved_model/anc_std.txt";
 
-	auto anc_mean = load(anc_mean_path);
-	auto anc_std = load(anc_std_path);
+	std::vector<double, std::allocator<double> > anc_mean = load(anc_mean_path);
+	std::vector<double, std::allocator<double> > anc_std = load(anc_std_path);
 
-	auto mean = torch::from_blob(anc_mean.data(), {static_cast<long>(anc_mean.size())});
-	auto std = torch::from_blob(anc_std.data(), {static_cast<long>(anc_std.size())});
+	torch::Tensor mean = torch::from_blob(anc_mean.data(), {static_cast<long>(anc_mean.size())});
+	torch::Tensor std = torch::from_blob(anc_std.data(), {static_cast<long>(anc_std.size())});
+
+	std::cout << "Type of mean: " << typeid(mean).name() << std::endl;
+	std::cout << "Type of std: " << typeid(std).name() << std::endl;
 
 	int64_t size = anc_mean.size();
 	int64_t bs = 1;
@@ -71,11 +75,11 @@ void call_neural_network_API() {
 			raw_reset.push_back(0.0);
 		}
 	}
-	std::cout << "mean: " << mean << std::endl;
-	std::cout << "std: " << std << std::endl;
+	// std::cout << "mean: " << mean << std::endl;
+	// std::cout << "std: " << std << std::endl;
 	auto reset = torch::from_blob(raw_reset.data(), {static_cast<long>(raw_reset.size())});
 	reset = reset.reshape({seqlen, bs, unit});
-	std::cout << "reset: " << reset << std::endl;
+	// std::cout << "reset: " << reset << std::endl;
 	
 	// obs = (obs - mean) / std;
 	// std::cout << obs << std::endl;
@@ -107,7 +111,7 @@ void call_neural_network_API() {
 			} catch (const c10::Error& e) {
 				std::cerr << "Error running the model: " << e.msg() << std::endl;
 			}
-			auto out = out_and_hidden->elements()[0].toTensor();
+			out = out_and_hidden->elements()[0].toTensor();
 			auto new_state = out_and_hidden->elements()[1].toTuple();
 			state = std::make_tuple(
 				new_state->elements()[0].toTensor(), 

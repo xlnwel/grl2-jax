@@ -440,7 +440,7 @@ class ContinuousActionMapper(gym.ActionWrapper):
       for name, act in action.items():
         if is_action_discrete.get(name, True):
           new_actions[-1][name] = act
-        if self.bound_method == 'clip':
+        elif self.bound_method == 'clip':
           new_actions[-1][name] = np.clip(act, -1, 1)
         elif self.bound_method == 'tanh':
           new_actions[-1][name] = np.tanh(act)

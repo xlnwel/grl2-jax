@@ -1,0 +1,24 @@
+---
+config:
+  old: base
+  # new: 0601-mujoco
+  new: rand
+rename:
+  metrics/score: score
+  metrics/dense_score: dense_score
+  metrics/epslen: epslen
+  train/group0_first_epoch/entropy: entropy
+  group_first_epoch/entropy: entropy
+  train/group0_first_epoch/clip_frac: first_epoch/clip_frac
+  group_first_epoch/clip_frac: first_epoch/clip_frac
+  train/group0_last_epoch/clip_frac: last_epoch/clip_frac
+  group_last_epoch/clip_frac: last_epoch/clip_frac
+
+regex_rename: 
+  metrics/.*score: score
+
+plot_name:
+  - score
+
+data:
+  - date: "0331"

@@ -7,7 +7,7 @@ from tools import yaml_op
 
 def parse_args():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--directory',
+  parser.add_argument('--directory', '-d', 
                       type=str,
                       default='/Users/chenxw/work/Polixir/cache/WEB_ROM/configs')
   args = parser.parse_args()
@@ -41,9 +41,9 @@ def rename_data(config, plt_config):
 
 
 def plot_data(config, plt_config):
-  names = plt_config.rename
+  names = list(plt_config.rename.values()) + plt_config.plot_name
   plot_xy = []
-  for m in names.values():
+  for m in names:
     if ['steps', m] not in plot_xy:
       plot_xy.append(['steps', m])
   plot_xy += plt_config.get('plot_xy', [])

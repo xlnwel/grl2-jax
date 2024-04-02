@@ -6,6 +6,7 @@ import functools
 import multiprocessing
 import numpy as np
 import pandas as pd
+import re
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -20,12 +21,11 @@ from tools.logops import *
 def parse_args():
   parser = argparse.ArgumentParser()
   parser.add_argument('directory',
-            type=str,
-            default='.')
+            type=str)
   parser.add_argument('--final_level', '-fl', 
             type=int, 
             default=DirLevel.VERSION)
-  parser.add_argument('--last_name', '-ln', 
+  parser.add_argument('--final_name', '-fn', 
             type=str, 
             default=['a0'], 
             nargs='*')
@@ -87,11 +87,15 @@ def process_data(data, plt_config):
       new_key = ''.join(new_key)
       new_data[new_key] = data[k2] - data[k]
   data = pd.concat([data, pd.DataFrame(new_data)], axis=1)
-  rename = plt_config.rename
-  final_data = data[[k for k in rename.keys() if k in data]]
-  final_data = final_data.rename(columns=rename)
+  normal_rename = plt_config.rename
+  normal_filter = [k for k in normal_rename.keys() if k in data]
+  normal_columns = data[normal_filter].rename(columns=normal_rename)
+  regex_rename = plt_config.regex_rename
+  matches = lambda x: any([re.match(name, x) for name in regex_rename])
+  regex_filter = [k for k in data.columns if matches(k)]
+  regex_columns = data[regex_filter].rename(columns=lambda x: x.split('/', 1)[-1] if matches(x) else x)
+  final_data = pd.concat([normal_columns, regex_columns], axis=1)
   final_data['steps'] = data['steps']
-  final_data = pd.DataFrame(final_data)
   return final_data
 
 
@@ -114,7 +118,7 @@ def to_csv(env_name, v):
 
 def convert_data(d, directory, target, plt_config):
   config_name = 'config.yaml' 
-  player0_config_name = 'config_p0.yaml' 
+  agent0_config_name = 'config_a0.yaml' 
   js_name = 'parameter.json'
   record_name = 'record'
   progress_name = 'progress.csv'
@@ -122,7 +126,7 @@ def convert_data(d, directory, target, plt_config):
   # load config
   yaml_path = os.path.join(d, config_name)
   if not os.path.exists(yaml_path):
-    new_yaml_path = os.path.join(d, player0_config_name)
+    new_yaml_path = os.path.join(d, agent0_config_name)
     if os.path.exists(new_yaml_path):
       yaml_path = new_yaml_path
     else:
@@ -140,7 +144,7 @@ def convert_data(d, directory, target, plt_config):
       directory = directory.removesuffix(f'/{s}')
 
   target_dir = d.replace(directory, target)
-  do_logging(f'Copy from {d} to {target_dir}')
+  do_logging(f'Copy from "{d}" to "{target_dir}"')
   if not os.path.isdir(target_dir):
     Path(target_dir).mkdir(parents=True)
   assert os.path.isdir(target_dir), target_dir
@@ -212,7 +216,7 @@ def transfer_data(args, search_dir, level, plt_config=None):
       date=date, 
       model=model, 
       final_level=DirLevel(args.final_level), 
-      final_name=args.last_name
+      final_name=args.final_name
     )]
     pool = multiprocessing.Pool()
     func = functools.partial(convert_data, 
@@ -229,7 +233,7 @@ def transfer_data(args, search_dir, level, plt_config=None):
       date=date, 
       model=model, 
       final_level=DirLevel(args.final_level), 
-      final_name=args.last_name
+      final_name=args.final_name
     ):
       convert_data(d, directory, target=target, plt_config=plt_config)
 
@@ -246,10 +250,8 @@ if __name__ == '__main__':
   while directory.endswith(PATH_SPLIT):
     directory = directory[:-1]
   
-  if directory.startswith(PATH_SPLIT):
-    strs = directory.split(PATH_SPLIT)
-
   search_dir = directory
+  print(search_dir)
   level = get_level(search_dir)
   print('Search directory level:', level)
 

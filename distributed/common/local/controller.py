@@ -243,7 +243,7 @@ class Controller(YAMLCheckpointBase):
       remote_buffers=self.agent_manager.get_agents(),
       active_models=self.active_models, 
     )
-    ray.get(self.parameter_server.load_strategy_pool.remote())
+    # ray.get(self.parameter_server.load_strategy_pool.remote())
     do_logging(f'Finishing Building Runners', color='blue')
     self._initialize_rms(self.active_models, is_raw_strategy)
 

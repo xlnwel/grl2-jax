@@ -22,14 +22,14 @@ configs=(
 )
 # shift
 args1=(
-  lstm
-  lstm
-  lstm
-  lstm
-  gru
-  gru
-  gru
-  gru
+  True
+  True
+  True
+  True
+  False
+  False
+  False
+  False
 )
 args2=(
   shared
@@ -51,7 +51,7 @@ args4=(
   .2
 )
 date=$(date +"%m%d")
-info="orig_env"
+info=""
 ld="${suite}-logs"
 
 if [ -z "$info" ]; then
@@ -103,7 +103,7 @@ kws=$@
 #     echo $py_script
 #   done
 # fi
-kws="n_epochs=10 rnn_type=$a1"
+kws="use_prev_info=$a1 n_epochs=15"
 # for a in "${algos[@]}"; do
 # for e in "${envs[@]}"; do
 env="${suite}-${e}"

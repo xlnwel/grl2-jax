@@ -1,0 +1,8 @@
+#!/bin/zsh
+
+source activate plt
+
+cd ~/chenxinwei/SmartLogger
+python -m smart_logger.htmlpage -u cxw -pw imin -wks ~/chenxinwei/.cache -d ~/chenxinwei/html-logs -p 7008
+# cd ~/github/SmartLogger
+# python -m smart_logger.htmlpage -u cxw -pw imin -wks ~/work/Polixir/cache -d ~/Documents/html-logs -p 7008

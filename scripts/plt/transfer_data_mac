@@ -1,0 +1,24 @@
+#!/bin/bash
+
+source activate grl
+
+
+dir=$1
+shift
+
+sleep=3
+while true
+do
+    py_script="python run/config_html_plt.py -d /Users/chenxw/work/Polixir/cache/WEB_ROM/configs"
+    echo $py_script
+    eval $py_script
+    # rm -rf html-logs
+    py_script="python run/html_plt.py $dir -t ~/Documents/html-logs -fl 7 $@ "
+    echo $py_script
+    eval $py_script
+    py_script="python run/html_plt.py $dir -t ~/Documents/html-logs -fl 8 -fn i10 $@ "
+    echo $py_script
+    eval $py_script
+    echo "sleeping for $sleep seconds"
+    sleep $sleep
+done

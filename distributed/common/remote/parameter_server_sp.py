@@ -108,7 +108,7 @@ class SPParameterServer(RayBase):
 
     succ = self.restore(to_restore_params)
     self._update_runner_distribution()
-    self.load_strategy_pool()
+    # self.load_strategy_pool()
 
     if self.config.get('rule_strategies'):
       self.add_rule_strategies(self.config.rule_strategies, local=succ)

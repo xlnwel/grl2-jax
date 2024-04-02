@@ -2,6 +2,8 @@ import os
 from enum import Enum
 from datetime import datetime, timedelta
 
+from core.names import PATH_SPLIT
+
 
 class DirLevel(Enum):
   ROOT = 0
@@ -32,37 +34,12 @@ def get_level(search_dir):
   for d in os.listdir(search_dir):
     if d.endswith('logs'):
       return DirLevel.ROOT
-  all_names = search_dir.split('/')
-  last_name = all_names[-1]
-  if last_name.startswith('a') and last_name[1:].isdigit():
-    return DirLevel.AGENT
-  if '-' in last_name:
-    names = last_name.split('-')
-    if len(names) == 2 and names[0].startswith('i') and names[1].startswith('v'):
-      return DirLevel.VERSION
-  if last_name.endswith('logs'):
+  if search_dir.endswith('logs'):
     return DirLevel.LOGS
-  if last_name.startswith('seed'):
-    return DirLevel.SEED
-  suite = None
-  for name in search_dir.split('/'):
-    if name.endswith('-logs'):
-      suite = name.split('-')[0]
-  if last_name.startswith(f'{suite}'):
-    return DirLevel.ENV
-  if last_name.isdigit():
-    return DirLevel.DATE
-  # find algorithm name
-  algo = None
-  for i, name in enumerate(all_names):
-    if name.isdigit():
-      algo = all_names[i-1]
-      if len(all_names) == i+2:
-        return DirLevel.MODEL
-  if algo is None:
-    return DirLevel.ALGO
-  
-  return DirLevel.FINAL
+  relative_dir = search_dir.split(f'logs{PATH_SPLIT}')[-1]
+  relative_dir = relative_dir.removesuffix(PATH_SPLIT)
+  all_names = relative_dir.split(PATH_SPLIT)
+  return DirLevel(len(all_names) + 1)
 
 
 def get_date(args_date):
