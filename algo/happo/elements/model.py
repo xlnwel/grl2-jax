@@ -188,7 +188,8 @@ class Model(MAModelBase):
       state = AttrDict()
       d = data.slice(indices=uids, axis=TRAIN_AXIS.UNIT)
       am = action_mask.slice(indices=uids, axis=TRAIN_AXIS.UNIT)
-      pi = prev_info.slice(indices=uids, axis=TRAIN_AXIS.UNIT)
+      pi = prev_info.slice(indices=uids, axis=TRAIN_AXIS.UNIT) \
+        if prev_info is not None else None
       _, state.policy = self.modules.policy(
         p, self.act_rng, d.obs, reset=d.state_reset, 
         prev_info=pi, action_mask=am)

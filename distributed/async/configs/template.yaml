@@ -1,9 +1,13 @@
 ---
-algorithm: &algo ppo
-name: ppo
-info: ppo
+algorithm: &algo sync-ppo
+name: sync-ppo
+info: sync-ppo
 
 precision: 32
+
+n_agents: 1
+self_play: True
+is_ma_algo: True
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -11,48 +15,45 @@ precision: 32
 root_dir: *algo
 model_name: *algo
 
-routine:
-  algorithm: *algo
+controller:
+  store_period: 5e4
+  restart_runners_period: null
+  max_version_iterations: 1
+  max_steps_per_iteration: &ms 5e6
+  initialize_rms: &irms True
 
-  MAX_STEPS: 2e7
-  n_steps: &nsteps 200
-  LOG_PERIOD: 5e4
-  EVAL_PERIOD: null
+parameter_server:
+  root_dir: *algo
+  model_name: *algo
 
-  n_eval_envs: 100
-  RECORD_VIDEO: False
-  N_EVAL_EPISODES: 1
-  size: [256, 256]
+  train_from_scratch_frac: 1
+  online_frac: .2
 
-  compute_return_at_once: False
-  perm: null
+  payoff:
+    step_size: 1e-2   # step size towards the most recent data, 0 or null average payoff over the entire history
+    update_interval: 180
+    sampling_strategy:
+      type: pfsp
+      p: 1
+      threshold: .3
+
+ray_config:
+  runner:
+    num_cpus: 1
+  agent:
+    num_gpus: 0
+
+monitor: 
+  max_steps: *ms
+
+runner:
+  n_runners: 10
+  n_steps: &nsteps 100
+  push_every_episode: False
 
 env:
-  env_name: &env_name grf-academy_3_vs_1_with_keeper
-  representation: simple115v2
-  render: False
-  write_full_episode_dumps: False
-  write_video: False
-  dump_frequency: 1000
-  logdir: results/grf
-  extra_players: null
-  control_left: True
-  control_right: False
-  shared_policy: True
-  score_reward_scale: 1
-  reward_type: shared
-
-  max_episode_steps: 200
-  use_action_mask: False
-  uid2aid: null
-
-  n_runners: &nrunners 10
-  n_envs: &nenvs 5
-
-  use_idx: False
-  timeout_done: &td True
-
-  record_prev_action: True
+  env_name: &env_name template-temp
+  n_envs: &nenvs 2
 
 agent: {}
 
@@ -78,7 +79,6 @@ model:
     out_scale: .01
     rnn_type: &prnn lstm
     rnn_units: 64
-    rnn_init: null
     rnn_norm: layer
     use_feature_norm: False
   value:
@@ -90,7 +90,6 @@ model:
     norm_after_activation: True
     rnn_type: &vrnn lstm
     rnn_units: 64
-    rnn_init: null
     rnn_norm: layer
     use_feature_norm: False
 
@@ -127,21 +126,16 @@ loss:
 trainer:
   algorithm: *algo
   aid: 0
-  n_runners: *nrunners
+  n_runners: &nrunners 2
   n_envs: *nenvs
-  n_epochs: &nepochs 15
+  n_epochs: &nepochs 1
   n_mbs: &nmbs 1
   n_steps: *nsteps
   update_scheme: whole
   popart: *popart
   debug: False
 
-  policy_opt:
-    opt_name: adam
-    lr: 5e-4
-    clip_norm: 10
-    eps: 1e-5
-  value_opt:
+  theta_opt:
     opt_name: adam
     lr: 5e-4
     clip_norm: 10
@@ -155,7 +149,7 @@ actor:
       obs_names: [obs, global_state]
       obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
       obs_normalized_ndim: 2
-      normalize_obs: True
+      normalize_obs: *irms
       use_feature_mask: True
       obs_clip: 10
     reward:
@@ -172,7 +166,7 @@ buffer:
   n_envs: *nenvs
   n_steps: *nsteps
   queue_size: 2
-  timeout_done: *td
+  timeout_done: True
 
   gamma: *gamma
   lam: *lam

@@ -79,6 +79,9 @@ def parse_train_args():
     type=str,
     default=None)
   parser.add_argument(
+    '--cpu',
+    action='store_true')
+  parser.add_argument(
     '--seed', '-s',
     type=int,
     default=None)

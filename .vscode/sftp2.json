@@ -43,7 +43,7 @@
 
 {
     "host": "116.172.93.164",
-    "port": 60897,
+    "port": 4989,
     "username": "ubuntu",
     "password": "imin",
     "protocol": "sftp",

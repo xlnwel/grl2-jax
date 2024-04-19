@@ -22,37 +22,16 @@ routine:
   n_eval_envs: 100
   RECORD_VIDEO: False
   N_EVAL_EPISODES: 1
-  size: [256, 256]
 
   compute_return_at_once: False
   perm: null
 
 env:
-  env_name: &env_name grf-academy_3_vs_1_with_keeper
-  representation: simple115v2
-  render: False
-  write_full_episode_dumps: False
-  write_video: False
-  dump_frequency: 1000
-  logdir: results/grf
-  extra_players: null
-  control_left: True
-  control_right: False
-  shared_policy: True
-  score_reward_scale: 1
-  reward_type: shared
+  env_name: &env_name template-temp
+  n_runners: &nrunners 1
+  n_envs: &nenvs 1
 
-  max_episode_steps: 200
-  use_action_mask: False
-  uid2aid: null
-
-  n_runners: &nrunners 10
-  n_envs: &nenvs 5
-
-  use_idx: False
-  timeout_done: &td True
-
-  record_prev_action: True
+  uid2aid: [0, 1]
 
 agent: {}
 
@@ -78,7 +57,6 @@ model:
     out_scale: .01
     rnn_type: &prnn lstm
     rnn_units: 64
-    rnn_init: null
     rnn_norm: layer
     use_feature_norm: False
   value:
@@ -90,7 +68,6 @@ model:
     norm_after_activation: True
     rnn_type: &vrnn lstm
     rnn_units: 64
-    rnn_init: null
     rnn_norm: layer
     use_feature_norm: False
 
@@ -172,7 +149,7 @@ buffer:
   n_envs: *nenvs
   n_steps: *nsteps
   queue_size: 2
-  timeout_done: *td
+  timeout_done: True
 
   gamma: *gamma
   lam: *lam

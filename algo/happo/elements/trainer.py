@@ -292,6 +292,7 @@ class Trainer(TrainerBase):
         inverse_mu=inverse_mu, 
         clip_frac=stats.clip_frac, 
         entropy=stats.entropy, 
+        raw_v_target=stats.raw_v_target, 
         v_target=stats.v_target, 
         teammate_log_ratio=stats.teammate_log_ratio, 
         adv_ratio_pp=stats.adv_ratio_pp, 

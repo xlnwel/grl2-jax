@@ -70,7 +70,7 @@ env:
   extra_players: null
   control_left: True
   control_right: False
-  shared_policy: True
+  shared_policy: False
   score_reward_scale: 1
   reward_type: shared
 
@@ -94,6 +94,7 @@ strategy:
 model:
   aid: 0
   gamma: &gamma .99
+  use_prev_info: False
 
   policy:
     nn_id: policy
@@ -210,7 +211,7 @@ buffer:
     - obs
     - global_state
     - action
-    - prev_action
+    - prev_info
     - value
     - reward
     - discount

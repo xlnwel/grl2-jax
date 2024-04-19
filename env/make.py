@@ -269,6 +269,21 @@ def make_random(config):
   
   return env
 
+
+def make_template(config):
+  assert 'template' in config['env_name'], config['env_name']
+  config = _change_env_name(config)
+  from env.template import TemplateEnv
+  env = TemplateEnv(**config)
+  env = wrappers.MultiAgentUnitsDivision(env, config)
+  if config.record_prev_action:
+    env = wrappers.ActionRecorder(env)
+  env = wrappers.DataProcess(env)
+  env = wrappers.MASimEnvStats(env, seed=config.seed)
+  
+  return env
+
+
 def make_grf(config):
   assert 'grf' in config['env_name'], config['env_name']
   from env.grf import GRF

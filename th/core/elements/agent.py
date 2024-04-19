@@ -116,7 +116,7 @@ class Agent:
 
   """ Train """
   def train_record(self, **kwargs):
-    stats = self.strategy.train_record(**kwargs)
+    stats = self.strategy.train(**kwargs)
     self.monitor.store(**stats)
     return stats
 

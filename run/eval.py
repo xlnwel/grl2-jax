@@ -18,17 +18,17 @@ from tools.plot import plot_data_dict
 from tools.ray_setup import sigint_shutdown_ray
 from tools.run import evaluate
 from tools.graph import save_video
-from tools.utils import modify_config
 from tools import pkg
 from env.func import create_env
 from run.args import parse_eval_args
-from run.utils import search_for_config, search_for_all_configs
+from run.utils import setup_configs, compute_episodes
 
 
 def plot(data: dict, outdir: str, figname: str):
   data = {k: np.squeeze(v) for k, v in data.items()}
   data = {k: np.swapaxes(v, 0, 1) if v.ndim == 2 else v for k, v in data.items()}
   plot_data_dict(data, outdir=outdir, figname=figname)
+
 
 def main(configs, n, record=False, size=(128, 128), video_len=1000, 
     fps=30, out_dir='results', info=''):
@@ -74,9 +74,9 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
   )
 
   do_logging(f'After running {n} episodes', color='cyan')
-  for i, (score, epslen) in enumerate(zip(scores, epslens)):
-    do_logging(f'\tScore for Agent{i}: {np.mean(score):.3g}\n', color='cyan')
-    do_logging(f'\tEpslen for Agent{i}: {np.mean(epslen):.3g}\n', color='cyan')
+  for i, score in enumerate(scores):
+    do_logging(f'\tAgent{i} Score: {np.mean(score):.3g}', color='cyan')
+  do_logging(f'\tEpslen: {np.mean(epslens):.3g}', color='cyan')
   do_logging(f'\tTime: {time.time()-start:.3g}', color='cyan')
 
   filename = os.path.join(out_dir, f'{algo_name}-{env_name}', config["model_name"])
@@ -96,52 +96,11 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
 if __name__ == '__main__':
   args = parse_eval_args()
 
-  setup_logging(args.verbose)
-
-  # load respective config
-  if len(args.directory) == 1:
-    configs = search_for_all_configs(args.directory[0])
-    directories = [args.directory[0] for _ in configs]
-  else:
-    configs = [search_for_config(d) for d in args.directory]
-    directories = args.directory
-  config = configs[0]
-
-  # get the main function
-  # try:
-  #   main = pkg.import_main('eval', config=config)
-  # except Exception as e:
-  #   do_logging(f'Default evaluation is used due to error: {e}', color='red')
-
   configure_gpu()
+  setup_logging(args.verbose)
+  configs = setup_configs(args)
+  n = compute_episodes(args)
 
-  # set up env_config
-  for d, config in zip(directories, configs):
-    if not d.startswith(config.root_dir):
-      i = d.find(config.root_dir)
-      if i == -1:
-        names = d.split(PATH_SPLIT)
-        root_dir = os.path.join(n for n in names if n not in config.model_name)
-        model_name = os.path.join(n for n in names if n in config.model_name)
-        model_name = config.model_name[config.model_name.find(model_name):]
-      else:
-        root_dir = d[:i] + config.root_dir
-        model_name = config.model_name
-      do_logging(f'root dir: {root_dir}')
-      do_logging(f'model name: {model_name}')
-      config = modify_config(
-        config, 
-        overwrite_existed_only=True, 
-        root_dir=root_dir, 
-        model_name=model_name
-      )
-    if args.n_runners:
-      if 'runner' in config:
-        config.runner.n_runners = args.n_runners
-      config.env.n_runners = args.n_runners
-    if args.n_envs:
-      config.env.n_envs = args.n_envs
-  n = max(args.n_runners * args.n_envs, args.n_episodes)
 
   main(configs, n=n, record=args.record, size=args.size, 
     video_len=args.video_len, fps=args.fps, 

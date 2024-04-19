@@ -32,7 +32,9 @@ For stable simulators, `python run/train.py` is still the recommanded way to go.
 #### Basics
 
 ```shell
-python run/train.py -a sync-hm -e unity-combat2d
+python run/train.py -a ppo -e template-temp -c template template  # two agents playing against each other
+python run/train.py -a ppo -e template-temp -c template
+python run/train.py -a async-ppo -e template-temp -c template     # self-play
 ```
 
 where `sync` specifies the distributed architecture(dir: distributed), `hm` specifies the algorithm(dir: algo), `unity` denotes the environment suite, and `combat2d` is the environment name

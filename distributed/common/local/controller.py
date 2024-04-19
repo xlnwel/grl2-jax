@@ -72,19 +72,19 @@ class Controller(YAMLCheckpointBase):
     to_restore=True,
   ):
     self.config = eval_config(config.controller)
-    self.exploiter = config.exploiter
-    self.current_models = None
-    self._model_path = ModelPath(
+    self.exploiter = config.exploiter   # 是否训练Exploiter
+    self.active_models = None          # 当前正在训练的模型
+    self._model_path = ModelPath(       # 模型路径
       self.config.root_dir, 
       get_basic_model_name(self.config.model_name)
     )
     self._dir = os.path.join(*self._model_path)
-    self._path = os.path.join(self._dir, f'{name}.yaml')
+    self._path = os.path.join(self._dir, f'{name}.yaml')  # 配置储存路径
     do_logging(f'Model Path: {self._model_path}', color='blue')
     save_code(self._model_path)
 
-    self._iteration = 1
-    self._steps = 0
+    self._iteration = 1                 # PBT迭代次数
+    self._steps = 0                     # 步数
     self._pids = []
 
     self._status = None
@@ -92,8 +92,9 @@ class Controller(YAMLCheckpointBase):
     if to_restore:
       self.restore()
 
-  """ Manager Building """
+  """ 构建Managers和Parameter Server """
   def build_managers_for_evaluation(self, config: AttrDict):
+    """ 为评估构建Managers和Parameter Server """
     self.self_play = config.self_play
     if config.self_play:
       PSModule = pkg.import_module(
@@ -118,6 +119,7 @@ class Controller(YAMLCheckpointBase):
     self.runner_manager.build_runners(config, evaluation=True)
 
   def build_managers(self, configs: List[AttrDict]):
+    """ 为训练构建Managers和Parameter Server """
     configs = [dict2AttrDict(c) for c in configs]
     _check_configs_consistency(configs, [
       'controller', 
@@ -137,10 +139,11 @@ class Controller(YAMLCheckpointBase):
     self.self_play = config.self_play
 
     self.n_runners = config.runner.n_runners
-    self.n_steps = config.runner.n_steps
     self.n_envs = config.env.n_envs
-    self.steps_per_run = self.n_runners * self.n_envs * self.n_steps
+    self.n_steps = config.runner.n_steps
+    self.steps_per_run = self.n_runners * self.n_envs * self.n_steps  # 每轮run与环境的交互次数
 
+    # 倒入Parameter Server类
     if config.self_play:
       PSModule = pkg.import_module(
         'remote.parameter_server_sp', config=config)
@@ -155,18 +158,20 @@ class Controller(YAMLCheckpointBase):
         config=config.asdict(),
         to_restore_params=True, 
       )
-    # Build elements builder
+    # 构建ElementsBuilder
     ray.get(self.parameter_server.build.remote(
       configs=[c.asdict() for c in self.configs],
       env_stats=env_stats.asdict(),
     ))
 
+    # 构建Monitor
     do_logging('Buiding Monitor...', color='blue')
     self.monitor: Monitor = Monitor.as_remote().remote(
       config.asdict(), 
       self.parameter_server
     )
 
+    # 构建Agent Manager
     do_logging('Building Agent Manager...', color='blue')
     self.agent_manager: AgentManager = AgentManager(
       ray_config=config.ray_config.agent,
@@ -175,6 +180,7 @@ class Controller(YAMLCheckpointBase):
       monitor=self.monitor
     )
 
+    # 构建Runner Manager
     do_logging('Building Runner Manager...', color='blue')
     self.runner_manager: RunnerManager = RunnerManager(
       ray_config=config.ray_config.runner,
@@ -185,6 +191,7 @@ class Controller(YAMLCheckpointBase):
   """ Training """
   @timeit
   def pbt_train(self):
+    # 规划器: 规划每轮迭代与环境交互的次数
     iteration_step_scheduler = self._get_iteration_step_scheduler(
       self.config.max_version_iterations, 
       self.config.max_steps_per_iteration
@@ -192,14 +199,16 @@ class Controller(YAMLCheckpointBase):
 
     while self._iteration <= self.config.max_version_iterations: 
       do_logging(f'Starting Iteration {self._iteration}', color='blue')
-      self.initialize_actors()
-      max_steps = iteration_step_scheduler(self._iteration)
-      ray.get(self.monitor.set_max_steps.remote(max_steps))
-      periods = self.initialize_periods(max_steps)
+      self.initialize_actors()    # 初始化remote actors
+      max_steps = iteration_step_scheduler(self._iteration) # 当前轮的环境交互次数
+      ray.get(self.monitor.set_max_steps.remote(max_steps)) # 设置最大步数
+      periods = self.initialize_periods(max_steps)          # 初始化周期
       self._status = Status.TRAINING
 
+      # 开始训练
       self.train(self.agent_manager, self.runner_manager, max_steps, periods)
 
+      # 每轮迭代后的清理
       self.cleanup()
   
     do_logging(f'Training Finished. Total Iterations: {self._iteration-1}', color='blue')
@@ -222,22 +231,22 @@ class Controller(YAMLCheckpointBase):
   def initialize_actors(self):
     model_weights, is_raw_strategy = ray.get(
       self.parameter_server.sample_training_strategies.remote())
-    self.current_models = [m.model for m in model_weights]
-    do_logging(f'Training Strategies at Iteration {self._iteration}: {self.current_models}', color='blue')
+    self.active_models = [m.model for m in model_weights]
+    do_logging(f'Training Strategies at Iteration {self._iteration}: {self.active_models}', color='blue')
 
     configs = self._prepare_configs(self.n_runners, self.n_steps, self._iteration)
 
-    self.agent_manager.build_agents(configs)
-    self.agent_manager.set_model_weights(model_weights, wait=True)
-    self.agent_manager.publish_weights(wait=True)
+    self.agent_manager.build_agents(configs)  # 构建remote agents
+    self.agent_manager.set_model_weights(model_weights, wait=True)  # 设置remote agents的模型权重
+    self.agent_manager.publish_weights(wait=True) # 发布remote agents的模型权重
     do_logging(f'Finishing Building Agents', color='blue')
 
-    self.active_models = [model for model, _ in model_weights]
     self.active_configs = [
       search_for_config(model, to_attrdict=False) 
       for model in self.active_models
     ]
 
+    # 构建remote runners
     self.runner_manager.build_runners(
       configs, 
       remote_buffers=self.agent_manager.get_agents(),
@@ -248,16 +257,17 @@ class Controller(YAMLCheckpointBase):
     self._initialize_rms(self.active_models, is_raw_strategy)
 
   def initialize_periods(self, max_steps: int):
-    periods: Dict[str, Every] = {
+    periods: Dict[str, Every] = dict2AttrDict({
       'restart_runners': Every(
         self.config.restart_runners_period, 
         0 if self.config.restart_runners_period is None \
           else self._steps + self.config.restart_runners_period
       ), 
-      'reload_strategy_pool': Every(self.config.reload_strategy_pool_period, start=self._steps, final=max_steps), 
+      'reload_strategy_pool': Every(
+        self.config.reload_strategy_pool_period, start=self._steps, final=max_steps), 
       'eval': Every(self.config.eval_period, start=self._steps, final=max_steps),
       'store': Every(self.config.store_period, start=self._steps, final=max_steps)
-    }
+    })
     return periods
 
   @timeit
@@ -309,11 +319,13 @@ class Controller(YAMLCheckpointBase):
     eval_pids: List[ray.ObjectRef]
   ):
     if periods['eval'](self._steps):
+      # 评估当前模型
       pid = self._eval(self._steps)
       if pid:
         eval_pids.append(pid)
     if periods['restart_runners'](self._steps):
       do_logging('Restarting Runners', color='blue')
+      # 重启remote runners
       self.runner_manager.destroy_runners()
       self.runner_manager.build_runners(
         self.configs, 
@@ -334,6 +346,7 @@ class Controller(YAMLCheckpointBase):
     return eval_pids
 
   def _check_scores(self):
+    """ 检查score是否满足要求 """
     if self.config.score_threshold is not None:
       scores = ray.get([self.parameter_server.get_avg_score.remote(i, m) 
         for i, m in enumerate(self.agent_manager.models)])
@@ -344,8 +357,9 @@ class Controller(YAMLCheckpointBase):
     return False
 
   def _check_target(self):
+    """ 检查Exploiter的目标是否切换 """
     if self.exploiter:
-      for model in self.current_models:
+      for model in self.active_models:
         main_model = ModelPath(model.root_dir, model.model_name.replace(EXPLOITER_SUFFIX, ''))
         basic_name, aid = decompose_model_name(main_model.model_name)[:2]
         path = os.path.join(model.root_dir, basic_name, f'a{aid}')
@@ -357,6 +371,7 @@ class Controller(YAMLCheckpointBase):
     return False
   
   def _check_steps(self, steps, max_steps):
+    """ 检查是否达到最大交互次数 """
     if steps >= max_steps:
       do_logging(f'The maximum number of steps has been reached', color='blue')
       self._status = Status.TIMEOUT
@@ -364,6 +379,7 @@ class Controller(YAMLCheckpointBase):
     return False
 
   def _check_termination(self, steps, max_steps):
+    """ 当前迭代是否满足终止条件 """
     terminate_flag = self._check_scores()
     if not terminate_flag:
       terminate_flag = self._check_target()
@@ -372,6 +388,7 @@ class Controller(YAMLCheckpointBase):
     return terminate_flag
 
   def _finish_iteration(self, eval_pids, **kwargs):
+    """ 结束当前迭代, 做相关数据记录 """
     ipid = self._eval(self._iteration)
     do_logging(f'Finishing Iteration {self._iteration}', color='blue')
     ray.get([

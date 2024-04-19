@@ -598,10 +598,12 @@ class MultiAgentRunner(RayBase):
         for k, v in i.items():
           stats[k].append(v)
       if self.self_play:
-        self.scores += [v[self.aid2uids[0]].mean() for v in stats[self.score_metric]]
+        uids = self.aid2uids[0]
+        self.scores += [
+          v[uids].mean() for v in stats[self.score_metric]]
         self.agents[0].store(
           **{
-            k: [vv[0] for vv in v]
+            k: [vv[uids] for vv in v]
             if isinstance(v[0], np.ndarray) else v
             for k, v in stats.items()
           }

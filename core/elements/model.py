@@ -94,7 +94,7 @@ class Model(ParamsCheckpointBase):
   def raw_action(self, params, rng, data, evaluation=False):
     raise NotImplementedError
 
-  def get_weights(self, name: str=None):
+  def get_weights(self, name: Union[str, ]=None):
     """ Returns a list/dict of weights
 
     Returns:

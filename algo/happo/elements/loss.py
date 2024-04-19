@@ -114,7 +114,7 @@ class Loss(LossBase):
 
     data.action_mask = get_action_mask(data.action)
     data.state_reset = data.state_reset[:, :-1] if 'state_reset' in data else None
-    state = None if data.state is None else data.state.policy, 
+    state = None if data.state is None else data.state.policy
     _, _, _, ratio = compute_policy(
       self.model, policy_theta, rngs[1], data, state, self.config.prnn_bptt
     )

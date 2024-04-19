@@ -33,7 +33,7 @@ env:
 
   max_episode_steps: 200
   use_action_mask: False
-  uid2aid: null
+  uid2aid: [0, 1]
 
   n_runners: &nrunners 10
   n_envs: &nenvs 5

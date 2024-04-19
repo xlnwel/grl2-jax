@@ -1,7 +1,7 @@
 ---
-algorithm: &algo sync-happo
-name: sync-happo
-info: sync-happo
+algorithm: &algo sync-ppo
+name: sync-ppo
+info: sync-ppo
 
 precision: 32
 
@@ -135,7 +135,6 @@ loss:
 
   # hyperparams for policy optimization
   pg_type: ppo
-  opt_pg: False
   ppo_clip_range: .2
   teammate_ratio_clip: .2
   policy_sample_mask: True

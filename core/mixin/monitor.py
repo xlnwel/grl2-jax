@@ -40,7 +40,7 @@ def get_new_path(filename, suffix, i=1):
     i += 1
   return path
 
-def merge_data(filename, suffix):
+def merge_data(filename, suffix='.txt'):
   path = filename + suffix
   data = []
   i = 1

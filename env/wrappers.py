@@ -709,20 +709,27 @@ class MultiAgentUnitsDivision(gym.Wrapper):
   def __init__(self, env, config):
     super().__init__(env)
 
-    if config.uid2aid is None:
-      if config.shared_policy or not config.multi_agent:
-        uid2aid = (0,) * self.env.n_units
+    if hasattr(env, 'uid2aid'):
+      uid2aid = env.uid2aid
+      if hasattr(env, 'uid2gid'):
+        uid2gid = env.uid2gid
       else:
-        uid2aid = tuple(range(self.env.n_units))
+        uid2gid = uid2aid
     else:
-      uid2aid = config.uid2aid
-    if config.uid2gid is None:
-      if config.shared_policy:
-        uid2gid = (0,) * self.env.n_units
+      if config.uid2aid is None:
+        if config.shared_policy or not config.multi_agent:
+          uid2aid = (0,) * self.env.n_units
+        else:
+          uid2aid = tuple(range(self.env.n_units))
       else:
-        uid2gid = tuple(range(self.env.n_units))
-    else:
-      uid2gid = config.uid2gid
+        uid2aid = config.uid2aid
+      if config.uid2gid is None:
+        if config.shared_policy:
+          uid2gid = (0,) * self.env.n_units
+        else:
+          uid2gid = tuple(range(self.env.n_units))
+      else:
+        uid2gid = config.uid2gid
 
     self.uid2aid = uid2aid
     self.aid2uids = compute_aid2uids(self.uid2aid)

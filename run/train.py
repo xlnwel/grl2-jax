@@ -21,6 +21,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import setup_logging, do_logging
 from core.names import PATH_SPLIT
+from core.utils import configure_gpu
 from tools import pkg
 from tools.utils import modify_config
 from run.args import parse_train_args
@@ -216,6 +217,8 @@ if __name__ == '__main__':
   setup_logging(cmd_args.verbose)
   if not (cmd_args.grid_search and cmd_args.multiprocess) and cmd_args.gpu is not None:
     os.environ["CUDA_VISIBLE_DEVICES"] = f",".join([f"{gpu}" for gpu in cmd_args.gpu])
+  if cmd_args.cpu:
+    configure_gpu(None)
   processes = []
   if cmd_args.directory != '':
     configs = [search_for_config(d) for d in cmd_args.directory]

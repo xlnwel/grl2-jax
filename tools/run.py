@@ -120,13 +120,14 @@ def run(
     actions, stats = zip(*[a(o) for a, o in zip(agents, agent_env_outputs)])
     new_env_output = env.step(actions)
     new_agent_env_outputs = divide_env_output(new_env_output)
-    assert len(agent_env_outputs) == len(actions) == len(new_agent_env_outputs)
+    assert len(agent_env_outputs) == len(actions) == len(new_agent_env_outputs), \
+      (len(agent_env_outputs), len(actions), len(new_agent_env_outputs))
 
     if collect_data:
       next_obs = env.prev_obs()
       for i, agent in enumerate(agents):
         data = dict(
-          obs=env_output[i].obs, 
+          obs=agent_env_outputs[i].obs, 
           action=actions[i], 
           reward=new_agent_env_outputs[i].reward, 
           discount=new_agent_env_outputs[i].discount, 
@@ -139,12 +140,16 @@ def run(
     env_output = new_env_output
     done_env_ids = [i for i, r in enumerate(env_output.reset[0]) if np.all(r)]
     if done_env_ids:
-      info = env.info(done_env_ids, convert_batch=True)
       if store_info:
+        info = env.info(done_env_ids)
+        stats = collections.defaultdict(list)
+        for i in info:
+          for k, v in i.items():
+            stats[k].append(v)
         for aid, uids in enumerate(env_stats.aid2uids):
           agent_info = {k: [vv[uids] for vv in v]
               if isinstance(v[0], np.ndarray) else v 
-              for k, v in info.items()}
+              for k, v in stats.items()}
           agents[aid].store(**agent_info)
 
       for callback in eps_callbacks:
@@ -324,10 +329,10 @@ def simple_evaluate(env, agents, n_eps, render=False):
     if render:
       env.render()
     if np.all(env_output.reset):
-      agent_scores = [a + s for a, s in zip(agent_scores, zip(*env.score()))]
+      agent_scores = [a + list(s) for a, s in zip(agent_scores, zip(*env.score()))]
       epslen += env.epslen()
       eps_i += 1
-  
+
   return agent_scores, epslen
 
 
@@ -341,62 +346,40 @@ def evaluate(
   n_windows=4
 ):
   scores = [[] for _ in agents]
-  epslens = [[] for _ in agents]
+  epslens = []
   stats_list = [[] for _ in agents]
   if size is not None and len(size) == 1:
     size = size * 2
-  max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
   frames = [collections.deque(maxlen=video_len) 
     for _ in range(min(n_windows, env.n_envs))]
   for a in agents:
     a.reset_states()
-  n_run_eps = env.n_envs  # count the number of episodes that has begun to run
   n = max(n, env.n_envs)
   n_done_eps = 0
-  prev_done = np.zeros(env.n_envs)
   env_output = env.output()
   while n_done_eps < n:
-    for k in range(max_steps):
-      if record_video:
-        img = env.get_screen(size=size)
-        if env.env_type == 'Env':
-          frames[0].append(img)
-        else:
-          for i in range(len(frames)):
-            frames[i].append(img[i])
+    if record_video:
+      img = env.get_screen(size=size)
+      if env.env_type == 'Env':
+        frames[0].append(img)
+      else:
+        for i in range(len(frames)):
+          frames[i].append(img[i])
 
-      outs = divide_env_output(env_output)
-      action, stats = zip(*[a(o, evaluation=True) for a, o in zip(agents, outs)])
-      env_output = env.step(action)
-      for sl, s, inf in zip(stats_list, stats, env.info()):
-        s.update(inf)
-        sl.append(s)
+    outs = divide_env_output(env_output)
+    action, stats = zip(*[a(o, evaluation=True) for a, o in zip(agents, outs)])
+    env_output = env.step(action)
+    for sl, s, inf in zip(stats_list, stats, env.info()):
+      s.update(inf)
+      sl.append(s)
 
-      done = env.game_over()
-      done_env_ids = [i for i, (d, pd) in 
-        enumerate(zip(done, prev_done)) if d and not pd]
-      n_done_eps += len(done_env_ids)
-      if done_env_ids:
-        agent_score = list(zip(*env.score(done_env_ids)))
-        agent_epslen = list(zip(*env.epslen(done_env_ids)))
-        for i, _ in enumerate(agents):
-          scores[i] += list(agent_score[i])
-          epslens[i] += list(agent_epslen[i])
-        if n_run_eps < n:
-          reset_env_ids = done_env_ids[:n-n_run_eps]
-          n_run_eps += len(reset_env_ids)
-          eo = env.reset(reset_env_ids)
-          for t, s in zip(env_output, eo):
-            if isinstance(t, dict):
-              for k in t.keys():
-                for i, ri in enumerate(reset_env_ids):
-                  t[k][ri] = s[k][i]
-            else:
-              for i, ri in enumerate(reset_env_ids):
-                t[ri] = s[i]
-        elif n_done_eps == n:
-          break
-      prev_done = done
+    done_env_ids = [i for i, r in enumerate(env_output.reset[0]) if np.all(r)]
+    n_done_eps += len(done_env_ids)
+    if done_env_ids:
+      agent_score = list(zip(*env.score(done_env_ids)))
+      for i, _ in enumerate(agents):
+        scores[i] += list(agent_score[i])
+      epslens += env.epslen(done_env_ids)
 
   stats = [batch_dicts(s) for s in stats_list]
   if record_video:

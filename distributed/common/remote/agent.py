@@ -76,7 +76,7 @@ class Agent(RayBase):
 
   def _training(self):
     while self.train_signal:
-      stats = self.strategy.train_record()
+      stats = self.strategy.train()
       if stats:
         self.publish_weights()
         self._send_train_stats(stats)
@@ -90,7 +90,7 @@ class Agent(RayBase):
     self.monitor.store_train_stats.remote(model_stats)
 
   def train(self):
-    stats = self.strategy.train_record()
+    stats = self.strategy.train()
     self.publish_weights()
     self._send_train_stats(stats)
     return self.strategy.get_train_step()

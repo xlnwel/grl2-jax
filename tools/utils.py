@@ -531,6 +531,9 @@ def batch_dicts(x, func=np.stack, keys=None):
       v = batch_dicts([xx[k] for xx in x], func=func)
       if v:
         res[k] = v
+    elif (isinstance(v, np.ndarray) and v.dtype == '<U11') or isinstance(v, str):
+      # ignore strings
+      continue
     elif v is None:
       continue
     elif hasattr(v, '_fields'):

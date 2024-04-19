@@ -15,25 +15,5 @@ rename:
   group_last_epoch/clip_frac: last_epoch/clip_frac
 
 data:
-  # - date: 1127
-  #   env_suite: grf
-  # - date: "0223"
-  # - date: "0302"
-  # - date: "0304"
-  # - date: "0305"
-  # - date: "0306"
-  # - date: "0309"
-  # - date: "0314"
-  # - date: "0315"
-  # - date: "0316"
-  # - date: "0317"
-  # - date: "0321"
-  # - date: "0322"
   - date: "0323"
-  # - date: "0324"
-  # - date: "0325"
-  # - date: "0326"
-  # - date: "0327"
-  # - date: "0330"
-  # - date: "0331"
-  - date: "0401"
+  - date: "0407"

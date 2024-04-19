@@ -49,25 +49,42 @@ class Agent:
     return self._name
 
   def reset_model_path(self, model_path: ModelPath):
+    """ 设置模型路径
+
+    Args:
+        model_path (ModelPath): (模型根目录, 模型子目录)
+    """
     self.strategy.reset_model_path(model_path)
     if self.monitor:
       self.monitor.reset_model_path(model_path)
 
   def get_model_path(self):
+    """ 获取模型路径 """
     return self._model_path
 
-  def add_strategy(self, sid, strategy: Strategy):
+  def add_strategy(self, sid: str, strategy: Strategy):
+    """添加策略(strategy)
+
+    Args:
+        sid (str): 策略标识
+        strategy (Strategy): 策略实例
+    """
     self.strategies[sid] = strategy
 
-  def switch_strategy(self, sid):
+  def switch_strategy(self, sid: str):
+    """切换策略(strategy)
+
+    Args:
+        sid (str): 策略标识
+    """
     self.strategy = self.strategies[sid]
 
   def set_strategy(self, strategy: ModelWeights, *, env=None):
-    """
-      strategy: strategy is rule-based if the model_name is int, 
-      in which case strategy.weights is the config for that strategy 
-      initialization. Otherwise, strategy is expected to be 
-      learned by RL
+    """设置策略
+
+    Args:
+        strategy (ModelWeights): (模型, 权重)元组, 当策略是规则时, 权重指定规则策略所定义的地址
+        env (Env, optional): 训练环境. 默认为None.
     """
     self._model_path = strategy.model
     if len(strategy.model.root_dir.split(PATH_SPLIT)) < 3:
@@ -102,7 +119,12 @@ class Agent:
 
     self.strategy = self.strategies[algo]
 
-  def __getattr__(self, name):
+  def __getattr__(self, name: str):
+    """读取策略和监视器的接口/属性
+
+    Args:
+        name (str): 接口/属性名
+    """
     if name.startswith('_'):
       raise AttributeError(f"Attempted to get missing private attribute '{name}'")
     if hasattr(self.strategy, name):
@@ -113,19 +135,33 @@ class Agent:
     raise AttributeError(f"Attempted to get missing attribute '{name}'")
 
   def __call__(self, *args, **kwargs):
+    """ 调用策略 """
     return self.strategy(*args, **kwargs)
 
   """ Train """
   def train_record(self, **kwargs):
-    stats = self.strategy.train_record(**kwargs)
+    """ 训练并记录训练产生的统计数据
+
+    Returns:
+        Dict: 统计数据
+    """
+    stats = self.strategy.train(**kwargs)
     self.monitor.store(**stats)
     return stats
 
   def save(self):
+    """ 保存策略 """
     for s in self.strategies.values():
       s.save()
   
   def restore(self, skip_model=False, skip_actor=False, skip_trainer=False):
+    """ 恢复策略
+
+    Args:
+        skip_model (bool, optional): 是否跳过模型. Defaults to False.
+        skip_actor (bool, optional): 是否跳过Actor的参数. Defaults to False.
+        skip_trainer (bool, optional): 是否跳过Trainer得参数. Defaults to False.
+    """
     for s in self.strategies.values():
       s.restore(
         skip_model=skip_model, 
@@ -135,4 +171,5 @@ class Agent:
 
 
 def create_agent(**kwargs):
+  """ 创建 Agent """
   return Agent(**kwargs)

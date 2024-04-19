@@ -47,7 +47,7 @@ class Controller(ControllerBase):
   """ Implementation for <pbt_train> """
   def _prepare_configs(self, n_runners: int, n_steps: int, iteration: int):
     configs = [dict2AttrDict(c, to_copy=True) for c in self.configs]
-    runner_stats = ray.get(self.parameter_server.get_runner_stats.remote())
+    runner_stats = ray.get(self.parameter_server.get_runner_stats.remote()) # 获取runner的信息
     assert self._iteration == runner_stats.iteration, (self._iteration, runner_stats.iteration)
     n_online_runners = runner_stats.n_online_runners
     n_agent_runners = runner_stats.n_agent_runners

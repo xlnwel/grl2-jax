@@ -4,7 +4,7 @@ export PYTHONPATH=.
 
 suite=grf
 algos=(
-  sync-ppo
+  sync-happo
   # ppo
 )
 envs=(
@@ -18,18 +18,18 @@ envs=(
 )
 shift
 configs=(
-  grf_rnn
+  grf
 )
 # shift
 args1=(
-  True
-  True
-  True
-  True
-  False
-  False
-  False
-  False
+  15
+  15
+  15
+  15
+  10
+  10
+  10
+  10
 )
 args2=(
   shared
@@ -103,7 +103,7 @@ kws=$@
 #     echo $py_script
 #   done
 # fi
-kws="use_prev_info=$a1 n_epochs=15"
+kws="n_epochs=$a1"
 # for a in "${algos[@]}"; do
 # for e in "${envs[@]}"; do
 env="${suite}-${e}"

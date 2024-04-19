@@ -1,6 +1,7 @@
 import os
 import logging
 
+from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.names import PATH_SPLIT
 from core.typing import dict2AttrDict
@@ -185,3 +186,62 @@ def search_for_config(directory, to_attrdict=True, check_duplicates=True):
     raise RuntimeError(f'No configure file is found in {directory}')
   
   return config
+
+
+def setup_configs(args):
+  # load respective config
+  if len(args.directory) == 1:
+    configs = search_for_all_configs(args.directory[0])
+    directories = [args.directory[0] for _ in configs]
+  else:
+    configs = [search_for_config(d) for d in args.directory]
+    directories = args.directory
+
+  # set up env_config
+  for d, config in zip(directories, configs):
+    if not d.startswith(config.root_dir):
+      i = d.find(config.root_dir)
+      if i == -1:
+        names = d.split(PATH_SPLIT)
+        root_dir = os.path.join(n for n in names if n not in config.model_name)
+        model_name = os.path.join(n for n in names if n in config.model_name)
+        model_name = config.model_name[config.model_name.find(model_name):]
+      else:
+        root_dir = d[:i] + config.root_dir
+        model_name = config.model_name
+      do_logging(f'root dir: {root_dir}')
+      do_logging(f'model name: {model_name}')
+      config = modify_config(
+        config, 
+        overwrite_existed_only=True, 
+        root_dir=root_dir, 
+        model_name=model_name
+      )
+    if args.n_runners:
+      config = modify_config(
+        config, 
+        overwrite_existed_only=True, 
+        max_layer=2, 
+        n_runners=args.n_runners)
+    if args.n_envs:
+      config = modify_config(
+        config, 
+        overwrite_existed_only=True, 
+        max_layer=2, 
+        n_envs=args.n_envs)
+  return configs
+
+
+def compute_episodes(args):
+  n = args.n_episodes
+  n = max(args.n_runners * args.n_envs, n)
+  return n
+
+
+def build_agents(configs, env_stats):
+  agents = []
+  for config in configs:
+    builder = ElementsBuilder(config, env_stats)
+    elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)
+    agents.append(elements.agent)
+  return agents

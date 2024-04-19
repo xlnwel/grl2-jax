@@ -1,6 +1,7 @@
 import os, shutil
 import random
 import numpy as np
+import jax
 
 from core.log import do_logging
 from core.typing import ModelPath, get_basic_model_name
@@ -20,6 +21,7 @@ def configure_gpu(idx=-1):
   import tensorflow as tf
   if idx is None:
     tf.config.experimental.set_visible_devices([], 'GPU')
+    jax.config.update('jax_platform_name', 'cpu')
     do_logging('No gpu is used', backtrack=3)
     return False
   gpus = tf.config.list_physical_devices('GPU')
