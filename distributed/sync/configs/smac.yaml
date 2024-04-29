@@ -20,7 +20,7 @@ controller:
   restart_runners_period: null
   max_version_iterations: 1
   max_steps_per_iteration: 3e7
-  initialize_rms: &irms False
+  initialize_rms: &irms True
 
 parameter_server:
   root_dir: *algo
@@ -40,7 +40,7 @@ ray_config:
   runner:
     num_cpus: 1
   agent:
-    num_gpus: 1
+    num_gpus: 0
 
 monitor: {}
 
@@ -53,8 +53,6 @@ env:
   env_name: &env_name smac-corridor
   n_envs: &nenvs 1
   timeout_done: &td True
-  use_sample_mask: &sm True
-  use_action_mask: &am True
   sample_mask_at_done: 0
 
 agent: {}
@@ -72,21 +70,26 @@ model:
     units_list: [64, 64]
     w_init: orthogonal
     activation: relu
-    norm: null
+    norm: layer
+    norm_after_activation: True
     out_scale: .01
-    rnn_type: &prnn null
+    rnn_type: &prnn lstm
     rnn_units: 64
-    use_feature_norm: True
-    use_action_mask: *am
+    rnn_init: null
+    rnn_norm: layer
+    use_feature_norm: False
   value:
     nn_id: value
     units_list: [64, 64]
     w_init: orthogonal
     activation: relu
-    norm: null
-    rnn_type: &vrnn null
+    norm: layer
+    norm_after_activation: True
+    rnn_type: &vrnn lstm
     rnn_units: 64
-    use_feature_norm: True
+    rnn_init: null
+    rnn_norm: layer
+    use_feature_norm: False
 
 loss:
   # hyperparams for value target and advantage
@@ -106,10 +109,10 @@ loss:
 
   # hyperparams for value learning
   value_loss: clip_huber
-  huber_threshold: 10
   value_clip_range: .2
+  huber_threshold: 10
   value_sample_mask: False
-  popart: &popart False
+  popart: &popart True
 
   stats:
     gamma: *gamma
@@ -148,7 +151,8 @@ actor:
       obs_names: [obs, global_state]
       obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
       obs_normalized_ndim: 2
-      normalize_obs: False
+      normalize_obs: *irms
+      use_feature_mask: True
       obs_clip: 10
     reward:
       reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
@@ -174,10 +178,12 @@ buffer:
     - global_state
     - action
     - action_mask
+    - prev_info
     - value
     - reward
     - discount
     - reset
+    - sample_mask
     - mu_logprob
     - mu_logits
     - state_reset

@@ -70,7 +70,7 @@ env:
   extra_players: null
   control_left: True
   control_right: False
-  shared_policy: False
+  shared_policy: True
   score_reward_scale: 1
   reward_type: shared
 
@@ -135,7 +135,6 @@ loss:
 
   # hyperparams for policy optimization
   pg_type: ppo
-  opt_pg: False
   ppo_clip_range: .2
   teammate_ratio_clip: .2
   policy_sample_mask: True

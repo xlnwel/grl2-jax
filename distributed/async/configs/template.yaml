@@ -18,8 +18,8 @@ model_name: *algo
 controller:
   store_period: 5e4
   restart_runners_period: null
-  max_version_iterations: 1
-  max_steps_per_iteration: &ms 5e6
+  max_version_iterations: 100
+  max_steps_per_iteration: &ms 1e6
   initialize_rms: &irms True
 
 parameter_server:
@@ -36,6 +36,14 @@ parameter_server:
       type: pfsp
       p: 1
       threshold: .3
+
+  rule_strategies:
+    # agent name / config
+    random:
+      aid: 1
+      iid: 1
+      path: rule/random   # path to the file that defines Strategy
+      # other configs
 
 ray_config:
   runner:

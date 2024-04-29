@@ -224,11 +224,10 @@ class SPParameterServer(RayBase):
     models = []
     for name, config in rule_config.items():
       aid = config['aid']
-      assert aid < self.n_active_agents, (aid, self.n_active_agents)
-      vid = config['vid']
+      iid = config['iid']
       model_name = get_basic_model_name(self.config.model_name)
       model_name = os.path.join(model_name, f'{name}-rule')
-      model_name = construct_model_name(model_name, aid, vid, vid)
+      model_name = construct_model_name(model_name, aid, iid, iid)
       model = ModelPath(self.config.root_dir, model_name)
       self._rule_strategies.add(model)
       self._params[model] = AttrDict2dict(config)

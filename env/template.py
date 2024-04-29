@@ -137,11 +137,11 @@ class TemplateEnv:
 
   def _get_reward(self, env_out):
     """ 获取奖励 """
-    return np.array([0 for _ in range(self.n_units)])
+    return np.random.uniform(-1, 1, self.n_units)
 
   def _get_done(self, env_out):
     """ 获取终止信号 """
-    return np.array([0 for _ in range(self.n_units)])
+    return np.ones(self.n_units) * np.random.random() < 0.1
   
   def close(self):
     """ 关闭环境 """

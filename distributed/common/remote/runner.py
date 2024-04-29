@@ -193,7 +193,7 @@ class MultiAgentRunner(RayBase):
         model_weights = ray.get(mid)
         self.is_agent_active[aid] = model_weights.model in self.active_models
         self.current_models[aid] = model_weights.model
-        assert set(model_weights.weights).issubset(set([MODEL, ANCILLARY, TRAIN_STEP])) or set(model_weights.weights) == set(['aid', 'vid', 'path']), set(model_weights.weights)
+        assert set(model_weights.weights).issubset(set([MODEL, ANCILLARY, TRAIN_STEP])) or set(model_weights.weights) == set(['aid', 'iid', 'path']), set(model_weights.weights)
         self.agents[aid].set_strategy(model_weights, env=self.env)
         # do_logging(f'Runner {self.id} receives weights of train step {model_weights.weights["train_step"]}')
       if self.self_play:

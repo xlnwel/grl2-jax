@@ -4,6 +4,7 @@ from core.ckpt.pickle import restore
 from core.typing import tree_slice
 from tools.display import print_dict_info
 from tools.timer import Every
+from tools.utils import yield_from_tree
 from algo.ma_common.train import *
 
 
@@ -25,20 +26,22 @@ def train(
     final=routine_config.MAX_STEPS
   )
   b = 1000000
+  s = 1
   u = runner.env_stats().n_units
   obs_shape = runner.env_stats().obs_shape[0]
-  act_dim = runner.env_stats().action_dim[0]
+  action_shape = runner.env_stats().action_shape[0]
   data = {
-    k: np.zeros((b, u, *v)) for k, v in obs_shape.items()
+    k: np.zeros((b, s, u, *v)) for k, v in obs_shape.items()
   }
-  data['action'] = act_dim
-  for k, v in act_dim.items():
-    data[k] = np.zeros((b, u, v))
-  data['reward'] = np.zeros((b, u))
-  data['discount'] = np.zeros((b, u))
-  data['reset'] = np.zeros((b, u))
+  data['action'] = {}
+  for k, v in action_shape.items():
+    data['action'][k] = np.zeros((b, s, u, *v))
+  data['reward'] = np.zeros((b, s, u))
+  data['discount'] = np.zeros((b, s, u))
+  data['reset'] = np.zeros((b, s, u))
   # data = load_data(filename=routine_config.filename)
-  agents[0].buffer.merge(data)
+  for d in yield_from_tree(data):
+    agents[0].buffer.merge(d)
 
   while train_step < routine_config.MAX_STEPS:
     train_step = ego_optimize(agents)

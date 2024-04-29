@@ -111,7 +111,7 @@ class UniformReplay(Buffer):
 
   """ Sampling """
   @timeit
-  def sample_from_recency(self, batch_size, sample_keys=None, n=None, add_seq_dim=False):
+  def sample_from_recency(self, batch_size, sample_keys=None, n=None):
     batch_size = batch_size or self.batch_size
     n = max(batch_size, n or self.n_recency)
     if n > len(self):
@@ -120,7 +120,7 @@ class UniformReplay(Buffer):
     idxes = np.random.choice(idxes, size=batch_size, replace=False)
 
     samples = self._get_samples(
-      idxes, self._memory, sample_keys=sample_keys, add_seq_dim=add_seq_dim)
+      idxes, self._memory, sample_keys=sample_keys)
 
     return samples
     
@@ -182,23 +182,11 @@ class UniformReplay(Buffer):
 
     return samples
 
-  def _get_samples(self, idxes, memory, sample_keys=None, add_seq_dim=True):
+  def _get_samples(self, idxes, memory, sample_keys=None):
     if sample_keys is None:
       sample_keys = self.sample_keys
-    if add_seq_dim:
-      fn = lambda x: np.expand_dims(np.stack(x), 1)
-    else:
-      fn = np.stack
     raw_samples = [memory[i] for i in idxes]
-    raw_samples = batch_dicts(raw_samples, func=fn, keys=sample_keys)
-    samples = AttrDict()
-    samples.action = AttrDict()
-    for k, v in raw_samples.items():
-      if k.startswith('action'):
-        samples.action[k] = v
-      else:
-        samples[k] = v
-
+    samples = batch_dicts(raw_samples, keys=sample_keys)
     return samples
 
   def _update_obs_rms(self, trajs):

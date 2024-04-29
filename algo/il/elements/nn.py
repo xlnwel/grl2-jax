@@ -7,7 +7,6 @@ from core.typing import dict2AttrDict
 from nn.func import nn_registry
 from nn.layers import Layer
 from nn.mlp import MLP
-from nn.utils import get_activation
 from jax_tools import jax_assert
 """ Source this file to register Networks """
 
@@ -41,12 +40,12 @@ class Policy(hk.Module):
     self.use_action_mask = use_action_mask
     self.use_feature_norm = use_feature_norm
 
-  def __call__(self, x, reset=None, state=None, action_mask=None, no_state_return=False):
+  def __call__(self, x, reset=None, state=None, prev_info=None, action_mask=None, no_state_return=False):
     if self.use_feature_norm:
       ln = hk.LayerNorm(-1, True, True)
       x = ln(x)
     net, heads = self.build_net()
-    x = net(x, reset, state)
+    x = net(x, reset, state=state, prev_info=prev_info)
     if isinstance(x, tuple):
       assert len(x) == 2, x
       x, state = x
@@ -91,10 +90,11 @@ class Policy(hk.Module):
 
   @hk.transparent
   def build_net(self):
-    net = MLP(**self.config)
+    net = MLP(**self.config, name=self.name)
     out_kwargs = net.out_kwargs
     if isinstance(self.action_dim, dict):
-      heads = {k: Layer(v, **out_kwargs, name=f'head_{k}') for k, v in self.action_dim.items()}
+      heads = {k: Layer(v, **out_kwargs, name=f'head_{k}') 
+               for k, v in self.action_dim.items()}
     else:
       raise NotImplementedError(self.action_dim)
 

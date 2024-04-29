@@ -95,10 +95,7 @@ class Monitor(RayBase):
     if record:
       self._monitor.record(step, print_terminal_info=self.print_terminal_info)
 
-  def store_train_stats(
-    self, 
-    model_stats: ModelStats
-  ):
+  def store_train_stats(self, model_stats: ModelStats):
     model, stats = model_stats
     train_step = stats.pop(TRAIN_STEP)
     self._train_steps_in_period[model] = train_step - self._train_steps[model]
@@ -127,11 +124,7 @@ class Monitor(RayBase):
       record=is_rule_strategy(model), 
     )
 
-  def record_for_model(
-    self, 
-    model: ModelPath, 
-    step, 
-  ):
+  def record_for_model(self, model: ModelPath, step: int):
     n_items = 0
     size = 0
     for d in self._recording_stats.values():
@@ -186,7 +179,7 @@ class Monitor(RayBase):
         self._recording_stats
       ), f)
 
-  def save_all(self, step):
+  def save_all(self, step: int):
     oid = self.parameter_server.get_active_aux_stats.remote()
     self.save()
     if self.n_agents != 2:
@@ -200,7 +193,6 @@ class Monitor(RayBase):
       ])
       for model, (payoff, dist) in dists.items():
         self.store_stats_for_model(model, active_stats[model], step=step, record=True)
-
         with Timer('Monitor Real-Time Plot Time', period=1):
           self.plot_recording_stats(model, 'payoff', payoff, fill_nan=True)
           self.plot_recording_stats(model, 'opp_dist', dist)
@@ -208,7 +200,7 @@ class Monitor(RayBase):
     with open('check.txt', 'w') as f:
       f.write(datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S'))
 
-  def save_payoff_table(self, step=None):
+  def save_payoff_table(self, step: int=None):
     if self.n_agents == 2:
       with Timer('Monitor Retrieval Time', period=1):
         models, payoffs, counts = ray.get([

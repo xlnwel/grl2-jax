@@ -33,7 +33,7 @@ from tools.timer import get_current_datetime
 def _get_algo_name(algo):
   # shortcuts for distributed algorithms
   algo_mapping = {
-    'sppo': 'sync-ppo',
+    'champion_pilot': 'sync-champion_pilot',
   }
   if algo in algo_mapping:
     return algo_mapping[algo]

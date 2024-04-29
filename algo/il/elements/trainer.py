@@ -51,24 +51,11 @@ class Trainer(TrainerBase):
 
   def build_optimizers(self):
     theta = self.model.theta.copy()
-    if self.config.get('theta_opt'):
-      self.opts.theta, self.params.theta = optimizer.build_optimizer(
-        params=theta, 
-        **self.config.theta_opt, 
-        name='theta'
-      )
-    else:
-      self.params.theta = AttrDict()
-      self.opts.policy, self.params.theta.policy = optimizer.build_optimizer(
-        params=theta.policy, 
-        **self.config.policy_opt, 
-        name='policy'
-      )
-      self.opts.value, self.params.theta.value = optimizer.build_optimizer(
-        params=theta.value, 
-        **self.config.value_opt, 
-        name='value'
-      )
+    self.opts.theta, self.params.theta = optimizer.build_optimizer(
+      params=theta, 
+      **self.config.theta_opt, 
+      name='theta'
+    )
 
   def compile_train(self):
     _jit_train = jax.jit(self.theta_train, static_argnames=['debug'])
@@ -80,13 +67,7 @@ class Trainer(TrainerBase):
     self.haiku_tabulate()
 
   def train(self, data: AttrDict):
-    if self.config.n_runners * self.config.n_envs < self.config.n_mbs:
-      self.indices = np.arange(self.config.n_mbs)
-      data = jax.tree_util.tree_map(
-        lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[2:])), data)
-
     theta = self.model.theta.copy()
-    all_stats = AttrDict()
     theta, self.params.theta, stats = \
       self.jit_train(
         theta, 
@@ -99,13 +80,9 @@ class Trainer(TrainerBase):
     data = flatten_dict({k: v 
       for k, v in data.items() if v is not None}, prefix='data')
     stats = prefix_name(stats, name='train')
-    all_stats.update(data)
+    stats.update(data)
 
-    for v in theta.values():
-      all_stats.update(flatten_dict(
-        jax.tree_util.tree_map(np.linalg.norm, v)))
-
-    return all_stats
+    return 1, stats
 
   def get_theta_params(self):
     weights = {
@@ -128,46 +105,18 @@ class Trainer(TrainerBase):
   ):
     do_logging('train is traced', backtrack=4)
     rngs = random.split(rng, 3)
-    if self.config.get('theta_opt'):
-      theta, opt_state, stats = optimizer.optimize(
-        self.loss.loss, 
-        theta, 
-        opt_state, 
-        kwargs={
-          'rng': rngs[0], 
-          'data': data, 
-        }, 
-        opt=self.opts.theta, 
-        name='opt/theta', 
-        debug=debug
-      )
-    else:
-      theta.value, opt_state.value, stats = optimizer.optimize(
-        self.loss.value_loss, 
-        theta.value, 
-        opt_state.value, 
-        kwargs={
-          'rng': rngs[0], 
-          'policy_theta': theta.policy, 
-          'data': data, 
-        }, 
-        opt=self.opts.value, 
-        name='opt/value', 
-        debug=debug
-      )
-      theta.policy, opt_state.policy, stats = optimizer.optimize(
-        self.loss.policy_loss, 
-        theta.policy, 
-        opt_state.policy, 
-        kwargs={
-          'rng': rngs[1], 
-          'data': data, 
-          'stats': stats
-        }, 
-        opt=self.opts.policy, 
-        name='opt/policy', 
-        debug=debug
-      )
+    theta, opt_state, stats = optimizer.optimize(
+      self.loss.loss, 
+      theta, 
+      opt_state, 
+      kwargs={
+        'rng': rngs[0], 
+        'data': data, 
+      }, 
+      opt=self.opts.theta, 
+      name='opt/theta', 
+      debug=debug
+    )
 
     return theta, opt_state, stats
 

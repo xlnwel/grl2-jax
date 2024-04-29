@@ -1,9 +1,11 @@
+import os
 from math import ceil
 from typing import Dict
 import ray
 
 from core.log import do_logging
 from core.typing import dict2AttrDict
+from tools.file import write_file
 from tools.timer import Every, timeit
 from distributed.common.typing import Status
 from distributed.common.local.agent_manager import AgentManager
@@ -36,9 +38,19 @@ class Controller(ControllerBase):
       eval_pids = self._preprocessing(periods, eval_pids)
 
       model_weights = self._retrieve_model_weights()
-      runner_manager.run_with_model_weights(model_weights)
-      self._steps += self.steps_per_run
-      
+      # runner_manager.run_with_model_weights(model_weights)
+      # self._steps += self.steps_per_run
+      try:
+        runner_manager.run_with_model_weights(model_weights)
+        self._steps += self.steps_per_run
+      except Exception as e:
+        runner_manager.destroy_runners()
+        runner_manager.build_runners(
+          self.configs, 
+          remote_buffers=self.agent_manager.get_agents(), 
+          active_models=self.active_models
+        )
+
       if self._check_termination(self._steps, max_steps):
         break
 

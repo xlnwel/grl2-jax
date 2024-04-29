@@ -11,6 +11,7 @@ from env.utils import divide_env_output
 from tools.display import print_dict
 from tools.utils import modify_config, flatten_dict
 from tools.timer import Timer, timeit, Every
+from tools.pkg import get_package
 from algo.ma_common.run import Runner
 
 
@@ -173,7 +174,8 @@ def train(
   )
   init_running_stats(agents, runner, n_steps=routine_config.n_steps)
   algo = agents[0].name
-  prepare_buffer = importlib.import_module(f'algo.{algo}.run').prepare_buffer
+  pkg = get_package('algo', algo)
+  prepare_buffer = importlib.import_module(f'{pkg}.run').prepare_buffer
 
   while env_step < routine_config.MAX_STEPS:
     env_step = env_run(agents, runner, routine_config, prepare_buffer)

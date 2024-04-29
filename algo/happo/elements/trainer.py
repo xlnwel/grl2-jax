@@ -103,10 +103,9 @@ class Trainer(TrainerBase):
 
     data = flatten_dict({k: v 
       for k, v in data.items() if v is not None}, prefix='data')
-    stats = prefix_name(stats, name='train')
     stats.update(data)
 
-    return stats
+    return self.n_epochs * self.n_mbs, stats
 
   def sequential_opt(self, theta, opt_state, data, 
       n_epochs, n_mbs, indices, train_fn, gids=None, 

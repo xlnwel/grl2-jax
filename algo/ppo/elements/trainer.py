@@ -118,14 +118,13 @@ class Trainer(TrainerBase):
 
     data = flatten_dict({k: v 
       for k, v in data.items() if v is not None}, prefix='data')
-    stats = prefix_name(stats, name='train')
     all_stats.update(data)
 
     for v in theta.values():
       all_stats.update(flatten_dict(
         jax.tree_util.tree_map(np.linalg.norm, v)))
 
-    return all_stats
+    return self.config.n_epochs * self.config.n_mbs, all_stats
 
   def get_theta_params(self):
     weights = {

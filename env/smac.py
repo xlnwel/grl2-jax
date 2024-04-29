@@ -338,9 +338,9 @@ class StarCraft2Env:
     self.observation_spaces = []
     self.global_state_spaces = []
     for i in range(self.n_units):
-      self.action_spaces.append(Discrete(self.n_actions))
-      self.observation_spaces.append(self.get_obs_size())
-      self.global_state_spaces.append(self.get_state_size())
+      self.action_spaces.append({'action': Discrete(self.n_actions)})
+      self.observation_spaces.append(self.get_obs_size()[0])
+      self.global_state_spaces.append(self.get_state_size()[0])
 
     self.obs_shape = dict(
       obs=(self.observation_space[0],),
@@ -362,7 +362,7 @@ class StarCraft2Env:
 
     # some properties for multi-agent environments
     self.use_sample_mask = True
-    self.use_action_mask = True
+    self.use_action_mask = [{'action': True}]
 
   def random_action(self):
     actions = []
