@@ -52,11 +52,11 @@ class Policy(hk.Module):
       assert len(x) == 2, x
       x, state = x
     
-    outs = {}
     if action_mask is not None and not isinstance(action_mask, dict):
       assert len(heads) == 1, heads
       action_mask = {k: action_mask for k in heads}
 
+    outs = {}
     for name, layer in heads.items():
       v = layer(x)
       if self.is_action_discrete[name]:

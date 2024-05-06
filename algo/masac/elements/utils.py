@@ -2,6 +2,8 @@ import jax
 from jax import lax, nn, random
 import jax.numpy as jnp
 
+from core.typing import AttrDict
+from tools.utils import batch_dicts
 from jax_tools import jax_assert, jax_loss
 
 
@@ -56,11 +58,6 @@ def joint_actions(actions):
   return all_actions
 
 
-def concat_sa(x, a):
-  x = jnp.concatenate([x, a], -1)
-  return x
-
-
 def compute_action_logprob(
   model, 
   params, 
@@ -78,25 +75,28 @@ def compute_action_logprob(
     )
   rngs = random.split(rng)
   state = get_initial_state(state, 0)
-  act_out, _ = model.modules.policy(
+  act_outs, _ = model.modules.policy(
     params, rngs[0], x, state_reset, state, 
     action_mask=action_mask
   )
   if state is not None and bptt is not None:
-    act_out = jax.tree_util.tree_map(
-      lambda x: x.reshape(*shape, -1), act_out
+    act_outs = jax.tree_util.tree_map(
+      lambda x: x.reshape(*shape, -1), act_outs
     )
-  act_dist = model.policy_dist(act_out)
-  raw_action, raw_logprob = act_dist.sample_and_log_prob(
-    seed=rngs[1], joint=True)
-  if model.is_action_discrete:
-    action, logprob = raw_action, raw_logprob
-  else:
-    action = jnp.tanh(raw_action)
-    logprob = logprob_correction(
-      raw_action, raw_logprob, is_action_squashed=False)
-  
-  return action, logprob, act_dist
+  act_dists = model.policy_dist(act_outs)
+  action = AttrDict()
+  logprob = 0
+  for k, d in act_dists.items():
+    raw_action, raw_logprob = d.sample_and_log_prob(seed=rngs[1])
+    if model.is_action_discrete:
+      action[k] = raw_action
+      logprob += raw_logprob
+    else:
+      action[k] = jnp.tanh(raw_action)
+      logprob += logprob_correction(
+        raw_action, raw_logprob, is_action_squashed=False)
+    
+  return action, logprob, act_dists
 
 
 def compute_joint_action_logprob(
@@ -125,9 +125,8 @@ def compute_joint_action_logprob(
     action.append(a)
     logprob.append(lp)
     act_dists.append(dist)
-  action = jnp.concatenate(action, 2)
-  action = action.reshape(*action.shape[:2], 1, -1)
-  logprob = jnp.sum(jnp.concatenate(logprob, 2), 2, keepdims=True)
+  action = batch_dicts(action, func=lambda x: jnp.concatenate(x, 2))
+  logprob = sum(logprob)
 
   return action, logprob, act_dists
 

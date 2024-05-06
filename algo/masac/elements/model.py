@@ -4,6 +4,7 @@ from jax import random
 import jax.numpy as jnp
 import chex
 
+from core.names import DEFAULT_ACTION
 from core.mixin.model import update_params
 from core.typing import AttrDict
 from tools.file import source_file
@@ -40,7 +41,7 @@ class Model(MAModelBase):
     global_state = data.global_state[:, :, :1]
     for rng in random.split(q_rng, self.config.n_Qs):
       self.params.Qs.append(q_init(
-        rng, global_state, data.joint_action, data.state_reset, data.state
+        rng, global_state, data.action, data.state_reset, data.state
       ))
     self.params.temp, self.modules.temp = self.build_net(name='temp')
 
@@ -75,28 +76,33 @@ class Model(MAModelBase):
         d.state = state
       else:
         state = AttrDict()
-      act_out, state.policy = self.forward_policy(p, agent_rngs[0], d, state=state.policy)
-      act_dist = self.policy_dist(act_out, evaluation)
+      act_outs, state.policy = self.forward_policy(p, agent_rngs[0], d, state=state.policy)
+      act_dists = self.policy_dist(act_outs, evaluation)
 
       if evaluation:
-        action = act_dist.sample(seed=agent_rngs[1])
+        action = dict2AttrDict({k: ad.sample(seed=rngs[1]) for k, ad in act_dists.items()})
         stats = AttrDict()
       else:
-        action = act_dist.sample(seed=agent_rngs[1])
-        stats = act_dist.get_stats('mu')
-      if not self.is_action_discrete:
-        action = jnp.tanh(action)
-      if self.has_rnn:
-        action, stats = jax.tree_util.tree_map(
-          lambda x: jnp.squeeze(x, 1), (action, stats))
-        all_states.append(state)
-      else:
-        all_states = None
+        if len(act_dists) == 1:
+          action = act_dists[DEFAULT_ACTION].sample(seed=agent_rngs[1])
+          action = dict2AttrDict({DEFAULT_ACTION: action})
+          stats = act_dists[DEFAULT_ACTION].get_stats('mu')
+          if not self.is_action_discrete[DEFAULT_ACTION]:
+            action = jnp.tanh(action)
+        else:
+          action = AttrDict()
+          stats = AttrDict()
+          rngs = random.split(rngs[1])
+          for i, (k, ad) in enumerate(act_dists.items()):
+            a = ad.sample(seed=rngs[i])
+            action[k] = a
+            k = k.replace('action_', '')
+            stats.update(ad.get_stats(f'{k}_mu'))
 
       all_actions.append(action)
       all_stats.append(stats)
 
-    action = concat_along_unit_dim(all_actions)
+    action = batch_dicts(all_actions, func=concat_along_unit_dim)
     stats = batch_dicts(all_stats, func=concat_along_unit_dim)
 
     return action, stats, all_states
@@ -117,10 +123,12 @@ class Model(MAModelBase):
 
 
 def setup_config_from_envstats(config, env_stats):
-  aid = config.aid
-  config.policy.action_dim = env_stats.action_dim[aid]
-  config.policy.is_action_discrete = env_stats.is_action_discrete[aid]
-  config.Q.is_action_discrete = env_stats.is_action_discrete[aid]
+  idx = config.gid or config.aid
+  config.policy.action_dim = env_stats.action_dim[idx]
+  config.policy.is_action_discrete = env_stats.is_action_discrete[idx]
+  config.policy.use_action_mask = env_stats.use_action_mask[idx]
+  config.Q.action_dim = env_stats.action_dim[idx]
+  config.Q.is_action_discrete = env_stats.is_action_discrete[idx]
 
   return config
 

@@ -124,9 +124,9 @@ class UniformReplay(Buffer):
 
     return samples
     
-  def sample(self, batch_size=None):
+  def sample(self, batch_size=None, add_seq_axis=True):
     if self.ready_to_sample():
-      samples = self._sample(batch_size)
+      samples = self._sample(batch_size, add_seq_axis=add_seq_axis)
     else:
       samples = None
 
@@ -171,22 +171,23 @@ class UniformReplay(Buffer):
         if traj:
           self.merge(traj)
 
-  def _sample(self, batch_size=None):
+  def _sample(self, batch_size=None, add_seq_axis=True):
     batch_size = batch_size or self.batch_size
     idxes = np.random.randint(len(self), size=batch_size)
     # the following code avoids repetitive sampling, 
     # but it takes significant more time to run(around 1000x).
     # idxes = np.random.choice(size, size=batch_size, replace=False)
     
-    samples = self._get_samples(idxes, self._memory)
+    samples = self._get_samples(idxes, self._memory, add_seq_axis=add_seq_axis)
 
     return samples
 
-  def _get_samples(self, idxes, memory, sample_keys=None):
+  def _get_samples(self, idxes, memory, sample_keys=None, add_seq_axis=True):
     if sample_keys is None:
       sample_keys = self.sample_keys
     raw_samples = [memory[i] for i in idxes]
-    samples = batch_dicts(raw_samples, keys=sample_keys)
+    fn = lambda x: np.expand_dims(np.stack(x), 1) if add_seq_axis else np.stack
+    samples = batch_dicts(raw_samples, func=fn, keys=sample_keys)
     return samples
 
   def _update_obs_rms(self, trajs):

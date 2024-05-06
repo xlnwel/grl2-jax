@@ -11,6 +11,7 @@ def construct_fake_data(env_stats, aid, batch_size=1):
   shapes = env_stats.obs_shape[aid]
   dtypes = env_stats.obs_dtype[aid]
   action_dim = env_stats.action_dim[aid]
+  action_shape = env_stats.action_shape[aid]
   action_dtype = env_stats.action_dtype[aid]
   use_action_mask = env_stats.use_action_mask[aid]
   n_units = len(env_stats.aid2uids[aid])
@@ -22,7 +23,7 @@ def construct_fake_data(env_stats, aid, batch_size=1):
   data.action = AttrDict()
   data.prev_info = AttrDict()
   for k in action_dim.keys():
-    data.action[k] = jnp.zeros((*basic_shape, action_dim[k]), action_dtype[k])
+    data.action[k] = jnp.zeros((*basic_shape, *action_shape[k]), action_dtype[k])
     data.prev_info[k] = jnp.zeros((*basic_shape, action_dim[k]), action_dtype[k])
     if use_action_mask[k]:
       data.action[f'{k}_mask'] = jnp.ones((*basic_shape, action_dim[k]), action_dtype[k])

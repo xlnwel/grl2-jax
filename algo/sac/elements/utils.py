@@ -86,7 +86,7 @@ def _compute_action_logprob(
       action[k] = jnp.tanh(raw_action)
       logprob[k] = logprob_correction(
         raw_action, raw_logprob, is_action_squashed=False)
- 
+
   return action, logprob, act_dists
 
 

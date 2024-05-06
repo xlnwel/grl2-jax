@@ -56,13 +56,12 @@ class Loss(LossBase):
     stats.q_target = q_target
 
     qs_state = None if q_data.state is None else q_data.state.qs
-    action = data.action.reshape(*data.action.shape[:2], 1, -1)
     qs = compute_qs(
       self.modules.Q, 
       theta, 
       rngs[3], 
       q_data.global_state, 
-      action, 
+      data.action, 
       q_data.state_reset, 
       qs_state, 
       bptt=self.config.qrnn_bptt
@@ -91,8 +90,10 @@ class Loss(LossBase):
       self.model, theta, rngs[0], data, bptt=self.config.prnn_bptt
     )
     stats.logprob = logprob
-    stats.update(act_dists[-1].get_stats('pi'))
-    stats.entropy = act_dists[-1].entropy()
+    for i, ad in enumerate(act_dists):
+      for k, d in ad.items():
+        stats.update(d.get_stats(f'{k}{i}_pi'))
+        stats[f'{k}{i}_entropy'] = d.entropy()
 
     q_data = data.slice((slice(None), slice(None), slice(1)))
     qs_state = None if q_data.state is None else q_data.state.qs

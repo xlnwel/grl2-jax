@@ -11,6 +11,7 @@ from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.utils import flatten_dict, prefix_name
 
+
 def construct_fake_data(env_stats, aid):
   b = 8
   s = 400

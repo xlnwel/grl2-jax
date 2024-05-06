@@ -30,10 +30,9 @@ class Model(MAModelBase):
     
     self.params.Qs = []
     q_init, self.modules.Q = self.build_net(name='Q', return_init=True)
-    global_state = data.global_state[:, :, :1]
     for rng in random.split(q_rng, self.config.n_Qs):
       self.params.Qs.append(q_init(
-        rng, global_state, data.action, 
+        rng, data.global_state, data.action, 
         data.state_reset, data.state
       ))
     self.params.temp, self.modules.temp = self.build_net(name='temp')
@@ -114,13 +113,12 @@ class Model(MAModelBase):
 
 
 def setup_config_from_envstats(config, env_stats):
-  aid = config.aid
-  config.policy.action_dim = env_stats.action_dim[aid]
-  config.policy.is_action_discrete = env_stats.is_action_discrete[aid]
-  config.Q.is_action_discrete = env_stats.is_action_discrete[aid]
-  # for k in env_stats.is_action_discrete[aid]:
-  #   config.Q.out_size[k] = env_stats.action_dim[aid][k] if v else 1
-  config.Q.out_size = 1
+  idx = config.gid or config.aid
+  config.policy.action_dim = env_stats.action_dim[idx]
+  config.policy.is_action_discrete = env_stats.is_action_discrete[idx]
+  config.policy.use_action_mask = env_stats.use_action_mask[idx]
+  config.Q.action_dim = env_stats.action_dim[idx]
+  config.Q.is_action_discrete = env_stats.is_action_discrete[idx]
 
   return config
 
