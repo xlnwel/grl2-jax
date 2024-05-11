@@ -10,7 +10,7 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
-from core.log import setup_logging, do_logging
+from tools.log import setup_logging, do_logging
 from core.names import PATH_SPLIT
 from core.typing import dict2AttrDict
 from core.utils import configure_gpu

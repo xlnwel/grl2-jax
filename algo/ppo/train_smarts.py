@@ -3,7 +3,7 @@ import numpy as np
 import ray
 
 from core.elements.builder import ElementsBuilder
-from core.log import do_logging
+from tools.log import do_logging
 from core.utils import configure_gpu, set_seed, save_code
 from core.typing import ModelPath
 from tools.store import StateStore

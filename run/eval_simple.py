@@ -10,7 +10,7 @@ import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import dict2AttrDict
 from core.utils import configure_gpu
 from tools.ray_setup import sigint_shutdown_ray

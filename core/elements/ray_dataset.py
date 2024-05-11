@@ -3,7 +3,7 @@ import time
 import ray
 
 from core.elements.dataset import *
-from core.log import do_logging
+from tools.log import do_logging
 
 logger = logging.getLogger(__name__)
 

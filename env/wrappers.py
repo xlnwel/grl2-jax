@@ -8,7 +8,7 @@ import jax
 import random
 import cv2
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import DEFAULT_ACTION
 from core.typing import AttrDict, dict2AttrDict
 from env.utils import compute_aid2uids, compute_aid2gids

@@ -1,7 +1,7 @@
 import os
 import cloudpickle
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import PATH_SPLIT
 from core.typing import ModelPath
 from tools.file import search_for_all_files
@@ -33,7 +33,7 @@ def save(data, *, filedir, filename, backtrack=3, name='data', to_print=True):
   with open(filename, 'wb') as f:
     cloudpickle.dump(data, f)
   if to_print:
-    do_logging(f'Saving {name} in "{filename}"', backtrack=backtrack)
+    do_logging(f'Saving {name} in "{filename}"', backtrack=backtrack, level='info')
 
 
 def restore(*, filedir=None, filename, backtrack=3, default={}, name='data', to_print=True):
@@ -47,11 +47,11 @@ def restore(*, filedir=None, filename, backtrack=3, default={}, name='data', to_
       with open(filename, 'rb') as f:
         data = cloudpickle.load(f)
       if to_print:
-        do_logging(f'Restoring {name} from "{filename}"', backtrack=backtrack)
+        do_logging(f'Restoring {name} from "{filename}"', backtrack=backtrack, level='info')
     except Exception as e:
-      do_logging(f'Failing restoring {name} from {filename}: {e}', backtrack=backtrack)
+      do_logging(f'Failing restoring {name} from {filename}: {e}', backtrack=backtrack, level='info')
   else:
-    do_logging(f'No such file: {filename}', backtrack=backtrack)
+    do_logging(f'No such file: {filename}', backtrack=backtrack, level='info')
 
   return data
 

@@ -5,7 +5,7 @@ import collections
 from typing import Any
 from jax import tree_util
 
-from core.log import do_logging, stringify
+from tools.log import do_logging, stringify
 from core.names import PATH_SPLIT
 
 

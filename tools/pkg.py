@@ -1,6 +1,7 @@
+import os
 import importlib
 
-from core.log import do_logging
+from tools.log import do_logging
 
 
 def pkg_str(root_dir, separator, base_name=None):
@@ -9,12 +10,13 @@ def pkg_str(root_dir, separator, base_name=None):
   return f'{root_dir}{separator}{base_name}'
 
 
-def get_package_from_algo(algo, place=0, separator='.'):
+def get_package_from_algo(algo, place=0, separator='.', algo_package=None):
   if ':' in algo:
     algo = algo.split(':')[0]
   algo = algo.split('-', 1)[place]
 
-  pkg = get_package('algo', algo, separator)
+  root_dir = 'algo' if algo_package is None else f'algo_{algo_package}'
+  pkg = get_package(root_dir, algo, separator)
   if pkg is None:
     pkg = get_package('distributed', algo, separator)
 
@@ -22,16 +24,17 @@ def get_package_from_algo(algo, place=0, separator='.'):
 
 
 def get_package(root_dir, base_name=None, separator='.', backtrack=3):
-  for i in range(1, 10):
-    indexed_root_dir = root_dir if i == 1 else f'{root_dir}{i}'
-    pkg = pkg_str(indexed_root_dir, '.', base_name)
-    try:
-      if importlib.util.find_spec(pkg) is not None:
-        pkg = pkg_str(indexed_root_dir, separator, base_name)
-        return pkg
-    except Exception as e:
-      do_logging(f'{e}', backtrack=backtrack)
-      return None
+  src = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+  for d in os.listdir(src):
+    if d.startswith(root_dir):
+      pkg = pkg_str(d, '.', base_name)
+      try:
+        if importlib.util.find_spec(pkg) is not None:
+          pkg = pkg_str(d, separator, base_name)
+          return pkg
+      except Exception as e:
+        do_logging(f'{e}', backtrack=backtrack, level='info')
+        return None
   return None
 
 

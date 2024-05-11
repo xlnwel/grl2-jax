@@ -1,4 +1,4 @@
-from core.log import do_logging
+from tools.log import do_logging
 
 
 class StateStore:
@@ -22,7 +22,7 @@ class StateStore:
 
   def __enter__(self):
     if self._name not in self.state:
-      do_logging(f'Building state for "{self._name}"...')
+      do_logging(f'Building state for "{self._name}"...', level='info')
       self.state[self._name] = self._constructor()
     self._tmp_state = self._enter_set_fn(self.state[self._name])
     return self

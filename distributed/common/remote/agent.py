@@ -3,7 +3,7 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import *
 from core.remote.base import RayBase
 from core.typing import ModelStats, ModelWeights

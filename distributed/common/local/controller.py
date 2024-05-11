@@ -7,7 +7,7 @@ import numpy as np
 import ray
 
 from core.ckpt.base import YAMLCheckpointBase
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import ModelPath, AttrDict, dict2AttrDict, \
   decompose_model_name, get_basic_model_name
 from core.utils import save_code

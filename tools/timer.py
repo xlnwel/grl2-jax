@@ -3,7 +3,7 @@ import datetime
 import collections
 import functools
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import AttrDict
 from tools.aggregator import Aggregator
 

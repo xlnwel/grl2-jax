@@ -2,7 +2,7 @@ import os, sys, signal
 import psutil
 import ray
 
-from core.log import do_logging
+from tools.log import do_logging
 
 
 def init_ray(**kwargs):

@@ -5,7 +5,7 @@ import importlib
 import psutil
 import shutil
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import PATH_SPLIT
 
 

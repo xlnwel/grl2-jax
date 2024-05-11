@@ -5,7 +5,7 @@ import haiku as hk
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
 
-from core.log import do_logging
+from tools.log import do_logging
 from nn.layers import Layer
 from nn.registry import layer_registry, nn_registry
 from nn.utils import call_norm
@@ -71,7 +71,7 @@ class MLP(hk.Module):
     )
 
     self.out_size = out_size
-    do_logging(f'{self.name} out scale: {out_scale}')
+    do_logging(f'{self.name} out scale: {out_scale}', level='debug')
     if out_layer_type is None:
       out_layer_type = layer_type
     if out_w_init is None:

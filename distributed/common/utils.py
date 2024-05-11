@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 from core.names import MODEL, PATH_SPLIT
 from core.typing import ModelPath, retrieve_model_path
-from core.log import do_logging
+from tools.log import do_logging
 from nn.utils import reset_linear_weights, reset_weights
 
 

@@ -3,7 +3,7 @@ import importlib
 import ray
 
 from core.elements.builder import ElementsBuilder
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import ANCILLARY
 from core.typing import get_basic_model_name
 from core.utils import configure_gpu, set_seed, save_code_for_seed
@@ -18,7 +18,7 @@ from algo.ma_common.run import Runner
 def init_running_stats(agents, runner: Runner, n_steps=None):
   if n_steps is None:
     n_steps = min(100, runner.env.max_episode_steps)
-  do_logging(f'Pre-training running steps: {n_steps}')
+  do_logging(f'Pre-training running steps: {n_steps}', level='info')
 
   if agents[0].actor.is_obs_or_reward_normalized:
     runner.run(agents, n_steps=n_steps)
@@ -164,7 +164,7 @@ def train(
   runner: Runner, 
   routine_config, 
 ):
-  do_logging('Training starts...')
+  do_logging('Training starts...', level='info')
   env_step = agents[0].get_env_step()
   to_record = Every(
     routine_config.LOG_PERIOD, 
@@ -208,7 +208,7 @@ def main(configs, train=train, Runner=Runner):
 
   env_stats = runner.env_stats()
   env_stats.n_envs = config.env.n_runners * config.env.n_envs
-  do_logging(env_stats, prefix='Env stats', color='blue')
+  do_logging(env_stats, prefix='Env stats', level='info')
 
   save_code_for_seed(config)
   agents = [build_agent(config, env_stats) for config in configs]
@@ -220,4 +220,4 @@ def main(configs, train=train, Runner=Runner):
     routine_config, 
   )
 
-  do_logging('Training completed')
+  do_logging('Training completed', level='info')

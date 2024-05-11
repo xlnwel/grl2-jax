@@ -3,7 +3,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from core.ckpt import pickle
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import ModelPath, get_aid
 from tools.utils import config_attr
 

@@ -3,7 +3,7 @@ import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import PATH_SPLIT
 from tools.file import rm
 from tools.logops import *

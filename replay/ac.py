@@ -6,7 +6,7 @@ import jax
 
 from core.elements.buffer import Buffer
 from core.elements.model import Model
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.utils import batch_dicts, batch_states, stack_data_with_state

@@ -3,7 +3,7 @@ import jax
 import haiku as hk
 from typing import Dict, Union
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import MODEL
 from core.ckpt.base import ParamsCheckpointBase
 from core.ensemble import Ensemble, constructor
@@ -73,11 +73,11 @@ class Model(ParamsCheckpointBase):
   def print_params(self):
     if self.config.get('print_params', True):
       for k, v in self.params.items():
-        do_logging(f'Module: {k}', color='blue')
-        print_dict_info(v, prefix='\t', color='blue')
+        do_logging(f'Module: {k}', level='debug')
+        print_dict_info(v, prefix='\t', level='debug')
         n = summarize_arrays(v)
         n = int2str(n)
-        do_logging(f'Total number of params of {k}: {n}', color='blue')
+        do_logging(f'Total number of params of {k}: {n}', level='debug')
 
   @property
   def theta(self):
@@ -124,7 +124,7 @@ class Model(ParamsCheckpointBase):
       if name in weights:
         self.params[name] = weights[name]
       else:
-        do_logging(f'Missing params: {name}')
+        do_logging(f'Missing params: {name}', level='info')
 
   def get_states(self):
     pass

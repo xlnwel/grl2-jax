@@ -28,7 +28,7 @@ from jax import nn
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
-from core.log import setup_logging
+from tools.log import setup_logging
 from core.utils import *
 from core.typing import ModelPath, get_basic_model_name, dict2AttrDict
 from core.ckpt.pickle import set_weights_for_agent

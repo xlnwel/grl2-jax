@@ -2,7 +2,7 @@ import os
 import logging
 
 from core.elements.builder import ElementsBuilder
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import PATH_SPLIT
 from core.typing import dict2AttrDict
 from tools import pkg
@@ -13,10 +13,10 @@ from tools.yaml_op import load_config
 logger = logging.getLogger(__name__)
 
 
-def get_configs_dir(algo):
+def get_configs_dir(algo, algo_package=None):
   if ':' in algo:
     algo = algo.split(':')[0]
-  algo_dir = pkg.get_package_from_algo(algo, 0, PATH_SPLIT)
+  algo_dir = pkg.get_package_from_algo(algo, 0, PATH_SPLIT, algo_package)
   if algo_dir is None:
     raise RuntimeError(f'Algorithm({algo}) is not implemented')
   configs_dir = os.path.join(algo_dir, 'configs')
@@ -128,8 +128,8 @@ def read_config(algo, env, filename=None):
 
   return config
 
-def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True, return_path=False):
-  configs_dir = get_configs_dir(algo)
+def load_config_with_algo_env(algo, env, filename=None, algo_package=None, to_attrdict=True, return_path=False):
+  configs_dir = get_configs_dir(algo, algo_package)
   if filename is None:
     filename = get_filename_with_env(env)
   filename = filename + '.yaml'

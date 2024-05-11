@@ -65,8 +65,7 @@ class RewardRunningMeanStd:
       name=name, 
       ndim=config.setdefault("reward_normalized_ndim", 0)
     )
-    if config.get('print_for_debug', True):
-      print_dict(config, prefix=name)
+    print_dict(config, prefix=name, level='info')
 
     self.reset_return()
 
@@ -172,7 +171,7 @@ class RewardRunningMeanStd:
       self.rms.set_rms_stats(*rms_stats)
 
   def print_rms(self):
-    print_dict_info(self.rms.get_rms_stats(), prefix=self.name)
+    print_dict_info(self.rms.get_rms_stats(), prefix=self.name, level='info')
 
   """ Checkpoint Operations """
   def restore_rms(self):
@@ -216,8 +215,7 @@ class ObsRunningMeanStd:
           name=f'{k}_rms', 
           ndim=config.setdefault("obs_normalized_ndim", 1)
         )
-    if config.get('print_for_debug', True):
-      print_dict(config, prefix=name)
+    print_dict(config, prefix=name, level='info')
 
   @property
   def obs_names(self):
@@ -324,7 +322,7 @@ class ObsRunningMeanStd:
 
   def print_rms(self):
     for k, v in self.rms.items():
-      print_dict_info(v.get_rms_stats(), prefix=f'{self.name}/{k}')
+      print_dict_info(v.get_rms_stats(), prefix=f'{self.name}/{k}', level='info')
 
   """ Checkpoint Operations """
   def restore_rms(self):

@@ -8,7 +8,7 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import PATH_SPLIT
 from core.utils import configure_gpu
 from core.typing import dict2AttrDict, get_basic_model_name

@@ -1,7 +1,7 @@
 ---
-algorithm: &algo champion_pilot
-name: champion_pilot
-info: champion_pilot
+algorithm: &algo champion_teacher_sp
+name: champion_teacher_sp
+info: champion_teacher_sp
 
 precision: 32
 

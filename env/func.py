@@ -1,7 +1,7 @@
 import logging
 from types import FunctionType
 
-from core.log import do_logging
+from tools.log import do_logging
 from env.cls import Env, VecEnv, MASimVecEnv, MATBVecEnv
 from env import make_env
 

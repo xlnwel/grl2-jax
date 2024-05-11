@@ -14,7 +14,7 @@ from env.utils import *
 如uid2aid=[0, 0, 1], 表示Unit 0, 1受Agent 0控制, Unit 2受Agent 1控制
 """
 class TemplateEnv:
-  def __init__(self, uid2aid=[0, 1], uid2gid=[0, 1], max_episode_steps=100, **kwargs):
+  def __init__(self, uid2aid=[0, 1], uid2gid=[0, 1], max_episode_steps=100, level=1, **kwargs):
     self.uid2aid = uid2aid    # Unit ID到Aagent ID的映射
     self.uid2gid = uid2gid    # Unit ID到Group ID的映射
     self.aid2uids = compute_aid2uids(self.uid2aid)      # Agent ID到Unit ID的映射
@@ -22,6 +22,7 @@ class TemplateEnv:
     self.aid2gids = compute_aid2gids(uid2aid, uid2gid)  # Agent ID到Group ID的映射
     self.n_units = len(self.uid2aid)    # Unit个数
     self.n_agents = len(self.aid2uids)  # Agent个数
+    self.level = level
 
     # 观测/动作空间相关定义
     self.observation_space = [{

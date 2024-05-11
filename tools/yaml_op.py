@@ -2,7 +2,7 @@ import yaml
 import numpy as np
 from pathlib import Path
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
 from tools.utils import eval_config, flatten_dict
 

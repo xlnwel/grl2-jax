@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import AttrDict
 from tools.utils import add_prefix, flatten_dict, is_empty
 from jax_tools.jax_utils import compute_norms

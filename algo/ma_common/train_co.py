@@ -3,7 +3,7 @@ import importlib
 import ray
 
 from core.elements.builder import ElementsBuilder
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import ANCILLARY
 from core.utils import configure_gpu, set_seed, save_code_for_seed
 from env.utils import divide_env_output
@@ -11,7 +11,7 @@ from tools.display import print_dict
 from tools.utils import modify_config, flatten_dict
 from tools.timer import Timer, timeit, Every
 from tools.yaml_op import load_config
-from algo.ma_common.run import Runner
+from algo.ma_common.run import CurriculumRunner
 from algo.ma_common.train import *
 
 
@@ -28,7 +28,7 @@ def train(
   runner: Runner, 
   routine_config, 
 ):
-  do_logging('Training starts...')
+  do_logging('Training starts...', level='info')
   env_step = agents[0].get_env_step()
   to_record = Every(
     routine_config.LOG_PERIOD, 
@@ -50,7 +50,7 @@ def train(
       eval_and_log(agents, runner, routine_config)
 
 
-def main(configs, train=train, Runner=Runner):
+def main(configs, train=train, Runner=CurriculumRunner):
   config = configs[0]
   if config.routine.compute_return_at_once:
     config.buffer.sample_keys += ['advantage', 'v_target']
@@ -91,4 +91,4 @@ def main(configs, train=train, Runner=Runner):
     routine_config, 
   )
 
-  do_logging('Training completed')
+  do_logging('Training completed', level='info')

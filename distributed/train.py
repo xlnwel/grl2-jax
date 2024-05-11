@@ -3,7 +3,7 @@ import ray
 
 from core.typing import dict2AttrDict
 from core.utils import configure_gpu, set_seed
-from core.log import do_logging
+from tools.log import do_logging
 from distributed.common.local.controller import Controller
 from tools.ray_setup import init_ray
 from tools.utils import modify_config

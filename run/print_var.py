@@ -8,7 +8,7 @@ import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import PATH_SPLIT
 from core.mixin.monitor import is_nonempty_file, merge_data
 from tools.file import yield_dirs

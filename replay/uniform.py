@@ -6,7 +6,7 @@ import numpy as np
 from core.ckpt.pickle import save, restore
 from core.elements.buffer import Buffer
 from core.elements.model import Model
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import AttrDict
 from replay.local import NStepBuffer
 from tools.timer import Timer, timeit

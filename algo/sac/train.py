@@ -12,8 +12,8 @@ def train(
   # ego_optimize=ego_optimize
 ):
   MODEL_EVAL_STEPS = runner.env.max_episode_steps
-  do_logging(f'Model evaluation steps: {MODEL_EVAL_STEPS}')
-  do_logging('Training starts...')
+  do_logging(f'Model evaluation steps: {MODEL_EVAL_STEPS}', level='info')
+  do_logging('Training starts...', level='info')
   env_step = agents[0].get_env_step()
   to_record = Every(
     routine_config.LOG_PERIOD, 

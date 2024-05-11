@@ -1,6 +1,5 @@
 import os
 import importlib
-import logging
 from types import FunctionType
 from typing import Dict, Tuple, Set
 
@@ -10,7 +9,7 @@ from core.elements.model import Model
 from core.elements.strategy import Strategy
 from core.elements.trainer import TrainerBase
 from core.elements.monitor import Monitor, create_monitor
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import *
 from core.typing import *
 from core.utils import save_code_for_seed, save_config
@@ -18,9 +17,6 @@ from env.func import get_env_stats
 from tools.timer import timeit_now
 from tools.utils import set_path
 from tools import pkg, yaml_op
-
-
-logger = logging.getLogger(__name__)
 
 
 class ElementsBuilder:
@@ -454,7 +450,7 @@ class ElementsBuilder:
     config.env_stats.pop('action_dtype')
     save_config(config)
     model = ModelPath(self.config.root_dir, self.config.model_name)
-    do_logging(f'Saving config: {model}', backtrack=3, color='green')
+    do_logging(f'Saving config: {model}', backtrack=3, level='info')
 
   """ Implementations"""
   def _import_element(self, name, algo=None):
@@ -464,10 +460,10 @@ class ElementsBuilder:
       level = 'info' if name == 'agent' else 'pwc'
       do_logging(
         f'Switch to default module({name}) due to error: {e}', 
-        logger=logger, level=level, backtrack=4)
+        level=level, backtrack=4)
       do_logging(
         "You are safe to neglect it if it's an intended behavior. ", 
-        logger=logger, level=level, backtrack=4)
+        level=level, backtrack=4)
       module = pkg.import_module(f'elements.{name}', pkg='core')
     return module
 

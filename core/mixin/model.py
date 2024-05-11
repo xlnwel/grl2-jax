@@ -1,7 +1,7 @@
 import logging
 import jax
 
-from core.log import *
+from tools.log import *
 
 
 logger = logging.getLogger(__name__)

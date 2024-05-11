@@ -19,7 +19,7 @@ from datetime import datetime
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.log import setup_logging, do_logging
+from tools.log import setup_logging, do_logging
 from core.names import PATH_SPLIT
 from core.utils import configure_gpu
 from tools import pkg
@@ -33,7 +33,7 @@ from tools.timer import get_current_datetime
 def _get_algo_name(algo):
   # shortcuts for distributed algorithms
   algo_mapping = {
-    'champion_pilot': 'sync-champion_pilot',
+    # 'champion_pilot': 'sync-champion_pilot',
   }
   if algo in algo_mapping:
     return algo_mapping[algo]
@@ -141,7 +141,7 @@ def setup_configs(cmd_args, algo_env_config):
     model_name = model_name_base
     do_logging(f'Setup configs for algo({algo}) and env({env})', color='yellow')
     algo = _get_algo_name(algo)
-    config = load_config_with_algo_env(algo, env, config)
+    config = load_config_with_algo_env(algo, env, config, cmd_args.algo_package)
     if cmd_args.new_kw:
       for s in cmd_args.new_kw:
         key, value = s.split('=', 1)
@@ -212,7 +212,7 @@ def _run_with_configs(cmd_args):
 
 if __name__ == '__main__':
   cmd_args = parse_train_args()
-  print(cmd_args)
+  do_logging(cmd_args, level='info')
 
   setup_logging(cmd_args.verbose)
   if not (cmd_args.grid_search and cmd_args.multiprocess) and cmd_args.gpu is not None:

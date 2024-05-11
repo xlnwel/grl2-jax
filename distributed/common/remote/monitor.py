@@ -9,7 +9,7 @@ import ray
 
 from .parameter_server import ParameterServer
 from core.typing import ModelStats
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import TRAIN_STEP
 from core.elements.monitor import Monitor as ModelMonitor
 from core.remote.base import RayBase
@@ -33,7 +33,7 @@ class Monitor(RayBase):
   ):
     super().__init__(seed=config.get('seed'))
     self.config = dict2AttrDict(config['monitor'])
-    self.print_terminal_info = bool(self.config.print_terminal_info)
+    self.print_terminal_info = self.config.get('print_terminal_info', True)
     self.n_agents = config['n_agents']
     self.self_play = config.get('self_play', False)
     self.parameter_server = parameter_server

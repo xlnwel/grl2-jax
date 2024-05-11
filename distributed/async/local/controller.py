@@ -3,7 +3,7 @@ import time
 from typing import Dict
 import ray
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import dict2AttrDict
 from tools.file import write_file
 from tools.timer import Every, timeit

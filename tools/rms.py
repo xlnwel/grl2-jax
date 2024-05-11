@@ -1,7 +1,7 @@
 import collections
 import numpy as np
 
-from core.log import do_logging
+from tools.log import do_logging
 from tools.utils import expand_dims_match, moments
 
 

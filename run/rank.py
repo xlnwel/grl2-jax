@@ -3,7 +3,7 @@ import ray
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.log import setup_logging
+from tools.log import setup_logging
 from tools import pkg
 from run.args import parse_rank_args
 from run.utils import search_for_config

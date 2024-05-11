@@ -18,6 +18,12 @@ def parse_train_args():
     nargs='*',
     default=[])
   parser.add_argument(
+    '--algo_package', '-ap', 
+    type=str, 
+    default=None, 
+    help='package where the algorithm is located. '
+      'If None (by default), folders starting with [algo] is searched in an alphabet order.')
+  parser.add_argument(
     '--info', '-i',
     type=str,
     default=None)

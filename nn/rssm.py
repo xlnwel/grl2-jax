@@ -8,7 +8,7 @@ import haiku as hk
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
 
-from core.log import do_logging
+from tools.log import do_logging
 from jax_tools.jax_utils import static_scan
 from jax_tools.jax_dist import MultivariateNormalDiag
 from nn.layers import Layer

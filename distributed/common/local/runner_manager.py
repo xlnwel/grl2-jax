@@ -5,7 +5,7 @@ import ray
 
 from ..remote.parameter_server import ParameterServer
 from ..remote.runner import MultiAgentRunner
-from core.log import do_logging
+from tools.log import do_logging
 from core.elements.monitor import Monitor
 from core.remote.base import ManagerBase, RayBase
 from core.typing import ModelPath, AttrDict, AttrDict2dict
@@ -89,7 +89,7 @@ class RunnerManager(ManagerBase):
       self.parameter_server.sample_strategies_for_evaluation.remote()
     )
 
-    do_logging(f'The total number of strategy tuples: {len(strategies)}')
+    do_logging(f'The total number of strategy tuples: {len(strategies)}', level='info')
     eids = []
     rid = 0
     for s in strategies:

@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 
 from core.ckpt.pickle import save
-from core.log import do_logging
+from tools.log import do_logging
 from core.utils import configure_gpu
 from tools.display import print_dict_info
 from tools.utils import batch_dicts

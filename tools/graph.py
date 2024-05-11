@@ -11,7 +11,7 @@ plt.switch_backend('Agg')
 import pandas as pd
 import seaborn as sns
 
-from core.log import do_logging
+from tools.log import do_logging
 from tools.utils import squarest_grid_size
 
 

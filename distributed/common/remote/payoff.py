@@ -1,6 +1,6 @@
 from typing import List, Union
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import ModelPath, AttrDict
 from game.func import select_sampling_strategy
 from game.payoff import PayoffTableWithModel, SelfPlayPayoffTableWithModel

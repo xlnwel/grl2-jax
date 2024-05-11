@@ -4,7 +4,7 @@ from typing import Dict, Union
 from core.decorator import *
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import PATH_SPLIT
 from core.elements.monitor import Monitor
 from core.typing import ModelPath, get_algo, AttrDict, ModelWeights

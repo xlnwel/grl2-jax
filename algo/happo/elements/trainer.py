@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import haiku as hk
 
 from core.ckpt.pickle import save, restore
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import TRAIN_AXIS
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
@@ -227,7 +227,7 @@ class Trainer(TrainerBase):
     compute_teammate_log_ratio=True, 
     debug=True
   ):
-    do_logging('train is traced', backtrack=4)
+    do_logging('train is traced', level='info')
     rngs = random.split(rng, 3)
     if self.config.get('theta_opt'):
       theta, opt_state, stats = optimizer.optimize(
@@ -398,7 +398,7 @@ if __name__ == '__main__':
   from env.func import create_env
   from .model import create_model
   from .loss import create_loss
-  from core.log import pwc
+  from tools.log import pwc
   config = load_config('algo/ppo/configs/magw_a2c')
   config = load_config('distributed/sync/configs/smac')
   

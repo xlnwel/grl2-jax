@@ -153,6 +153,7 @@ class CurriculumRunner(RunnerWithState):
     return self.env_output
 
   def update_stats(self, info):
+    info = batch_dicts(info)
     for k in self.metrics.keys():
       self.stats[k] += list(info[k][:, 0])
   

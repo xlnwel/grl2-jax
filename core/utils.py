@@ -3,7 +3,7 @@ import random
 import numpy as np
 import jax
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.typing import ModelPath, get_basic_model_name
 from tools import yaml_op
 
@@ -22,7 +22,7 @@ def configure_gpu(idx=-1):
   if idx is None:
     tf.config.experimental.set_visible_devices([], 'GPU')
     jax.config.update('jax_platform_name', 'cpu')
-    do_logging('No gpu is used', backtrack=3)
+    do_logging('No gpu is used', backtrack=3, level='info')
     return False
   gpus = tf.config.list_physical_devices('GPU')
   n_gpus = len(gpus)
@@ -36,17 +36,17 @@ def configure_gpu(idx=-1):
       for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
       logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-      do_logging(f'{n_gpus} Physical GPUs, {len(logical_gpus)} Logical GPU')
+      do_logging(f'{n_gpus} Physical GPUs, {len(logical_gpus)} Logical GPU', level='info')
     except RuntimeError as e:
       # visible devices must be set before GPUs have been initialized
-      do_logging(e)
+      do_logging(e, level='info')
     return True
 
 def set_seed(seed: int=None):
   if seed is not None:
     random.seed(seed)
     np.random.seed(seed)
-  do_logging(f'seed={seed}', backtrack=3, level='debug')
+  do_logging(f'seed={seed}', backtrack=3, level='info')
 
 def save_code(model_path: ModelPath, backtrack=3):
   """ Saves the code so that we can check the chagnes latter """
@@ -59,10 +59,7 @@ def save_code(model_path: ModelPath, backtrack=3):
       '*logs*', '*data*', '.*', '*.md',
       '*pycache*', '*.pyc', '*test*', '*outs*', 
       '*results*', '*env*', '*.tar', '*__*'))
-  do_logging(
-    f'Save code: {model_path}', 
-    backtrack=backtrack, 
-  )
+  do_logging(f'Save code: {model_path}', backtrack=backtrack, level='info')
 
 def save_code_for_seed(config, seed=0):
   if config.seed == seed:

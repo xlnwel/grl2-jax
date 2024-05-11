@@ -2,7 +2,7 @@ import logging
 from netrc import netrc
 import haiku as hk
 
-from core.log import do_logging
+from tools.log import do_logging
 from nn.func import mlp
 from nn.registry import nn_registry
 from nn.utils import get_activation

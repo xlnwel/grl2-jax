@@ -2,7 +2,7 @@ from typing import Sequence, Dict
 import numpy as np
 import jax
 
-from core.log import do_logging
+from tools.log import do_logging
 
 
 def print_dict(tree, prefix='', backtrack=3, **kwargs):

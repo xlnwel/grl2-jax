@@ -5,7 +5,7 @@ import haiku as hk
 from haiku import initializers
 import chex
 
-from core.log import do_logging
+from tools.log import do_logging
 from nn.dummy import Dummy
 
 logger = logging.getLogger(__name__)

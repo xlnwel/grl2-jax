@@ -40,16 +40,19 @@ env:
   control_right: False
   shared_policy: True
   score_reward_scale: 1
+  reward_type: shared
 
   max_episode_steps: 200
   use_action_mask: False
   uid2aid: null
 
   n_runners: &nrunners 10
-  n_envs: &nenvs 2
+  n_envs: &nenvs 5
 
   use_idx: False
   timeout_done: &td True
+
+  record_prev_action: True
 
 agent: {}
 
@@ -63,29 +66,32 @@ strategy:
 model:
   aid: 0
   gamma: &gamma .99
+  use_prev_info: False
 
   policy:
     nn_id: policy
     units_list: [64, 64]
     w_init: orthogonal
     activation: relu
-    norm: null
+    norm: layer
     norm_after_activation: True
     out_scale: .01
-    rnn_type: &prnn null
+    rnn_type: &prnn lstm
     rnn_units: 64
-    rnn_norm: null
+    rnn_init: null
+    rnn_norm: layer
     use_feature_norm: False
   value:
     nn_id: value
     units_list: [64, 64]
     w_init: orthogonal
     activation: relu
-    norm: null
+    norm: layer
     norm_after_activation: True
-    rnn_type: &vrnn null
+    rnn_type: &vrnn lstm
     rnn_units: 64
-    rnn_norm: null
+    rnn_init: null
+    rnn_norm: layer
     use_feature_norm: False
 
 loss:
@@ -105,8 +111,9 @@ loss:
   policy_sample_mask: True
 
   # hyperparams for value learning
-  value_loss: clip
+  value_loss: clip_huber
   value_clip_range: .2
+  huber_threshold: 10
   value_sample_mask: False
   popart: &popart True
 
@@ -123,11 +130,11 @@ trainer:
   n_runners: *nrunners
   n_envs: *nenvs
   n_epochs: &nepochs 15
-  n_mbs: &nmbs 2
+  n_mbs: &nmbs 1
   n_steps: *nsteps
   update_scheme: whole
   popart: *popart
-  debug: True
+  debug: False
 
   policy_opt:
     opt_name: adam
@@ -149,6 +156,7 @@ actor:
       obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
       obs_normalized_ndim: 2
       normalize_obs: True
+      use_feature_mask: True
       obs_clip: 10
     reward:
       reward_normalized_axis: [0, 1] # reward is normalized at once with the sequential dimension
@@ -173,6 +181,7 @@ buffer:
     - obs
     - global_state
     - action
+    - prev_info
     - value
     - reward
     - discount

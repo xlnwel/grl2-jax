@@ -4,7 +4,7 @@ from jax import random
 import jax.numpy as jnp
 import haiku as hk
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
@@ -93,7 +93,7 @@ class Trainer(TrainerBase):
     opt_state, 
     data, 
   ):
-    do_logging('train is traced', backtrack=4)
+    do_logging('train is traced', level='info')
     rngs = random.split(rng, 3)
     theta.Qs, opt_state.Q, stats = optimizer.optimize(
       self.loss.q_loss, 
@@ -161,7 +161,7 @@ if __name__ == '__main__':
   from env.func import create_env
   from .model import create_model
   from .loss import create_loss
-  from core.log import pwc
+  from tools.log import pwc
   config = load_config('algo/ppo/configs/magw_a2c')
   config = load_config('distributed/sync/configs/smac')
   

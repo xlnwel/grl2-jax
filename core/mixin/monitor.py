@@ -1,17 +1,14 @@
 import os, atexit
-import logging
 from collections import defaultdict
 import numpy as np
 import pandas as pd
 import jax
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import ANCILLARY
 from core.typing import ModelPath, get_env_algo
 from tools.utils import isscalar
 from tools.timer import get_current_datetime, compute_time_left
-
-logger = logging.getLogger(__name__)
 
 
 def check_key(k):
@@ -76,11 +73,11 @@ class Recorder:
       self.record_path = path
       self._out_file = open(path, 'w')
       atexit.register(self._out_file.close)
-      do_logging(f'Record data to "{self._out_file.name}"', logger=logger)
+      do_logging(f'Record data to "{self._out_file.name}"', level='info')
     else:
       self._out_file = None
       do_logging(f'Record directory is not specified; no data will be recorded to the disk',
-        logger=logger)
+        level='info')
 
     self._first_row = True
     self._headers = []

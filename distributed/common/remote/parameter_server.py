@@ -11,7 +11,7 @@ import ray
 
 from core.ckpt import pickle
 from core.elements.builder import ElementsBuilderVC
-from core.log import do_logging
+from tools.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
 from core.remote.base import RayBase
