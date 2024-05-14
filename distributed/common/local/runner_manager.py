@@ -7,7 +7,7 @@ from ..remote.parameter_server import ParameterServer
 from ..remote.runner import MultiAgentRunner
 from tools.log import do_logging
 from core.elements.monitor import Monitor
-from core.remote.base import ManagerBase, RayBase
+from distributed.common.remote.base import ManagerBase, RayBase
 from core.typing import ModelPath, AttrDict, AttrDict2dict
 from tools.utils import batch_dicts
 

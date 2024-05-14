@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 import numpy as np
 
-from core.decorator import config
+from tools.decorator import config
 from replay.utils import *
 
 logger = logging.getLogger(__name__)

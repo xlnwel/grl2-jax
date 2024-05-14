@@ -5,7 +5,7 @@ from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from tools.log import do_logging
 from core.names import *
-from core.remote.base import RayBase
+from distributed.common.remote.base import RayBase
 from core.typing import ModelStats, ModelWeights
 from tools.timer import Timer
 from .monitor import Monitor

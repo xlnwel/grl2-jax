@@ -14,7 +14,7 @@ from core.elements.builder import ElementsBuilderVC
 from tools.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
-from core.remote.base import RayBase
+from distributed.common.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, ModelWeights, \
   construct_model_name, exclude_subdict, get_aid, get_iid_vid, get_date, \
     get_basic_model_name, decompose_model_name

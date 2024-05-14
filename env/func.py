@@ -33,6 +33,7 @@ def create_env(
 ):
   """ Creates an Env/VecEnv from config """
   config = config.copy()
+  config.setdefault('seed', 0)
   config.setdefault('n_envs', 1)
   env_fn = env_fn or make_env
   if config['env_name'].startswith('unity'):

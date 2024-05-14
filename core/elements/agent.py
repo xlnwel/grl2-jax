@@ -1,7 +1,7 @@
 import os
 from typing import Dict, Union
 
-from core.decorator import *
+from tools.decorator import *
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from tools.log import do_logging

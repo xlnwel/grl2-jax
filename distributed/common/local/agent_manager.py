@@ -2,7 +2,7 @@ from typing import List
 import ray
 
 from core.elements.monitor import Monitor
-from core.remote.base import ManagerBase
+from distributed.common.remote.base import ManagerBase
 from core.typing import AttrDict, AttrDict2dict
 from core.typing import ModelWeights
 from ..remote.agent import Agent

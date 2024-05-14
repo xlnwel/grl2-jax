@@ -12,7 +12,7 @@ from core.elements.buffer import Buffer
 from core.elements.builder import ElementsBuilder
 from core.mixin.actor import RMS
 from core.names import ANCILLARY, MODEL, TRAIN_STEP
-from core.remote.base import RayBase
+from distributed.common.remote.base import RayBase
 from core.typing import ModelStats, ModelWeights, ModelPath, dict2AttrDict
 from env.func import create_env
 from env.typing import EnvOutput

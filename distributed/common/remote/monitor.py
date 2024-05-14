@@ -12,7 +12,7 @@ from core.typing import ModelStats
 from tools.log import do_logging
 from core.names import TRAIN_STEP
 from core.elements.monitor import Monitor as ModelMonitor
-from core.remote.base import RayBase
+from distributed.common.remote.base import RayBase
 from core.typing import ModelPath
 from rule.utils import is_rule_strategy
 from tools.graph import get_tick_labels
