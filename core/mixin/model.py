@@ -1,10 +1,4 @@
-import logging
 import jax
-
-from tools.log import *
-
-
-logger = logging.getLogger(__name__)
 
 
 def update_params(source, target, polyak):

@@ -1,6 +1,7 @@
 from typing import Sequence, Dict
 import numpy as np
 import jax
+import torch
 
 from tools.log import do_logging
 
@@ -32,7 +33,7 @@ def print_dict(tree, prefix='', backtrack=3, **kwargs):
         print_line = True
     if print_line:
       line = prefix + ' ' + ','.join(line)
-      do_logging(line, backtrack=backtrack+1, **kwargs)
+      do_logging(line, backtrack=backtrack, **kwargs)
   else:
     do_logging(f'{prefix}: {tree}', backtrack=backtrack, **kwargs)
 
@@ -54,7 +55,7 @@ def print_dict_info(tree, prefix='', backtrack=3, **kwargs):
   elif isinstance(tree, (list, tuple)):
     for i, v in enumerate(tree):
       print_dict_info(v, f'{prefix} idx({i})', backtrack=backtrack+1, **kwargs)
-  elif isinstance(tree, (np.ndarray, jax.Array)):
+  elif isinstance(tree, (np.ndarray, jax.Array, torch.Tensor)):
     print_array(tree, prefix, backtrack=backtrack, **kwargs)
   elif isinstance(tree, Dict):
     for k, v in tree.items():
@@ -68,7 +69,7 @@ def print_dict_info(tree, prefix='', backtrack=3, **kwargs):
       elif isinstance(v, (Sequence)):
         do_logging(f'{prefix} {k} length: {len(v)}', backtrack=backtrack, **kwargs)
         print_dict_info(v, f'{prefix} {k}', backtrack=backtrack+1, **kwargs)
-      elif isinstance(v, (np.ndarray, jax.Array)):
+      elif isinstance(v, (np.ndarray, jax.Array, torch.Tensor)):
         print_array(v, f'{prefix} {k}', backtrack=backtrack, **kwargs)
       else:
         do_logging(f'{prefix} {k}: {v} {type(v)}', backtrack=backtrack, **kwargs)

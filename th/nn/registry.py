@@ -1,14 +1,7 @@
 import functools
 
 from tools.registry import Registry
-
-class Dummy:
-  def get_weights(self):
-    pass
-
-  def set_weights(self, weights):
-    pass
-
+from th.nn.dummy import Dummy
 
 Registry = functools.partial(Registry, DummyFunc=Dummy)
 

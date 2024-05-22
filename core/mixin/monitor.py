@@ -2,7 +2,6 @@ import os, atexit
 from collections import defaultdict
 import numpy as np
 import pandas as pd
-import jax
 
 from tools.log import do_logging
 from core.names import ANCILLARY
@@ -101,8 +100,6 @@ class Recorder:
       if np.any(np.isnan(v)):
         do_logging(f'{k}: {v}')
         assert False
-      if isinstance(v, (jax.Array)):
-        v = np.array(v)
       if v is None:
         continue
       elif isinstance(v, (list, tuple)):

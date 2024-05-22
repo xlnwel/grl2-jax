@@ -28,7 +28,6 @@ class TrainerBase(ParamsCheckpointBase):
     self.loss = loss
     self.model = loss.model
     self.opts: Dict[str, optax.GradientTransformation] = AttrDict()
-    self.opt_names: Dict[str, str] = AttrDict()
     self.rng = self.model.rng
 
     self.add_attributes()

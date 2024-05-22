@@ -22,7 +22,7 @@ import numpy as np
 import tensorflow as tf
 
 from nn.dnc import access
-from core.tf_config import configure_gpu
+from core.tf_config import configure_jax_gpu
 
 BATCH_SIZE = 2
 MEMORY_SIZE = 20
@@ -32,7 +32,7 @@ NUM_WRITES = 3
 TIME_STEPS = 4
 INPUT_SIZE = 10
 
-configure_gpu()
+configure_jax_gpu()
 
 module = access.MemoryAccess(MEMORY_SIZE, WORD_SIZE, NUM_READS, NUM_WRITES)
 initial_state = module.get_initial_state(batch_size=BATCH_SIZE)

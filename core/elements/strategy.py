@@ -40,10 +40,7 @@ class Strategy:
     self._memory = self.memory_cls(self.model)
 
     if self.config.get('root_dir'):
-      self._model_path = ModelPath(
-        self.config.root_dir, 
-        self.config.model_name
-      )
+      self._model_path = ModelPath(self.config.root_dir, self.config.model_name)
     else:
       self._model_path = None
     self.step_counter = StepCounter(
@@ -224,11 +221,7 @@ class Strategy:
     return old_memory
 
   """ Call """
-  def __call__(
-    self, 
-    env_output: EnvOutput, 
-    evaluation: bool=False,
-  ):
+  def __call__(self, env_output: EnvOutput, evaluation: bool=False):
     """根据环境返回信息作推理
 
     Args:
@@ -255,13 +248,18 @@ class Strategy:
     """
     if isinstance(env_output.obs, list):
       inp = batch_dicts(env_output.obs, concat_along_unit_dim)
+      reset = concat_along_unit_dim(env_output.reset)
     else:
       inp = env_output.obs
+      reset = env_output.reset
+    inp = self._memory.add_memory_state_to_input(inp, reset)
     inp = dict2AttrDict(inp, to_copy=True)
     return inp
 
   def _record_output(self, out: Tuple):
     """ 记录训练输出内容 """
+    state = out[-1]
+    self._memory.set_states(state)
     return out
 
   """ Checkpoint Ops """

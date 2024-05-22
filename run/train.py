@@ -21,7 +21,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from tools.log import setup_logging, do_logging
 from core.names import PATH_SPLIT
-from core.utils import configure_gpu
+from core.utils import configure_jax_gpu
 from tools import pkg
 from tools.utils import modify_config
 from run.args import parse_train_args
@@ -199,10 +199,13 @@ def setup_configs(cmd_args, algo_env_config):
 
 def _run_with_configs(cmd_args):
   algo_env_config = _get_algo_env_config(cmd_args)
-  main = pkg.import_main(cmd_args.train_entry, cmd_args.algorithms[0])
 
   configs = setup_configs(cmd_args, algo_env_config)
 
+  main = pkg.import_main(
+    cmd_args.train_entry, cmd_args.algorithms[0], 
+    algo_package=cmd_args.algo_package
+  )
   if cmd_args.grid_search or cmd_args.trials > 1:
     assert len(configs) == 1, 'No support for multi-agent grid search.'
     _grid_search(configs[0], main, cmd_args)
@@ -218,7 +221,7 @@ if __name__ == '__main__':
   if not (cmd_args.grid_search and cmd_args.multiprocess) and cmd_args.gpu is not None:
     os.environ["CUDA_VISIBLE_DEVICES"] = f",".join([f"{gpu}" for gpu in cmd_args.gpu])
   if cmd_args.cpu:
-    configure_gpu(None)
+    configure_jax_gpu(None)
   processes = []
   if cmd_args.directory != '':
     configs = [search_for_config(d) for d in cmd_args.directory]

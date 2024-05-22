@@ -812,7 +812,7 @@ class MultiAgentUnitsDivision(gym.Wrapper):
       assert len(obs) == self.n_agents, (len(obs), self.n_agents)
       return obs
     else:
-      return [{k: v[uids] for k, v in obs.items()} for uids in self.aid2uids]
+      return [jax.tree_map(lambda x: x[uids], obs) for uids in self.aid2uids]
 
 
 class PopulationSelection(gym.Wrapper):

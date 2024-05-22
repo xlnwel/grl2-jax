@@ -8,13 +8,12 @@ import haiku as hk
 
 from core.ckpt.pickle import save, restore
 from tools.log import do_logging
-from core.names import MODEL, OPTIMIZER, TRAIN_AXIS
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
-from tools.utils import flatten_dict, prefix_name, yield_from_tree_with_indices
+from tools.utils import flatten_dict, prefix_name
 
 
 def construct_fake_data(env_stats, aid):
@@ -83,17 +82,6 @@ class Trainer(TrainerBase):
     stats.update(data)
 
     return 1, stats
-
-  def get_theta_params(self):
-    weights = {
-      MODEL: self.model.theta, 
-      OPTIMIZER: self.params.theta
-    }
-    return weights
-  
-  def set_theta_params(self, weights):
-    self.model.set_weights(weights[MODEL])
-    self.params.theta = weights[OPTIMIZER]
 
   def theta_train(
     self, 

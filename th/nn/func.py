@@ -4,7 +4,7 @@ from th.nn.mlp import MLP
 from th.nn.registry import nn_registry
 
 
-def create_network(input_dim, config):
+def create_network(input_dim, config, device='cpu'):
   """ Create a network according to config
   
   Args: 
@@ -26,7 +26,7 @@ def create_network(input_dim, config):
   network = registry.get(nn_id)
   if not issubclass(network, nn.Module):
     raise TypeError(f'create_network returns invalid network: {network}')
-  return network(input_dim, **config)
+  return network(input_dim, **config, device=device)
 
 
 def mlp(input_dim, units_list=[], out_size=None, **kwargs) -> MLP:

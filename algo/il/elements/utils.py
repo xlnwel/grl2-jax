@@ -6,7 +6,6 @@ def norm_adv(
   config, 
   raw_adv, 
   sample_mask=None, 
-  n=None, 
   epsilon=1e-5
 ):
   if config.norm_adv:
@@ -14,7 +13,6 @@ def norm_adv(
       raw_adv, 
       zero_center=config.get('zero_center', True), 
       mask=sample_mask, 
-      n=n, 
       axis=except_axis(raw_adv, UNIT_DIM), 
       epsilon=epsilon, 
     )

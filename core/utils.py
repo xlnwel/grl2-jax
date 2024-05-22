@@ -8,7 +8,7 @@ from core.typing import ModelPath, get_basic_model_name
 from tools import yaml_op
 
 
-def configure_gpu(idx=-1):
+def configure_jax_gpu(idx=-1):
   """ Configures gpu for Tensorflow/JAX
     The standard way described in the document of JAX does not work for TF. Since 
     we utilize the later for data visualization in Tensorboard, we 
@@ -74,6 +74,3 @@ def save_config(config, model_path=None, config_name='config.yaml'):
     assert model_path.root_dir == config.root_dir, (model_path.root_dir, config.root_dir)
     assert model_path.model_name == config.model_name, (model_path.model_name, config.model_name)
   yaml_op.save_config(config, path = os.path.join(*model_path, config_name))
-
-def get_vars_for_modules(modules):
-  return sum([m.variables for m in modules], ())

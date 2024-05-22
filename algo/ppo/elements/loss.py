@@ -11,7 +11,7 @@ from .utils import *
 
 
 class Loss(LossBase):
-  def loss(self, theta, rng, data,name='train'):
+  def loss(self, theta, rng, data, name='train'):
     data = data.copy()
     rngs = random.split(rng, 2)
     stats = dict2AttrDict(self.config.stats, to_copy=True)
@@ -38,9 +38,9 @@ class Loss(LossBase):
     else:
       if self.config.popart:
         value = lax.stop_gradient(denormalize(
-          stats.value, data.popart_mean, data.popart_std))
+          stats.value, data.popart_mean, data.popart_std, np=jnp))
         next_value = denormalize(
-          next_value, data.popart_mean, data.popart_std)
+          next_value, data.popart_mean, data.popart_std, np=jnp)
       else:
         value = lax.stop_gradient(stats.value)
 
@@ -57,7 +57,8 @@ class Loss(LossBase):
         axis=TRAIN_AXIS.SEQ
       )
     if self.config.popart:
-      stats.v_target = normalize(stats.raw_v_target, data.popart_mean, data.popart_std)
+      stats.v_target = normalize(
+        stats.raw_v_target, data.popart_mean, data.popart_std, np=jnp)
     else:
       stats.v_target = stats.raw_v_target
     stats.v_target = lax.stop_gradient(stats.v_target)
@@ -66,7 +67,6 @@ class Loss(LossBase):
       self.config, 
       stats.raw_adv, 
       sample_mask=data.sample_mask, 
-      n=data.n, 
       epsilon=self.config.get('epsilon', 1e-5)
     )
 
@@ -108,9 +108,9 @@ class Loss(LossBase):
     else:
       if self.config.popart:
         value = lax.stop_gradient(denormalize(
-          stats.value, data.popart_mean, data.popart_std))
+          stats.value, data.popart_mean, data.popart_std, np=jnp))
         next_value = denormalize(
-          next_value, data.popart_mean, data.popart_std)
+          next_value, data.popart_mean, data.popart_std, np=jnp)
       else:
         value = lax.stop_gradient(stats.value)
 
@@ -127,7 +127,8 @@ class Loss(LossBase):
         axis=TRAIN_AXIS.SEQ
       )
     if self.config.popart:
-      stats.v_target = normalize(stats.raw_v_target, data.popart_mean, data.popart_std)
+      stats.v_target = normalize(
+        stats.raw_v_target, data.popart_mean, data.popart_std, np=jnp)
     else:
       stats.v_target = stats.raw_v_target
     stats.v_target = lax.stop_gradient(stats.v_target)
@@ -138,7 +139,6 @@ class Loss(LossBase):
       self.config, 
       stats.raw_adv, 
       sample_mask=data.sample_mask, 
-      n=data.n, 
       epsilon=self.config.get('epsilon', 1e-5)
     )
     loss = value_loss

@@ -2,7 +2,7 @@ import os
 import ray
 
 from core.typing import dict2AttrDict
-from core.utils import configure_gpu, set_seed
+from core.utils import configure_jax_gpu, set_seed
 from tools.log import do_logging
 from distributed.common.local.controller import Controller
 from tools.ray_setup import init_ray
@@ -51,7 +51,7 @@ def modify_configs(configs):
 def main(configs):
   init_ray()
 
-  configure_gpu(None)
+  configure_jax_gpu(None)
 
   configs = modify_configs(configs)
   save_configs(configs)

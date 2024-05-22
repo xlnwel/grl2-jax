@@ -2,8 +2,8 @@ import logging
 import time
 import ray
 
-from core.elements.dataset import *
-from core.log import do_logging
+from th.core.elements.dataset import *
+from tools.log import do_logging
 
 logger = logging.getLogger(__name__)
 

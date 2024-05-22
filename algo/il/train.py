@@ -65,7 +65,7 @@ def main(configs, train=train, Runner=Runner):
   seed = config.get('seed')
   set_seed(seed)
 
-  configure_gpu()
+  configure_jax_gpu()
   use_ray = config.env.get('n_runners', 1) > 1
   if use_ray:
     from tools.ray_setup import sigint_shutdown_ray

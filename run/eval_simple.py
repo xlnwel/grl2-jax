@@ -12,7 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from tools.log import do_logging
 from core.typing import dict2AttrDict
-from core.utils import configure_gpu
+from core.utils import configure_jax_gpu
 from tools.ray_setup import sigint_shutdown_ray
 from tools.run import simple_evaluate
 from tools import pkg
@@ -86,7 +86,7 @@ def parse_eval_args():
 if __name__ == '__main__':
   args = parse_eval_args()
 
-  configure_gpu()
+  configure_jax_gpu()
   configs = setup_configs(args)
   n = compute_episodes(args)
 

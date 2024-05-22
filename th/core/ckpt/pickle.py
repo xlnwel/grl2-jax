@@ -1,7 +1,7 @@
 import os
 import cloudpickle
 
-from core.log import do_logging
+from tools.log import do_logging
 from core.names import PATH_SPLIT
 from core.typing import ModelPath
 from tools.file import search_for_all_files

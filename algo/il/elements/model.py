@@ -43,7 +43,7 @@ class Model(MAModelBase):
     # add the sequential dimension
     if self.has_rnn:
       data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
-    act_outs, state = self.forward_policy(params.policy, rngs[0], data, state.policy)
+    act_outs, state.policy = self.forward_policy(params.policy, rngs[0], data, state.policy)
     act_dists = self.policy_dist(act_outs, evaluation)
 
     if evaluation:

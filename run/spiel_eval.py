@@ -204,7 +204,7 @@ def main(
   env = create_env(config.env)
 
   set_seed(config.seed)
-  configure_gpu(None)
+  configure_jax_gpu(None)
 
   nash_conv = {'step': step}
 

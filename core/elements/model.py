@@ -1,7 +1,7 @@
 import numpy as np
 import jax
 import haiku as hk
-from typing import Dict, Union
+from typing import Dict, Union, List, Tuple
 
 from tools.log import do_logging
 from core.names import MODEL
@@ -73,11 +73,11 @@ class Model(ParamsCheckpointBase):
   def print_params(self):
     if self.config.get('print_params', True):
       for k, v in self.params.items():
-        do_logging(f'Module: {k}', level='debug')
-        print_dict_info(v, prefix='\t', level='debug')
+        do_logging(f'Module: {k}', level='info')
+        print_dict_info(v, prefix='\t', level='info')
         n = summarize_arrays(v)
         n = int2str(n)
-        do_logging(f'Total number of params of {k}: {n}', level='debug')
+        do_logging(f'Total number of params of {k}: {n}', level='info')
 
   @property
   def theta(self):
@@ -89,12 +89,14 @@ class Model(ParamsCheckpointBase):
 
   def action(self, data, evaluation):
     self.act_rng, act_rng = jax.random.split(self.act_rng)
-    return self.jit_action(self.params, act_rng, data, evaluation)
+    action, stats, state = self.jit_action(self.params, act_rng, data, evaluation)
+    action, stats = jax.tree_map(np.asarray, (action, stats))
+    return action, stats, state
 
   def raw_action(self, params, rng, data, evaluation=False):
     raise NotImplementedError
 
-  def get_weights(self, name: Union[str, ]=None):
+  def get_weights(self, name: Union[str, Tuple, List]=None):
     """ Returns a list/dict of weights
 
     Returns:

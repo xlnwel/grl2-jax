@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from core.log import do_logging
+from tools.log import do_logging
 
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 logger = logging.getLogger(__name__)

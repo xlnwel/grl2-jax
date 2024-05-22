@@ -24,26 +24,30 @@ def count_masks(mask, axis=None, n=None):
     n = jnp.where(n == 0, 1., n)
   return n
 
-def mask_mean(x, mask=None, n=None, axis=None):
-  n = count_masks(mask, axis=axis, n=n)
-  return jnp.mean(x, axis=axis) if mask is None \
-    else jnp.sum(x * mask, axis=axis) / n
+def mask_mean(x, mask=None, replace=0, axis=None):
+  if mask is None:
+    x = jnp.mean(x, axis=axis)
+  elif replace is None:
+    n = count_masks(mask, axis=axis)
+    x = jnp.sum(x * mask, axis=axis) / n
+  else:
+    x = jnp.where(mask, x, replace)
+    x = jnp.mean(x, axis=axis)
+  return x
 
-def mask_moments(x, mask=None, n=None, axis=None):
-  n = count_masks(mask, axis=axis, n=n)
-  mean = mask_mean(x, mask=mask, n=n, axis=axis)
-  var = mask_mean((x - mean)**2, mask=mask, n=n, axis=axis)
+def mask_moments(x, mask=None, axis=None):
+  mean = mask_mean(x, mask=mask, replace=None, axis=axis)
+  var = mask_mean((x - mean)**2, mask=mask, replace=None, axis=axis)
   return mean, var
 
 def standard_normalization(
   x, 
   zero_center=True, 
   mask=None, 
-  n=None, 
   axis=None, 
   epsilon=1e-8, 
 ):
-  mean, var = mask_moments(x, mask=mask, n=n, axis=axis)
+  mean, var = mask_moments(x, mask=mask, axis=axis)
   std = lax.sqrt(var + epsilon)
   if zero_center:
     x = x - mean
@@ -68,7 +72,7 @@ def explained_variance(y, pred, axis=None, mask=None, n=None):
   y_var = jnp.var(y, axis=axis) + 1e-8
   diff_var = jnp.var(y - pred, axis=axis)
   ev = jnp.maximum(-1., 1-(diff_var / y_var))
-  ev = mask_mean(ev, mask=mask, n=n)
+  ev = mask_mean(ev, mask=mask, replace=None)
   return ev
 
 def softmax(x, tau, axis=-1):
@@ -77,7 +81,7 @@ def softmax(x, tau, axis=-1):
 
 def logsumexp(x, tau, axis=None, keepdims=False):
   """ tau * tf.logsumexp(x / tau) """
-  y = scipy.special.logsumexp(x, axis=axis, keepdims=keepdims, b=tau)
+  y = scipy.special.logsumexp(x / tau, axis=axis, keepdims=keepdims)
   return tau * y
 
 def symlog(x):

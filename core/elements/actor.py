@@ -1,6 +1,5 @@
 from typing import Tuple, Dict
 import numpy as np
-import jax
 
 from core.elements.model import Model
 from core.mixin.actor import RMS
@@ -11,11 +10,7 @@ from tools.utils import set_path, batch_dicts
 
 
 def apply_rms_to_inp(inp, rms, update_rms):
-  inp = rms.process(
-    inp, 
-    update_rms=update_rms, 
-    mask=inp.sample_mask, 
-  )
+  inp = rms.process(inp, update_rms=update_rms, mask=inp.sample_mask)
   return inp
 
 
@@ -110,7 +105,7 @@ class Actor:
   def _process_output(
     self, 
     inp: Dict, 
-    out: Tuple[Dict[str, jax.Array]], 
+    out: Tuple[Dict[str, np.ndarray]], 
     evaluation: bool
   ):
     """ Post-processes output.
@@ -133,9 +128,8 @@ class Actor:
       and not evaluation and self.config.rms.obs.normalize_obs:
       if isinstance(inp, (list, tuple)):
         inp = batch_dicts(inp, concat_along_unit_dim)
-      stats.update({k: inp[k] 
-        for k in self.config.rms.obs.obs_names})
-    action = jax.tree_map(np.asarray, action)
+      stats.update(
+        {k: inp[k] for k in self.config.rms.obs.obs_names})
     return action, stats, state
 
   def process_obs_with_rms(self, obs, update_rms=None):

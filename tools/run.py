@@ -1,17 +1,16 @@
 import collections
 from typing import Tuple
 from functools import partial
-import logging
 import numpy as np
 
 from core.typing import dict2AttrDict
+from tools.log import do_logging
 from tools.store import StateStore
 from tools.utils import batch_dicts
 from env.typing import EnvOutput
 from env.func import create_env
 from env.utils import divide_env_output
 
-logger = logging.getLogger(__name__)
 
 State = collections.namedtuple('state', 'agent runner')
 EnvState = collections.namedtuple('state', 'env output')
@@ -163,14 +162,14 @@ class Runner:
         run_mode=RunMode.NSTEPS, record_envs=None, info_func=None):
     self.env = env
     if env.max_episode_steps == int(1e9):
-      logger.info(f'Maximum episode steps is not specified'
-        f'and is by default set to {self.env.max_episode_steps}')
+      do_logging(f'Maximum episode steps is not specified'
+        f'and is by default set to {self.env.max_episode_steps}', level='info')
       # assert nsteps is not None
     self.agent = agent
     self.step = step
     if run_mode == RunMode.TRAJ and env.env_type == 'VecEnv':
-      logger.warning('Runner.step is not the actual environment steps '
-        f'as run_mode == {RunMode.TRAJ} and env_type == VecEnv')
+      do_logging('Runner.step is not the actual environment steps '
+        f'as run_mode == {RunMode.TRAJ} and env_type == VecEnv', level='info')
     self.env_output = self.env.output()
     self.episodes = np.zeros(env.n_envs)
     assert getattr(self.env, 'auto_reset', None), getattr(self.env, 'auto_reset', None)

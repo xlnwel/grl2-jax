@@ -75,7 +75,6 @@ class Loss(LossBase):
       teammate_log_ratio, 
       teammate_ratio_clip=self.config.teammate_ratio_clip, 
       sample_mask=data.sample_mask, 
-      n=data.n, 
       epsilon=self.config.get('epsilon', 1e-5)
     )
 
@@ -156,7 +155,6 @@ class Loss(LossBase):
       stats.raw_adv, 
       teammate_log_ratio, 
       sample_mask=data.sample_mask, 
-      n=data.n, 
       epsilon=self.config.get('epsilon', 1e-5)
     )
     loss = value_loss

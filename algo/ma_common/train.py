@@ -3,12 +3,12 @@ import importlib
 import ray
 
 from core.elements.builder import ElementsBuilder
-from tools.log import do_logging
 from core.names import ANCILLARY
 from core.typing import get_basic_model_name
-from core.utils import configure_gpu, set_seed, save_code_for_seed
+from core.utils import configure_jax_gpu, set_seed, save_code_for_seed
 from env.utils import divide_env_output
 from tools.display import print_dict
+from tools.log import do_logging
 from tools.utils import modify_config, flatten_dict
 from tools.timer import Timer, timeit, Every
 from tools.pkg import get_package
@@ -135,15 +135,12 @@ def log(agent):
 
 
 @timeit
-def build_agent(config, env_stats, rename_model_name=True, 
+def build_agent(config, env_stats, aid=0, rename_model_name=True, 
                 save_monitor_stats_to_disk=True, save_config=True):
   if rename_model_name:
     model_name = get_basic_model_name(config.model_name)
-    new_model_name = os.path.join(model_name, 'a0')
-    modify_config(
-      config, 
-      model_name=new_model_name, 
-    )
+    new_model_name = os.path.join(model_name, f'a{aid}')
+    modify_config(config, model_name=new_model_name)
   builder = ElementsBuilder(
     config, 
     env_stats, 
@@ -193,7 +190,7 @@ def main(configs, train=train, Runner=Runner):
   seed = config.get('seed')
   set_seed(seed)
 
-  configure_gpu()
+  configure_jax_gpu()
   use_ray = config.env.get('n_runners', 1) > 1
   if use_ray:
     from tools.ray_setup import sigint_shutdown_ray
@@ -208,16 +205,13 @@ def main(configs, train=train, Runner=Runner):
 
   env_stats = runner.env_stats()
   env_stats.n_envs = config.env.n_runners * config.env.n_envs
-  do_logging(env_stats, prefix='Env stats', level='info')
+  do_logging(env_stats, prefix='Env stats')
 
   save_code_for_seed(config)
-  agents = [build_agent(config, env_stats) for config in configs]
+  agents = [build_agent(config, env_stats, aid=aid) 
+            for aid, config in enumerate(configs)]
 
   routine_config = config.routine.copy()
-  train(
-    agents, 
-    runner, 
-    routine_config, 
-  )
+  train(agents, runner, routine_config)
 
   do_logging('Training completed', level='info')

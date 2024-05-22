@@ -454,6 +454,11 @@ def split_dict(d):
 
   return d
 
+def extract_from_tree(d, idx):
+  d = {k: extract_from_tree(v, idx) if isinstance(v, dict) else v[idx] for k, v in d.items()}
+
+  return d
+
 def yield_from_tree(tree):
   vals, keys = jax.tree_util.tree_flatten(tree)
   for v in zip(*vals):
@@ -572,11 +577,18 @@ def stack_data_with_state(buffer, keys=None, seq_axis=1):
   if keys is None:
     keys = buffer.keys()
 
-  data = AttrDict()
+  data = AttrDict(action=AttrDict())
   for k in keys:
+    if k not in buffer:
+      continue
     if k == 'action':
-      data[k] = batch_dicts(
-        buffer[k], lambda x: np.stack(x, seq_axis))
+      data[k].update(batch_dicts(
+        buffer[k], lambda x: np.stack(x, seq_axis)))
+      continue
+    if k == 'action_mask':
+      d = batch_dicts(buffer[k], lambda x: np.stack(x, seq_axis))
+      am = {f'{k}_mask': v for k, v in d.items()}
+      data['action'].update(am)
       continue
     if k == 'prev_info':
       for kk in buffer:
@@ -584,9 +596,7 @@ def stack_data_with_state(buffer, keys=None, seq_axis=1):
           data[kk] = batch_dicts(
             buffer[kk], lambda x: np.stack(x, seq_axis))
       continue
-    if k not in buffer:
-      continue
-    elif k == 'state':
+    if k == 'state':
       v = batch_states(buffer[k], axis=seq_axis)
     else:
       v = np.stack(buffer[k], seq_axis)

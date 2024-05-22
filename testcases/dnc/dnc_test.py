@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from nn.dnc.dnc import DNC
-from core.tf_config import configure_gpu
+from core.tf_config import configure_jax_gpu
 
 BATCH_SIZE = 2
 MEMORY_SIZE = 20
@@ -13,7 +13,7 @@ TIME_STEPS = 4
 INPUT_SIZE = 10
 OUTPUT_SIZE = 2
 
-configure_gpu()
+configure_jax_gpu()
 
 access_config = {
   "memory_size": MEMORY_SIZE,

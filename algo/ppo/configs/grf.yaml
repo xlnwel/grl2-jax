@@ -121,7 +121,7 @@ loss:
     gamma: *gamma
     lam: &lam .95
     pg_coef: 1
-    entropy_coef: 1e-2
+    entropy_coef: .01
     value_coef: 1
 
 trainer:
@@ -129,10 +129,9 @@ trainer:
   aid: 0
   n_runners: *nrunners
   n_envs: *nenvs
-  n_epochs: &nepochs 15
+  n_epochs: 15
   n_mbs: &nmbs 1
   n_steps: *nsteps
-  update_scheme: whole
   popart: *popart
   debug: False
 

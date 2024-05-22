@@ -70,8 +70,13 @@ class Memory:
       inp: dict, reset: np.ndarray, state: NamedTuple=None):
     """ Adds memory state and mask to the input. """
     if state is None and self._state is None:
-      self._state = self.model.get_initial_state(
-        next(iter(inp.values())).shape[0])
+      batch_size = None
+      for v in inp.values():
+        if isinstance(v, dict):
+          continue
+        batch_size = v.shape[0]
+        break
+      self._state = self.model.get_initial_state(batch_size)
 
     if state is None:
       state = self._state
@@ -93,7 +98,7 @@ class Memory:
     if state is None:
       return
     reset = np.expand_dims(reset, -1)
-    state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
+    state = jax.tree_map(lambda x: x*(1-reset), state)
     return state
 
   def reset_states(self):

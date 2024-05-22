@@ -28,8 +28,6 @@ def combine_rms(rms1, rms2):
   m_a = var1 * count1
   m_b = var2 * count2
   M2 = m_a + m_b + delta**2 * count1 * count2 / total_count
-  # if not np.all(np.isfinite(M2)):
-  #   breakpoint()
   assert np.all(np.isfinite(M2)), f'M2: {M2}'
   new_var = M2 / total_count
 

@@ -10,13 +10,13 @@ def to_loss(
   raw_stats, 
   coef, 
   mask=None, 
-  n=None, 
+  replace=0, 
   axis=None
 ):
   if coef is None:
     coef = 0
   scaled_loss = coef * raw_stats
-  loss = jax_math.mask_mean(scaled_loss, mask, n, axis=axis)
+  loss = jax_math.mask_mean(scaled_loss, mask, replace=replace, axis=axis)
   return scaled_loss, loss
 
 
@@ -388,14 +388,14 @@ def entropy_loss(
   entropy_coef, 
   entropy, 
   mask=None, 
-  n=None
+  replace=None
 ):
   jax_assert.assert_shape_compatibility([entropy, mask])
   scaled_entropy_loss, entropy_loss = to_loss(
     -entropy, 
     entropy_coef, 
     mask=mask, 
-    n=n
+    replace=replace
   )
 
   return scaled_entropy_loss, entropy_loss
@@ -465,10 +465,9 @@ def joint_ppo_loss(
   joint_ratio=None, 
   clip_range, 
   mask=None, 
-  n=None,
 ):
   jax_assert.assert_shape_compatibility([ratio, mask])
-  if mask is not None and n is None:
+  if mask is not None:
     mask = jnp.prod(mask, axis=-1)
   if joint_ratio is None:
     joint_ratio = jnp.prod(ratio, axis=-1)
@@ -509,7 +508,6 @@ def clipped_value_loss(
   old_value, 
   clip_range, 
   mask=None, 
-  n=None, 
   huber_threshold=None,
 ):
   chex.assert_equal_shape([value, traj_ret, old_value])
@@ -517,7 +515,7 @@ def clipped_value_loss(
     value, traj_ret, old_value, clip_range, huber_threshold)
   
   value_loss = jnp.maximum(loss1, loss2)
-  clip_frac = jax_math.mask_mean(jnp.abs(value_diff) > clip_range, mask, n)
+  clip_frac = jax_math.mask_mean(jnp.abs(value_diff) > clip_range, mask)
 
   return value_loss, clip_frac
 
@@ -547,7 +545,6 @@ def compute_kl_loss(
   q_scale=None,
   logits_mask=None, 
   sample_mask=None,
-  n=None, 
 ):
   """ Compute the KL divergence between p and q,
   where p is the distribution to be optimize and 
@@ -567,12 +564,7 @@ def compute_kl_loss(
       q_scale=q_scale, 
       logits_mask=logits_mask, 
     )
-    raw_kl_loss, kl_loss = to_loss(
-      kl, 
-      kl_coef, 
-      mask=sample_mask, 
-      n=n
-    )
+    raw_kl_loss, kl_loss = to_loss(kl, kl_coef, mask=sample_mask)
   else:
     kl = 0.
     raw_kl_loss = 0.
@@ -592,7 +584,6 @@ def compute_js(
   pi2=None,
   logits_mask=None, 
   sample_mask=None, 
-  n=None
 ):
   if js_coef is not None:
     if js_type == 'approx':
@@ -607,12 +598,7 @@ def compute_js(
       )
     else:
       raise NotImplementedError(f'Unknown JS type {js_type}')
-    raw_js_loss, js_loss = to_loss(
-      js, 
-      js_coef, 
-      mask=sample_mask, 
-      n=n
-    )
+    raw_js_loss, js_loss = to_loss(js, js_coef, mask=sample_mask)
   else:
     js = 0,
     raw_js_loss = 0.
@@ -637,7 +623,6 @@ def compute_tsallis(
   q_scale=None,
   logits_mask=None, 
   sample_mask=None,
-  n=None, 
 ):
   if tsallis_coef is not None:
     if tsallis_type == 'forward_approx':
@@ -679,10 +664,7 @@ def compute_tsallis(
     else:
       raise NotImplementedError(f'Unknown Tsallis {tsallis_type}')
     raw_tsallis_loss, tsallis_loss = to_loss(
-      tsallis, 
-      tsallis_coef, 
-      mask=sample_mask, 
-      n=n
+      tsallis, tsallis_coef, mask=sample_mask, 
     )
   else:
     tsallis = 0.

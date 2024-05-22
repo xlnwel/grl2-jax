@@ -1,13 +1,13 @@
 import os
 from typing import Dict, Union
 
-from core.decorator import *
-from core.elements.builder import ElementsBuilder
-from core.elements.strategy import Strategy
-from core.log import do_logging
-from core.names import PATH_SPLIT
-from core.elements.monitor import Monitor
-from core.typing import ModelPath, get_algo, AttrDict, ModelWeights
+from th.core.elements.builder import ElementsBuilder
+from th.core.elements.strategy import Strategy
+from th.core.names import PATH_SPLIT
+from th.core.elements.monitor import Monitor
+from th.core.typing import ModelPath, get_algo, AttrDict, ModelWeights
+from tools.decorator import *
+from tools.log import do_logging
 from run.utils import search_for_config
 
 

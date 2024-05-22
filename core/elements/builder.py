@@ -4,7 +4,6 @@ from types import FunctionType
 from typing import Dict, Tuple, Set
 
 from core.elements.actor import Actor
-# from core.elements.dataset import create_dataset
 from core.elements.model import Model
 from core.elements.strategy import Strategy
 from core.elements.trainer import TrainerBase

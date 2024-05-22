@@ -1,9 +1,10 @@
 import logging
+import functools
 import numpy as np
 from torch import nn
 
-from core.log import do_logging
-from nn.dummy import Dummy
+from tools.log import do_logging
+from th.nn.dummy import Dummy
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +59,13 @@ def init_linear(module, w_init, b_init, scale):
   b_init(module.bias.data)
   return module
 
-def get_initializer(name, **kwargs):
+
+def get_initializer(name, gain=1.):
   """ 
   Return a parameter initializer by name
   """
   inits = {
-    'orthogonal': nn.init.orthogonal_, 
+    'orthogonal': functools.partial(nn.init.orthogonal_, gain=gain), 
     'glorot_uniform': nn.init.xavier_uniform_, 
     'glorot_normal': nn.init.xavier_normal_, 
     'he_uniform': nn.init.kaiming_uniform_, 
@@ -81,6 +83,8 @@ def get_initializer(name, **kwargs):
       return act
     else:
       ValueError(f'Unknonw initializer: {name}')
+  elif name is None:
+    return Dummy()
   else:
     return name
 

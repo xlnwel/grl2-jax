@@ -1,5 +1,5 @@
-from core.elements.trainer import TrainerBase
-from core.typing import AttrDict, dict2AttrDict
+from th.core.elements.trainer import TrainerBase
+from th.core.typing import AttrDict, dict2AttrDict
 from tools.timer import Timer
 
 

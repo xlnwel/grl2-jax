@@ -1,6 +1,12 @@
+import collections
 import torch
 import torch.nn as nn
 from torch.utils._pytree import tree_map
+
+from th.nn.utils import get_initializer
+
+
+LSTMState = collections.namedtuple('LSTMState', 'h c')
 
 
 class LSTM(nn.Module):
@@ -32,13 +38,13 @@ class LSTM(nn.Module):
 
 """RNN modules."""
 class RNNLayer(nn.Module):
-  def __init__(self, inputs_dim, outputs_dim, rnn_type, rnn_layers=1, rnn_norm=False):
+  def __init__(self, inputs_dim, outputs_dim, rnn_type, rnn_layers=1, rnn_init='orthogonal', rnn_norm=False):
     super(RNNLayer, self).__init__()
     self.rnn_type = rnn_type
     self._rnn_layers = rnn_layers
 
     if rnn_type == 'lstm':
-      self.rnn = LSTM(inputs_dim, outputs_dim)
+      self.rnn = nn.LSTM(inputs_dim, outputs_dim, num_layers=self._rnn_layers)
     elif rnn_type == 'gru':
       self.rnn = nn.GRU(inputs_dim, outputs_dim, num_layers=self._rnn_layers)
     else:
@@ -47,48 +53,48 @@ class RNNLayer(nn.Module):
       if 'bias' in name:
         nn.init.constant_(param, 0)
       elif 'weight' in name:
-        nn.init.orthogonal_(param)
+        w_init = get_initializer(rnn_init)
+        w_init(param)
     if rnn_norm:
       self.norm = nn.LayerNorm(outputs_dim)
     else:
       self.norm = None
 
   def forward(self, x, state, reset):
-    outputs = []
-    for i in range(x.size(0)):
-      h, state = self.rnn(x[i], state, reset[i])
-      outputs.append(h)
-    # # Let's figure out which steps in the sequence have a zero for any agent
-    # # We will always assume t=0 has a zero in it as that makes the logic cleaner
-    # has_zeros = ((masks[1:] == 0.0)
-    #         .any(dim=-1)
-    #         .nonzero()
-    #         .squeeze()
-    #         .cpu())
+    # outputs = []
+    # for i in range(x.size(0)):
+    #   mask = 1 - reset[i].unsqueeze(-1).contiguous()
+    #   state = tree_map(lambda x: x * mask, state)
+    #   h, state = self.rnn(x[i].unsqueeze(0), state)
+    #   outputs.append(h)
+    # Let's figure out which steps in the sequence have a zero for any agent
+    # We will always assume t=0 has a zero in it as that makes the logic cleaner
+    is_reset = ((reset[1:] == 1.0)
+                .any(dim=-1)
+                .nonzero()
+                .squeeze()
+                .cpu())
 
-    # # +1 to correct the masks[1:]
-    # if has_zeros.dim() == 0:
-    #   # Deal with scalar
-    #   has_zeros = [has_zeros.item() + 1]
-    # else:
-    #   has_zeros = (has_zeros + 1).numpy().tolist()
+    # +1 to correct the reset[1:]
+    if is_reset.dim() == 0:
+      # Deal with scalar
+      is_reset = [is_reset.item() + 1]
+    else:
+      is_reset = (is_reset + 1).numpy().tolist()
 
     # # add t=0 and t=T to the list
-    # has_zeros = [0] + has_zeros + [x.size(0)]
+    is_reset = [0] + is_reset + [x.size(0)]
 
-    # outputs = []
-    # for i in range(len(has_zeros) - 1):
-    #   # We can now process steps that don't have any zeros in masks together!
-    #   # This is much faster
-    #   start_idx = has_zeros[i]
-    #   end_idx = has_zeros[i + 1]
-    #   temp = tree_map(lambda x: x * masks[start_idx].view(1, -1, 1).repeat(self._rnn_layers, 1, 1).contiguous(), state)
-    #   temp = (temp[0], torch.zeros_like(temp[1]))
-    #   # temp = (torch.zeros_like(temp[0]), temp[1])
-    #   print(i, 'torch input state', temp)
-    #   rnn_scores, state = self.rnn(x[start_idx:end_idx], temp)
-    #   print(i, 'torch output state', state)
-    #   outputs.append(rnn_scores)
+    outputs = []
+    for i in range(len(is_reset) - 1):
+      # We can now process steps that don't have any zeros in masks together!
+      # This is much faster
+      start_idx = is_reset[i]
+      end_idx = is_reset[i + 1]
+      mask = 1 - reset[start_idx].unsqueeze(-1).contiguous()
+      state = tree_map(lambda x: (x * mask).contiguous(), state)
+      h, state = self.rnn(x[start_idx:end_idx], state)
+      outputs.append(h)
 
     # assert len(outputs) == T
     # x is a (T, N, -1) tensor
@@ -96,4 +102,7 @@ class RNNLayer(nn.Module):
 
     if self.norm:
       x = self.norm(x)
+    if self.rnn_type == 'lstm':
+      state = LSTMState(*state)
+
     return x, state

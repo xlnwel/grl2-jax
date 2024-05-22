@@ -91,6 +91,8 @@ class MAModelBase(ModelCore):
     for v in self.config.values():
       if isinstance(v, dict):
         has_rnn = v.rnn_type is not None
+      if has_rnn:
+        break
     return has_rnn
 
   @property

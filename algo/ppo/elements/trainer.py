@@ -8,7 +8,7 @@ import haiku as hk
 
 from core.ckpt.pickle import save, restore
 from tools.log import do_logging
-from core.names import MODEL, OPTIMIZER, TRAIN_AXIS
+from core.names import TRAIN_AXIS
 from core.elements.trainer import TrainerBase, create_trainer
 from core import optimizer
 from core.typing import AttrDict, dict2AttrDict
@@ -82,7 +82,7 @@ class Trainer(TrainerBase):
   def train(self, data: AttrDict):
     if self.config.n_runners * self.config.n_envs < self.config.n_mbs:
       self.indices = np.arange(self.config.n_mbs)
-      data = jax.tree_util.tree_map(
+      data = jax.tree_map(
         lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[2:])), data)
     theta = self.model.theta.copy()
     all_stats = AttrDict()
@@ -120,22 +120,11 @@ class Trainer(TrainerBase):
       for k, v in data.items() if v is not None}, prefix='data')
     all_stats.update(data)
 
-    for v in theta.values():
-      all_stats.update(flatten_dict(
-        jax.tree_util.tree_map(np.linalg.norm, v)))
+    # for v in theta.values():
+    #   all_stats.update(flatten_dict(
+    #     jax.tree_util.tree_map(np.linalg.norm, v)))
 
     return self.config.n_epochs * self.config.n_mbs, all_stats
-
-  def get_theta_params(self):
-    weights = {
-      MODEL: self.model.theta, 
-      OPTIMIZER: self.params.theta
-    }
-    return weights
-  
-  def set_theta_params(self, weights):
-    self.model.set_weights(weights[MODEL])
-    self.params.theta = weights[OPTIMIZER]
 
   def theta_train(
     self, 
@@ -233,9 +222,7 @@ class Trainer(TrainerBase):
   #   breakpoint()
 
 
-create_trainer = partial(create_trainer,
-  name='ppo', trainer_cls=Trainer
-)
+create_trainer = partial(create_trainer, name='ppo', trainer_cls=Trainer)
 
 
 if __name__ == '__main__':

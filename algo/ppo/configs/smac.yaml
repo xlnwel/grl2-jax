@@ -27,11 +27,12 @@ routine:
   perm: null
 
 env:
-  env_name: &env_name smac-corridor
+  env_name: &env_name smac-3s_vs_5z
   n_runners: &nrunners 8
   n_envs: &nenvs 1
   timeout_done: &td True
   sample_mask_at_done: 0
+  shared_policy: True
 
 agent: {}
 
@@ -107,7 +108,7 @@ trainer:
   aid: 0
   n_runners: *nrunners
   n_envs: *nenvs
-  n_epochs: 5
+  n_epochs: 15
   n_mbs: &nmbs 1
   n_steps: *nsteps
   popart: *popart
@@ -132,7 +133,7 @@ actor:
       obs_names: [obs, global_state]
       obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
       obs_normalized_ndim: 2
-      normalize_obs: *irms
+      normalize_obs: True
       use_feature_mask: True
       obs_clip: 10
     reward:

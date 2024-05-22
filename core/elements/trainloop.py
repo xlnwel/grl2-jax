@@ -15,7 +15,6 @@ class TrainingLoop:
     self.buffer = buffer
     self.trainer = trainer
     self.model = self.trainer.model
-    self.rng = self.model.rng
 
     for k, v in kwargs.items():
       setattr(self, k, v)

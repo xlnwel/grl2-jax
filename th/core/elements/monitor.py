@@ -1,5 +1,5 @@
-from core.mixin.monitor import Recorder
-from core.typing import ModelPath
+from th.core.mixin.monitor import Recorder
+from th.core.typing import ModelPath
 
 
 class Monitor:
@@ -28,7 +28,7 @@ class Monitor:
     # we create a recorder anyway, but we do not store any data to the disk if use_recorder=False
     self._recorder = Recorder(self._model_path, max_steps=self._max_steps)
     if self._use_tensorboard and self._model_path is not None:
-      from core.mixin.tb import TensorboardWriter
+      from th.core.mixin.tb import TensorboardWriter
       self._tb_writer = TensorboardWriter(
         model_path=model_path, name=self._name)
     else:

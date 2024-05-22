@@ -165,14 +165,12 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
     raw_pg_loss, 
     stats.pg_coef, 
     mask=sample_mask, 
-    n=data.n
+    replace=None
   )
   stats.raw_pg_loss = raw_pg_loss
   stats.scaled_pg_loss = scaled_pg_loss
   stats.pg_loss = pg_loss
 
-  if len(act_dists) == 1:
-    entropy = act_dists[DEFAULT_ACTION].entropy()
   entropy = {k: ad.entropy() for k, ad in act_dists.items()}
   for k, v in entropy.items():
     stats[f'{k}_entropy'] = v
@@ -181,7 +179,7 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
     entropy_coef=entropy_coef, 
     entropy=entropy, 
     mask=sample_mask, 
-    n=data.n
+    replace=None
   )
   stats.entropy = entropy
   stats.scaled_entropy_loss = scaled_entropy_loss
@@ -193,11 +191,11 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
   if sample_mask is not None:
     sample_mask = expand_shape_match(sample_mask, stats.ratio, np=jnp)
   clip_frac = jax_math.mask_mean(
-    lax.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2), 
-    sample_mask, data.n)
+    lax.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2), sample_mask
+  )
   stats.clip_frac = clip_frac
   stats.approx_kl = jax_math.mask_mean(
-    .5 * (data.mu_logprob - stats.pi_logprob)**2, sample_mask, data.n
+    .5 * (data.mu_logprob - stats.pi_logprob)**2, sample_mask
   )
 
   return loss, stats
@@ -231,7 +229,6 @@ def compute_vf_loss(config, data, stats):
       config.value_clip_range, 
       huber_threshold=config.huber_threshold, 
       mask=sample_mask, 
-      n=data.n,
     )
   else:
     raise ValueError(f'Unknown value loss type: {value_loss_type}')
@@ -240,7 +237,7 @@ def compute_vf_loss(config, data, stats):
     raw_value_loss, 
     coef=stats.value_coef, 
     mask=sample_mask, 
-    n=data.n
+    replace=None
   )
   
   stats.scaled_value_loss = scaled_value_loss
@@ -260,9 +257,9 @@ def record_target_adv(stats):
 def record_policy_stats(data, stats, act_dists):
   # stats.diff_frac = jax_math.mask_mean(
   #   lax.abs(stats.pi_logprob - data.mu_logprob) > 1e-5, 
-  #   data.sample_mask, data.n)
+  #   data.sample_mask)
   # stats.approx_kl = .5 * jax_math.mask_mean(
-  #   (stats.log_ratio)**2, data.sample_mask, data.n)
+  #   (stats.log_ratio)**2, data.sample_mask)
   # stats.approx_kl_max = jnp.max(.5 * (stats.log_ratio)**2)
   if len(act_dists) == 1:
     stats.update(act_dists[DEFAULT_ACTION].get_stats(prefix='pi'))

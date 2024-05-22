@@ -1,5 +1,5 @@
-from core.typing import AttrDict, dict2AttrDict
-from core.elements.model import Model
+from th.core.typing import AttrDict, dict2AttrDict
+from th.core.elements.model import Model
 
 
 class Buffer:

@@ -90,11 +90,7 @@ def restore_params(model_path: ModelPath, name, filenames=None, backtrack=4, to_
 
 
 class Checkpoint:
-  def __init__(
-    self, 
-    config, 
-    name='ckpt'
-  ):
+  def __init__(self, config, name='ckpt'):
     if 'root_dir' in config and 'model_name' in config:
       self._model_path = ModelPath(config.root_dir, config.model_name)
     else:

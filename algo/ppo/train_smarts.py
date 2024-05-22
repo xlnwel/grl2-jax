@@ -4,7 +4,7 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from tools.log import do_logging
-from core.utils import configure_gpu, set_seed, save_code
+from core.utils import configure_jax_gpu, set_seed, save_code
 from core.typing import ModelPath
 from tools.store import StateStore
 from tools.utils import modify_config
@@ -96,7 +96,7 @@ def main(configs, train=train):
   seed = config.get('seed')
   set_seed(seed)
 
-  configure_gpu()
+  configure_jax_gpu()
   use_ray = config.env.get('n_runners', 1) > 1 or config.routine.get('EVAL_PERIOD', False)
   if use_ray:
     from tools.ray_setup import sigint_shutdown_ray

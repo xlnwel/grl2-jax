@@ -13,7 +13,7 @@ from core.elements.builder import ElementsBuilder
 from tools.log import setup_logging, do_logging
 from core.names import PATH_SPLIT
 from core.typing import dict2AttrDict
-from core.utils import configure_gpu
+from core.utils import configure_jax_gpu
 from tools.plot import plot_data_dict
 from tools.ray_setup import sigint_shutdown_ray
 from tools.run import evaluate
@@ -96,7 +96,7 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
 if __name__ == '__main__':
   args = parse_eval_args()
 
-  configure_gpu()
+  configure_jax_gpu()
   setup_logging(args.verbose)
   configs = setup_configs(args)
   n = compute_episodes(args)

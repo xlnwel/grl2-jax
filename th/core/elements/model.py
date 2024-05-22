@@ -1,13 +1,16 @@
+import numpy as np
+from typing import Dict, Union, List, Tuple
+import torch
 from torch import nn
-from torch.utils._pytree import tree_map
-from typing import Dict, Union
+from jax import tree_map
 
-from core.log import do_logging
-from core.names import MODEL
+from tools.log import do_logging
+from th.core.names import MODEL
 from th.core.ckpt.base import ParamsCheckpointBase
-from core.ensemble import Ensemble, constructor
-from core.typing import AttrDict, dict2AttrDict
+from th.core.typing import AttrDict, dict2AttrDict
+from th.core.utils import tpdv
 from th.nn.func import create_network
+from th.tools.th_utils import to_tensor
 
 
 class Model(ParamsCheckpointBase):
@@ -26,6 +29,8 @@ class Model(ParamsCheckpointBase):
     super().__init__(config, name, MODEL)
     self.env_stats = dict2AttrDict(env_stats, to_copy=True)
     self.modules: Dict[str, nn.Module] = AttrDict()
+    self.device = config.device
+    self.tpdv = tpdv(self.device)
 
     self._initial_states = AttrDict()
 
@@ -39,11 +44,11 @@ class Model(ParamsCheckpointBase):
     self.n_groups = len(self.gids)
     gid2uids = [self.env_stats.gid2uids[i] for i in self.gids]
     min_uid = gid2uids[0][0]
-    self.gid2uids = [uid - min_uid for uid in gid2uids] # starts uids from zero
+    self.gid2uids = [np.array(uid) - min_uid for uid in gid2uids] # starts uids from zero
     self.is_action_discrete = self.env_stats.is_action_discrete[self.aid]
 
   def build_net(self, input_dim, name):
-    net = create_network(input_dim, self.config[name])
+    net = create_network(input_dim, self.config[name], self.device).to(**self.tpdv)
     self.modules[name] = net
     return net
 
@@ -53,21 +58,23 @@ class Model(ParamsCheckpointBase):
   def print_params(self):
     if self.config.get('print_for_debug', True):
       for k, v in self.modules.items():
-        do_logging(f'Module: {k}')
-        do_logging(f'{v}')
-
+        do_logging(f'{v}', level='info')
         n = sum(p.numel() for p in v.parameters())
-        do_logging(f'Total number of params of {k}: {n}')
+        do_logging(f'Total number of params of {k}: {n}', level='info')
 
+  @torch.no_grad()
   def action(self, data, evaluation):
-    action = self.raw_action(data, evaluation)
-
-    return action
+    for v in self.modules.values():
+      v.eval()
+    data = to_tensor(data, self.tpdv)
+    action, stats, state = self.raw_action(data, evaluation)
+    action, stats = tree_map(lambda x: x.cpu().numpy(), (action, stats))
+    return action, stats, state
 
   def raw_action(self, data, evaluation=False):
     raise NotImplementedError
 
-  def get_weights(self, name: str=None):
+  def get_weights(self, name: Union[str, Tuple, List]=None):
     """ Returns a list/dict of weights
 
     Returns:
@@ -97,7 +104,7 @@ class Model(ParamsCheckpointBase):
       if name in weights:
         self.modules[name].load_state_dict(weights[name])
       else:
-        do_logging(f'Missing params: {name}')
+        do_logging(f'Missing params: {name}', level='info')
 
   def get_states(self):
     pass
@@ -120,55 +127,16 @@ class Model(ParamsCheckpointBase):
   def state_type(self):
     return None
 
-
-class ModelEnsemble(Ensemble):
-  def __init__(
-    self, 
-    *, 
-    config: dict, 
-    env_stats: dict,
-    constructor=constructor, 
-    components=None, 
-    name: str, 
-    to_build=False, 
-    to_build_for_eval=False,
-    **classes
-  ):
-    super().__init__(
-      config=config, 
-      env_stats=env_stats, 
-      constructor=constructor, 
-      components=components, 
-      name=name, 
-      has_ckpt=False, 
-      **classes
-    )
-
-  def get_weights(self, name: Union[dict, list]=None):
-    weights = {}
-    if name:
-      if isinstance(name, dict):
-        for model_name, comp_name in name.items():
-          weights[model_name] = self.components[model_name].get_weights(comp_name)
-      elif isinstance(name, list):
-        for model_name in name:
-          weights[model_name] = self.components[model_name].get_weights()
-    else:
-      for k, v in self.components.items():
-        weights[k] = v.get_weights()
-    return weights
-
-  def set_weights(self, weights: Union[list, dict], default_initialization=None):
-    for n, m in self.components.items():
-      if n in weights:
-        m.set_weights(weights[n], default_initialization)
-      elif default_initialization:
-        m.set_weights({}, default_initialization)
-
   def restore(self):
-    for v in self.components.values():
-      v.restore()
+    super().restore(self.modules)
 
   def save(self):
-    for v in self.components.values():
-      v.save()
+    super().save(self.modules)
+
+  def train(self):
+    for v in self.modules.values():
+      v.train()
+  
+  def eval(self):
+    for v in self.modules.values():
+      v.eval()
