@@ -1,5 +1,3 @@
-import torch
-
 from env.utils import get_action_mask
 from th.core.names import TRAIN_AXIS
 from th.core.elements.loss import LossBase
@@ -51,7 +49,6 @@ class Loss(LossBase):
         axis=TRAIN_AXIS.SEQ
       )
     if self.config.popart:
-      self.model.vnorm.update(stats.raw_v_target)
       stats.v_target = self.model.vnorm.normalize(stats.raw_v_target)
     else:
       stats.v_target = stats.raw_v_target
@@ -59,7 +56,6 @@ class Loss(LossBase):
     stats = record_target_adv(stats)
     stats.advantage = norm_adv(
       self.config, stats.raw_adv, 
-      sample_mask=data.sample_mask, 
       epsilon=self.config.get('epsilon', 1e-5)
     )
 

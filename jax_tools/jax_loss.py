@@ -175,23 +175,28 @@ def gae(
   jax_assert.assert_shape_compatibility([
     reward, value, next_value, discount, reset])
   
-  # swap 'axis' with the 0-th dimension
-  # to make all tensors time-major
+  # Swap 'axis' with the 0-th dimension to make all tensors time-major
   dims, (reward, value, next_value, discount, reset) = \
     jax_utils.time_major(reward, value, next_value, discount, reset, axis=axis)
 
   gae_discount = gamma * lam
+  # Calculate the temporal difference error
   delta = reward + discount * gamma * next_value - value
+  # Adjust discount based on reset
   discount = (discount if reset is None else (1 - reset)) * gae_discount
 
   err = 0.
   advs = []
+  # Compute advantages in a reversed order loop
   for i in reversed(range(delta.shape[0])):
     err = delta[i] + discount[i] * err
     advs.append(err)
   advs = jnp.array(advs[::-1])
+  
+  # Calculate the value function from the advantages
   vs = advs + value
 
+  # Revert the tensors to their original dimensions
   vs, advs = jax_utils.undo_time_major(vs, advs, dims=dims, axis=axis)
 
   return vs, advs

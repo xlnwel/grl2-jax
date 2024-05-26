@@ -10,6 +10,12 @@ def to_tensor(data, tpdv):
   )
   return data
 
+def to_numpy(data):
+  data = tree_map(
+    lambda x: x.detach().cpu().numpy()
+    if isinstance(x, torch.Tensor) else x, data)
+  return data
+
 def static_scan(f, inputs, start):
   """
     One function which can help conduct trajectory roll-out or performing rnn
@@ -87,11 +93,6 @@ def undo_time_major(*args, dims, axis):
   if axis != 0:
     args = tree_map(lambda x: torch.permute(x, dims), args)
   return args
-
-def tensor2np(data):
-  data = tree_map(lambda x: x.numpy() 
-    if isinstance(x, torch.Tensor) else x, data)
-  return data
 
 def compute_norms(tree):
   tree = tree_map(torch.linalg.norm, tree)

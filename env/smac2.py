@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from .multiagentenv import MultiAgentEnv
 from .smac_maps import get_map_params
 
 import atexit
@@ -22,10 +23,7 @@ from s2clientprotocol import raw_pb2 as r_pb
 from s2clientprotocol import debug_pb2 as d_pb
 
 import random
-from gym.spaces import Discrete, Box
-
-from tools.utils import batch_dicts
-
+from gym.spaces import Discrete
 
 races = {
   "R": sc_common.Random,
@@ -62,27 +60,14 @@ class Direction(enum.IntEnum):
   WEST = 3
 
 
-class StarCraft2Env:
+class StarCraft2Env(MultiAgentEnv):
   """The StarCraft II environment for decentralised multi-agent
   micromanagement scenarios.
   """
 
   def __init__(
     self,
-    env_name,
-    add_local_obs=False,
-    add_move_state=False,
-    add_visible_state=False,
-    add_distance_state=False,
-    add_xy_state=False,
-    add_enemy_action_state=False,
-    add_agent_id=False,
-    use_state_agent=True,
-    use_mustalive=True,
-    add_center_xy=True,
-    use_stacked_frames=False,
-    use_obs_instead_of_state=False, 
-    stacked_frames=False,
+    args,
     step_mul=8,
     move_amount=2,
     difficulty="7",
@@ -117,14 +102,13 @@ class StarCraft2Env:
     heuristic_ai=False,
     heuristic_rest=False,
     debug=False,
-    **kwargs
   ):
     """
     Create a StarCraftC2Env environment.
 
     Parameters
     ----------
-    env_name : str, optional
+    map_name : str, optional
       The name of the SC2 map to play (default is "8m"). The full list
       can be found by running bin/map_list.
     step_mul : int, optional
@@ -216,25 +200,24 @@ class StarCraft2Env:
       debugging purposes (default is False).
     """
     # Map arguments
-    self.env_name = env_name
-    self.add_local_obs = add_local_obs
-    self.add_move_state = add_move_state
-    self.add_visible_state = add_visible_state
-    self.add_distance_state = add_distance_state
-    self.add_xy_state = add_xy_state
-    self.add_enemy_action_state = add_enemy_action_state
-    self.add_agent_id = add_agent_id
-    self.use_state_agent = use_state_agent
-    self.use_mustalive = use_mustalive
-    self.add_center_xy = add_center_xy
-    self.use_stacked_frames = use_stacked_frames
-    self.stacked_frames = stacked_frames
+    self.map_name = args.map_name
+    self.add_local_obs = args.add_local_obs
+    self.add_move_state = args.add_move_state
+    self.add_visible_state = args.add_visible_state
+    self.add_distance_state = args.add_distance_state
+    self.add_xy_state = args.add_xy_state
+    self.add_enemy_action_state = args.add_enemy_action_state
+    self.add_agent_id = args.add_agent_id
+    self.use_state_agent = args.use_state_agent
+    self.use_mustalive = args.use_mustalive
+    self.add_center_xy = args.add_center_xy
+    self.use_stacked_frames = args.use_stacked_frames
+    self.stacked_frames = args.stacked_frames
     
-    map_params = get_map_params(self.env_name)
+    map_params = get_map_params(self.map_name)
     self.n_agents = map_params["n_agents"]
-    self.n_units = self.n_agents
     self.n_enemies = map_params["n_enemies"]
-    self.max_episode_steps = map_params["limit"]
+    self.episode_limit = map_params["limit"]
     self._move_amount = move_amount
     self._step_mul = step_mul
     self.difficulty = difficulty
@@ -242,7 +225,7 @@ class StarCraft2Env:
     # Observations and state
     self.obs_own_health = obs_own_health
     self.obs_all_health = obs_all_health
-    self.obs_instead_of_state = use_obs_instead_of_state
+    self.obs_instead_of_state = args.use_obs_instead_of_state
     self.obs_last_action = obs_last_action
 
     self.obs_pathing_grid = obs_pathing_grid
@@ -331,47 +314,28 @@ class StarCraft2Env:
     # Try to avoid leaking SC2 processes on shutdown
     atexit.register(lambda: self.close())
 
-    self.action_space = {'action': Discrete(self.n_actions)}
-    self.observation_space = Box(low=-1, high=1, shape=(self.get_obs_size()[0],))
-    self.global_state_space = Box(low=-1, high=1, shape=(self.get_state_size()[0],))
+    self.action_space = []
+    self.observation_space = []
+    self.share_observation_space = []
+    for i in range(self.n_agents):
+      self.action_space.append(Discrete(self.n_actions))
+      self.observation_space.append(self.get_obs_size())
+      self.share_observation_space.append(self.get_state_size())
 
-    self.obs_shape = dict(
-      obs=self.observation_space.shape,
-      global_state=self.global_state_space.shape,
-      sample_mask=()
-    )
-    self.obs_dtype = dict(
-      obs=np.float32,
-      global_state=np.float32,
-      sample_mask=np.float32
-    )
     if self.use_stacked_frames:
       self.stacked_local_obs = np.zeros((self.n_agents, self.stacked_frames, int(self.get_obs_size()[0]/self.stacked_frames)), dtype=np.float32)
       self.stacked_global_state = np.zeros((self.n_agents, self.stacked_frames, int(self.get_state_size()[0]/self.stacked_frames)), dtype=np.float32)
 
-    # some properties for multi-agent environments
-    self.use_sample_mask = True
-    self.use_action_mask = [{'action': True}]
 
-  def random_action(self):
-    actions = []
-    for avail_actions in self.get_avail_actions():
-      choices = [i for i, v in enumerate(avail_actions) if v]
-      actions.append(random.choice(choices))
-    actions = [{'action': np.stack(actions)}]
-
-    return actions
   def _launch(self):
     """Launch the StarCraft II game."""
     self._run_config = run_configs.get(version=self.game_version)
-    _map = maps.get(self.env_name)
+    _map = maps.get(self.map_name)
     self._seed += 1
 
     # Setting up the interface
     interface_options = sc_pb.InterfaceOptions(raw=True, score=False)
-    self._sc2_proc = self._run_config.start(
-      window_size=self.window_size, want_rgb=False
-    )
+    self._sc2_proc = self._run_config.start(window_size=self.window_size, want_rgb=False)
     self._controller = self._sc2_proc.controller
 
     # Request to create the game
@@ -380,19 +344,14 @@ class StarCraft2Env:
         map_path=_map.path,
         map_data=self._run_config.map_data(_map.path)),
       realtime=False,
-      random_seed=self._seed
-    )
+      random_seed=self._seed)
     create.player_setup.add(type=sc_pb.Participant)
-    create.player_setup.add(
-      type=sc_pb.Computer,
-      race=races[self._bot_race],
-      difficulty=difficulties[self.difficulty]
-    )
+    create.player_setup.add(type=sc_pb.Computer, race=races[self._bot_race],
+                difficulty=difficulties[self.difficulty])
     self._controller.create_game(create)
 
-    join = sc_pb.RequestJoinGame(
-      race=races[self._agent_race], options=interface_options
-    )
+    join = sc_pb.RequestJoinGame(race=races[self._agent_race],
+                   options=interface_options)
     self._controller.join_game(join)
 
     game_info = self._controller.game_info()
@@ -423,7 +382,6 @@ class StarCraft2Env:
     """Reset the environment. Required after each full episode.
     Returns initial observations and states.
     """
-    self._reset_track_stats()
     self._episode_steps = 0
     if self._episode_count == 0:
       # Launch StarCraft II
@@ -450,7 +408,6 @@ class StarCraft2Env:
     except (protocol.ProtocolError, protocol.ConnectionError):
       self.full_restart()
 
-    self._episode_steps = 0
     available_actions = []
     for i in range(self.n_agents):
       available_actions.append(self.get_avail_agent_actions(i))
@@ -476,14 +433,7 @@ class StarCraft2Env:
       local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
       global_state = self.stacked_global_state.reshape(self.n_agents, -1)
 
-    obs_dict = dict(
-      obs=local_obs,
-      global_state=np.array(global_state, np.float32),
-      action_mask={'action': np.array(available_actions, bool)},
-      sample_mask=self.get_sample_mask()
-    )
-
-    return obs_dict
+    return local_obs, global_state, available_actions
 
   def _restart(self):
     """Restart the environment by killing all units on the map.
@@ -504,7 +454,6 @@ class StarCraft2Env:
 
   def step(self, actions):
     """A single environment step. Returns reward, terminated, info."""
-    actions = actions[0]['action']
     terminated = False
     bad_transition = False
     infos = [{} for i in range(self.n_agents)]
@@ -576,27 +525,7 @@ class StarCraft2Env:
         local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
         global_state = self.stacked_global_state.reshape(self.n_agents, -1)
 
-      obs_dict = dict(
-        obs=local_obs,
-        global_state=np.array(global_state, np.float32),
-        action_mask={'action': np.array(available_actions, bool)},
-        sample_mask=self.get_sample_mask()
-      )
-      rewards = np.zeros(self.n_units, np.float32)
-      info = batch_dicts(infos)
-      info.update({
-        'dense_score': self._score * np.ones(self.n_units, np.float32),
-        'score': self.win_counted * np.ones(self.n_units, np.float32),
-        'epslen': self._episode_steps,
-        'game_over': terminated,
-        'bad_episode': False,
-        'valid_step': True
-      })
-
-      self._reset_track_stats()
-      self._last_reset_obs = obs_dict
-      
-      return obs_dict, rewards, dones, info
+      return local_obs, global_state, [[0]]*self.n_agents, dones, infos, available_actions
 
     self._total_steps += 1
     self._episode_steps += 1
@@ -628,12 +557,12 @@ class StarCraft2Env:
         else:
           reward = -1
 
-    elif self._episode_steps >= self.max_episode_steps:
+    elif self._episode_steps >= self.episode_limit:
       # Episode limit reached
       terminated = True
       bad_transition = True
       if self.continuing_episode:
-        info["max_episode_steps"] = True
+        info["episode_limit"] = True
       self.battles_game += 1
       self.timeouts += 1
 
@@ -664,8 +593,7 @@ class StarCraft2Env:
     if self.reward_scale:
       reward /= self.max_reward / self.reward_scale_rate
 
-    self._score += reward
-    rewards = reward*np.ones(self.n_units, np.float32)
+    rewards = [[reward]]*self.n_agents
 
     if self.use_state_agent:
       global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_agents)]
@@ -684,29 +612,7 @@ class StarCraft2Env:
       local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
       global_state = self.stacked_global_state.reshape(self.n_agents, -1)
 
-    obs_dict = dict(
-      obs=local_obs,
-      global_state=np.array(global_state, np.float32),
-      action_mask={'action': np.array(available_actions, bool)},
-      sample_mask=self.get_sample_mask()
-    )
-    info = batch_dicts(infos)
-    info.update({
-      'dense_score': self._score * np.ones(self.n_units, np.float32),
-      'score': self.win_counted * np.ones(self.n_units, np.float32),
-      'epslen': self._episode_steps,
-      'game_over': self._episode_steps == self.max_episode_steps,
-      'bad_episode': False,
-      'valid_step': True
-    })
-    assert np.all(dones) == terminated, (dones, terminated)
-
-    return obs_dict, rewards, dones, info
-
-  def _reset_track_stats(self):
-    self._game_over = False
-    self._score = 0
-    self._episode_steps = 0
+    return local_obs, global_state, rewards, dones, infos, available_actions
 
   def get_agent_action(self, a_id, action):
     """Construct the action for agent a_id."""
@@ -991,7 +897,7 @@ class StarCraft2Env:
 
   def save_replay(self):
     """Save a replay."""
-    prefix = self.replay_prefix or self.env_name
+    prefix = self.replay_prefix or self.map_name
     replay_dir = self.replay_dir or ""
     replay_path = self._run_config.save_replay(
       self._controller.save_replay(), replay_dir=replay_dir, prefix=prefix)
@@ -1222,7 +1128,7 @@ class StarCraft2Env:
                       agent_id_feats.flatten()))
 
     if self.obs_timestep_number:
-      agent_obs = np.append(agent_obs, self._episode_steps / self.max_episode_steps)
+      agent_obs = np.append(agent_obs, self._episode_steps / self.episode_limit)
 
     if self.debug:
       logging.debug("Obs Agent: {}".format(agent_id).center(60, "-"))
@@ -1400,7 +1306,7 @@ class StarCraft2Env:
       state = np.append(state, self.get_obs_agent(agent_id).flatten())
 
     if self.state_timestep_number:
-      state = np.append(state, self._episode_steps / self.max_episode_steps)
+      state = np.append(state, self._episode_steps / self.episode_limit)
 
     if self.add_agent_id:
       agent_id_feats[agent_id] = 1.0
@@ -1600,7 +1506,7 @@ class StarCraft2Env:
       state = np.append(state, agent_id_feats.flatten())
 
     if self.state_timestep_number:
-      state = np.append(state, self._episode_steps / self.max_episode_steps)
+      state = np.append(state, self._episode_steps / self.episode_limit)
 
     if self.debug:
       logging.debug("Obs Agent: {}".format(agent_id).center(60, "-"))
@@ -1833,7 +1739,7 @@ class StarCraft2Env:
     (n_agents, n_agents + n_enemies) indicating which units
     are visible to each agent.
     """
-    arr = np.zeros((self.n_agents, self.n_agents + self.n_enemies), dtype=np.bool)
+    arr = np.zeros((self.n_agents, self.n_agents + self.n_enemies), dtype=bool)
 
     for agent_id in range(self.n_agents):
       current_agent = self.get_unit_by_id(agent_id)
@@ -1899,13 +1805,6 @@ class StarCraft2Env:
           type_id = 2
 
     return type_id
-
-  def get_sample_mask(self):
-    mask = np.zeros(self.n_units, np.float32)
-    for i, u in self.agents.items():
-      if u.health > 0:
-        mask[i] = 1
-    return mask
 
   def get_avail_agent_actions(self, agent_id):
     """Returns the available actions for agent_id."""
@@ -2021,7 +1920,9 @@ class StarCraft2Env:
             self.max_reward += unit.health_max + unit.shield_max
 
       if self._episode_count == 0:
-        min_unit_type = min(unit.unit_type for unit in self.agents.values())
+        min_unit_type = min(
+          unit.unit_type for unit in self.agents.values()
+        )
         self._init_ally_unit_types(min_unit_type)
 
       all_agents_created = (len(self.agents) == self.n_agents)

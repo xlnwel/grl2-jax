@@ -1,14 +1,14 @@
 import os
-import numpy as np
 import torch
 from jax import tree_map
 
+from env.utils import get_action_mask
 from th.core.names import DEFAULT_ACTION
 from th.core.typing import AttrDict, dict2AttrDict
+from th.tools.th_utils import to_tensor
 from algo_th.ma_common.elements.model import MAModelBase, \
   setup_config_from_envstats, construct_fake_data
 from tools.file import source_file
-from th.tools.th_utils import to_tensor
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
@@ -101,6 +101,7 @@ class Model(MAModelBase):
     if not self.has_rnn:
       return None
     data = construct_fake_data(self.env_stats, self.aid, batch_size=batch_size)
+    data.action_mask = get_action_mask(data.action)
     state = AttrDict()
     _, state.policy = self.forward_policy(data)
     _, state.value = self.forward_value(data)

@@ -369,9 +369,7 @@ class StarCraft2Env:
 
     # Setting up the interface
     interface_options = sc_pb.InterfaceOptions(raw=True, score=False)
-    self._sc2_proc = self._run_config.start(
-      window_size=self.window_size, want_rgb=False
-    )
+    self._sc2_proc = self._run_config.start(window_size=self.window_size, want_rgb=False)
     self._controller = self._sc2_proc.controller
 
     # Request to create the game
@@ -380,19 +378,14 @@ class StarCraft2Env:
         map_path=_map.path,
         map_data=self._run_config.map_data(_map.path)),
       realtime=False,
-      random_seed=self._seed
-    )
+      random_seed=self._seed)
     create.player_setup.add(type=sc_pb.Participant)
-    create.player_setup.add(
-      type=sc_pb.Computer,
-      race=races[self._bot_race],
-      difficulty=difficulties[self.difficulty]
-    )
+    create.player_setup.add(type=sc_pb.Computer, race=races[self._bot_race],
+                difficulty=difficulties[self.difficulty])
     self._controller.create_game(create)
 
-    join = sc_pb.RequestJoinGame(
-      race=races[self._agent_race], options=interface_options
-    )
+    join = sc_pb.RequestJoinGame(race=races[self._agent_race],
+                   options=interface_options)
     self._controller.join_game(join)
 
     game_info = self._controller.game_info()
@@ -1832,7 +1825,7 @@ class StarCraft2Env:
     (n_agents, n_agents + n_enemies) indicating which units
     are visible to each agent.
     """
-    arr = np.zeros((self.n_agents, self.n_agents + self.n_enemies), dtype=np.bool)
+    arr = np.zeros((self.n_agents, self.n_agents + self.n_enemies), dtype=bool)
 
     for agent_id in range(self.n_agents):
       current_agent = self.get_unit_by_id(agent_id)
@@ -2020,7 +2013,9 @@ class StarCraft2Env:
             self.max_reward += unit.health_max + unit.shield_max
 
       if self._episode_count == 0:
-        min_unit_type = min(unit.unit_type for unit in self.agents.values())
+        min_unit_type = min(
+          unit.unit_type for unit in self.agents.values()
+        )
         self._init_ally_unit_types(min_unit_type)
 
       all_agents_created = (len(self.agents) == self.n_agents)

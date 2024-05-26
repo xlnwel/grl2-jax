@@ -399,14 +399,16 @@ class RMS:
       for name in self.get_obs_names():
         if self.n_obs == 1:
           _name = f'next_{name}' if is_next else name
-          new_obs[_name] = self.obs_rms[0].normalize(obs[_name], name=name)
+          mask = obs.next_sample_mask if is_next else obs.sample_mask
+          new_obs[_name] = self.obs_rms[0].normalize(obs[_name], name=name, mask=mask)
         else:
           rms = [rms.get_rms_stats(with_count=False, return_std=True) for rms in self.obs_rms]
           rms = batch_dicts(rms, np.concatenate)
           for k, v in rms.items():
             key = f'next_{k}' if is_next else k
+            mask = obs.next_sample_mask if is_next else obs.sample_mask
             val = obs[key]
-            new_obs[key] = normalize(val, *v, clip=self.obs_rms[0].clip)
+            new_obs[key] = normalize(val, *v, clip=self.obs_rms[0].clip, mask=mask)
     return new_obs
 
   def reset_reward_rms_return(self):

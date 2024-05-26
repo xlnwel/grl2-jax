@@ -165,8 +165,6 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
   stats.scaled_pg_loss = scaled_pg_loss
   stats.pg_loss = pg_loss
 
-  if len(act_dists) == 1:
-    entropy = act_dists[DEFAULT_ACTION].entropy()
   entropy = {k: ad.entropy() for k, ad in act_dists.items()}
   for k, v in entropy.items():
     stats[f'{k}_entropy'] = v

@@ -132,7 +132,6 @@ trainer:
   n_epochs: &nepochs 15
   n_mbs: &nmbs 1
   n_steps: *nsteps
-  update_scheme: whole
   popart: *popart
   debug: False
 

@@ -93,10 +93,6 @@ class Policy(nn.Module):
     self.is_action_discrete = is_action_discrete
 
     self.out_act = out_act
-    self.init_std = init_std
-    self.sigmoid_scale = sigmoid_scale
-    self.std_x_coef = std_x_coef
-    self.std_y_coef = std_y_coef
     self.use_action_mask = use_action_mask
     self.use_feature_norm = use_feature_norm
     if self.use_feature_norm:
@@ -130,7 +126,7 @@ class Policy(nn.Module):
     outs = {}
     for name, layer in self.heads.items():
       if self.is_action_discrete[name]:
-        am = action_mask[name] if action_mask is not None else None
+        am = action_mask[name] if self.use_action_mask[name] else None
         d = layer(x, action_mask=am)
       else:
         d = layer(x)

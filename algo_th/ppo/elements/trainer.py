@@ -1,13 +1,12 @@
 from functools import partial
 import numpy as np
-import torch
 from jax import tree_map
 
 from th.core.names import TRAIN_AXIS
 from th.core.elements.trainer import TrainerBase, create_trainer
 from th.core import optimizer
 from th.core.typing import AttrDict, dict2AttrDict
-from th.tools.th_utils import to_tensor
+from th.tools.th_utils import to_tensor, to_numpy
 from tools.display import print_dict_info
 from tools.utils import flatten_dict, prefix_name, yield_from_tree_with_indices
 
@@ -35,7 +34,7 @@ def construct_fake_data(env_stats, aid):
   data.v_target = np.zeros(basic_shape, np.float32)
 
   print_dict_info(data)
-  data = tree_map(lambda x: torch.from_numpy(x), data)
+  data = to_tensor(data)
   
   return data
 
@@ -77,16 +76,17 @@ class Trainer(TrainerBase):
       for i, d in enumerate(yield_from_tree_with_indices(
           data, _indices, axis=TRAIN_AXIS.BATCH)):
         stats = self.theta_train(data=d)
-        v_target.append(stats.raw_v_target)
+        v_target.append(to_numpy(stats.raw_v_target))
         # print_dict_info(stats)
         if e == self.config.n_epochs-1 and i == self.config.n_mbs - 1:
           all_stats.update(**prefix_name(stats, name=f'group_last_epoch'))
         elif e == 0 and i == 0:
           all_stats.update(**prefix_name(stats, name=f'group_first_epoch'))
 
-    all_stats = tree_map(
-      lambda x: x.detach().cpu().numpy() 
-      if isinstance(x, torch.Tensor) else x, all_stats)
+    if self.config.popart:
+      v_target = np.concatenate(v_target)
+      self.model.vnorm.update(v_target)
+    all_stats = to_numpy(all_stats)
     data = flatten_dict(
       {k: v for k, v in data.items() if v is not None}, prefix='data')
     all_stats.update(data)

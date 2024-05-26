@@ -2,12 +2,7 @@ from tools.utils import except_axis
 from algo.ma_common.elements.utils import *
 
 
-def norm_adv(
-  config, 
-  raw_adv, 
-  sample_mask=None, 
-  epsilon=1e-5
-):
+def norm_adv(config, raw_adv, sample_mask=None, epsilon=1e-5):
   if config.norm_adv:
     advantage = jax_math.standard_normalization(
       raw_adv, 
