@@ -11,5 +11,5 @@ class Memory(MemoryBase):
     if state is None:
       return
     reset = np.expand_dims(reset, (-2, -1))
-    state = jax.tree_map(lambda x: x*(1-reset), state)
+    state = jax.tree_util.tree_map(lambda x: x*(1-reset), state)
     return state

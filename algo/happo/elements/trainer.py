@@ -354,6 +354,17 @@ class Trainer(TrainerBase):
       name='popart'
     )
 
+  def get_optimizer_weights(self):
+    weights = super().get_optimizer_weights()
+    weights['popart'] = [popart.get_rms_stats() for popart in self.popart]
+    return weights
+
+  def set_optimizer_weights(self, weights):
+    popart_stats = weights.pop('popart')
+    for ps, popart in zip(popart_stats, self.popart):
+      popart.set_rms_stats(*ps)
+    super().set_optimizer_weights(weights)
+
   # def haiku_tabulate(self, data=None):
   #   rng = random.PRNGKey(0)
   #   if data is None:

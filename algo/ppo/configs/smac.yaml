@@ -15,7 +15,7 @@ routine:
   algorithm: *algo
 
   MAX_STEPS: 1e7
-  n_steps: &nsteps 400
+  n_steps: &nsteps 200
   LOG_PERIOD: 5e4
   EVAL_PERIOD: null
 
@@ -28,9 +28,9 @@ routine:
 
 env:
   env_name: &env_name smac-3s_vs_5z
-  n_runners: &nrunners 8
+  n_runners: &nrunners 20
   n_envs: &nenvs 1
-  timeout_done: &td True
+  timeout_done: &td False
   sample_mask_at_done: 0
   use_state_agent: True
   shared_policy: True
@@ -50,26 +50,26 @@ model:
 
   policy:
     nn_id: policy
-    units_list: [64, 64]
+    units_list: [128, 128]
     w_init: orthogonal
     activation: relu
     norm: layer
     norm_after_activation: True
     out_scale: .01
     rnn_type: &prnn null
-    rnn_units: 64
+    rnn_units: 128
     rnn_init: null
     rnn_norm: layer
     use_feature_norm: False
   value:
     nn_id: value
-    units_list: [64, 64]
+    units_list: [128, 128]
     w_init: orthogonal
     activation: relu
     norm: layer
     norm_after_activation: True
     rnn_type: &vrnn null
-    rnn_units: 64
+    rnn_units: 128
     rnn_init: null
     rnn_norm: layer
     use_feature_norm: False
@@ -109,7 +109,7 @@ trainer:
   aid: 0
   n_runners: *nrunners
   n_envs: *nenvs
-  n_epochs: 15
+  n_epochs: 5
   n_mbs: &nmbs 1
   n_steps: *nsteps
   popart: *popart

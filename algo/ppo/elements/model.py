@@ -63,7 +63,7 @@ class Model(MAModelBase):
     state = data.pop('state', AttrDict())
     # add the sequential dimension
     if self.has_rnn:
-      data = jax.tree_map(lambda x: jnp.expand_dims(x, 1), data)
+      data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1), data)
     act_outs, state.policy = self.forward_policy(params.policy, rngs[0], data, state.policy)
     act_dists = self.policy_dist(act_outs, evaluation)
 
@@ -81,9 +81,9 @@ class Model(MAModelBase):
         action = AttrDict()
         logprob = AttrDict()
         stats = AttrDict(mu_logprob=0)
-        rngs = random.split(rngs[1])
+        am_rngs = random.split(rngs[1], len(act_dists))
         for i, (k, ad) in enumerate(act_dists.items()):
-          a, lp = ad.sample_and_log_prob(seed=rngs[i])
+          a, lp = ad.sample_and_log_prob(seed=am_rngs[i])
           action[k] = a
           logprob[k] = lp
           k = k.replace('action_', '')
@@ -96,7 +96,7 @@ class Model(MAModelBase):
       stats.value = value
     if self.has_rnn:
       # squeeze the sequential dimension
-      action, stats = jax.tree_map(
+      action, stats = jax.tree_util.tree_map(
         lambda x: jnp.squeeze(x, 1), (action, stats))
     if state.policy is None and state.value is None:
       state = None
@@ -106,7 +106,7 @@ class Model(MAModelBase):
   def raw_value(self, params, rng, data):
     state = data.pop('state', AttrDict())
     if self.has_rnn:
-      data = jax.tree_map(lambda x: jnp.expand_dims(x, 1) , data)
+      data = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , data)
     v = self.forward_value(
       params, rng, data, state.value, return_state=False
     )

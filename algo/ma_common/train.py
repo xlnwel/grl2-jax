@@ -141,6 +141,7 @@ def build_agent(config, env_stats, aid=0, rename_model_name=True,
     model_name = get_basic_model_name(config.model_name)
     new_model_name = os.path.join(model_name, f'a{aid}')
     modify_config(config, model_name=new_model_name)
+  modify_config(config, aid=aid, overwrite_existed_only=True)
   builder = ElementsBuilder(
     config, 
     env_stats, 
@@ -208,8 +209,13 @@ def main(configs, train=train, Runner=Runner):
   do_logging(env_stats, prefix='Env stats')
 
   save_code_for_seed(config)
-  agents = [build_agent(config, env_stats, aid=aid) 
-            for aid, config in enumerate(configs)]
+  n_agents = max(env_stats.n_agents, len(configs))
+  if len(configs) < n_agents:
+    agents = [build_agent(config, env_stats, aid=aid) 
+              for aid in range(n_agents)]
+  else:
+    agents = [build_agent(config, env_stats, aid=aid) 
+              for aid, config in enumerate(configs)]
 
   routine_config = config.routine.copy()
   train(agents, runner, routine_config)

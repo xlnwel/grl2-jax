@@ -643,6 +643,7 @@ class MultiAgentRunner(RayBase):
 
   def _setup_env_config(self, config: dict):
     config = dict2AttrDict(config)
+    config.eid = config.get('eid', config.seed) + self.id + 1
     if config.get('seed') is not None:
       config.seed += self.id * SEED_MULTIPLIER
     if config.env_name.startswith('grf'):

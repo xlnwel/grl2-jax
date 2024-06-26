@@ -166,7 +166,7 @@ class ACBuffer(Buffer):
             sum([b[k] for b in self._buffers.values()], []), 
             np.concatenate
           )
-          data[k] = jax.tree_map(lambda x: x[-self.batch_size:], v)
+          data[k] = jax.tree_util.tree_map(lambda x: x[-self.batch_size:], v)
         elif k == 'prev_info':
           for kk in keys:
             if k in kk:
@@ -174,7 +174,7 @@ class ACBuffer(Buffer):
                 sum([b[kk] for b in self._buffers.values()], []), 
                 np.concatenate
               )
-              data[kk] = jax.tree_map(lambda x: x[-self.batch_size:], v)
+              data[kk] = jax.tree_util.tree_map(lambda x: x[-self.batch_size:], v)
         elif k == 'state':
           data[k] = batch_states(
             [batch_states(b[k], axis=0, func=np.concatenate) 

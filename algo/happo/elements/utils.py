@@ -7,6 +7,7 @@ def norm_adv(
   config, 
   raw_adv, 
   teammate_log_ratio, 
+  sample_mask=None, 
   teammate_ratio_clip=None, 
   epsilon=1e-5
 ):
@@ -14,6 +15,7 @@ def norm_adv(
     norm_adv = jax_math.standard_normalization(
       raw_adv, 
       zero_center=config.get('zero_center', True), 
+      mask=sample_mask, 
       axis=except_axis(raw_adv, UNIT_DIM), 
       epsilon=epsilon, 
     )

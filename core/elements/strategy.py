@@ -1,4 +1,5 @@
 from typing import Tuple, Union
+import jax
 
 from core.elements.actor import Actor
 from core.elements.model import Model
@@ -43,10 +44,7 @@ class Strategy:
       self._model_path = ModelPath(self.config.root_dir, self.config.model_name)
     else:
       self._model_path = None
-    self.step_counter = StepCounter(
-      self._model_path, 
-      name=f'{self._name}_step_counter'
-    )
+    self.step_counter = StepCounter(self._model_path, name=f'{self._name}_step_counter')
 
     self._post_init()
 
@@ -120,9 +118,9 @@ class Strategy:
     """
     weights = {}
     if self.model is not None:
-      weights[MODEL] = self.model.get_weights(module_name)
+      weights[MODEL] = jax.device_get(self.model.get_weights(module_name))
     if self.trainer is not None and opt_weights:
-      weights[OPTIMIZER] = self.trainer.get_optimizer_weights()
+      weights[OPTIMIZER] = jax.device_get(self.trainer.get_optimizer_weights())
     if self.actor is not None and aux_stats:
       weights[ANCILLARY] = self.actor.get_auxiliary_stats()
     if train_step:

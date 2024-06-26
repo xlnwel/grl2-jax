@@ -31,8 +31,8 @@ env:
   n_runners: &nrunners 1
   n_envs: &nenvs 1
 
-  uid2aid: [0, 0, 1, 1, 1, 1]
-  uid2gid: [0, 0, 1, 1, 1, 1]
+  uid2aid: [0, 1]
+  uid2gid: [0, 1]
 
 agent: {}
 

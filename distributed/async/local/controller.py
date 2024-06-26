@@ -33,6 +33,7 @@ class Controller(ControllerBase):
       try:
         steps = runner_manager.get_total_steps()
       except Exception as e:
+        do_logging(e)
         write_file(os.path.join(self._dir, 'error.txt'), str(e))
         runner_manager.destroy_runners()
         runner_manager.build_runners(

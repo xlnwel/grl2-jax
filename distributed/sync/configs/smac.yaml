@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
 algorithm: &algo sync-ppo
-name: ppo
+name: sync-ppo
 version: 0
 
 precision: 32
@@ -39,8 +39,9 @@ parameter_server:
 ray_config:
   runner:
     num_cpus: 1
-  agent:
     num_gpus: 0
+  agent:
+    num_gpus: 1
 
 monitor: {}
 
@@ -52,8 +53,10 @@ runner:
 env:
   env_name: &env_name smac-corridor
   n_envs: &nenvs 1
-  timeout_done: &td True
+  timeout_done: &td False
   sample_mask_at_done: 0
+  use_state_agent: True
+  shared_policy: True
 
 agent: {}
 
@@ -73,7 +76,7 @@ model:
     norm: layer
     norm_after_activation: True
     out_scale: .01
-    rnn_type: &prnn lstm
+    rnn_type: &prnn null
     rnn_units: 64
     rnn_init: null
     rnn_norm: layer
@@ -85,7 +88,7 @@ model:
     activation: relu
     norm: layer
     norm_after_activation: True
-    rnn_type: &vrnn lstm
+    rnn_type: &vrnn null
     rnn_units: 64
     rnn_init: null
     rnn_norm: layer
@@ -126,7 +129,7 @@ trainer:
   aid: 0
   n_runners: *nrunners
   n_envs: *nenvs
-  n_epochs: 5
+  n_epochs: 15
   n_mbs: &nmbs 1
   n_steps: *nsteps
   popart: *popart

@@ -379,7 +379,7 @@ if __name__ == '__main__':
       params = params[idx]
     jax_out, state = policy(params, obs, reset, None, action_mask=action_mask)
     jax_out, jax_final_state = policy(params, obs, reset, state, action_mask=action_mask)
-    # state = jax.tree_map(lambda x: np.zeros_like(x), jax_final_state)
+    # state = jax.tree_util.tree_map(lambda x: np.zeros_like(x), jax_final_state)
   else:
     init_params = init(rng, obs, no_state_return=True)
     policy = lambda p, x: apply(p, x, no_state_return=True)
@@ -443,8 +443,8 @@ if __name__ == '__main__':
   swapaxes = lambda x: np.swapaxes(x, 0, 1)
   to_tensor = lambda x: torch.tensor(x)
   jax2np = lambda x: swapaxes(to_np(x)) if len(x.shape) == 2 else to_np(x)
-  state = jax.tree_map(to_np, state)
-  x, reset, state = jax.tree_map(lambda x: to_tensor(swapaxes(x)), [obs, reset, state])
+  state = jax.tree_util.tree_map(to_np, state)
+  x, reset, state = jax.tree_util.tree_map(lambda x: to_tensor(swapaxes(x)), [obs, reset, state])
 
   th_policy = TorchPolicy(
     x.shape[-1], 
@@ -453,8 +453,8 @@ if __name__ == '__main__':
     **model_config
   )
   # print(th_policy)
-  th_params = jax.tree_map(jax2np, params)
-  th_params = jax.tree_map(to_tensor, th_params)
+  th_params = jax.tree_util.tree_map(jax2np, params)
+  th_params = jax.tree_util.tree_map(to_tensor, th_params)
   with torch.no_grad():
     if th_policy.use_feature_norm:
       th_policy.pre_ln.weight.copy_(th_params['policy/layer_norm']['scale'])
@@ -493,7 +493,7 @@ if __name__ == '__main__':
   #   torch_out = np.squeeze(scripted_model(x).detach().numpy())
   # else:
   #   scripted_model = torch.jit.trace(th_policy, (x, state, reset))
-  #   torch_out, torch_state = jax.tree_map(
+  #   torch_out, torch_state = jax.tree_util.tree_map(
   #     lambda x: np.squeeze(x.detach().numpy()), scripted_model(x, state, reset))
 
   scripted_model.save(torch_model_path)

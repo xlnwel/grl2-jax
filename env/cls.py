@@ -12,7 +12,8 @@ from env.utils import batch_env_output
 
 class Env:
   def __init__(self, config, env_fn=make_env, agents={}):
-    self.env = env_fn(config, eid=None, agents=agents)
+    eid = config.get('eid', config.get('seed', 0))
+    self.env = env_fn(config, eid=eid, agents=agents)
     self.name = config['env_name']
     self.max_episode_steps = self.env.max_episode_steps
     self.n_envs = getattr(self.env, 'n_envs', 1)

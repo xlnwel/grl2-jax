@@ -2,7 +2,7 @@ import numpy as np
 from typing import Dict, Union, List, Tuple
 import torch
 from torch import nn
-from jax import tree_map
+from jax.tree_util import tree_map
 
 from tools.log import do_logging
 from th.core.names import MODEL

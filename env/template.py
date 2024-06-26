@@ -21,14 +21,16 @@ class TemplateEnv:
     self.gid2uids = compute_aid2uids(self.uid2gid)      # Group ID到Unit ID的映射
     self.aid2gids = compute_aid2gids(uid2aid, uid2gid)  # Agent ID到Group ID的映射
     self.n_units = len(self.uid2aid)    # Unit个数
+    self.n_groups = len(self.gid2uids)   # Group个数
     self.n_agents = len(self.aid2uids)  # Agent个数
     self.level = level
 
     # 观测/动作空间相关定义
     self.observation_space = [{
       'obs': gym.spaces.Box(high=float('inf'), low=0, shape=(6,)),
-      'global_state': gym.spaces.Box(high=float('inf'), low=0, shape=(6,))
-    } for _ in range(self.n_agents)]
+      'global_state': gym.spaces.Box(high=float('inf'), low=0, shape=(6,)), 
+      'sample_mask': gym.spaces.Discrete(2)
+    } for _ in range(self.n_groups)]
     self.obs_shape = [{
       k: v.shape for k, v in obs.items()
     } for obs in self.observation_space]
@@ -38,7 +40,7 @@ class TemplateEnv:
     self.action_space = [{
       'action_discrete': gym.spaces.Discrete(4), 
       'action_continuous': gym.spaces.Box(low=-1, high=1, shape=(2,))
-    } for _ in range(self.n_agents)]
+    } for _ in range(self.n_groups)]
     self.action_shape = [{
       k: v.shape for k, v in a.items()
     } for a in self.action_space]

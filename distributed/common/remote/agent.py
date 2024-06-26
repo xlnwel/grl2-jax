@@ -52,10 +52,8 @@ class Agent(RayBase):
 
   """ Communications with Parameter Server """
   def publish_weights(self, wait=True):
-    model_weights = ModelWeights(
-      self.get_model_path(), 
-      self.strategy.get_weights(aux_stats=False, train_step=True, env_step=False)
-    )
+    weights = self.strategy.get_weights(aux_stats=False, train_step=True, env_step=False)
+    model_weights = ModelWeights(self.get_model_path(), weights)
     assert set(model_weights.weights) == set([MODEL, OPTIMIZER, TRAIN_STEP]), list(model_weights.weights)
     ids = self.parameter_server.update_and_prepare_strategy.remote(
       self.aid, model_weights, model_weights.weights[TRAIN_STEP]

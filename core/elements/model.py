@@ -90,7 +90,7 @@ class Model(ParamsCheckpointBase):
   def action(self, data, evaluation):
     self.act_rng, act_rng = jax.random.split(self.act_rng)
     action, stats, state = self.jit_action(self.params, act_rng, data, evaluation)
-    action, stats = jax.tree_map(np.asarray, (action, stats))
+    action, stats = jax.tree_util.tree_map(np.asarray, (action, stats))
     return action, stats, state
 
   def raw_action(self, params, rng, data, evaluation=False):

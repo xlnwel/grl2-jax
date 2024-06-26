@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from jax import tree_map
+from jax.tree_util import tree_map
 
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))

@@ -1,6 +1,6 @@
 import os
 import torch
-from jax import tree_map
+from jax.tree_util import tree_map
 
 from env.utils import get_action_mask
 from th.core.names import DEFAULT_ACTION

@@ -50,7 +50,7 @@ class Model(MAModelBase):
         rng, data.global_state, data.state_reset, data.state, prev_info
       ))
     self._init_rnn()
-
+  
   def _init_rnn(self):
     if self.policy_rnn_init:
       for policy_params in self.params.policies:
@@ -91,7 +91,7 @@ class Model(MAModelBase):
       d = data[gid]
       state = d.pop('state', AttrDict())
       if self.has_rnn:
-        d = jax.tree_map(lambda x: jnp.expand_dims(x, 1) , d)
+        d = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, 1) , d)
       act_outs, state.policy = self.forward_policy(p, agent_rngs[0], d, state.policy)
       act_dists = self.policy_dist(act_outs, evaluation)
 
@@ -109,8 +109,9 @@ class Model(MAModelBase):
           action = AttrDict()
           logprob = AttrDict()
           stats = AttrDict(mu_logprob=0)
-          for k, ad in act_dists.items():
-            a, lp = ad.sample_and_log_prob(seed=agent_rngs[1])
+          am_rngs = random.split(agent_rngs[1], len(act_dists))
+          for i, (k, ad) in enumerate(act_dists.items()):
+            a, lp = ad.sample_and_log_prob(seed=am_rngs[i])
             action[k] = a
             logprob[k] = lp
             stats.update(ad.get_stats(f'{k}_mu'))
@@ -121,7 +122,7 @@ class Model(MAModelBase):
         stats.value = value
       if self.has_rnn:
         # squeeze the sequential dimension
-        action, stats = jax.tree_map(
+        action, stats = jax.tree_util.tree_map(
           lambda x: jnp.squeeze(x, 1), (action, stats))
         all_states.append(state)
       else:

@@ -2,7 +2,6 @@ import os
 import importlib
 
 # from gym.envs.registration import register
-from core.utils import set_seed
 
 # register(
 #   id='Overcooked-v0',

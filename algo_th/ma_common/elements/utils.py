@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from jax import tree_map
+from jax.tree_util import tree_map
 
 from core.names import DEFAULT_ACTION, PATH_SPLIT
 from core.typing import AttrDict

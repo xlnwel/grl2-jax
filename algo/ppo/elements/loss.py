@@ -66,6 +66,7 @@ class Loss(LossBase):
     stats.advantage = norm_adv(
       self.config, 
       stats.raw_adv, 
+      sample_mask=data.sample_mask, 
       epsilon=self.config.get('epsilon', 1e-5)
     )
 
@@ -137,6 +138,7 @@ class Loss(LossBase):
     stats.advantage = norm_adv(
       self.config, 
       stats.raw_adv, 
+      sample_mask=data.sample_mask,
       epsilon=self.config.get('epsilon', 1e-5)
     )
     loss = value_loss

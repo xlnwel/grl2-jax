@@ -29,10 +29,12 @@ def tpdv(device):
 
 def set_seed(seed: int=None):
   if seed is not None:
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
     random.seed(seed)
     np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
   do_logging(f'seed={seed}', backtrack=3, level='info')
 
 def save_code(model_path: ModelPath, backtrack=3):

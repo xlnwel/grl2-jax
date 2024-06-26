@@ -49,7 +49,8 @@ def standard_normalization(
   if zero_center:
     x = x - mean
   x = x / std
-  x = torch.where(mask.to(bool), x, 0)
+  if mask is not None:
+    x = torch.where(mask.to(bool), x, 0)
 
   return x
 

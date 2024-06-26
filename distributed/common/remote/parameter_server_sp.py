@@ -582,7 +582,7 @@ class SPParameterServer(RayBase):
         self.n_agent_runners
       ), f)
     # model_paths = [list(mn) for mn in self._params]
-    # models = jax.tree_map(
+    # models = jax.tree_util.tree_map(
     #   lambda x: None if x is None else list(x), self._models, 
     #   is_leaf=lambda x: isinstance(x, ModelPath) or x is None)
     # yaml_op.dump(
@@ -607,7 +607,7 @@ class SPParameterServer(RayBase):
     #   if config is None:
     #     return
     #   models = config.pop('models')
-    #   models = jax.tree_map(
+    #   models = jax.tree_util.tree_map(
     #     lambda x: ModelPath(*x), models, 
     #     is_leaf=lambda x: isinstance(x, list) or x is None)
     #   self._models = models

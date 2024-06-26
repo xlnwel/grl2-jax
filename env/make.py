@@ -44,6 +44,16 @@ def _change_env_name(config):
   return config
 
 
+def make_huaru(config):
+  from env.huaru5v5 import HuaRu5v5
+  config = _change_env_name(config)
+  env = HuaRu5v5(**config)
+  env = wrappers.MultiAgentUnitsDivision(env, config)
+  env = wrappers.DataProcess(env)
+  env = wrappers.MASimEnvStats(env, seed=config.seed)
+
+  return env
+  
 def make_bypass(config):
   from env.bypass import BypassEnv
   config = _change_env_name(config)

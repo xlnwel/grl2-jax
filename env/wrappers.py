@@ -416,8 +416,12 @@ class ContinuousActionMapper(gym.ActionWrapper):
     if bound_method == 'clip':
       action_low = -1
       action_high = 1
-    self.env_action_low = [{k: v.low for k, v in a.items()} for a in self.action_space]
-    self.env_action_high = [{k: v.high for k, v in a.items()} for a in self.action_space]
+    self.env_action_low = [
+      {k: v.low for k, v in a.items()} 
+      for a in self.action_space if isinstance(a, gym.spaces.Box)]
+    self.env_action_high = [
+      {k: v.high for k, v in a.items()} 
+      for a in self.action_space if isinstance(a, gym.spaces.Box)]
     self.action_low = action_low
     self.action_high = action_high
     if ContinuousActionMapper.to_print:
@@ -812,7 +816,7 @@ class MultiAgentUnitsDivision(gym.Wrapper):
       assert len(obs) == self.n_agents, (len(obs), self.n_agents)
       return obs
     else:
-      return [jax.tree_map(lambda x: x[uids], obs) for uids in self.aid2uids]
+      return [jax.tree_util.tree_map(lambda x: x[uids], obs) for uids in self.aid2uids]
 
 
 class PopulationSelection(gym.Wrapper):
@@ -897,7 +901,7 @@ class DataProcess(gym.Wrapper):
         self.obs_dtype = {'obs': infer_dtype(self.observation_space.dtype, precision)}
 
   def observation(self, observation):
-    observation = jax.tree_map(lambda x: convert_dtype(x, self.precision), observation)
+    observation = jax.tree_util.tree_map(lambda x: convert_dtype(x, self.precision), observation)
     return observation
 
   def reset(self):
@@ -905,7 +909,7 @@ class DataProcess(gym.Wrapper):
     return self.observation(obs)
 
   def step(self, action, **kwargs):
-    action = jax.tree_map(np.asarray, action)
+    action = jax.tree_util.tree_map(np.asarray, action)
     if not isinstance(action, (list, tuple)):
       action = [action]
     action = [a if isinstance(a, dict) else {DEFAULT_ACTION: a} for a in action]
@@ -1036,7 +1040,8 @@ class EnvStatsBase(gym.Wrapper):
         use_action_mask=use_action_mask,
         is_multi_agent=getattr(env, 'is_multi_agent', len(self.uid2aid) > 1),
         is_simultaneous_move=getattr(env, 'is_simultaneous_move', True),
-        feature_mask=getattr(env, 'feature_mask', None)
+        feature_mask=getattr(env, 'feature_mask', None), 
+        max_episode_steps=self.max_episode_steps
       )
     self._stats.life_long = life_long
     if 'obs_keys' not in self._stats:

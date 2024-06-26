@@ -61,12 +61,13 @@ def train(
 
 def main(configs, train=train, Runner=Runner):
   config = configs[0]
+  device = configure_torch_gpu(0)
+  
   if config.routine.compute_return_at_once:
     config.buffer.sample_keys += ['advantage', 'v_target']
   seed = config.get('seed')
   set_seed(seed)
 
-  device = configure_torch_gpu(0)
   use_ray = config.env.get('n_runners', 1) > 1
   if use_ray:
     from tools.ray_setup import sigint_shutdown_ray

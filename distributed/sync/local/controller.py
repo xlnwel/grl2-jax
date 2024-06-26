@@ -7,7 +7,6 @@ from tools.log import do_logging
 from core.typing import dict2AttrDict
 from tools.file import write_file
 from tools.timer import Every, timeit
-from distributed.common.typing import Status
 from distributed.common.local.agent_manager import AgentManager
 from distributed.common.local.runner_manager import RunnerManager
 from distributed.common.local.controller import Controller as ControllerBase
@@ -44,6 +43,8 @@ class Controller(ControllerBase):
         runner_manager.run_with_model_weights(model_weights)
         self._steps += self.steps_per_run
       except Exception as e:
+        do_logging(e)
+        write_file(os.path.join(self._dir, 'error.txt'), str(e))
         runner_manager.destroy_runners()
         runner_manager.build_runners(
           self.configs, 

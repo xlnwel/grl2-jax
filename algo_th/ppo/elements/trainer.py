@@ -1,6 +1,6 @@
 from functools import partial
 import numpy as np
-from jax import tree_map
+from jax.tree_util import tree_map
 
 from th.core.names import TRAIN_AXIS
 from th.core.elements.trainer import TrainerBase, create_trainer

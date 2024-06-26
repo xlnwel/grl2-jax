@@ -20,7 +20,8 @@ def build_optimizer(
   weight_decay: float=0., 
   **opt_kwargs, 
 ):
-  opt = select_optimizer(opt_name)(params, lr=lr, weight_decay=weight_decay, **opt_kwargs)
+  opt = select_optimizer(opt_name)(
+    params, lr=lr, weight_decay=weight_decay, **opt_kwargs)
   return opt
 
 

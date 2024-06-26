@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Dict
-from jax import tree_map
+from jax.tree_util import tree_map
 import torch
 import torch.nn as nn
 

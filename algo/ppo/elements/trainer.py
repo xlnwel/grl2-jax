@@ -82,7 +82,7 @@ class Trainer(TrainerBase):
   def train(self, data: AttrDict):
     if self.config.n_runners * self.config.n_envs < self.config.n_mbs:
       self.indices = np.arange(self.config.n_mbs)
-      data = jax.tree_map(
+      data = jax.tree_util.tree_map(
         lambda x: jnp.reshape(x, (self.config.n_mbs, -1, *x.shape[2:])), data)
     theta = self.model.theta.copy()
     all_stats = AttrDict()
@@ -210,6 +210,16 @@ class Trainer(TrainerBase):
       default=self.popart, 
       name='popart'
     )
+
+  def get_optimizer_weights(self):
+    weights = super().get_optimizer_weights()
+    weights['popart'] = self.popart.get_rms_stats()
+    return weights
+
+  def set_optimizer_weights(self, weights):
+    popart_stats = weights.pop('popart')
+    self.popart.set_rms_stats(*popart_stats)
+    super().set_optimizer_weights(weights)
 
   # def haiku_tabulate(self, data=None):
   #   rng = random.PRNGKey(0)

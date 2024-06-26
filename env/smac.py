@@ -356,11 +356,11 @@ class StarCraft2Env:
   def random_action(self):
     actions = []
     for avail_actions in self.get_avail_actions():
-      choices = [i for i, v in enumerate(avail_actions) if v]
-      actions.append(random.choice(choices))
+      actions.append(random.choice([i for i, v in enumerate(avail_actions) if v]))
     actions = [{'action': np.stack(actions)}]
 
     return actions
+  
   def _launch(self):
     """Launch the StarCraft II game."""
     self._run_config = run_configs.get(version=self.game_version)
@@ -369,7 +369,12 @@ class StarCraft2Env:
 
     # Setting up the interface
     interface_options = sc_pb.InterfaceOptions(raw=True, score=False)
-    self._sc2_proc = self._run_config.start(window_size=self.window_size, want_rgb=False)
+    while True:
+      try:
+        self._sc2_proc = self._run_config.start(window_size=self.window_size, want_rgb=False)
+        break
+      except Exception as e:
+        print(e)
     self._controller = self._sc2_proc.controller
 
     # Request to create the game
@@ -546,11 +551,11 @@ class StarCraft2Env:
         }
         if terminated:
           dones[i] = True
-        else:
-          if self.death_tracker_ally[i]:
-            dones[i] = True
-          else:
-            dones[i] = False
+        # else:
+        #   if self.death_tracker_ally[i]:
+        #     dones[i] = True
+        #   else:
+        #     dones[i] = False
 
       if self.use_state_agent:
         global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_agents)]
@@ -642,11 +647,11 @@ class StarCraft2Env:
 
       if terminated:
         dones[i] = True
-      else:
-        if self.death_tracker_ally[i]:
-          dones[i] = True
-        else:
-          dones[i] = False
+      # else:
+      #   if self.death_tracker_ally[i]:
+      #     dones[i] = True
+      #   else:
+      #     dones[i] = False
 
     if self.debug:
       logging.debug("Reward = {}".format(reward).center(60, '-'))
@@ -2145,3 +2150,16 @@ class StarCraft2Env:
       "restarts": self.force_restarts,
     }
     return stats
+
+
+if __name__ == "__main__":
+  random.seed(0)
+  np.random.seed(0)
+  env = StarCraft2Env('8m_vs_9m', seed=0)
+  obs = env.reset()
+  for _ in range(10):
+    a = env.random_action()
+    print(a)
+    obs, reward, done, info = env.step(a)
+  print(obs['obs'].shape)
+  print(obs['obs'])
