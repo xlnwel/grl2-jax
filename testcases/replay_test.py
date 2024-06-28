@@ -179,9 +179,9 @@ class TestClass:
       n_envs=1,
       name='dummy'
     )
-    from env.dummy import DummyEnv
-    from env import wrappers
-    from env.func import create_env
+    from envs.dummy import DummyEnv
+    from envs import wrappers
+    from envs.func import create_env
     def mkenv(config):
       env = DummyEnv(**config)
       env = wrappers.post_wrap(env, config)
@@ -238,9 +238,9 @@ class TestClass:
       n_envs=1,
       name='dummy'
     )
-    from env.dummy import DummyEnv
-    from env import wrappers
-    from env.func import create_env
+    from envs.dummy import DummyEnv
+    from envs import wrappers
+    from envs.func import create_env
     def mkenv(config):
       env = DummyEnv(**config)
       env = wrappers.post_wrap(env, config)

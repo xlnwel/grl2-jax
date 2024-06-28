@@ -5,8 +5,12 @@ import importlib
 import psutil
 import shutil
 
-from tools.log import do_logging
 from core.names import PATH_SPLIT
+from core.typing import dict2AttrDict
+from tools import pkg
+from tools.log import do_logging
+from tools.utils import modify_config
+from tools.yaml_op import load_config
 
 
 def mkdir(d):
@@ -74,6 +78,29 @@ def check_make_dir(path):
 
   if not os.path.isdir(path):
     os.mkdir(path)
+
+
+def get_configs_dir(algo, algo_package=None):
+  if ':' in algo:
+    algo = algo.split(':')[0]
+  algo_dir = pkg.get_package_from_algo(algo, 0, PATH_SPLIT, algo_package)
+  if algo_dir is None:
+    raise RuntimeError(f'Algorithm({algo}) is not implemented')
+  configs_dir = os.path.join(algo_dir, 'configs')
+
+  return configs_dir
+
+
+def get_filename_with_env(env):
+  env_split = env.split('-', 1)
+  if len(env_split) > 1:
+    filename = env_split[0]
+  elif len(env_split) == 1:
+    filename = 'gym'
+  else:
+    raise ValueError(f'Cannot extract filename from env: {env}')
+
+  return filename
 
 
 def search_for_all_files(directory, filename, suffix=True):
@@ -159,6 +186,79 @@ def search_for_dirs(directory, dirname, is_suffix=True, matches=None):
         all_target_files.add(root)
 
   return list(all_target_files)
+
+
+def read_config(algo, env, filename=None):
+  configs_dir = get_configs_dir(algo)
+  if filename is None:
+    filename = get_filename_with_env(env)
+  filename = filename + '.yaml'
+  path = os.path.join(configs_dir, filename)
+  config = load_config(path)
+
+  config = dict2AttrDict(config)
+
+  return config
+
+
+def load_config_with_algo_env(algo, env, filename=None, algo_package=None, to_attrdict=True, return_path=False):
+  configs_dir = get_configs_dir(algo, algo_package)
+  if filename is None:
+    filename = get_filename_with_env(env)
+  filename = filename + '.yaml'
+  path = os.path.join(configs_dir, filename)
+
+  config = load_config(path)
+  if config is None:
+    raise RuntimeError('No configure is loaded')
+
+  suite, name = env.split('-', 1)
+  config.env.suite = suite
+  config.env.name = name
+  config = modify_config(
+    config, 
+    overwrite_existed_only=True, 
+    algorithm=algo, 
+    name=algo, 
+    info=algo, 
+    env_name=env, 
+  )
+
+  if to_attrdict:
+    config = dict2AttrDict(config)
+  if return_path:
+    return config, path
+  return config
+
+
+def search_for_all_configs(directory, to_attrdict=True):
+  if not os.path.exists(directory):
+    return []
+
+  config_files = search_for_all_files(directory, 'config.yaml')
+  if config_files == []:
+    raise RuntimeError(f'No configure file is found in {directory}')
+  configs = [load_config(f, to_attrdict=to_attrdict) for f in config_files]
+  if any([c is None for c in configs]):
+    raise RuntimeError(f'No configure file is found in {directory}')
+  return configs
+
+
+def search_for_config(directory, to_attrdict=True, check_duplicates=True):
+  if isinstance(directory, tuple):
+    directory = os.path.join(*directory)
+
+  if not os.path.exists(directory):
+    raise ValueError(f'Invalid directory: {directory}')
+  
+  config_file = search_for_file(directory, 'config.yaml', check_duplicates)
+  if config_file is None:
+    raise RuntimeError(f'No configure file is found in {directory}')
+  config = load_config(config_file, to_attrdict=to_attrdict)
+  if config is None:
+    raise RuntimeError(f'No configure file is found in {directory}')
+  
+  return config
 
 
 def yield_dirs(directory, dirnames, is_suffix=True, root_matches=None):

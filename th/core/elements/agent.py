@@ -8,7 +8,7 @@ from th.core.elements.monitor import Monitor
 from th.core.typing import ModelPath, get_algo, AttrDict, ModelWeights
 from tools.decorator import *
 from tools.log import do_logging
-from run.utils import search_for_config
+from tools.file import search_for_config
 
 
 class Agent:

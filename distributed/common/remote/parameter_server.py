@@ -18,7 +18,7 @@ from distributed.common.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, ModelWeights, \
   construct_model_name, exclude_subdict, get_aid, get_date, get_basic_model_name
 from rule.utils import is_rule_strategy
-from run.utils import search_for_config
+from tools.file import search_for_config
 from tools.schedule import PiecewiseSchedule
 from tools.timer import Every
 from tools.utils import config_attr, dict2AttrDict
@@ -608,7 +608,7 @@ class ParameterServer(RayBase):
 
 
 if __name__ == '__main__':
-  from env.func import get_env_stats
+  from envs.func import get_env_stats
   from tools.yaml_op import load_config
   config = load_config('algo/gd/configs/builtin.yaml')
   env_stats = get_env_stats(config['env'])

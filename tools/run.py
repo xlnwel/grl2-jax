@@ -7,9 +7,9 @@ from core.typing import dict2AttrDict
 from tools.log import do_logging
 from tools.store import StateStore
 from tools.utils import batch_dicts
-from env.typing import EnvOutput
-from env.func import create_env
-from env.utils import divide_env_output
+from envs.typing import EnvOutput
+from envs.func import create_env
+from envs.utils import divide_env_output
 
 
 State = collections.namedtuple('state', 'agent runner')

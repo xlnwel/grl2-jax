@@ -2,7 +2,7 @@ import random
 import numpy as np
 import ray
 
-from env.func import create_env
+from envs.func import create_env
 
 
 default_config = dict(

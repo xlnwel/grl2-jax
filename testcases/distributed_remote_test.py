@@ -3,7 +3,7 @@ import ray
 
 from distributed.coordinator import Coordinator
 from distributed.remote.trainer import create_remote_trainer
-from env.func import get_env_stats
+from envs.func import get_env_stats
 from tools.yaml_op import load_config
 from tools.utils import AttrDict2dict
 

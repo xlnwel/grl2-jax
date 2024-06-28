@@ -19,7 +19,7 @@ from core.typing import AttrDict, AttrDict2dict, ModelPath, ModelWeights, \
   construct_model_name, exclude_subdict, get_aid, get_iid_vid, get_date, \
     get_basic_model_name, decompose_model_name
 from rule.utils import is_rule_strategy
-from run.utils import search_for_config
+from tools.file import search_for_config
 from tools.schedule import PiecewiseSchedule
 from tools.timer import timeit
 from tools.utils import dict2AttrDict, modify_config
@@ -720,7 +720,7 @@ class ExploiterSPParameterServer(SPParameterServer):
 
 
 if __name__ == '__main__':
-  from env.func import get_env_stats
+  from envs.func import get_env_stats
   from tools.yaml_op import load_config
   config = load_config('algo/gd/configs/builtin.yaml')
   ps = SPParameterServer(config)

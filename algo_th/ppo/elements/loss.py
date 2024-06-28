@@ -1,4 +1,4 @@
-from env.utils import get_action_mask
+from envs.utils import get_action_mask
 from th.core.names import TRAIN_AXIS
 from th.core.elements.loss import LossBase
 from th.core.typing import dict2AttrDict

@@ -8,7 +8,7 @@ from core.elements.trainloop import TrainingLoop
 from core.mixin.strategy import StepCounter, Memory
 from core.names import *
 from core.typing import ModelPath, AttrDict, dict2AttrDict
-from env.typing import EnvOutput
+from envs.typing import EnvOutput
 from tools.run import concat_along_unit_dim
 from tools.utils import batch_dicts, set_path
 from tools import pkg

@@ -12,7 +12,7 @@ from tools.log import do_logging
 from core.names import *
 from core.typing import *
 from core.utils import save_code_for_seed, save_config
-from env.func import get_env_stats
+from envs.func import get_env_stats
 from tools.timer import timeit_now
 from tools.utils import set_path
 from tools import pkg, yaml_op
@@ -569,7 +569,7 @@ class ElementsBuilderVC(ElementsBuilder):
     )
 
 if __name__ == '__main__':
-  from env.func import create_env
+  from envs.func import create_env
   config = yaml_op.load_config('algo/zero/configs/card.yaml')
   env = create_env(config['env'])
   config.model_name = 'test'

@@ -1,7 +1,7 @@
 from jax import lax, random
 import jax.numpy as jnp
 
-from env.utils import get_action_mask
+from envs.utils import get_action_mask
 from core.names import TRAIN_AXIS
 from core.elements.loss import LossBase
 from core.typing import dict2AttrDict

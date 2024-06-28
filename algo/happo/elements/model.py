@@ -3,7 +3,7 @@ import jax
 from jax import random
 import jax.numpy as jnp
 
-from env.utils import get_action_mask
+from envs.utils import get_action_mask
 from core.names import DEFAULT_ACTION, TRAIN_AXIS
 from core.typing import AttrDict, tree_slice
 from nn.utils import reset_weights

@@ -18,8 +18,8 @@ from tools.ray_setup import sigint_shutdown_ray
 from tools.graph import save_video
 from tools.utils import batch_dicts, flatten_dict
 from tools import pkg
-from env.func import create_env
-from env.typing import EnvOutput
+from envs.func import create_env
+from envs.typing import EnvOutput
 
 
 def evaluate(

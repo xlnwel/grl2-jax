@@ -2,7 +2,7 @@ import os
 import torch
 from jax.tree_util import tree_map
 
-from env.utils import get_action_mask
+from envs.utils import get_action_mask
 from th.core.names import DEFAULT_ACTION
 from th.core.typing import AttrDict, dict2AttrDict
 from th.tools.th_utils import to_tensor
@@ -128,7 +128,7 @@ def create_model(
 
 if __name__ == '__main__':
   from tools.yaml_op import load_config
-  from env.func import create_env
+  from envs.func import create_env
   from th.core.utils import set_seed
   set_seed(50)
   config = load_config('algo_th/ppo/configs/template')

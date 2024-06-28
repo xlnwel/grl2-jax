@@ -22,7 +22,7 @@ from tools.display import print_dict_info
 from tools import pkg
 from th.nn.mlp import MLP
 from th.nn.utils import get_activation, init_linear, get_initializer, calculate_scale
-from run.utils import search_for_config
+from tools.file import search_for_config
 
 
 class LSTM(nn.Module):

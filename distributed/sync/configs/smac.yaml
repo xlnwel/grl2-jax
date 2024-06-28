@@ -129,7 +129,7 @@ trainer:
   aid: 0
   n_runners: *nrunners
   n_envs: *nenvs
-  n_epochs: 15
+  n_epochs: 5
   n_mbs: &nmbs 1
   n_steps: *nsteps
   popart: *popart

@@ -3,7 +3,7 @@ import jax
 from jax import random
 import jax.numpy as jnp
 
-from env.utils import get_action_mask
+from envs.utils import get_action_mask
 from core.names import DEFAULT_ACTION
 from core.typing import AttrDict, dict2AttrDict
 from tools.file import source_file

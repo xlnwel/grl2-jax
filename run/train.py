@@ -23,10 +23,11 @@ from tools.log import setup_logging, do_logging
 from core.names import PATH_SPLIT
 from core.utils import configure_jax_gpu
 from tools import pkg
+from tools.file import load_config_with_algo_env
 from tools.utils import modify_config
 from run.args import parse_train_args
 from run.grid_search import GridSearch
-from run.utils import *
+from run.ops import *
 from tools.timer import get_current_datetime
 
 

@@ -14,9 +14,9 @@ from core.mixin.actor import RMS
 from core.names import ANCILLARY, MODEL, TRAIN_STEP
 from distributed.common.remote.base import RayBase
 from core.typing import ModelStats, ModelWeights, ModelPath, dict2AttrDict
-from env.func import create_env
-from env.typing import EnvOutput
-from env.utils import divide_env_output
+from envs.func import create_env
+from envs.typing import EnvOutput
+from envs.utils import divide_env_output
 from tools.timer import Timer, timeit
 
 

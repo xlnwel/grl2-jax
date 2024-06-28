@@ -238,7 +238,7 @@ create_trainer = partial(create_trainer, name='ppo', trainer_cls=Trainer)
 if __name__ == '__main__':
   import haiku as hk
   from tools.yaml_op import load_config
-  from env.func import create_env
+  from envs.func import create_env
   from .model import create_model
   from .loss import create_loss
   from tools.log import pwc

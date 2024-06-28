@@ -8,7 +8,7 @@ import numpy as np
 
 from core.typing import AttrDict2dict, dict2AttrDict
 from tools.utils import modify_config, product_flatten_dict
-from run.utils import change_config_with_kw_string
+from run.ops import change_config_with_kw_string
 
 logger = logging.getLogger(__name__)
 

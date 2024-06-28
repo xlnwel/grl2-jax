@@ -6,7 +6,7 @@ from core.elements.builder import ElementsBuilder
 from core.names import ANCILLARY
 from core.typing import get_basic_model_name
 from core.utils import configure_jax_gpu, set_seed, save_code_for_seed
-from env.utils import divide_env_output
+from envs.utils import divide_env_output
 from tools.display import print_dict
 from tools.log import do_logging
 from tools.utils import modify_config, flatten_dict

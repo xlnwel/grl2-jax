@@ -16,9 +16,9 @@ from core.utils import configure_jax_gpu
 from tools.ray_setup import sigint_shutdown_ray
 from tools.run import simple_evaluate
 from tools import pkg
-from env.func import create_env
+from envs.func import create_env
 from run.args import parse_eval_args
-from run.utils import setup_configs, compute_episodes, build_agents
+from run.ops import setup_configs, compute_episodes, build_agents
 
 
 def main(configs, n, render):

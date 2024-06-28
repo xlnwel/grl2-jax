@@ -11,9 +11,9 @@ from tools.log import do_logging
 from core.typing import ModelPath, AttrDict, dict2AttrDict, \
   decompose_model_name, get_basic_model_name
 from core.utils import save_code
-from env.func import get_env_stats
+from envs.func import get_env_stats
 from game.alpharank import AlphaRank
-from run.utils import search_for_all_configs, search_for_config
+from tools.file import search_for_all_configs, search_for_config
 from tools.process import run_ray_process
 from tools.schedule import PiecewiseSchedule
 from tools.timer import Every, Timer, timeit
@@ -344,6 +344,9 @@ class Controller(YAMLCheckpointBase):
       self._log_remote_stats_for_models(
         ready_pids, self.active_models, step=self._steps)
     return eval_pids
+
+  def _postprocessing(self):
+    pass
 
   def _check_scores(self):
     """ 检查score是否满足要求 """

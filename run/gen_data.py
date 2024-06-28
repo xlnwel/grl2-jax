@@ -11,9 +11,9 @@ from core.utils import configure_jax_gpu
 from tools.display import print_dict, print_dict_info
 from tools.utils import batch_dicts, modify_config
 from tools import yaml_op
-from env.func import create_env
-from env.utils import divide_env_output
-from run.utils import *
+from envs.func import create_env
+from envs.utils import divide_env_output
+from run.ops import *
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
