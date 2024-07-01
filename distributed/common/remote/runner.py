@@ -6,7 +6,7 @@ import ray
 
 from .parameter_server import ParameterServer
 from .monitor import Monitor
-from core.ckpt.pickle import set_weights_for_agent
+from tools.pickle import set_weights_for_agent
 from core.elements.agent import Agent
 from core.elements.buffer import Buffer
 from core.elements.builder import ElementsBuilder

@@ -2,7 +2,7 @@ import os, sys
 import argparse
 import numpy as np
 
-from core.ckpt.pickle import save
+from tools.pickle import save
 from tools.log import do_logging
 from core.utils import configure_jax_gpu
 from tools.display import print_dict_info

@@ -117,8 +117,9 @@ def config_attr(
   obj, 
   config: dict, 
   filter_dict: bool=True, 
-  config_as_attr: bool=True, 
-  private_attr: bool=False
+  config_as_attr: bool=False, 
+  private_attr: bool=False, 
+  check_overwrite: bool=True,
 ):
   """ Add values in config as attributes of obj
 
@@ -147,6 +148,8 @@ def config_attr(
         pass
     if isinstance(v, float) and v == int(v):
       v = int(v)
+    if check_overwrite and not hasattr(obj, k):
+      raise ValueError(f'{k} does not exist in {obj}')
     setattr(obj, k, v)
   return config
 

@@ -6,7 +6,7 @@ import ray
 from tools.log import do_logging
 from core.typing import dict2AttrDict
 from tools.file import write_file
-from tools.timer import Every, timeit
+from tools.timer import Every, timeit, Timer
 from distributed.common.local.agent_manager import AgentManager
 from distributed.common.local.runner_manager import RunnerManager
 from distributed.common.local.controller import Controller as ControllerBase
@@ -34,24 +34,29 @@ class Controller(ControllerBase):
     eval_pids = []
 
     while self._steps < max_steps:
-      eval_pids = self._preprocessing(periods, eval_pids)
+      eval_pids = self._pretrain(periods, eval_pids)
 
       model_weights = self._retrieve_model_weights()
       # runner_manager.run_with_model_weights(model_weights)
       # self._steps += self.steps_per_run
       try:
-        runner_manager.run_with_model_weights(model_weights)
+        with Timer('run', 1):
+          runner_manager.run_with_model_weights(model_weights)
         self._steps += self.steps_per_run
       except Exception as e:
         do_logging(e)
-        write_file(os.path.join(self._dir, 'error.txt'), str(e))
+        write_file(os.path.join(self.dir, 'error.txt'), str(e))
         runner_manager.destroy_runners()
         runner_manager.build_runners(
           self.configs, 
           remote_buffers=self.agent_manager.get_agents(), 
           active_models=self.active_models
         )
+      # In order to use the following line 
+      # first make sure buffer is succeessfully merged
+      # agent_manager.train()
 
+      self._posttrain(periods, eval_pids)
       if self._check_termination(self._steps, max_steps):
         break
 
@@ -78,6 +83,7 @@ class Controller(ControllerBase):
       c.buffer.n_steps = n_pbt_steps
     runner_stats.n_pbt_steps = n_pbt_steps
     do_logging(runner_stats, prefix=f'Runner Stats at Iteration {self._iteration}', color='blue')
-    self._log_stats(runner_stats, self._iteration)
+    self.pbt_monitor.store(**runner_stats)
+    self.pbt_monitor.record(self._iteration, print_terminal_info=True)
     return configs
   

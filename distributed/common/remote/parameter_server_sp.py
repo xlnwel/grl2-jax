@@ -1,15 +1,13 @@
 import os
 import copy
 import time
-import filelock
 import random
-import cloudpickle
 from functools import partial
 from typing import Dict, List
 import numpy as np
 import ray
 
-from core.ckpt import pickle
+from tools import pickle
 from core.elements.builder import ElementsBuilderVC
 from tools.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
@@ -22,7 +20,7 @@ from rule.utils import is_rule_strategy
 from tools.file import search_for_config
 from tools.schedule import PiecewiseSchedule
 from tools.timer import timeit
-from tools.utils import dict2AttrDict, modify_config
+from tools.utils import dict2AttrDict, modify_config, config_attr
 from tools import yaml_op
 from distributed.common.names import *
 from distributed.common.typing import *
@@ -50,7 +48,7 @@ class SPParameterServer(RayBase):
     name='parameter_server',
   ):
     super().__init__(seed=config.get('seed'))
-    config = dict2AttrDict(config)
+    config = dict2AttrDict(config, to_copy=True)
     self.config = config.parameter_server
     self.score_metrics = self.config.get('score_metrics', ScoreMetrics.SCORE)
     assert self.score_metrics in (ScoreMetrics.SCORE, ScoreMetrics.WIN_RATE)
@@ -72,15 +70,15 @@ class SPParameterServer(RayBase):
     assert self.self_play, self.self_play
 
     model_name = get_basic_model_name(config.model_name)
-    self._dir = os.path.join(config.root_dir, model_name)
-    os.makedirs(self._dir, exist_ok=True)
-    self._path = os.path.join(self._dir, f'{self.name}.pkl')
+    self.dir = os.path.join(config.root_dir, model_name)
+    os.makedirs(self.dir, exist_ok=True)
+    self.path = os.path.join(self.dir, f'{self.name}.pkl')
 
-    self._pool_pattern = self.config.get('pool_pattern', '.*')
-    self._pool_name = self.config.get('pool_name', 'strategy_pool')
+    self.pool_pattern = config.get('pool_pattern', '.*')
+    self.pool_name = config.get('pool_name', 'strategy_pool')
     date = get_date(config.model_name)
-    self._pool_dir = os.path.join(config.root_dir, f'{date}')
-    self._pool_path = os.path.join(self._pool_dir, f'{self._pool_name}.yaml')
+    self.pool_dir = os.path.join(config.root_dir, f'{date}')
+    self.pool_path = os.path.join(self.pool_dir, f'{self.pool_name}.yaml')
 
     self._params: Dict[ModelPath, Dict] = {}
     self._prepared_strategies: List[List[ModelWeights]] = \
@@ -102,16 +100,16 @@ class SPParameterServer(RayBase):
     # is the first pbt iteration
     self._iteration = 1
     self._all_strategies = None
+    # by default, all runners are online runners
+    self._n_online_runners = self.n_runners
+    self._n_agent_runners = 0
 
     self.payoff_manager: PayoffManager = PayoffManager(
-      self.config.payoff, self.n_agents, self._dir, self_play=self.self_play)
+      self.config.payoff, self.n_agents, self.dir, self_play=self.self_play)
 
-    succ = self.restore(to_restore_params)
-    self._update_runner_distribution()
+    # succ = self.restore(to_restore_params)
+    # self._update_runner_distribution()
     # self.load_strategy_pool()
-
-    if self.config.get('rule_strategies'):
-      self.add_rule_strategies(self.config.rule_strategies, local=succ)
 
     self.check()
 
@@ -119,56 +117,44 @@ class SPParameterServer(RayBase):
     self._ready = [False for _ in range(self.n_runners)]
 
   def check(self):
-    assert self.payoff_manager.size() == len(self._params), (f'{self.payoff_manager.get_all_models()}\n{list(self._params)}')
+    assert self.payoff_manager.size() == len(self._params), (self.payoff_manager.size(), len(self._params), f'{self.payoff_manager.get_all_models()}\n{list(self._params)}')
 
   def build(self, configs: List[Dict], env_stats: Dict):
-    self.agent_config = dict2AttrDict(configs[0])
-    model = os.path.join(self.agent_config["root_dir"], self.agent_config["model_name"])
+    config = dict2AttrDict(configs[0])
+    model = os.path.join(config["root_dir"], config["model_name"])
     os.makedirs(model, exist_ok=True)
-    self.builder = ElementsBuilderVC(self.agent_config, env_stats, to_save_code=False)
+    self._builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
 
   """ Strategy Pool Management """
   def save_strategy_pool(self):
-    lock = filelock.FileLock(self._pool_path + '.lock')
-
-    while True:
-      with lock.acquire(timeout=5):
-        config = yaml_op.load(self._pool_path)
-        config[self._dir] = [list(m) for m in self._params]
-        yaml_op.dump(self._pool_path, **config)
-        break
-      do_logging(f'{self._pool_path} is blocked for 5s', 'red')
-    do_logging(f'Saving strategy pool to {self._pool_path}', color='green')
+    config = yaml_op.load(self.pool_path)
+    config[self.dir] = [list(m) for m in self._params]
+    yaml_op.dump(self.pool_path, **config)
+    do_logging(f'Saving strategy pool to {self.pool_path}', color='green')
 
   @timeit
   def load_strategy_pool(self, to_search=True, pattern=None):
     """ Load strategy pool
     Args:
       to_search: if True, search the storage system to find all strategies;
-      else, only load strategies defined in self._pool_path
+        else, only load strategies defined in self.pool_path
     """
     if to_search:
-      pattern = pattern or self._pool_pattern
-      models = find_all_models(self._pool_dir, pattern)
+      pattern = pattern or self.pool_pattern
+      models = find_all_models(self.pool_dir, pattern)
       for model in models:
         self.restore_params(model)
         self.add_strategy_to_payoff(model)
-      do_logging(f'Loading strategy pool in path {self._pool_dir}', color='green')
+      do_logging(f'Loading strategy pool in path {self.pool_dir}', color='green')
     else:
-      lock = filelock.FileLock(self._pool_path + '.lock')
-
-      while True:
-        with lock.acquire(timeout=5):
-          config = yaml_op.load(self._pool_path)
-          break
-        do_logging(f'{self._pool_path} is blocked for 5s', 'red')
+      config = yaml_op.load(self.pool_path)
 
       for v in config.values():
         for model in v:
           model = ModelPath(*model)
           self.restore_params(model)
           self.add_strategy_to_payoff(model)
-      do_logging(f'Loading strategy pool from {self._pool_path}', color='green')
+      do_logging(f'Loading strategy pool from {self.pool_path}', color='green')
     self.save()
     self.check()
 
@@ -206,21 +192,24 @@ class SPParameterServer(RayBase):
       stats = AttrDict(
         iteration=self._iteration, 
         online_frac=1,
-        n_online_runners=self.n_online_runners, 
-        n_agent_runners=self.n_agent_runners, 
+        n_online_runners=self._n_online_runners, 
+        n_agent_runners=self._n_agent_runners, 
       )
     else:
       stats = AttrDict(
         iteration=self._iteration, 
         online_frac=self.online_scheduler(self._iteration), 
-        n_online_runners=self.n_online_runners, 
-        n_agent_runners=self.n_agent_runners, 
+        n_online_runners=self._n_online_runners, 
+        n_agent_runners=self._n_agent_runners, 
       )
 
     return stats
 
   """ Strategy Management """
-  def add_rule_strategies(self, rule_config: dict, local=False):
+  def add_rule_strategies(self, rule_config: dict=None):
+    rule_config = rule_config or self.config.rule_strategies
+    if not rule_config:
+      return
     models = []
     for name, config in rule_config.items():
       aid = config['aid']
@@ -233,7 +222,7 @@ class SPParameterServer(RayBase):
       self._params[model] = AttrDict2dict(config)
       models.append(model)
       do_logging(f'Adding rule strategy: {model}', color='green')
-      if not local:
+      if model not in self.payoff_manager:
         # Add the rule strategy to the payoff table if the payoff manager is not restored from a checkpoint
         self.payoff_manager.add_strategy(model)
 
@@ -301,14 +290,14 @@ class SPParameterServer(RayBase):
   
   def _prepare_recent_models(self, mid):
     # prepare the most recent model for the first n_runners runners
-    for rid in range(self.n_online_runners):
+    for rid in range(self._n_online_runners):
       self._prepared_strategies[rid] = [mid, mid]
       self._ready[rid] = True
 
   def _prepare_historical_models(self, mid, model):
     mids = self._get_historical_mids(mid, model)
     assert len(mids) == self.n_agents, (len(mids), self.n_agents)
-    for rid in range(self.n_online_runners, self.n_runners):
+    for rid in range(self._n_online_runners, self.n_runners):
       self._prepared_strategies[rid] = mids
       self._ready[rid] = True
 
@@ -320,7 +309,7 @@ class SPParameterServer(RayBase):
 
     # prepare the most recent models for online runners
     self._prepare_recent_models(mid)
-    if self.n_online_runners < self.n_runners:
+    if self._n_online_runners < self.n_runners:
       # prepare historical models for selected runners
       self._prepare_historical_models(mid, model_weights.model)
 
@@ -340,11 +329,11 @@ class SPParameterServer(RayBase):
 
   def _update_runner_distribution(self):
     if self._iteration == 1 and not self._rule_strategies:
-      self.n_online_runners = self.n_runners
-      self.n_agent_runners = 0
+      self._n_online_runners = self.n_runners
+      self._n_agent_runners = 0
     else:
       online_frac = self.online_scheduler(self._iteration)
-      self.n_online_runners, self.n_agent_runners = divide_runners(
+      self._n_online_runners, self._n_agent_runners = divide_runners(
         self.n_active_agents, self.n_runners, online_frac
       )
 
@@ -373,17 +362,16 @@ class SPParameterServer(RayBase):
     self._params[new_model] = weights
     self._params[model][STATUS] = Status.TRAINING
     if config is None:
-      config = self.builder.config.copy(shallow=False)
+      config = self._builder.config.copy(shallow=False)
     config.status = Status.TRAINING
-    self.builder.save_config(config)
-    return model_weights
+
+    return model_weights, config
 
   def _construct_raw_strategy(self, iteration, version=None):
-    self.builder.set_iteration_version(iteration, version)
-    config = self.builder.config.copy(shallow=False)
+    self._builder.set_iteration_version(iteration, version)
+    config = self._builder.config.copy(shallow=False)
     config.status = Status.TRAINING
-    self.builder.save_config(config)
-    model = self.builder.get_model_path()
+    model = self._builder.get_model_path()
     assert model not in self._params, (model, list(self._params))
     self._params[model] = {}
     self._params[model][STATUS] = Status.TRAINING
@@ -391,7 +379,7 @@ class SPParameterServer(RayBase):
     model_weights = ModelWeights(model, weights)
     do_logging(f'Sampling raw strategy for training: {model}', color='green')
     
-    return model_weights
+    return model_weights, config
 
   def _sample_with_prioritization(self):
     candidates = []
@@ -419,52 +407,49 @@ class SPParameterServer(RayBase):
     else:
       model = self._sample_with_prioritization()
     config = search_for_config(model)
-    new_model = self.builder.get_sub_version(config, iteration)
+    new_model = self._builder.get_sub_version(config, iteration)
     assert new_model not in self._params, f'{new_model} is already in {list(self._params)}'
     reset_heads = random.random() < self.reset_policy_head_frac
-    model_weights = self._retrieve_strategy_for_training(
+    model_weights, config = self._retrieve_strategy_for_training(
       model, config, new_model, reset_heads=reset_heads)
     
-    return model_weights
+    return model_weights, config
 
   def sample_training_strategies(self):
     strategies = []
     is_raw_strategy = [False for _ in range(self.n_active_agents)]
     if self._models[ModelType.ACTIVE] is not None:
-      model_weights = self._retrieve_strategy_for_training(self._models[ModelType.ACTIVE])
+      model_weights, config = self._retrieve_strategy_for_training(self._models[ModelType.ACTIVE])
       strategies.append(model_weights)
     else:
       assert self._models[ModelType.ACTIVE] is None, self._models[ModelType.ACTIVE]
       if self._iteration == 1 or random.random() < self.train_from_scratch_frac:
-        model_weights = self._construct_raw_strategy(self._iteration)
+        model_weights, config = self._construct_raw_strategy(self._iteration)
         is_raw_strategy[0] = True
       else:
-        model_weights = self._sample_historical_strategy(self._iteration)
+        model_weights, config = self._sample_historical_strategy(self._iteration)
       strategies.append(model_weights)
       model = strategies[0].model
+      self._params[model][TRAIN_STEP] = 0
+      self._params[model][ENV_STEP] = 0
       self.add_strategy_to_payoff(model)
       self._update_active_model(model)
-      self.save_active_models(0, 0)
-      self.save_strategy_pool()
-      self.save()
 
-    return strategies, is_raw_strategy
+    return strategies, is_raw_strategy, [config]
 
   def archive_training_strategies(self, status: Status):
     do_logging(f'Archiving training strategies: {self._models[ModelType.ACTIVE]}', color='green')
-    config = self.builder.config.copy(shallow=False)
+    config = self._builder.config.copy(shallow=False)
     config.status = status
-    self.builder.save_config(config)
     self._models[ModelType.FORMER] = copy.copy(self._models[ModelType.ACTIVE])
     self._params[self._models[ModelType.FORMER]][STATUS] = status
-    self.save_params(self._models[ModelType.ACTIVE])
     self._update_active_model(None)
     if self._models[ModelType.ACTIVE] in self._opp_dist:
       del self._opp_dist[self._models[ModelType.ACTIVE]]
     self._iteration += 1
     self._reset_ready()
     self._update_runner_distribution()
-    self.save()
+    return config
 
   """ Strategy Sampling """
   def sample_opponent_strategies(self, model: ModelPath):
@@ -555,15 +540,7 @@ class SPParameterServer(RayBase):
 
   def save_params(self, model: ModelPath, name='params', to_print=True):
     assert model == self._models[ModelType.ACTIVE], (model, self._models[ModelType.ACTIVE])
-    if MODEL in self._params[model]:
-      pickle.save_params(self._params[model][MODEL], 
-                         model, f'{name}/model', to_print=to_print)
-    if OPTIMIZER in self._params[model]:
-      pickle.save_params(self._params[model][OPTIMIZER], 
-                         model, f'{name}/opt', to_print=to_print)
-    rest_params = exclude_subdict(self._params[model], MODEL, OPTIMIZER)
-    if rest_params:
-      pickle.save_params(rest_params, model, name, to_print=to_print)
+    pickle.save_hierarchical_params(self._params[model], model, name, to_print=to_print)
 
   def restore_params(self, model: ModelPath, name='params', force=False):
     if force or model not in self._params \
@@ -573,56 +550,40 @@ class SPParameterServer(RayBase):
 
   def save(self):
     self.payoff_manager.save()
-    with open(self._path, 'wb') as f:
-      cloudpickle.dump((
-        self._params, 
-        self._models, 
-        self._iteration, 
-        self.n_online_runners, 
-        self.n_agent_runners
-      ), f)
-    # model_paths = [list(mn) for mn in self._params]
-    # models = jax.tree_util.tree_map(
-    #   lambda x: None if x is None else list(x), self._models, 
-    #   is_leaf=lambda x: isinstance(x, ModelPath) or x is None)
-    # yaml_op.dump(
-    #   self._path, 
-    #   model_paths=model_paths, 
-    #   models=models, 
-    #   iteration=self._iteration, 
-    #   n_online_runners=self.n_online_runners, 
-    #   n_agent_runners=self.n_agent_runners
-    # )
+    ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
+    pickle.save(ps_data, filedir=self.dir, filename=self.name, name=self.name, atomic=True)
 
-  def restore(self, to_restore_params=True):
+  def retrieve_active_model(self, model: ModelPath, train_step: int=None, env_step: int=None):
+    assert model == self._models[ModelType.ACTIVE], (model, self._models[ModelType.ACTIVE])
+    assert model in self._params, f'{model} does not in {list(self._params)}'
+    if train_step is not None:
+      self._params[model][TRAIN_STEP] = train_step
+    if env_step is not None:
+      self._params[model][ENV_STEP] = env_step
+    return {model: self._params[model]}
+
+  def retrieve_active_models(self, train_step: int=None, env_step: int=None):
+    return [self.retrieve_active_model(self._models[ModelType.ACTIVE], train_step, env_step)]
+
+  def retrieve(self):
+    payoff_data = self.payoff_manager.retrieve()
+    ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
+    return payoff_data, ps_data
+
+  def load(self, payoff_data, ps_data):
+    if payoff_data is not None:
+      self.payoff_manager.load(payoff_data)
+    config_attr(self, ps_data, filter_dict=False, config_as_attr=False, 
+                private_attr=True, check_overwrite=True)
+
+  def load_params(self, params):
+    for model, param in params.items():
+      self._params[model] = param
+
+  def restore(self):
     self.payoff_manager.restore()
-    if os.path.exists(self._path):
-      with open(self._path, 'rb') as f:
-        self._params, \
-        self._models, \
-        self._iteration, \
-        self.n_online_runners, \
-        self.n_agent_runners = cloudpickle.load(f)
-    #   config = yaml_op.load(self._path)
-    #   if config is None:
-    #     return
-    #   models = config.pop('models')
-    #   models = jax.tree_util.tree_map(
-    #     lambda x: ModelPath(*x), models, 
-    #     is_leaf=lambda x: isinstance(x, list) or x is None)
-    #   self._models = models
-
-    #   model_paths = config.pop('model_paths')
-    #   if to_restore_params:
-    #     for model in model_paths:
-    #       model = ModelPath(*model)
-    #       if not is_rule_strategy(model):
-    #         self.restore_params(model)
-      
-    #   config_attr(self, config, config_as_attr=False, private_attr=True)
-      return True
-    else:
-      return False
+    data = pickle.restore(filedir=self.dir, filename=self.name, name=self.name)
+    self.load(None, data)
 
 
 class ExploiterSPParameterServer(SPParameterServer):
@@ -640,7 +601,7 @@ class ExploiterSPParameterServer(SPParameterServer):
     self.target_frac = self.config.get('target_frac', 0.5)
 
   def sample_training_strategies(self):
-    target_dir = self._dir.replace(EXPLOITER_SUFFIX, '')
+    target_dir = self.dir.replace(EXPLOITER_SUFFIX, '')
     target_dir = os.path.join(target_dir, 'a0')
     while True:
       target_model = find_latest_model(target_dir)
@@ -661,7 +622,7 @@ class ExploiterSPParameterServer(SPParameterServer):
       # Synchronize iteration
       self._iteration = iid
     assert iid == self._iteration, (self._iteration, model.model_name)
-    self.builder.set_iteration_version(iid, vid)
+    self._builder.set_iteration_version(iid, vid)
     if model in self._params:
       model_weights = self._retrieve_strategy_for_training(model)
       is_raw_strategy = [False]

@@ -6,7 +6,7 @@ from jax import random
 import jax.numpy as jnp
 import haiku as hk
 
-from core.ckpt.pickle import save, restore
+from tools.pickle import save, restore
 from tools.log import do_logging
 from core.names import TRAIN_AXIS
 from core.elements.trainer import TrainerBase, create_trainer

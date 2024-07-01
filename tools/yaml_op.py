@@ -1,4 +1,4 @@
-import yaml
+import os, yaml
 import numpy as np
 from pathlib import Path
 
@@ -99,21 +99,33 @@ def load(path: str):
 
   return data
 
-def dump(path: str, config={}, **kwargs):
+def dump(path: str, config={}, atomic=False, **kwargs):
   if config:
     config = simplify_datatype(config)
     config = {'config': config, **kwargs}
   else:
     config = kwargs
-  path = default_path(path)
-  if not path.exists():
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.touch()
-  with path.open('w') as f:
-    try:
-      yaml.dump(config, f)
-    except yaml.YAMLError as exc:
-      do_logging(f'Error message: {exc}', level='pwc', backtrack=4)
+  if atomic:
+    tmp_path = default_path(path + '.tmp')
+    if not tmp_path.exists():
+      tmp_path.parent.mkdir(parents=True, exist_ok=True)
+      tmp_path.touch()
+    with tmp_path.open('w') as f:
+      try:
+        yaml.dump(config, f)
+      except yaml.YAMLError as exc:
+        do_logging(f'Error message: {exc}', level='pwc', backtrack=4)
+    os.rename(tmp_path, path)
+  else:
+    path = default_path(path)
+    if not path.exists():
+      path.parent.mkdir(parents=True, exist_ok=True)
+      path.touch()
+    with path.open('w') as f:
+      try:
+        yaml.dump(config, f)
+      except yaml.YAMLError as exc:
+        do_logging(f'Error message: {exc}', level='pwc', backtrack=4)
 
 def yaml2json(yaml_path, json_path, flatten=False):
   config = load_config(yaml_path)

@@ -3,7 +3,7 @@ import argparse
 import collections
 import numpy as np
 
-from core.ckpt.pickle import restore
+from tools.pickle import restore
 from core.typing import dict2AttrDict
 from tools.yaml_op import load_config
 from tools.utils import batch_dicts

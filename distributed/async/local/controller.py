@@ -27,14 +27,14 @@ class Controller(ControllerBase):
 
     steps = []
     while True:
-      eval_pids = self._preprocessing(periods, eval_pids)
+      eval_pids = self._pretrain(periods, eval_pids)
       time.sleep(1)
 
       try:
         steps = runner_manager.get_total_steps()
       except Exception as e:
         do_logging(e)
-        write_file(os.path.join(self._dir, 'error.txt'), str(e))
+        write_file(os.path.join(self.dir, 'error.txt'), str(e))
         runner_manager.destroy_runners()
         runner_manager.build_runners(
           self.configs, 
@@ -45,6 +45,7 @@ class Controller(ControllerBase):
         steps = []
       self._steps = sum(steps)
 
+      self._posttrain(periods, eval_pids)
       if self._check_termination(self._steps, max_steps):
         break
 
@@ -58,5 +59,6 @@ class Controller(ControllerBase):
       self._iteration = runner_stats.iteration
     assert self._iteration == runner_stats.iteration, (self._iteration, runner_stats.iteration)
     do_logging(runner_stats, prefix=f'Runner Stats at Iteration {self._iteration}', color='blue')
-    self._log_stats(runner_stats, self._iteration)
+    self.pbt_monitor.store(**runner_stats)
+    self.pbt_monitor.record(self._iteration, print_terminal_info=True)
     return configs

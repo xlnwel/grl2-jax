@@ -4,7 +4,7 @@ import logging
 import numpy as np
 from typing import Dict, List, Tuple, Union
 
-from core.ckpt.pickle import save, restore, save_params, restore_params
+from tools.pickle import save, restore, save_params, restore_params
 from core.names import *
 from core.typing import ModelPath, AttrDict
 from tools.display import print_dict, print_dict_info

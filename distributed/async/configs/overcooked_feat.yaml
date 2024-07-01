@@ -17,7 +17,7 @@ model_name: *algo
 controller:
   store_period: 1e6
   restart_runners_period: null
-  max_version_iterations: 10
+  max_pbt_iterations: 10
   max_steps_per_iteration: 1000
   initialize_rms: &irms False
 

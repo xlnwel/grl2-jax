@@ -21,20 +21,17 @@ class PayoffManager:
     self.self_play = self_play
     self.name = name
 
-    self._dir = model_dir
-    self._path = f'{self._dir}/{self.name}.pkl'
-
     if self.self_play:
       self.payoff_table = SelfPlayPayoffTableWithModel(
         step_size=self.config.step_size, 
-        payoff_dir=model_dir, 
+        dir=model_dir, 
         name=name
       )
     else:
       self.payoff_table = PayoffTableWithModel(
         n_agents=self.n_agents, 
         step_size=self.config.step_size, 
-        payoff_dir=model_dir, 
+        dir=model_dir, 
         name=name
       )
 

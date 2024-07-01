@@ -50,12 +50,13 @@ class Monitor:
   def set_step(self, step):
     self._step = step
 
-  def record(self, step=None, adaptive=True, print_terminal_info=True):
+  def record(self, step=None, adaptive=True, print_terminal_info=True, stats={}):
     record(
       recorder=self._recorder, 
       tb_writer=self._tb_writer, 
       step=self._step if step is None else step,
       print_terminal_info=print_terminal_info, 
+      stats=stats, 
       adaptive=adaptive
     )
 
@@ -70,12 +71,13 @@ def record(
   prefix: str=None, 
   step: int, 
   print_terminal_info=True, 
+  stats={}, 
   **kwargs
 ):
-  stats = dict(
+  stats.update(dict(
     steps=step,
     **recorder.get_stats(**kwargs)
-  )
+  ))
   if tb_writer is not None:
     tb_writer.scalar_summary(stats, prefix=prefix, step=step)
     tb_writer.flush()

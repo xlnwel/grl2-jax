@@ -3,6 +3,18 @@ import collections
 
 ModelWeights = collections.namedtuple('model_weights', 'model weights')
 ModelStats = collections.namedtuple('model_stats', 'model stats')
+LoggedStats = collections.namedtuple('logged_stats', 'path type stats')
+
+
+class LoggedType:
+  MONITOR = 'monitor'
+  GRAPH = 'graph'
+
+
+class SaveType:
+  PICKLE = 'pickle'
+  YAML = 'yaml'
+
 
 class Status:
   TRAINING = 'training'

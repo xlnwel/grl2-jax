@@ -1,6 +1,6 @@
 import numpy as np
 
-from core.ckpt.pickle import restore
+from tools.pickle import restore
 from core.typing import tree_slice
 from tools.display import print_dict_info
 from tools.timer import Every

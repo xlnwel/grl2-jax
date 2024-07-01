@@ -3,7 +3,7 @@ import collections
 from typing import Dict
 import numpy as np
 
-from core.ckpt.pickle import save, restore
+from tools.pickle import save, restore
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from tools.log import do_logging

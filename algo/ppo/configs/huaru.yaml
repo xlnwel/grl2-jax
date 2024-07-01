@@ -35,6 +35,16 @@ env:
   sample_mask_at_done: 0
   use_state_agent: True
   shared_policy: True
+  frame_skip: 5
+  lock_reward_scale: 0
+  damage_reward_scale: 5
+  escape_reward_scale: 5
+  attack_reward_scale: 5
+  miss_reward_scale: 0
+  distance_reward_scale: .01
+  border_reward_scale: .5
+  win_reward: 20
+
 agent: {}
 
 strategy:

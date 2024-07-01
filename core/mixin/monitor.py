@@ -192,7 +192,7 @@ class Recorder:
   def get_count(self, name):
     return len(self._store_dict[name])
 
-  def record_stats(self, stats, print_terminal_info=True):
+  def record_stats(self, stats, print_terminal_info=True, path=None):
     if not self._first_row and not set(stats).issubset(set(self._headers)):
       # if self._headers and not set(stats).issubset(set(self._headers)):
       #   do_logging(f'Header Mismatch!\nDifference: {set(stats) - set(self._headers)}')
@@ -206,7 +206,7 @@ class Recorder:
       # do_logging(f'Record data to "{self._out_file.name}"')
       self._first_row = True
     [self.record_tabular(k, v) for k, v in stats.items()]
-    self.dump_tabular(print_terminal_info=print_terminal_info)
+    self.dump_tabular(print_terminal_info=print_terminal_info, path=path)
 
   def _record_tabular(self, key, val):
     """
@@ -247,7 +247,7 @@ class Recorder:
         self._record_tabular(add_suffix(key, 'max'), np.max(v))
     self._store_dict[key] = []
 
-  def dump_tabular(self, print_terminal_info=True):
+  def dump_tabular(self, print_terminal_info=True, path=None):
     """
     Write to disk all the diagnostics from the current iteration.
     """
@@ -300,7 +300,13 @@ class Recorder:
       vals.append(val)
     if print_terminal_info:
       print("-"*n_slashes)
-    if self._out_file is not None:
+    if path is not None:
+      with open(path, 'w') as f:
+        if self._first_row and os.stat(self.record_path).st_size == 0:
+          f.write("\t".join(self._headers)+"\n")
+        f.write("\t".join(map(str,vals))+"\n")
+        f.flush()
+    elif self._out_file is not None:
       if self._first_row and os.stat(self.record_path).st_size == 0:
         self._out_file.write("\t".join(self._headers)+"\n")
       self._out_file.write("\t".join(map(str,vals))+"\n")

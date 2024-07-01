@@ -125,7 +125,7 @@ def search_for_all_files(directory, filename, suffix=True):
 def search_for_file(directory, filename, check_duplicates=True):
   if not os.path.exists(directory):
     return None
-  do_logging(f'{directory}/{filename}')
+  do_logging(f'{directory}/{filename}', backtrack=4)
   directory = directory
   target_file = None
   for root, _, files in os.walk(directory):

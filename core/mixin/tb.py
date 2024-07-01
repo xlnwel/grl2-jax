@@ -85,10 +85,8 @@ def set_summary_step(step):
   tf.summary.experimental.set_step(step)
 
 def scalar_summary(writer, stats, prefix=None, step=None):
-  if step is not None:
-    tf.summary.experimental.set_step(step)
   prefix = prefix or 'stats'
-  with writer.as_default():
+  with writer.as_default(step=step):
     for k, v in stats.items():
       if isinstance(v, str) or v is None:
         continue
@@ -98,10 +96,8 @@ def scalar_summary(writer, stats, prefix=None, step=None):
       tf.summary.scalar(k, tf.reduce_mean(v), step=step)
 
 def histogram_summary(writer, stats, prefix=None, step=None):
-  if step is not None:
-    tf.summary.experimental.set_step(step)
   prefix = prefix or 'stats'
-  with writer.as_default():
+  with writer.as_default(step=step):
     for k, v in stats.items():
       if isinstance(v, (str, int, float)):
         continue
@@ -115,19 +111,16 @@ def graph_summary(writer, sum_type, args, step=None):
   if step is None:
     step = tf.summary.experimental.get_step()
   def inner(*args):
-    tf.summary.experimental.set_step(step)
-    with writer.as_default():
+    with writer.as_default(step=step):
       fn(*args)
   return tf.numpy_function(inner, args, [])
 
 def image_summary(writer, images, name, prefix=None, step=None):
-  if step is not None:
-    tf.summary.experimental.set_step(step)
   if len(images.shape) == 3:
     images = images[None]
   if prefix:
     name = f'{prefix}/{name}'
-  with writer.as_default():
+  with writer.as_default(step=step):
     tf.summary.image(name, images, step=step)
 
 def matrix_summary(
@@ -157,11 +150,12 @@ def matrix_summary(
   )
   image_summary(writer, image, name, step=step)
 
-def create_tb_writer(model_path: ModelPath):
+def create_tb_writer(model_path: ModelPath, set_as_default=False):
   # writer for tensorboard summary
   # stats are saved in directory f'{root_dir}/{model_name}'
   writer = tf.summary.create_file_writer(os.path.join(*model_path))
-  writer.set_as_default()
+  if set_as_default:
+    writer.set_as_default()
   return writer
 
 def create_tensorboard_writer(model_path: ModelPath, name):

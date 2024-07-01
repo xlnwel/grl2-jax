@@ -18,8 +18,9 @@ def configure_jax_gpu(idx=-1):
   # if idx is not None and idx >= 0:
   #   os.environ["CUDA_VISIBLE_DEVICES"] = f"{idx}"
   import tensorflow as tf
-  tf.config.experimental.set_visible_devices([], 'GPU')
+  # tf.config.experimental.set_visible_devices([], 'GPU')
   gpus = tf.config.list_physical_devices('GPU')
+  tf.config.experimental.set_visible_devices(gpus, 'GPU')
   n_gpus = len(gpus)
   if idx is None or n_gpus == 0:
     jax.config.update('jax_platforms', 'cpu')
@@ -38,7 +39,7 @@ def configure_jax_gpu(idx=-1):
       do_logging(f'{n_gpus} Physical GPUs, {len(logical_gpus)} Logical GPU', color='red')
     except RuntimeError as e:
       # visible devices must be set before GPUs have been initialized
-      do_logging(e, level='red')
+      do_logging(e, color='red')
     return True
 
 def get_jax_device():
@@ -78,4 +79,4 @@ def save_config(config, model_path=None, config_name='config.yaml'):
   else:
     assert model_path.root_dir == config.root_dir, (model_path.root_dir, config.root_dir)
     assert model_path.model_name == config.model_name, (model_path.model_name, config.model_name)
-  yaml_op.save_config(config, path = os.path.join(*model_path, config_name))
+  yaml_op.save_config(config, path=os.path.join(*model_path, config_name))

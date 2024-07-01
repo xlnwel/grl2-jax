@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import collections
 
-from core.ckpt.pickle import save
+from tools.pickle import save
 from tools.log import do_logging
 from core.names import PATH_SPLIT
 from core.typing import AttrDict

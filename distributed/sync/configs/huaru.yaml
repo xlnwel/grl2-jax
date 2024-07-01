@@ -18,7 +18,7 @@ model_name: *algo
 controller:
   store_period: 5e4
   restart_runners_period: null
-  max_version_iterations: 1
+  max_pbt_iterations: 1
   max_steps_per_iteration: 3e7
   initialize_rms: &irms True
 
@@ -46,8 +46,8 @@ ray_config:
 monitor: {}
 
 runner:
-  n_runners: &nrunners 8
-  n_steps: &nsteps 400
+  n_runners: &nrunners 20
+  n_steps: &nsteps 200
   push_every_episode: False
 
 env:
@@ -57,15 +57,16 @@ env:
   timeout_done: &td True
   sample_mask_at_done: 0
 
-  lock_reward_scale: 1
-  damage_reward_scale: 3
-  escape_reward_scale: 3
-  attack_reward_scale: 3
-  miss_reward_scale: 0
-  distance_reward_scale: 0
+  frame_skip: 5
+  lock_reward_scale: 0
+  damage_reward_scale: 10
+  escape_reward_scale: 10
+  attack_reward_scale: 10
+  miss_reward_scale: 5
+  distance_reward_scale: .5
   border_reward_scale: .5
-  win_reward: 20
-  abundant_info: False
+  win_reward: 100
+  shared_reward: True
 
 agent: {}
 

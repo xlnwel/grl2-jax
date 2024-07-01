@@ -31,7 +31,7 @@ from core.elements.builder import ElementsBuilder
 from tools.log import setup_logging
 from core.utils import *
 from core.typing import ModelPath, get_basic_model_name, dict2AttrDict
-from core.ckpt.pickle import set_weights_for_agent
+from tools.pickle import set_weights_for_agent
 from envs.func import create_env
 from run.args import parse_eval_args
 from run.ops import search_for_all_configs, search_for_config

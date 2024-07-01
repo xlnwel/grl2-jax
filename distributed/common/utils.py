@@ -1,11 +1,19 @@
 import os
 import re
 import random
+import numpy as np
 import jax
 import jax.numpy as jnp
+from typing import Union
 
-from core.names import MODEL, PATH_SPLIT
+from tools import pickle
+from core.elements.monitor import Monitor
+from core.mixin.tb import TensorboardWriter
+from core.names import *
+from core.typing import exclude_subdict
+from distributed.common.typing import *
 from core.typing import ModelPath, retrieve_model_path
+from tools.graph import get_tick_labels
 from tools.log import do_logging
 from nn.utils import reset_linear_weights, reset_weights
 
@@ -91,3 +99,38 @@ def find_all_models(path, pattern='.*'):
             path = os.path.join(agent_dir, dd)
             models.append(retrieve_model_path(path))
   return models
+
+
+def save_params(params, model: ModelPath, name='params', to_print=True):
+  if MODEL in params:
+    pickle.save_params(params[MODEL], 
+                        model, f'{name}/model', to_print=to_print)
+  if OPTIMIZER in params:
+    pickle.save_params(params[OPTIMIZER], 
+                        model, f'{name}/opt', to_print=to_print)
+  rest_params = exclude_subdict(params, MODEL, OPTIMIZER)
+  if rest_params:
+    pickle.save_params(rest_params, model, name, to_print=to_print)
+
+
+def matrix_tb_plot(
+  tb: Union[Monitor, TensorboardWriter], 
+  model: ModelPath, 
+  stats: np.ndarray, 
+  xlabel: str, 
+  ylabel: str, 
+  name: str, 
+  step=None, 
+):
+  xticklabels = get_tick_labels(stats.shape[1])
+  yticklabels = get_tick_labels(stats.shape[0])
+  tb.matrix_summary(
+    model=model, 
+    matrix=stats, 
+    xlabel=xlabel, 
+    ylabel=ylabel, 
+    xticklabels=xticklabels, 
+    yticklabels=yticklabels, 
+    name=name, 
+    step=step
+  )

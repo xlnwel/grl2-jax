@@ -21,7 +21,7 @@ controller:
   restart_runners_period: null
   reload_strategy_pool_period: 1e4
   eval_period: null
-  max_version_iterations: 30
+  max_pbt_iterations: 30
   max_steps_per_iteration: 1e6
     # - [0, 1e6]
     # - [20, 3e6]

@@ -131,7 +131,8 @@ def do_logging(
   frame = get_frame(backtrack)
   if func_lineno is None:
     filename = frame.f_code.co_filename
-    filename = filename.rsplit(PATH_SPLIT, 1)[-1]
+    filename = filename.replace(os.getcwd()+PATH_SPLIT, '')
+    # filename = filename.rsplit(PATH_SPLIT, 1)[-1]
     funcname = frame.f_code.co_name
     lineno = frame.f_lineno
     func_lineno = ': '.join([filename, funcname, f'line {lineno}'])

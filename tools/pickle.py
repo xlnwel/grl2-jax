@@ -2,8 +2,8 @@ import os
 import cloudpickle
 
 from tools.log import do_logging
-from core.names import PATH_SPLIT
-from core.typing import ModelPath
+from core.names import PATH_SPLIT, MODEL, OPTIMIZER
+from core.typing import ModelPath, exclude_subdict
 from tools.file import search_for_all_files
 
 
@@ -25,13 +25,19 @@ def set_weights_for_agent(
   agent.set_weights(weights)
 
 
-def save(data, *, filedir, filename, backtrack=3, name='data', to_print=True):
+def save(data, *, filedir, filename, backtrack=3, name='data', to_print=True, atomic=False):
   if not os.path.isdir(filedir):
     os.makedirs(filedir)
   filename = _ckpt_filename(filedir, filename)
   assert os.path.isdir(os.path.dirname(filename)), os.path.dirname(filename)
-  with open(filename, 'wb') as f:
-    cloudpickle.dump(data, f)
+  if atomic:
+    tmp_filename = filename + '.tmp'
+    with open(tmp_filename, 'wb') as f:
+      cloudpickle.dump(data, f)
+    os.rename(tmp_filename, filename)
+  else:
+    with open(filename, 'wb') as f:
+      cloudpickle.dump(data, f)
   if to_print:
     do_logging(f'Saving {name} in "{filename}"', backtrack=backtrack, level='info')
 
@@ -49,7 +55,7 @@ def restore(*, filedir=None, filename, backtrack=3, default={}, name='data', to_
       if to_print:
         do_logging(f'Restoring {name} from "{filename}"', backtrack=backtrack, level='info')
     except Exception as e:
-      do_logging(f'Failing restoring {name} from {filename}: {e}', backtrack=backtrack, level='info')
+      do_logging(f'Failing restoring {name} from {filename}: {e}', backtrack=backtrack, level='warning')
   else:
     do_logging(f'No such file: {filename}', backtrack=backtrack, level='info')
 
@@ -58,6 +64,18 @@ def restore(*, filedir=None, filename, backtrack=3, default={}, name='data', to_
 
 def get_filedir(model_path: ModelPath, name: str, *args):
   return os.path.join(*model_path, name, *args)
+
+
+def save_hierarchical_params(params, model: ModelPath, name='params', to_print=True):
+  if MODEL in params:
+    save_params(params[MODEL], 
+                model, f'{name}/model', to_print=to_print)
+  if OPTIMIZER in params:
+    save_params(params[OPTIMIZER], 
+                model, f'{name}/opt', to_print=to_print)
+  rest_params = exclude_subdict(params, MODEL, OPTIMIZER)
+  if rest_params:
+    save_params(rest_params, model, name, to_print=to_print)
 
 
 def save_params(params, model_path: ModelPath, name, backtrack=4, to_print=True):

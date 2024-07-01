@@ -3,16 +3,17 @@ import importlib
 from types import FunctionType
 from typing import Dict, Tuple, Set
 
+from core.ckpt.base import YAMLCheckpointBase
 from core.elements.actor import Actor
 from core.elements.model import Model
 from core.elements.strategy import Strategy
 from core.elements.trainer import TrainerBase
 from core.elements.monitor import Monitor, create_monitor
-from tools.log import do_logging
 from core.names import *
 from core.typing import *
 from core.utils import save_code_for_seed, save_config
 from envs.func import get_env_stats
+from tools.log import do_logging
 from tools.timer import timeit_now
 from tools.utils import set_path
 from tools import pkg, yaml_op
@@ -30,10 +31,12 @@ class ElementsBuilder:
     self.config = dict2AttrDict(config, to_copy=True)
     self.env_stats = dict2AttrDict(
       get_env_stats(self.config.env) if env_stats is None else env_stats)
-    self._name = name
-    self._max_steps = max_steps
+    self.name = name
+    self.max_steps = max_steps
 
-    self._model_path = ModelPath(self.config.root_dir, self.config.model_name)
+    assert self.config.root_dir is not None, self.config
+    assert self.config.model_name is not None, self.config
+    self.model_path = ModelPath(self.config.root_dir, self.config.model_name)
 
     algo = self.config.algorithm.split('-')[-1]
     self.constructors = self.retrieve_constructor(algo)
@@ -41,10 +44,6 @@ class ElementsBuilder:
     if to_save_code:
       timeit_now(save_code_for_seed, self.config)
 
-  @property
-  def name(self):
-    return self._name
-  
   def retrieve_constructor(self, algo):
     constructors = AttrDict()
     constructors.model = self._import_element(MODEL, algo).create_model
@@ -58,7 +57,7 @@ class ElementsBuilder:
     return constructors
 
   def get_model_path(self):
-    return self._model_path
+    return self.model_path
 
   """ Build Elements """
   def build_model(
@@ -187,12 +186,12 @@ class ElementsBuilder:
       config.setdefault('monitor', {})
       return create_monitor(
         **config.monitor, 
-        max_steps=self._max_steps
+        max_steps=self.max_steps
       )
     else:
       return create_monitor(
         use_tensorboard=False, 
-        max_steps=self._max_steps
+        max_steps=self.max_steps
       )
   
   def build_agent(
@@ -468,7 +467,7 @@ class ElementsBuilder:
 
 
 """ Element Builder with Version Control """
-class ElementsBuilderVC(ElementsBuilder):
+class ElementsBuilderVC(ElementsBuilder, YAMLCheckpointBase):
   def __init__(
     self, 
     config: dict, 
@@ -477,18 +476,20 @@ class ElementsBuilderVC(ElementsBuilder):
     to_save_code=False, 
     name='builder', 
   ):
-    super().__init__(
+    ElementsBuilder.__init__(
+      self, 
       config, 
       env_stats=env_stats, 
       to_save_code=to_save_code, 
       name=name
     )
 
-    self._default_model_path = self._model_path
-    self._builder_path = os.path.join(*self._model_path, f'{self._name}.yaml')
+    self.default_model_path = self.model_path
+    self.path = os.path.join(*self.model_path, f'{self.name}.yaml')
 
     self._iteration = start_iteration
     self._all_versions: Set = set()
+    self._config = AttrDict2dict(self.config)
     self.restore()
 
   """ Version Control """  
@@ -504,12 +505,12 @@ class ElementsBuilderVC(ElementsBuilder):
 
     root_dir = self.config.root_dir
     model_name = construct_model_name_from_version(
-      self._default_model_path.model_name, 
+      self.default_model_path.model_name, 
       self._iteration, 
       version
     )
-    self._model_path = ModelPath(root_dir, model_name)
-    self.config = set_path(self.config, self._model_path)
+    self.model_path = ModelPath(root_dir, model_name)
+    self.config = set_path(self.config, self.model_path)
     self._all_versions.add(version)
     self.save()
 
@@ -536,7 +537,7 @@ class ElementsBuilderVC(ElementsBuilder):
     config.version = version
 
     model_name = construct_model_name_from_version(
-      self._default_model_path.model_name, 
+      self.default_model_path.model_name, 
       self._iteration, 
       version
     )
@@ -553,20 +554,13 @@ class ElementsBuilderVC(ElementsBuilder):
     return model_path
 
   """ Save & Restore """
-  def restore(self):
-    if os.path.exists(self._builder_path):
-      data = yaml_op.load(self._builder_path)
-      self._iteration = data['iteration']
-      self._all_versions = data['all_versions']
-      self.config = dict2AttrDict(data['config'])
-
   def save(self):
-    yaml_op.dump(
-      self._builder_path, 
-      iteration=self._iteration, 
-      all_versions=self._all_versions, 
-      config=AttrDict2dict(self.config), 
-    )
+    self._config = AttrDict2dict(self.config)
+    YAMLCheckpointBase.save(self)
+
+  def restore(self):
+    YAMLCheckpointBase.restore(self)
+    self.config = dict2AttrDict(self._config)
 
 if __name__ == '__main__':
   from envs.func import create_env
