@@ -30,12 +30,16 @@ class CommunicationService(object):
     """
     def __init__(self, address: str):
         # 重置计数器，当重置数量达到100次时，重启当前引擎
+        self.address = address
         self.reset_counter = 0
         time.sleep(5)
+        self.build_connection()
+
+    def build_connection(self):
         # 创建服务连接
-        conn = grpc.insecure_channel(address)
+        conn = grpc.insecure_channel(self.address)
         self.client = HRDataService_pb2_grpc.HRDataServiceStub(channel=conn)
-        logging.debug(f"{address},数据服务连接成功！")
+        do_logging(f"{self.address},数据服务连接成功！")
 
     def get_obs(self, domain_id: str = '', engine_id: str = ''):
         """获取态势数据接口"""
@@ -142,10 +146,10 @@ class CommunicationService(object):
                     else:
                         raise XSimControlError(f" '{k}' 指令无法识别，请严格遵照指令数据格式并通过EnvCmd函数进行组包。")
             except:
-                print('in communication.step and cmd:', cmd)
+                do_logging(f'in communication.step and cmd: {cmd}')
                 raise
         flag = True
-        while flag:
+        for i in range(3):
             try:
                 response = self.client.Step(pb2.CmdRequest(
                     CmdInitEntityControl=cmd_init_entity_control,
@@ -156,6 +160,7 @@ class CommunicationService(object):
                     CmdAttackControl=cmd_attack_control
                 ), timeout=5)
                 flag = False
+                break
                 # logging.info(response)
             except Exception as e:
                 do_logging(e)
@@ -170,10 +175,18 @@ class CommunicationService(object):
                 #     CmdAttackControl=cmd_attack_control
                 # ))
                 # raise
-                flag = True
                 time.sleep(1)
+                continue
+        if flag:
+            raise Exception('step failed')
         return ObservationProcessor.get_obs(self.get_obs())
 
+    def restart(self):
+        do_logging("重启XSIM引擎！")
+        return self.client.Terminal(pb2.ControlRequest(
+            Control="restart"
+        ))
+    
     def reset(self):
         if self.reset_counter == 100:
             logging.debug("重启XSIM引擎！")
@@ -189,7 +202,7 @@ class CommunicationService(object):
                 ))
                 flag = False
             except grpc.RpcError as e:
-                print(e)
+                do_logging(e)
                 flag = True
 
         return self.client.Terminal(pb2.ControlRequest(

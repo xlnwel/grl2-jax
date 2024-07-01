@@ -30,7 +30,7 @@ class XSimManager(object):
         self.xsim_run_num = self.port   # xsim环境运行编号(run_num)
         self.docker_name = 'xsim_' + str(self.xsim_run_num)  # 启动的容器名称
         self.mode = mode
-        self.__start_env()
+        self.start_env()
 
     def __del__(self):
         print(u"正在清理{}容器环境，请稍等……".format(self.docker_name))
@@ -44,7 +44,7 @@ class XSimManager(object):
 
         return address
 
-    def __start_env(self):
+    def start_env(self):
         os.system(f'[ -n "$(docker ps -a -q -f name=^{self.docker_name}$)" ] && docker rm -f {self.docker_name}')
         if self.mode == 'host':
             docker_run = "docker run --network host -itd --name {} -v /home/ds/soft/RTMData:/home/x64/RTMData -w /home/x64 {} python daemon_server.py {} {} {} {}"\

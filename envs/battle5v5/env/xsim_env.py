@@ -5,6 +5,8 @@
 @Time：2021/4/29 13:49
 @Copyright：©2011-2021 北京华如科技股份有限公司
 """
+import time
+from tools.display import do_logging
 from envs.battle5v5.env.xsim_manager import XSimManager
 from envs.battle5v5.env.communication_service import CommunicationService
 from envs.battle5v5.config import Agent, BLUE_INFO, RED_INFO, BLUE_FIRE_INFO, RED_FIRE_INFO
@@ -56,13 +58,21 @@ class XSimEnv(object):
         @create data:2021/05/10 15.00
         @change date:
         """
-        try:
-            msg = self.communication_service.step(action)
-            self.update_is_locked(msg)
-            self.update_alive_mask(msg)
-            return msg
-        except Exception as e:
-            print(e)
+        while True:
+            try:
+                msg = self.communication_service.step(action)
+                self.update_is_locked(msg)
+                self.update_alive_mask(msg)
+                return msg
+            except Exception as e:
+                do_logging(e)
+                # self.communication_service.end()
+                # self.communication_service.close()
+                # self.xsim_manager.close_env()
+                self.xsim_manager.start_env()
+                time.sleep(5)
+                self.communication_service.build_connection()
+                self.communication_service.reset()
         # return self.communication_service.step(action)
 
     def reset(self):
@@ -93,8 +103,8 @@ class XSimEnv(object):
         @create data:2021/05/10 15.00
         @change date:
         """
+        # self.communication_service.close()
         self.xsim_manager.close_env()
-        self.communication_service.close()
         return True
 
     def update_is_locked(self, msg):

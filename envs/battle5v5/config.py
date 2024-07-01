@@ -19,7 +19,6 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-print(sys.path)
 from envs.battle5v5.agent.HR1 import HR1
 # 是否启用host模式,host仅支持单个xsim
 ISHOST = False
@@ -105,4 +104,20 @@ RED_FIRE_INFO = {
     9: {'Name': '空空导弹_2(红无人机3_武器系统_1)', 'ID': 2147483662},
     10: {'Name': '空空导弹_1(红无人机4_武器系统_1)', 'ID': 2147483648},
     11: {'Name': '空空导弹_2(红无人机4_武器系统_1)', 'ID': 2147483650},
+}
+
+RED_INIT_LOC = {
+    0: {'X': -150000, 'Y': 10000, 'Z': 9000},
+    1: {'X': -135000, 'Y': 10000, 'Z': 9000},
+    2: {'X': -125000, 'Y': 10000, 'Z': 9000},
+    3: {'X': -135000, 'Y': -10000, 'Z': 9000},
+    4: {'X': -125000, 'Y': -10000, 'Z': 9000},
+}
+
+BLUE_INIT_LOC = {
+    0: {'X': 150000, 'Y': 10000, 'Z': 9000},
+    1: {'X': 135000, 'Y': 10000, 'Z': 9000},
+    2: {'X': 125000, 'Y': 10000, 'Z': 9000},
+    3: {'X': 135000, 'Y': -10000, 'Z': 9000},
+    4: {'X': 125000, 'Y': -10000, 'Z': 9000},
 }

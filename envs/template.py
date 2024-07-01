@@ -106,9 +106,9 @@ class TemplateEnv:
     reward = self._get_reward(env_out)
     done = self._get_done(env_out)
 
-
     self._dense_score += reward
     self._score = np.sign(self._dense_score)
+    self._epslen += 1
 
     info = {
       'score': self._score,

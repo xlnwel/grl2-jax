@@ -19,7 +19,7 @@ from tools.display import print_dict, print_dict_info
 from envs.battle5v5.config import ADDRESS
 from envs.battle5v5.env.env_runner import EnvRunner
 from envs.utils import *
-from envs.battle5v5.config import config, Agent, BLUE_INFO, RED_INFO, BLUE_FIRE_INFO, RED_FIRE_INFO
+from envs.battle5v5.config import *
 
 
 def get_info_id(pinfos, id, check_existence=False):
@@ -37,6 +37,16 @@ def get_uid(infos, id):
   uid = uids[0]
   return uid
 
+
+class Reward:
+  LOCK = 'lock'
+  DAMAGE = 'damage'
+  ESCAPE = 'escape'
+  ATTACK = 'attack'
+  MISS = 'miss'
+  DISTANCE = 'distance'
+  BORDER = 'border'
+  WIN = 'win'
 
 class Reason:
   TIMEOUT = 'done for timeout'
@@ -66,13 +76,14 @@ class HuaRu5v5(EnvRunner):
     distance_reward_scale=1, 
     border_reward_scale=1, 
     win_reward=10, 
-    shared_reward=False,
+    shared_reward=True,
     **kwargs
   ):
     if eid is None:
       eid = 1
     if port is None:
       port = str(eid)
+    assert eid > 0, eid
     address = f'{ip}:{port}'
     self.address = address
     super().__init__(config['agents'], address=address, mode=mode)
@@ -154,7 +165,7 @@ class HuaRu5v5(EnvRunner):
     action = [{k: v[uids] for k, v in action.items()} for uids in self.aid2uids]
     return action
 
-  def reset(self, if_test=False, args=None, cur_time=None):
+  def reset(self):
     """重置仿真环境, 返回初始帧obs"""
     self._epslen = 0
     self._score = np.zeros(self.n_units)
@@ -177,15 +188,16 @@ class HuaRu5v5(EnvRunner):
 
     if msg["sim_time"] == 0.0:
       msg = super().step([])  # 推动拿到第一帧的obs信息
-    parsed_msg = {'agent_pre_loc': self.red_agent_loc,
-           'blue_info': BLUE_INFO,
-           'red_info': RED_INFO,
-           'sim_time': msg['sim_time'],
-           'agent_speed': self.agents_speed # 记录当前帧每个智能体的速度，如果已经死亡，则速度为-1
+    parsed_msg = {
+      'agent_pre_loc': self.red_agent_loc,
+      'blue_info': BLUE_INFO,
+      'red_info': RED_INFO,
+      'sim_time': msg['sim_time'],
+      'agent_speed': self.agents_speed # 记录当前帧每个智能体的速度，如果已经死亡，则速度为-1
     }
 
     cmd_list = []
-    cmd_list.extend(self.agents[Agent.RED].make_init_cmd())
+    cmd_list.extend(self.agents[Agent.RED].make_init_cmd(RED_INFO, RED_INIT_LOC))
     cmd_list.extend(self.get_blue_cmd(self.agents[Agent.BLUE], msg))
 
     self.last_msg = msg
@@ -202,11 +214,12 @@ class HuaRu5v5(EnvRunner):
           'X': pinfo['X'], 'Y': pinfo['Y'], 'Z': pinfo['Alt'], 
           'heading': pinfo['Heading'], 'pitch': pinfo['Pitch']}
         self.agents_speed[i] = pinfo['Speed']
-      parsed_msg = {'agent_pre_loc': self.red_agent_loc,
-            'blue_info': BLUE_INFO,
-            'red_info': RED_INFO,
-            'sim_time': self.msg['sim_time'],
-            'agent_speed': self.agents_speed # 记录当前帧每个智能体的速度，如果已经死亡，则速度为-1
+      parsed_msg = {
+        'agent_pre_loc': self.red_agent_loc,
+        'blue_info': BLUE_INFO,
+        'red_info': RED_INFO,
+        'sim_time': self.msg['sim_time'],
+        'agent_speed': self.agents_speed # 记录当前帧每个智能体的速度，如果已经死亡，则速度为-1
       }
       if self.msg["sim_time"] % self.frame_skip == 0:
         cmd_list.extend(self.agents["red"].make_actions(rule_actions, parsed_msg))  # parse_msg里的sim_time应该没更新
@@ -646,53 +659,54 @@ class HuaRu5v5(EnvRunner):
     # for p in blue_pinfos:
     #   if p['IsLocked']:
     #     blue_locked += 1
-    rewards['lock'] = self.lock_reward_scale * (blue_locked - red_locked)
-    reward += rewards['lock']
+    rewards[Reward.LOCK] = self.lock_reward_scale * (blue_locked - red_locked)
+    reward += rewards[Reward.LOCK]
 
     # 计算伤害奖励
-    rewards['damage'] = np.zeros(self.n_units)
-    rewards['escape'] = np.zeros(self.n_units)
+    rewards[Reward.DAMAGE] = np.zeros(self.n_units)
+    rewards[Reward.ESCAPE] = np.zeros(self.n_units)
     if n_last_red_planes - n_red_planes > 0:
       # 说明上一轮红方飞机更多，红方飞机有伤亡
       if self.shared_reward:
-        rewards['damage'] = -self.damage_reward_scale * (n_last_red_planes - n_red_planes)
+        rewards[Reward.DAMAGE] -= self.damage_reward_scale * (n_last_red_planes - n_red_planes)
       else:
         for p in last_red_pinfos:
           if any([True for pp in red_pinfos if p['ID'] == pp['ID']]):
-            uid = get_uid(RED_INFO, p['ID'])
-            rewards['damage'][uid] = -self.damage_reward_scale
+            continue
+          uid = get_uid(RED_INFO, p['ID'])
+          rewards[Reward.DAMAGE][uid] -= self.damage_reward_scale
     elif n_last_blue_weapon - n_blue_weapon > 0:
       # 说明红方飞机数量没有变化, 躲蛋成功获得奖励
       if self.shared_reward:
-        rewards['escape'] = self.escape_reward_scale * (n_last_blue_weapon - n_blue_weapon)
+        rewards[Reward.ESCAPE] += self.escape_reward_scale * (n_last_blue_weapon - n_blue_weapon)
       else:
         for w in last_blue_weapon:
           if any([True for ww in blue_weapon if w['ID'] == ww['ID']]):
             continue
           uid = get_uid(RED_INFO, w['EngageTargetID'])
-          rewards['escape'][uid] = self.escape_reward_scale
-    reward += rewards['damage']
-    reward += rewards['escape']
+          rewards[Reward.ESCAPE][uid] += self.escape_reward_scale
+    reward += rewards[Reward.DAMAGE]
+    reward += rewards[Reward.ESCAPE]
 
     # 计算攻击奖励
-    rewards['attack'] = np.zeros(self.n_units)
-    rewards['miss'] = np.zeros(self.n_units)
+    rewards[Reward.ATTACK] = np.zeros(self.n_units)
+    rewards[Reward.MISS] = np.zeros(self.n_units)
     if n_last_blue_planes - n_blue_planes > 0:
       # 说明上一帧蓝方飞机要更多
       # 有意用共享reward, 没做ablation study
-      rewards['attack'] = self.attack_reward_scale * (n_last_blue_planes - n_blue_planes)
+      rewards[Reward.ATTACK] += self.attack_reward_scale * (n_last_blue_planes - n_blue_planes)
     elif n_last_red_weapon - n_red_weapon > 0:
       # 说明蓝方飞机数量没有变化，被蓝方躲避，浪费弹药
       if self.shared_reward:
-        rewards['miss'] = -self.miss_reward_scale * (n_last_red_weapon - n_red_weapon)
+        rewards[Reward.MISS] -= self.miss_reward_scale * (n_last_red_weapon - n_red_weapon)
       else:
         for w in last_red_weapon:
           if any([True for ww in red_weapon if w['ID'] == ww['ID']]):
             continue
           uid = get_uid(RED_INFO, w['LauncherID'])
-          rewards['miss'][uid] = -self.miss_reward_scale
-    reward += rewards['attack']
-    reward += rewards['miss']
+          rewards[Reward.MISS][uid] -= self.miss_reward_scale
+    reward += rewards[Reward.ATTACK]
+    reward += rewards[Reward.MISS]
 
     # 计算距离奖励
     distance_reward = np.zeros(self.n_units)
@@ -704,8 +718,8 @@ class HuaRu5v5(EnvRunner):
       if not self.red_alive_mask[rid] or red_pinfos[pid]['IsLocked']:
         continue
       # 当前的坐标
-      cur_x = red_pinfos[pid]['X']
-      cur_y = red_pinfos[pid]['Y']
+      cur_x = red_pinfos[pid]['X'] - last_blue_pinfos[0]['X']
+      cur_y = red_pinfos[pid]['Y'] - last_blue_pinfos[0]['X']
       cur_distance = np.linalg.norm(np.array([cur_x/10000, cur_y/10000]))
       # 上一个坐标
       last_pids = [j for j, item in enumerate(last_red_pinfos) if item['ID'] == id]
@@ -713,17 +727,14 @@ class HuaRu5v5(EnvRunner):
         continue
       assert len(last_pids) == 1, last_pids
       last_pid = last_pids[0]
-      last_x = last_red_pinfos[last_pid]['X']
-      last_y = last_red_pinfos[last_pid]['Y']
+      last_x = last_red_pinfos[last_pid]['X'] - last_blue_pinfos[0]['X']
+      last_y = last_red_pinfos[last_pid]['Y'] - last_blue_pinfos[0]['X']
       last_distance = np.linalg.norm(np.array([last_x/10000, last_y/10000]))
       # 这个值是很大的
       # distance_reward += 1 if (last_distance - cur_distance) > 0 else -1
-      if self.shared_reward:
-        distance_reward += last_distance - cur_distance
-      else:
-        distance_reward[rid] = last_distance - cur_distance
-    rewards['distance'] = self.distance_reward_scale * distance_reward
-    reward += rewards['distance']
+      distance_reward[rid] += last_distance - cur_distance
+    rewards[Reward.DISTANCE] = self.distance_reward_scale * distance_reward
+    reward += rewards[Reward.DISTANCE]
 
     # 计算边缘惩罚
     border_reward = np.zeros(self.n_units)
@@ -749,8 +760,8 @@ class HuaRu5v5(EnvRunner):
         border_reward += r
       else:
         border_reward[rid] += r
-    rewards['border'] = self.border_reward_scale * border_reward
-    reward += rewards['border']
+    rewards[Reward.BORDER] = self.border_reward_scale * border_reward
+    reward += rewards[Reward.BORDER]
 
     self._rewards = rewards.copy()
 
@@ -775,13 +786,13 @@ class HuaRu5v5(EnvRunner):
       done = True
       reward = - self.win_reward
       reason = Reason.LOSE
-      self._rewards['win'] = reward
+      self._rewards[Reward.WIN] = reward
     elif not self.blue_alive_mask[0]:
       # print("蓝方有人机阵亡")
       done = True
       reward = self.win_reward
       reason = Reason.WIN
-      self._rewards['win'] = reward
+      self._rewards[Reward.WIN] = reward
     elif cur_time >= 20 * 60 - 1:
       done = True
       reward = len(red_pinfos) - len(blue_pinfos)
@@ -794,9 +805,9 @@ class HuaRu5v5(EnvRunner):
       blue_fly_missile = len([m for m in msg[Agent.RED]["missileinfos"] if m["Identification"] == "蓝方"]) > 0
       if red_ammo_free and blue_ammo_free and not red_fly_missile and not blue_fly_missile:
         done = True
-        reward = -self.win_reward if red_ammo_free else self.win_reward
-        reason = Reason.LOSE if red_ammo_free else Reason.WIN
-        self._rewards['win'] = reward
+        reward = -self.win_reward if not red_fly_missile else self.win_reward
+        reason = Reason.LOSE if not red_fly_missile else Reason.WIN
+        self._rewards[Reward.WIN] = reward
       else:
         if self.red_agent_loc[0]['X'] >= 150000 or self.red_agent_loc[0]['Y'] >= 150000:
           done = True
@@ -806,7 +817,7 @@ class HuaRu5v5(EnvRunner):
           done = False
           reward = 0
           reason = Reason.IN_PROGRESS
-        self._rewards['win'] = reward
+        self._rewards[Reward.WIN] = reward
 
     return done, reward, reason
 

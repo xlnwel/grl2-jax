@@ -61,8 +61,7 @@ class AloAgent(Agent):
     
     def reset(self, **kwargs):
         """当引擎重置会调用,选手需要重写此方法,来实现重置的逻辑"""
-        pass
-        print(f'Init agents speed....')
+        # print(f'Init agents speed....')
         self.cur_agents_speed = [fly_config[0]['move_max_speed'], fly_config[1]['move_max_speed'], 
                                   fly_config[1]['move_max_speed'], fly_config[1]['move_max_speed'], 
                                   fly_config[1]['move_max_speed']
@@ -346,25 +345,11 @@ class AloAgent(Agent):
 
 
 
-    def make_init_cmd(self):
+    def make_init_cmd(self, RED_INFO, INIT_LOC):
         """
             制作初始化位置训练仿照HR1，有人机在最后方
             :params parse_msg: 使用红方ID
         """
-        RED_INFO = {
-            0: {'Name': '红有人机', 'ID': 1},
-            1: {'Name': '红无人机1', 'ID': 2},
-            2: {'Name': '红无人机2', 'ID': 11},
-            3: {'Name': '红无人机3', 'ID': 12},
-            4: {'Name': '红无人机4', 'ID': 13},
-        }
-        INIT_LOC = {
-            0: {'X': -150000, 'Y': 10000, 'Z': 9000},
-            1: {'X': -135000, 'Y': 10000, 'Z': 9000},
-            2: {'X': -125000, 'Y': 10000, 'Z': 9000},
-            3: {'X': -135000, 'Y': -10000, 'Z': 9000},
-            4: {'X': -125000, 'Y': -10000, 'Z': 9000},
-        }
         global fly_config
         cmd_list = []
         for ia in range(5):
