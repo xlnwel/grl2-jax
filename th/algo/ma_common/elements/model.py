@@ -1,7 +1,7 @@
 import numpy as np
-from jax.tree_util import tree_map
 import torch
 
+from tools.utils import tree_map
 from th.core.elements.model import Model as ModelCore
 from th.core.typing import AttrDict, dict2AttrDict
 from th.nn.layers import LSTMState
@@ -84,6 +84,7 @@ class MAModelBase(ModelCore):
     for v in self.config.values():
       if isinstance(v, dict):
         has_rnn = v.rnn_type is not None
+      if has_rnn:
         break
     return has_rnn
 

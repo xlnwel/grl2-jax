@@ -2,7 +2,6 @@ import numpy as np
 from typing import Dict, Union, List, Tuple
 import torch
 from torch import nn
-from jax.tree_util import tree_map
 
 from tools.log import do_logging
 from th.core.names import MODEL
@@ -11,6 +10,7 @@ from th.core.typing import AttrDict, dict2AttrDict
 from th.core.utils import tpdv
 from th.nn.func import create_network
 from th.tools.th_utils import to_tensor
+from tools.utils import tree_map
 
 
 class Model(ParamsCheckpointBase):

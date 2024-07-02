@@ -3,11 +3,17 @@ import torch
 from th.tools import th_math, th_utils
 
 
-def to_loss(raw_stats, coef, mask=None, axis=None):
+def to_loss(
+  raw_stats, 
+  coef, 
+  mask=None, 
+  replace=0, 
+  axis=None
+):
   if coef is None:
     coef = 0
   scaled_loss = coef * raw_stats
-  loss = th_math.mask_mean(scaled_loss, mask, axis=axis)
+  loss = th_math.mask_mean(scaled_loss, mask, replace=replace, axis=axis)
   return scaled_loss, loss
 
 
@@ -133,11 +139,14 @@ def gae(
     th_utils.time_major(reward, value, next_value, discount, reset, axis=axis)
 
   gae_discount = gamma * lam
+  # Calculate the temporal difference error
   delta = reward + discount * gamma * next_value - value
+  # Adjust discount based on reset
   discount = (discount if reset is None else (1 - reset)) * gae_discount
 
   err = 0.
   advs = []
+  # Compute advantages in a reversed order loop
   for i in reversed(range(delta.shape[0])):
     err = delta[i] + discount[i] * err
     advs.append(err)
@@ -322,9 +331,9 @@ def is_pg_loss(*, advantage, ratio):
   return loss
 
 
-def entropy_loss(*, entropy_coef, entropy, mask=None):
+def entropy_loss(*, entropy_coef, entropy, mask=None, replace=None):
   scaled_entropy_loss, entropy_loss = to_loss(
-    -entropy, entropy_coef, mask=mask, 
+    -entropy, entropy_coef, mask=mask, replace=replace
   )
 
   return scaled_entropy_loss, entropy_loss
@@ -367,7 +376,7 @@ def joint_ppo_loss(
   clip_range, 
   mask=None, 
 ):
-  if mask is not None and n is None:
+  if mask is not None:
     mask = torch.prod(mask, axis=-1)
   if joint_ratio is None:
     joint_ratio = torch.prod(ratio, axis=-1)

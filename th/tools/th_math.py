@@ -49,8 +49,6 @@ def standard_normalization(
   if zero_center:
     x = x - mean
   x = x / std
-  if mask is not None:
-    x = torch.where(mask.to(bool), x, 0)
 
   return x
 
@@ -62,7 +60,7 @@ def clip(x, clip: Union[int, float, Dict]):
     else:
       pos = clip
       neg = -clip
-    x = torch.clamp(x, neg, pos)
+    x = x.clamp(neg, pos)
 
   return x
 

@@ -59,7 +59,10 @@ def huber_loss(x, *, y=None, threshold=1.):
   if y is not None:   # if y is passed, take x-y as error, otherwise, take x as error
     x = x - y
   x = lax.abs(x)
-  loss = jnp.where(x < threshold, 0.5 * lax.square(x), threshold * (x - 0.5 * threshold))
+  loss = jnp.where(
+    x < threshold, 
+    0.5 * lax.square(x), 
+    threshold * (x - 0.5 * threshold))
 
   return loss
 
@@ -367,51 +370,29 @@ def compute_target_advantage(
   return v_target, advantage
 
 
-def pg_loss(
-  *, 
-  advantage, 
-  logprob, 
-):
+def pg_loss(*, advantage, logprob):
   jax_assert.assert_shape_compatibility([advantage, logprob])
   pg = - advantage * logprob
 
   return pg
 
 
-def is_pg_loss(
-  *, 
-  advantage, 
-  ratio
-):
+def is_pg_loss(*, advantage, ratio):
   jax_assert.assert_shape_compatibility([advantage, ratio])
   loss = - advantage * ratio
   return loss
 
 
-def entropy_loss(
-  *, 
-  entropy_coef, 
-  entropy, 
-  mask=None, 
-  replace=None
-):
+def entropy_loss(*, entropy_coef, entropy, mask=None, replace=None):
   jax_assert.assert_shape_compatibility([entropy, mask])
   scaled_entropy_loss, entropy_loss = to_loss(
-    -entropy, 
-    entropy_coef, 
-    mask=mask, 
-    replace=replace
+    -entropy, entropy_coef, mask=mask, replace=replace
   )
 
   return scaled_entropy_loss, entropy_loss
 
 
-def ppo_loss(
-  *, 
-  advantage, 
-  ratio, 
-  clip_range, 
-):
+def ppo_loss(*, advantage, ratio, clip_range):
   jax_assert.assert_shape_compatibility([advantage, ratio])
   pg_loss, clipped_loss = _compute_ppo_policy_losses(
     advantage, ratio, clip_range)

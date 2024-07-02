@@ -33,6 +33,8 @@ class ElementsBuilder:
       get_env_stats(self.config.env) if env_stats is None else env_stats)
     self.name = name
     self.max_steps = max_steps
+    self.dllib = self.config.get('dllib', DL_LIB.JAX)
+    assert self.dllib in (DL_LIB.JAX, DL_LIB.TORCH), self.dllib
 
     assert self.config.root_dir is not None, self.config
     assert self.config.model_name is not None, self.config
@@ -452,8 +454,11 @@ class ElementsBuilder:
 
   """ Implementations"""
   def _import_element(self, name, algo=None):
+    # module = pkg.import_module(
+    #     f'elements.{name}', algo=algo, dllib=self.dllib)
     try:
-      module = pkg.import_module(f'elements.{name}', algo=algo)
+      module = pkg.import_module(
+        f'elements.{name}', algo=algo, dllib=self.dllib)
     except Exception as e:
       level = 'info' if name == 'agent' else 'pwc'
       do_logging(
@@ -462,7 +467,8 @@ class ElementsBuilder:
       do_logging(
         "You are safe to neglect it if it's an intended behavior. ", 
         level=level, backtrack=4)
-      module = pkg.import_module(f'elements.{name}', pkg='core')
+      _pkg = 'th.core' if self.dllib == DL_LIB.TORCH else 'core'
+      module = pkg.import_module(f'elements.{name}', pkg=_pkg)
     return module
 
 

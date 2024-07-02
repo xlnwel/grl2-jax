@@ -4,7 +4,7 @@ from datetime import datetime
 import subprocess
 
 from run.args import parse_train_args
-from run.utils import load_config_with_algo_env
+from tools.file import load_config_with_algo_env
 
 
 def _args2str(args: argparse.Namespace):

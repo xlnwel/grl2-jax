@@ -3,9 +3,10 @@ import importlib
 import ray
 
 from core.elements.builder import ElementsBuilder
-from core.names import ANCILLARY
+from core.names import ANCILLARY, DL_LIB
 from core.typing import get_basic_model_name
 from core.utils import configure_jax_gpu, set_seed, save_code_for_seed
+from th.core.utils import configure_torch_gpu
 from envs.utils import divide_env_output
 from tools.display import print_dict
 from tools.log import do_logging
@@ -172,7 +173,8 @@ def train(
   )
   init_running_stats(agents, runner, n_steps=routine_config.n_steps)
   algo = agents[0].name
-  pkg = get_package('algo', algo)
+  root_dir = DL_LIB.TORCH if agents[0].dllib == DL_LIB.TORCH else None
+  pkg = get_package(root_dir, 'algo', algo)
   prepare_buffer = importlib.import_module(f'{pkg}.run').prepare_buffer
 
   while env_step < routine_config.MAX_STEPS:
@@ -186,12 +188,15 @@ def train(
 
 def main(configs, train=train, Runner=Runner):
   config = configs[0]
+  if config.dllib == 'jax':
+    configure_jax_gpu()
+  else:
+    configure_torch_gpu(0)
   if config.routine.compute_return_at_once:
     config.buffer.sample_keys += ['advantage', 'v_target']
   seed = config.get('seed')
-  set_seed(seed)
+  set_seed(seed, config.dllib)
 
-  configure_jax_gpu()
   use_ray = config.env.get('n_runners', 1) > 1
   if use_ray:
     from tools.ray_setup import sigint_shutdown_ray

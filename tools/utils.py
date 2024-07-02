@@ -29,6 +29,18 @@ def is_empty(x):
   else:
     return False
 
+def tree_map(func, tree):
+  if tree is None:
+    return tree
+  elif isinstance(tree, (list, tuple)):
+    return type(tree)(tree_map(func, x) for x in tree)
+  elif isinstance(tree, AttrDict):
+    return AttrDict(dict= {k: tree_map(func, v) for k, v in tree.items()})
+  elif isinstance(tree, dict):
+    return {k: tree_map(func, v) for k, v in tree.items()}
+  else:
+    return func(tree)
+
 def deep_update(source: dict, target: dict):
   for k, v in target.items():
     if isinstance(v, collections.abc.Mapping):

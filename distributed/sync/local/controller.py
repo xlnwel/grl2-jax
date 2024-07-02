@@ -52,6 +52,7 @@ class Controller(ControllerBase):
           remote_buffers=self.agent_manager.get_agents(), 
           active_models=self.active_models
         )
+        agent_manager.clear_buffer()
       # In order to use the following line 
       # first make sure buffer is succeessfully merged
       # agent_manager.train()

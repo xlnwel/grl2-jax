@@ -1,10 +1,12 @@
-import os, shutil
+import os
 import random
+import shutil
 import numpy as np
 import jax
 
-from tools.log import do_logging
 from core.typing import ModelPath, get_basic_model_name
+from core.names import DL_LIB
+from tools.log import do_logging
 from tools import yaml_op
 
 
@@ -20,7 +22,6 @@ def configure_jax_gpu(idx=-1):
   import tensorflow as tf
   # tf.config.experimental.set_visible_devices([], 'GPU')
   gpus = tf.config.list_physical_devices('GPU')
-  tf.config.experimental.set_visible_devices(gpus, 'GPU')
   n_gpus = len(gpus)
   if idx is None or n_gpus == 0:
     jax.config.update('jax_platforms', 'cpu')
@@ -35,6 +36,7 @@ def configure_jax_gpu(idx=-1):
       # memory growth
       for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
+      tf.config.experimental.set_visible_devices(gpus, 'GPU')
       logical_gpus = tf.config.experimental.list_logical_devices('GPU')
       do_logging(f'{n_gpus} Physical GPUs, {len(logical_gpus)} Logical GPU', color='red')
     except RuntimeError as e:
@@ -48,10 +50,16 @@ def get_jax_device():
   device = jax.devices()
   return device
 
-def set_seed(seed: int=None):
+def set_seed(seed: int=None, dllib=DL_LIB.JAX):
   if seed is not None:
     random.seed(seed)
     np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    if dllib == DL_LIB.TORCH:
+      import torch
+      torch.manual_seed(seed)
+      torch.cuda.manual_seed(seed)
+      torch.cuda.manual_seed_all(seed)
   do_logging(f'seed={seed}', backtrack=3, level='info')
 
 def save_code(model_path: ModelPath, backtrack=3):

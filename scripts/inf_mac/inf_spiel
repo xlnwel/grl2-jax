@@ -73,4 +73,4 @@ for a1 in "${args1[@]}"; do
 done
 
 # python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-spiel -p $1 -s 0 \
-#     -kw max_steps_per_iteration=1000 max_version_iterations=1 n_runners=1
+#     -kw max_steps_per_iteration=1000 max_pbt_iterations=1 n_runners=1

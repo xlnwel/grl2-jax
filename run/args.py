@@ -18,7 +18,7 @@ def parse_train_args():
     nargs='*',
     default=[])
   parser.add_argument(
-    '--algo_package', '-ap', 
+    '--dllib', '-dl', 
     type=str, 
     default=None, 
     help='package where the algorithm is located. '

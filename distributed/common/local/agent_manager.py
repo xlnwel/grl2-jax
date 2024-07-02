@@ -66,6 +66,9 @@ class AgentManager(ManagerBase):
   def train(self, wait=True):
     return self._remote_call(self.agents, 'train', wait=wait)
 
+  def clear_buffer(self, wait=True):
+    return self._remote_call(self.agents, 'clear_buffer', wait=wait)
+
   """ Hanlder Registration """
   def register_handler(self, wait=True, **kwargs):
     self._remote_call_with_args(

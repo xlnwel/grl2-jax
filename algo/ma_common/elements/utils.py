@@ -2,6 +2,7 @@ import numpy as np
 import jax
 from jax import lax
 import jax.numpy as jnp
+from jax.tree_util import tree_map
 
 from core.names import DEFAULT_ACTION, PATH_SPLIT
 from core.typing import AttrDict
@@ -12,11 +13,11 @@ from jax_tools import jax_assert, jax_math, jax_loss, jax_utils
 UNIT_DIM = 2
 
 def get_initial_state(state, i):
-  return jax.tree_util.tree_map(lambda x: x[:, i], state)
+  return tree_map(lambda x: x[:, i], state)
 
 
 def reshape_for_bptt(*args, bptt):
-  return jax.tree_util.tree_map(
+  return tree_map(
     lambda x: x.reshape(-1, bptt, *x.shape[2:]), args
   )
 
@@ -70,7 +71,7 @@ def compute_policy_dist(model, params, rng, data, state, bptt):
     data, state = reshape_for_bptt(data, state, bptt=bptt)
     state = get_initial_state(state, 0)
     act_outs = model.forward_policy(params, rng, data, state, return_state=False)
-    act_outs = jax.tree_util.tree_map(
+    act_outs = tree_map(
       lambda x: x.reshape(*shape, -1) if x.ndim > len(shape) else x, act_outs
     )
   act_dists = model.policy_dist(act_outs)
@@ -162,10 +163,7 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
   if raw_pg_loss.ndim == 4:   # reduce the action dimension for continuous actions
     raw_pg_loss = jnp.sum(raw_pg_loss, axis=-1)
   scaled_pg_loss, pg_loss = jax_loss.to_loss(
-    raw_pg_loss, 
-    stats.pg_coef, 
-    mask=sample_mask, 
-    replace=None
+    raw_pg_loss, stats.pg_coef, mask=sample_mask, replace=None
   )
   stats.raw_pg_loss = raw_pg_loss
   stats.scaled_pg_loss = scaled_pg_loss
@@ -191,11 +189,12 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
   if sample_mask is not None:
     sample_mask = expand_shape_match(sample_mask, stats.ratio, np=jnp)
   clip_frac = jax_math.mask_mean(
-    lax.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2), sample_mask
+    lax.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2), 
+    sample_mask, replace=None
   )
   stats.clip_frac = clip_frac
   stats.approx_kl = jax_math.mask_mean(
-    .5 * (data.mu_logprob - stats.pi_logprob)**2, sample_mask
+    .5 * (data.mu_logprob - stats.pi_logprob)**2, sample_mask, replace=None
   )
 
   return loss, stats
@@ -255,12 +254,6 @@ def record_target_adv(stats):
 
 
 def record_policy_stats(data, stats, act_dists):
-  # stats.diff_frac = jax_math.mask_mean(
-  #   lax.abs(stats.pi_logprob - data.mu_logprob) > 1e-5, 
-  #   data.sample_mask)
-  # stats.approx_kl = .5 * jax_math.mask_mean(
-  #   (stats.log_ratio)**2, data.sample_mask)
-  # stats.approx_kl_max = jnp.max(.5 * (stats.log_ratio)**2)
   if len(act_dists) == 1:
     stats.update(act_dists[DEFAULT_ACTION].get_stats(prefix='pi'))
   else:

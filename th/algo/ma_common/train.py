@@ -8,29 +8,6 @@ from tools.log import do_logging
 from tools.utils import modify_config
 from tools.timer import timeit, Every
 from algo.ma_common.train import *
-from th.core.elements.builder import ElementsBuilder
-
-
-@timeit
-def build_agent(config, env_stats, aid=0, rename_model_name=True, 
-                save_monitor_stats_to_disk=True, save_config=True):
-  if rename_model_name:
-    model_name = get_basic_model_name(config.model_name)
-    new_model_name = os.path.join(model_name, f'a{aid}')
-    modify_config(config, model_name=new_model_name)
-  builder = ElementsBuilder(
-    config, 
-    env_stats, 
-    to_save_code=False, 
-    max_steps=config.routine.MAX_STEPS
-  )
-  elements = builder.build_agent_from_scratch(
-    save_monitor_stats_to_disk=save_monitor_stats_to_disk, 
-    save_config=save_config
-  )
-  agent = elements.agent
-
-  return agent
 
 
 def train(
@@ -48,7 +25,7 @@ def train(
   )
   init_running_stats(agents, runner, n_steps=routine_config.n_steps)
   algo = agents[0].name
-  prepare_buffer = importlib.import_module(f'algo_th.{algo}.run').prepare_buffer
+  prepare_buffer = importlib.import_module(f'th.algo.{algo}.run').prepare_buffer
 
   while env_step < routine_config.MAX_STEPS:
     env_step = env_run(agents, runner, routine_config, prepare_buffer)
@@ -62,7 +39,7 @@ def train(
 def main(configs, train=train, Runner=Runner):
   config = configs[0]
   device = configure_torch_gpu(0)
-  
+  config = modify_config(config, device=device)
   if config.routine.compute_return_at_once:
     config.buffer.sample_keys += ['advantage', 'v_target']
   seed = config.get('seed')
@@ -82,14 +59,16 @@ def main(configs, train=train, Runner=Runner):
 
   env_stats = runner.env_stats()
   env_stats.n_envs = config.env.n_runners * config.env.n_envs
-  do_logging(env_stats, prefix='Env stats', level='info')
+  do_logging(env_stats, prefix='Env stats')
 
   save_code_for_seed(config)
-  agents = []
-  for aid, config in enumerate(configs):
-    config.model.device = device
-    config.trainer.device = device
-    agents.append(build_agent(config, env_stats, aid=aid))
+  n_agents = max(env_stats.n_agents, len(configs))
+  if len(configs) < n_agents:
+    agents = [build_agent(config, env_stats, aid=aid) 
+              for aid in range(n_agents)]
+  else:
+    agents = [build_agent(config, env_stats, aid=aid) 
+              for aid, config in enumerate(configs)]
 
   routine_config = config.routine.copy()
   train(agents, runner, routine_config)

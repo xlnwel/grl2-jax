@@ -1,8 +1,28 @@
 import numpy as np
 
 from th.tools.th_utils import to_numpy
-from algo.ppo.elements.utils import compute_gae
 from algo.ma_common.run import Runner
+
+
+def compute_gae(reward, discount, value, gamma, gae_discount, 
+                next_value=None, reset=None):
+  if next_value is None:
+    value, next_value = value[:, :-1], value[:, 1:]
+  elif next_value.ndim < value.ndim:
+    next_value = np.expand_dims(next_value, 1)
+    next_value = np.concatenate([value[:, 1:], next_value], 1)
+  assert reward.shape == discount.shape == value.shape == next_value.shape, (reward.shape, discount.shape, value.shape, next_value.shape)
+  
+  delta = (reward + discount * gamma * next_value - value).astype(np.float32)
+  discount = (discount if reset is None else (1 - reset)) * gae_discount
+  
+  next_adv = 0
+  advs = np.zeros_like(reward, dtype=np.float32)
+  for i in reversed(range(advs.shape[1])):
+    advs[:, i] = next_adv = (delta[:, i] + discount[:, i] * next_adv)
+  traj_ret = advs + value
+
+  return advs, traj_ret
 
 
 def prepare_buffer(

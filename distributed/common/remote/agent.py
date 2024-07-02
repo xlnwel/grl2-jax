@@ -106,6 +106,9 @@ class Agent(RayBase):
   def merge_data(self, rid, data, n):
     self.buffer.merge_data(rid, data, n)
 
+  def clear_buffer(self):
+    self.buffer.clear()
+
   def is_buffer_ready(self):
     return self.buffer.ready()
 

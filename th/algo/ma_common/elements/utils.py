@@ -1,12 +1,11 @@
 import numpy as np
 import torch
-from jax.tree_util import tree_map
+from torch.utils._pytree import tree_map
 
 from core.names import DEFAULT_ACTION, PATH_SPLIT
 from core.typing import AttrDict
-from tools.utils import expand_shape_match, except_axis
-from th.tools.th_utils import split_data
-from th.tools import th_loss, th_math
+from tools.utils import expand_shape_match
+from th.tools import th_loss, th_math, th_utils
 
 UNIT_DIM = 2
 
@@ -159,7 +158,7 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
   if raw_pg_loss.ndim == 4:   # reduce the action dimension for continuous actions
     raw_pg_loss = raw_pg_loss.sum(-1)
   scaled_pg_loss, pg_loss = th_loss.to_loss(
-    raw_pg_loss, stats.pg_coef, mask=sample_mask, 
+    raw_pg_loss, stats.pg_coef, mask=sample_mask, replace=None
   )
   stats.raw_pg_loss = raw_pg_loss
   stats.scaled_pg_loss = scaled_pg_loss
@@ -173,6 +172,7 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
     entropy_coef=entropy_coef, 
     entropy=entropy, 
     mask=sample_mask, 
+    replace=None
   )
   stats.entropy = entropy
   stats.scaled_entropy_loss = scaled_entropy_loss
@@ -185,7 +185,8 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
     sample_mask = expand_shape_match(sample_mask, stats.ratio, np=torch)
   clip_frac = th_math.mask_mean(
     torch.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2), 
-    sample_mask, replace=None)
+    sample_mask, replace=None
+  )
   stats.clip_frac = clip_frac
   stats.approx_kl = th_math.mask_mean(
     .5 * (data.mu_logprob - stats.pi_logprob)**2, sample_mask, replace=None
@@ -212,7 +213,7 @@ def compute_vf_loss(config, data, stats):
   elif value_loss_type == 'mse':
     raw_value_loss = .5 * (stats.value - v_target)**2
   elif value_loss_type == 'clip' or value_loss_type == 'clip_huber':
-    old_value, _ = split_data(
+    old_value, _ = th_utils.split_data(
       data.value, data.next_value, axis=1
     )
     raw_value_loss, stats.v_clip_frac = th_loss.clipped_value_loss(
@@ -230,6 +231,7 @@ def compute_vf_loss(config, data, stats):
     raw_value_loss, 
     coef=stats.value_coef, 
     mask=sample_mask, 
+    replace=None
   )
   
   stats.scaled_value_loss = scaled_value_loss
@@ -247,12 +249,6 @@ def record_target_adv(stats):
 
 
 def record_policy_stats(data, stats, act_dists):
-  # stats.diff_frac = math.mask_mean(
-  #   lax.abs(stats.pi_logprob - data.mu_logprob) > 1e-5, 
-  #   data.sample_mask)
-  # stats.approx_kl = .5 * math.mask_mean(
-  #   (stats.log_ratio)**2, data.sample_mask)
-  # stats.approx_kl_max = jnp.max(.5 * (stats.log_ratio)**2)
   if len(act_dists) == 1:
     stats.update(act_dists[DEFAULT_ACTION].get_stats(prefix='pi'))
   else:

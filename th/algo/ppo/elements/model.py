@@ -1,14 +1,15 @@
 import os
 import torch
-from jax.tree_util import tree_map
+from torch.utils._pytree import tree_map
 
 from envs.utils import get_action_mask
 from th.core.names import DEFAULT_ACTION
 from th.core.typing import AttrDict, dict2AttrDict
 from th.tools.th_utils import to_tensor
-from algo_th.ma_common.elements.model import MAModelBase, \
+from th.algo.ma_common.elements.model import MAModelBase, \
   setup_config_from_envstats, construct_fake_data
 from tools.file import source_file
+
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
@@ -32,7 +33,8 @@ class Model(MAModelBase):
   def action(self, data, evaluation):
     if 'global_state' not in data:
       data.global_state = data.obs
-    return super().action(data, evaluation)
+    action, stats, state = super().action(data, evaluation)
+    return action, stats, state
 
   @torch.no_grad()
   def raw_action(self, data, evaluation=False):
@@ -68,7 +70,7 @@ class Model(MAModelBase):
           stats.mu_logprob = stats.mu_logprob + lp
         
       value, state.value = self.forward_value(data, state.value)
-      stats['value'] = value
+      stats.value = value
     if self.has_rnn:
       # squeeze the sequential dimension
       action, stats = tree_map(
@@ -131,7 +133,7 @@ if __name__ == '__main__':
   from envs.func import create_env
   from th.core.utils import set_seed
   set_seed(50)
-  config = load_config('algo_th/ppo/configs/template')
+  config = load_config('th.algo/ppo/configs/template')
   
   env = create_env(config.env)
   config.model.root_dir = 'debug/root'

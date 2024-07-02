@@ -7,9 +7,7 @@ from envs.utils import get_action_mask
 from core.names import DEFAULT_ACTION
 from core.typing import AttrDict, dict2AttrDict
 from nn.utils import reset_weights
-from tools.display import print_dict_info
 from tools.file import source_file
-from tools.utils import batch_dicts
 from algo.ma_common.elements.model import *
 
 

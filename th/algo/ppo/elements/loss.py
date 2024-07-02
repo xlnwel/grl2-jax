@@ -2,12 +2,13 @@ from envs.utils import get_action_mask
 from th.core.names import TRAIN_AXIS
 from th.core.elements.loss import LossBase
 from th.core.typing import dict2AttrDict
-from th.tools.th_loss import compute_target_advantage
+from th.tools import th_loss
 from .utils import *
 
 
 class Loss(LossBase):
   def loss(self, data):
+    data = data.copy()
     stats = dict2AttrDict(self.config.stats, to_copy=True)
 
     if data.sample_mask is not None:
@@ -36,7 +37,7 @@ class Loss(LossBase):
       else:
         value = stats.value.detach()
 
-      stats.raw_v_target, stats.raw_adv = compute_target_advantage(
+      stats.raw_v_target, stats.raw_adv = th_loss.compute_target_advantage(
         config=self.config, 
         reward=data.reward, 
         discount=data.discount, 
@@ -55,13 +56,14 @@ class Loss(LossBase):
     stats.v_target = stats.v_target.detach()
     stats = record_target_adv(stats)
     stats.advantage = norm_adv(
-      self.config, stats.raw_adv, 
+      self.config, 
+      stats.raw_adv, 
+      sample_mask=data.sample_mask, 
       epsilon=self.config.get('epsilon', 1e-5)
     )
 
     actor_loss, stats = compute_actor_loss(
-      self.config, data, stats, act_dists=act_dists, 
-      entropy_coef=stats.entropy_coef
+      self.config, data, stats, act_dists, stats.entropy_coef
     )
 
     value_loss, stats = compute_vf_loss(self.config, data, stats)

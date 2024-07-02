@@ -33,7 +33,7 @@ For stable simulators, `python run/train.py` is still the recommanded way to go.
 
 ```shell
 python run/train.py -a ppo -e template-temp -c template template  # two agents playing against each other
-python run/train.py -a ppo -e template-temp -c template
+python run/train.py -a ppo -e template-temp -c template -kw uid2aid=0,0 uid2gid=0,0
 python run/train.py -a async-ppo -e template-temp -c template     # self-play
 ```
 

@@ -38,4 +38,7 @@ class TRAIN_AXIS:
 class INFER_AXIS:
   BATCH = 0
   UNIT = 1
-  
+
+class DL_LIB:
+  TORCH = 'th'
+  JAX = 'jax'

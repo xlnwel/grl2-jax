@@ -1,4 +1,3 @@
-import numpy as np
 from jax import lax, nn
 import jax.numpy as jnp
 import haiku as hk
@@ -20,8 +19,8 @@ class Policy(hk.Module):
     is_action_discrete, 
     action_dim, 
     out_act=None, 
-    init_std=1., 
-    sigmoid_scale=False, 
+    init_std=.2, 
+    sigmoid_scale=True, 
     std_x_coef=1., 
     std_y_coef=.5, 
     use_action_mask={DEFAULT_ACTION: False}, 

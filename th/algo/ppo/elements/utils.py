@@ -1,6 +1,6 @@
 from tools.utils import except_axis
 from th.tools import th_math
-from algo_th.ma_common.elements.utils import *
+from th.algo.ma_common.elements.utils import *
 
 
 def norm_adv(

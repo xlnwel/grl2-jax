@@ -142,7 +142,8 @@ def setup_configs(cmd_args, algo_env_config):
     model_name = model_name_base
     do_logging(f'Setup configs for algo({algo}) and env({env})', color='yellow')
     algo = _get_algo_name(algo)
-    config = load_config_with_algo_env(algo, env, config, cmd_args.algo_package)
+    config = load_config_with_algo_env(algo, env, config, cmd_args.dllib)
+    config.dllib = cmd_args.dllib
     if cmd_args.new_kw:
       for s in cmd_args.new_kw:
         key, value = s.split('=', 1)
@@ -205,7 +206,7 @@ def _run_with_configs(cmd_args):
 
   main = pkg.import_main(
     cmd_args.train_entry, cmd_args.algorithms[0], 
-    algo_package=cmd_args.algo_package
+    dllib=cmd_args.dllib
   )
   if cmd_args.grid_search or cmd_args.trials > 1:
     assert len(configs) == 1, 'No support for multi-agent grid search.'
@@ -226,6 +227,8 @@ if __name__ == '__main__':
   processes = []
   if cmd_args.directory != '':
     configs = [search_for_config(d) for d in cmd_args.directory]
+    for config in configs:
+      config.cpu_only = cmd_args.cpu
     main = pkg.import_main(cmd_args.train_entry, config=configs[0])
     main(configs)
   else:

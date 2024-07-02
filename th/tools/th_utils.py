@@ -1,6 +1,6 @@
 import numpy as np
-from jax.tree_util import tree_map
 import torch
+from tools.utils import tree_map
 
 
 def to_tensor(data, tpdv):

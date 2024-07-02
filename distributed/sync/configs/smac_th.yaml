@@ -1,10 +1,12 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo ppo
-name: ppo
-info: ppo
+algorithm: &algo sync-ppo
+name: sync-ppo
+version: 0
 
 precision: 32
+
+n_agents: 1
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -12,38 +14,47 @@ precision: 32
 root_dir: *algo
 model_name: *algo
 
-routine:
-  algorithm: *algo
+controller:
+  store_period: 5e4
+  restart_runners_period: null
+  max_pbt_iterations: 1
+  max_steps_per_iteration: 3e7
+  initialize_rms: &irms True
 
-  MAX_STEPS: 1e7
-  n_steps: &nsteps 200
-  LOG_PERIOD: 5e4
-  EVAL_PERIOD: null
+parameter_server:
+  root_dir: *algo
+  model_name: *algo
 
-  RECORD_VIDEO: False
-  N_EVAL_EPISODES: 1
-  size: [256, 256]
+  train_from_scratch_frac: 1
+  online_frac: .2
 
-  compute_return_at_once: False
-  perm: null
+  payoff:
+    step_size: 1e-2   # step size towards the most recent data, 0 or null average payoff over the entire history
+    update_interval: 180
+    sampling_strategy:
+      type: pfsp
+      p: 1
+
+ray_config:
+  runner:
+    num_cpus: 1
+    num_gpus: 0
+  agent:
+    num_gpus: 0
+
+monitor: {}
+
+runner:
+  n_runners: &nrunners 8
+  n_steps: &nsteps 400
 
 env:
-  env_name: &env_name smac-3s_vs_5z
-  n_runners: &nrunners 20
+  env_name: &env_name smac-3s5z_vs_3s6z
   n_envs: &nenvs 1
   timeout_done: &td False
   sample_mask_at_done: 0
   use_state_agent: True
   shared_policy: True
-  frame_skip: 5
-  lock_reward_scale: 0
-  damage_reward_scale: 5
-  escape_reward_scale: 5
-  attack_reward_scale: 5
-  miss_reward_scale: 0
-  distance_reward_scale: .01
-  border_reward_scale: .5
-  win_reward: 20
 
 agent: {}
 
@@ -60,29 +71,33 @@ model:
 
   policy:
     nn_id: policy
-    units_list: [64, 64]
+    units_list: [128, 128]
     w_init: orthogonal
     activation: relu
     norm: layer
     norm_after_activation: True
     out_scale: .01
-    rnn_type: &prnn lstm
-    rnn_units: 64
-    rnn_init: null
+    rnn_type: &prnn null
+    rnn_units: 128
+    rnn_layers: 1
+    rnn_init: orthogonal
     rnn_norm: layer
-    use_feature_norm: False
+    use_feature_norm: True
   value:
     nn_id: value
-    units_list: [64, 64]
+    units_list: [128, 128]
     w_init: orthogonal
     activation: relu
     norm: layer
     norm_after_activation: True
-    rnn_type: &vrnn lstm
-    rnn_units: 64
-    rnn_init: null
+    rnn_type: &vrnn null
+    rnn_units: 128
+    rnn_init: orthogonal
     rnn_norm: layer
-    use_feature_norm: False
+    use_feature_norm: True
+  vnorm:
+    nn_id: vnorm
+    axis: [0, 1]
 
 loss:
   # hyperparams for value target and advantage
@@ -123,17 +138,16 @@ trainer:
   n_mbs: &nmbs 1
   n_steps: *nsteps
   popart: *popart
+  clip_norm: 10
   debug: False
 
   policy_opt:
-    opt_name: adam
+    opt_name: Adam
     lr: 5e-4
-    clip_norm: 10
     eps: 1e-5
   value_opt:
-    opt_name: adam
+    opt_name: Adam
     lr: 5e-4
-    clip_norm: 10
     eps: 1e-5
 
 actor:
@@ -144,7 +158,7 @@ actor:
       obs_names: [obs, global_state]
       obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
       obs_normalized_ndim: 2
-      normalize_obs: True
+      normalize_obs: False
       use_feature_mask: True
       obs_clip: 10
     reward:
@@ -167,9 +181,7 @@ buffer:
   lam: *lam
 
   sample_keys: 
-    - raw_obs
     - obs
-    - raw_global_state
     - global_state
     - action
     - action_mask
@@ -179,7 +191,3 @@ buffer:
     - discount
     - reset
     - sample_mask
-    - mu_logprob
-    - mu_logits
-    - state_reset
-    - state

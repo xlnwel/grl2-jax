@@ -7,7 +7,6 @@ from core.names import PATH_SPLIT
 from core.elements.monitor import Monitor
 from core.typing import ModelPath, get_algo, AttrDict, ModelWeights
 from tools.decorator import *
-from tools.file import search_for_config
 from tools.log import do_logging
 from tools.file import search_for_config
 
@@ -25,6 +24,7 @@ class Agent:
     builder: ElementsBuilder=None
   ):
     self.config = config
+    self.dllib = config.get('dllib', 'jax')
     self._name = name
     self._model_path = ModelPath(config.root_dir, config.model_name)
     if isinstance(strategy, dict):
@@ -96,8 +96,7 @@ class Agent:
       if algo not in self.strategies:
         self.strategies[algo] = \
           self.builder.build_rule_based_strategy(
-            env, 
-            strategy.weights
+            env, strategy.weights
           )
       self.monitor.reset_model_path(None)
     else:
