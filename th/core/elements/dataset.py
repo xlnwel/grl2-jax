@@ -1,7 +1,6 @@
 import logging
 import functools
 import collections
-import torch
 import numpy as np
 
 from tools.log import do_logging

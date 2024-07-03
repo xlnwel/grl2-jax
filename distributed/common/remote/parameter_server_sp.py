@@ -44,10 +44,9 @@ class SPParameterServer(RayBase):
   def __init__(
     self, 
     config: dict,  
-    to_restore_params=True, 
     name='parameter_server',
   ):
-    super().__init__(seed=config.get('seed'))
+    super().__init__(config=config)
     config = dict2AttrDict(config, to_copy=True)
     self.config = config.parameter_server
     self.score_metrics = self.config.get('score_metrics', ScoreMetrics.SCORE)
@@ -81,7 +80,7 @@ class SPParameterServer(RayBase):
     self.pool_path = os.path.join(self.pool_dir, f'{self.pool_name}.yaml')
 
     self._params: Dict[ModelPath, Dict] = {}
-    self._prepared_strategies: List[List[ModelWeights]] = \
+    self.prepared_strategies: List[List[ModelWeights]] = \
       [[None for _ in range(2)] for _ in range(self.n_runners)]
     self._reset_ready()
 
@@ -123,7 +122,7 @@ class SPParameterServer(RayBase):
     config = dict2AttrDict(configs[0])
     model = os.path.join(config["root_dir"], config["model_name"])
     os.makedirs(model, exist_ok=True)
-    self._builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
+    self.builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
 
   """ Strategy Pool Management """
   def save_strategy_pool(self):
@@ -240,11 +239,11 @@ class SPParameterServer(RayBase):
     if rid < 0:
       if not all(self._ready):
         return None
-      strategies = self._prepared_strategies
+      strategies = self.prepared_strategies
     else:
       if not self._ready[rid]:
         return None
-      strategies = self._prepared_strategies[rid]
+      strategies = self.prepared_strategies[rid]
     self._reset_prepared_strategy(rid)
     return strategies
 
@@ -291,14 +290,14 @@ class SPParameterServer(RayBase):
   def _prepare_recent_models(self, mid):
     # prepare the most recent model for the first n_runners runners
     for rid in range(self._n_online_runners):
-      self._prepared_strategies[rid] = [mid, mid]
+      self.prepared_strategies[rid] = [mid, mid]
       self._ready[rid] = True
 
   def _prepare_historical_models(self, mid, model):
     mids = self._get_historical_mids(mid, model)
     assert len(mids) == self.n_agents, (len(mids), self.n_agents)
     for rid in range(self._n_online_runners, self.n_runners):
-      self._prepared_strategies[rid] = mids
+      self.prepared_strategies[rid] = mids
       self._ready[rid] = True
 
   def _prepare_models(self, model_weights: ModelWeights):
@@ -362,16 +361,16 @@ class SPParameterServer(RayBase):
     self._params[new_model] = weights
     self._params[model][STATUS] = Status.TRAINING
     if config is None:
-      config = self._builder.config.copy(shallow=False)
+      config = self.builder.config.copy(shallow=False)
     config.status = Status.TRAINING
 
     return model_weights, config
 
   def _construct_raw_strategy(self, iteration, version=None):
-    self._builder.set_iteration_version(iteration, version)
-    config = self._builder.config.copy(shallow=False)
+    self.builder.set_iteration_version(iteration, version)
+    config = self.builder.config.copy(shallow=False)
     config.status = Status.TRAINING
-    model = self._builder.get_model_path()
+    model = self.builder.get_model_path()
     assert model not in self._params, (model, list(self._params))
     self._params[model] = {}
     self._params[model][STATUS] = Status.TRAINING
@@ -407,7 +406,7 @@ class SPParameterServer(RayBase):
     else:
       model = self._sample_with_prioritization()
     config = search_for_config(model)
-    new_model = self._builder.get_sub_version(config, iteration)
+    new_model = self.builder.get_sub_version(config, iteration)
     assert new_model not in self._params, f'{new_model} is already in {list(self._params)}'
     reset_heads = random.random() < self.reset_policy_head_frac
     model_weights, config = self._retrieve_strategy_for_training(
@@ -439,7 +438,7 @@ class SPParameterServer(RayBase):
 
   def archive_training_strategies(self, status: Status):
     do_logging(f'Archiving training strategies: {self._models[ModelType.ACTIVE]}', color='green')
-    config = self._builder.config.copy(shallow=False)
+    config = self.builder.config.copy(shallow=False)
     config.status = status
     self._models[ModelType.FORMER] = copy.copy(self._models[ModelType.ACTIVE])
     self._params[self._models[ModelType.FORMER]][STATUS] = status
@@ -568,13 +567,15 @@ class SPParameterServer(RayBase):
   def retrieve(self):
     payoff_data = self.payoff_manager.retrieve()
     ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
-    return payoff_data, ps_data
+    builder_data = self.builder.retrieve()
+    return payoff_data, ps_data, builder_data
 
-  def load(self, payoff_data, ps_data):
+  def load(self, payoff_data, ps_data, builder_data):
     if payoff_data is not None:
       self.payoff_manager.load(payoff_data)
     config_attr(self, ps_data, filter_dict=False, config_as_attr=False, 
                 private_attr=True, check_overwrite=True)
+    self.builder.load(builder_data)
 
   def load_params(self, params):
     for model, param in params.items():
@@ -622,7 +623,7 @@ class ExploiterSPParameterServer(SPParameterServer):
       # Synchronize iteration
       self._iteration = iid
     assert iid == self._iteration, (self._iteration, model.model_name)
-    self._builder.set_iteration_version(iid, vid)
+    self.builder.set_iteration_version(iid, vid)
     if model in self._params:
       model_weights = self._retrieve_strategy_for_training(model)
       is_raw_strategy = [False]

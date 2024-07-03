@@ -102,7 +102,7 @@ class Model(ParamsCheckpointBase):
     assert set(weights).issubset(set(self.modules)) or set(self.modules).issubset(set(weights)), (list(self.params), list(weights))
     for name in self.modules.keys():
       if name in weights:
-        self.modules[name].load_state_dict(weights[name])
+        self.modules[name].load_state_dict(to_tensor(weights[name], self.tpdv))
       else:
         do_logging(f'Missing params: {name}', level='info')
 

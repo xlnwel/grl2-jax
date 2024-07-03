@@ -17,7 +17,23 @@ def configure_torch_gpu(idx=-1):
   """
   # if idx is not None and idx >= 0:
   #   os.environ["CUDA_VISIBLE_DEVICES"] = f"{idx}"
+  import tensorflow as tf
   os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+  gpus = tf.config.list_physical_devices('GPU')
+  n_gpus = len(gpus)
+  if idx >= 0:
+    gpus = [gpus[idx % n_gpus]]
+  if gpus:
+    try:
+      # memory growth
+      for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+      tf.config.experimental.set_visible_devices(gpus, 'GPU')
+      logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+      do_logging(f'{n_gpus} Physical GPUs, {len(logical_gpus)} Logical GPU', color='red')
+    except RuntimeError as e:
+      # visible devices must be set before GPUs have been initialized
+      do_logging(e, color='red')
   n_gpus = torch.cuda.device_count()
   if idx >= 0:
     idx = idx % n_gpus

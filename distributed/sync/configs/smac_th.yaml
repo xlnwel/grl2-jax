@@ -40,7 +40,7 @@ ray_config:
     num_cpus: 1
     num_gpus: 0
   agent:
-    num_gpus: 0
+    num_gpus: 1
 
 monitor: {}
 
@@ -158,7 +158,7 @@ actor:
       obs_names: [obs, global_state]
       obs_normalized_axis: [0, 1]  # obs is normalized at once with the sequential dimension
       obs_normalized_ndim: 2
-      normalize_obs: False
+      normalize_obs: *irms
       use_feature_mask: True
       obs_clip: 10
     reward:
@@ -191,3 +191,7 @@ buffer:
     - discount
     - reset
     - sample_mask
+    - mu_logprob
+    - mu_logits
+    - state_reset
+    - state

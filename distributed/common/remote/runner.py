@@ -4,20 +4,20 @@ import threading
 import numpy as np
 import ray
 
-from .parameter_server import ParameterServer
-from .monitor import Monitor
-from tools.pickle import set_weights_for_agent
 from core.elements.agent import Agent
 from core.elements.buffer import Buffer
 from core.elements.builder import ElementsBuilder
 from core.mixin.actor import RMS
 from core.names import ANCILLARY, MODEL, TRAIN_STEP
-from distributed.common.remote.base import RayBase
 from core.typing import ModelStats, ModelWeights, ModelPath, dict2AttrDict
 from envs.func import create_env
 from envs.typing import EnvOutput
 from envs.utils import divide_env_output
+from tools.pickle import set_weights_for_agent
 from tools.timer import Timer, timeit
+from distributed.common.remote.base import RayBase
+from .parameter_server import ParameterServer
+from .monitor import Monitor
 
 
 SEED_MULTIPLIER = 1000
@@ -40,7 +40,7 @@ class MultiAgentRunner(RayBase):
     else:
       config = dict2AttrDict(configs)
       configs = [config]
-    super().__init__(runner_id, seed=config.get('seed'))
+    super().__init__(runner_id, config=config)
 
     self.id = runner_id
     self.evaluation = evaluation

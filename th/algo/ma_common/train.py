@@ -1,12 +1,10 @@
-import os
 import importlib
 import ray
 
-from th.core.typing import get_basic_model_name
 from th.core.utils import configure_torch_gpu, set_seed, save_code_for_seed
 from tools.log import do_logging
 from tools.utils import modify_config
-from tools.timer import timeit, Every
+from tools.timer import Every
 from algo.ma_common.train import *
 
 

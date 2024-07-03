@@ -84,7 +84,7 @@ class TrainerBase(ParamsCheckpointBase):
   """ Checkpoints """
   def reset_model_path(self, model_path: ModelPath):
     self.config = set_path(self.config, model_path, max_layer=0)
-    self._model_path(model_path)
+    self._model_path = model_path
     self._saved_path = os.path.join(*self._model_path, self._suffix_path)
 
   def save_optimizer(self):

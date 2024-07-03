@@ -33,7 +33,7 @@ class Monitor(RayBase):
     parameter_server: ParameterServer, 
     name='monitor'
   ):
-    super().__init__(seed=config.get('seed'))
+    super().__init__(config=config)
     self.config = dict2AttrDict(config['monitor'])
     self.print_terminal_info = self.config.get('print_terminal_info', True)
     self.n_agents = config['n_agents']

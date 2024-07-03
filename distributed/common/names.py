@@ -6,5 +6,6 @@ STATUS = 'status'
 
 PARAMETER_SERVER = 'parameter_server'
 MONITOR = 'monitor'
+BUILDERS = 'builders'
 PAYOFF = 'payoff'
 COUNT = 'count'

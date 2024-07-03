@@ -3,11 +3,11 @@ import ray
 
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
-from tools.log import do_logging
 from core.names import *
-from distributed.common.remote.base import RayBase
 from core.typing import ModelStats, ModelWeights
+from tools.log import do_logging
 from tools.timer import Timer
+from distributed.common.remote.base import RayBase
 from .monitor import Monitor
 from .parameter_server import ParameterServer
 
@@ -20,9 +20,9 @@ class Agent(RayBase):
     parameter_server: ParameterServer=None,
     monitor: Monitor=None
   ):
-    super().__init__(config['aid'], seed=config.get('seed'))
+    super().__init__(config.aid, config)
 
-    self.aid = config['aid']
+    self.aid = config.aid
     self.parameter_server: ParameterServer = parameter_server
     self.monitor: Monitor = monitor
 

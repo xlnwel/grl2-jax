@@ -3,18 +3,30 @@ import warnings
 from typing import Any, List
 import ray
 
-from core.utils import configure_jax_gpu, set_seed
+from core.names import DL_LIB
+from core.typing import dict2AttrDict
+from core.utils import set_seed
+from tools.utils import modify_config
 
 
 class RayBase:
-  def __init__(self, id=None, seed=None):
-    os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
-    warnings.filterwarnings("ignore")
-    configure_jax_gpu()
+  def __init__(self, id=None, config={}):
+    self.config = dict2AttrDict(config)
+    dllib = config.get('dllib', DL_LIB.JAX)
+    if dllib == DL_LIB.JAX:
+      from core.utils import configure_jax_gpu
+      os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
+      warnings.filterwarnings("ignore")
+      configure_jax_gpu()
+    else:
+      from th.core.utils import configure_torch_gpu
+      device = configure_torch_gpu()
+      self.config = modify_config(self.config, device=device)
+    seed = config.get('seed', 42)
     if seed is not None:
       if id is not None:
         seed += id * 1000
-      set_seed(seed)
+      set_seed(seed, dllib=dllib)
 
   def register_handler(self, **kwargs):
     for k, v in kwargs.items():

@@ -130,10 +130,7 @@ class Controller(YAMLCheckpointBase):
         'remote.parameter_server', config=config)
       PSCls = PSModule.ExploiterParameterServer if self.exploiter else PSModule.ParameterServer
     self.parameter_server: ParameterServer = \
-      PSCls.as_remote().remote(
-        config=config.asdict(),
-        to_restore_params=False, 
-      )
+      PSCls.as_remote().remote(config=config.asdict())
 
     self.runner_manager: RunnerManager = RunnerManager(
       ray_config=config.ray_config.runner,
@@ -180,10 +177,7 @@ class Controller(YAMLCheckpointBase):
       PSCls = PSModule.ExploiterParameterServer if self.exploiter else PSModule.ParameterServer
     do_logging('Building Parameter Server...', color='blue')
     self.parameter_server: ParameterServer = \
-      PSCls.as_remote().remote(
-        config=config.asdict(),
-        to_restore_params=True, 
-      )
+      PSCls.as_remote().remote(config=config.asdict())
     # 构建ElementsBuilder
     ray.get(self.parameter_server.build.remote(
       configs=[c.asdict() for c in self.configs],
@@ -604,13 +598,15 @@ class Controller(YAMLCheckpointBase):
   def load_parameter_server(self):
     payoff_data = pickle.restore(filedir=self.dir, filename=PAYOFF, name=PAYOFF)
     ps_data = pickle.restore(filedir=self.dir, filename=PARAMETER_SERVER, name=PARAMETER_SERVER)
-    ray.get(self.parameter_server.load.remote(payoff_data, ps_data))
+    builder_data = pickle.restore(filedir=self.dir, filename=BUILDERS, name=BUILDERS)
+    ray.get(self.parameter_server.load.remote(payoff_data, ps_data, builder_data))
     ray.get(self.parameter_server.add_rule_strategies.remote())
   
   def save_parameter_server(self):
-    payoff_data, ps_data = ray.get(self.parameter_server.retrieve.remote())
+    payoff_data, ps_data, builder_data = ray.get(self.parameter_server.retrieve.remote())
     pickle.save(payoff_data, filedir=self.dir, filename=PAYOFF, name=PAYOFF)
     pickle.save(ps_data, filedir=self.dir, filename=PARAMETER_SERVER, name=PARAMETER_SERVER)
+    pickle.save(builder_data, filedir=self.dir, filename=BUILDERS, name=BUILDERS)
 
   def load_monitor(self):
     data = pickle.restore(filedir=self.dir, filename=MONITOR, name=MONITOR)

@@ -39,13 +39,8 @@ path is involved (e.g., when saving&restoring a model).
 
 
 class ParameterServer(RayBase):
-  def __init__(
-    self, 
-    config: dict,  
-    to_restore_params=True, 
-    name='parameter_server',
-  ):
-    super().__init__(seed=config.get('seed'))
+  def __init__(self, config: dict, name='parameter_server'):
+    super().__init__(config=config)
     config = dict2AttrDict(config)
     self.config = config.parameter_server
     self.score_metrics = self.config.get('score_metrics', ScoreMetrics.SCORE)
@@ -85,8 +80,6 @@ class ParameterServer(RayBase):
     self._rule_strategies = set()
 
     self._opp_dist: Dict[ModelPath, List[float]] = {}
-    self._to_update: Dict[ModelPath, Every] = collections.defaultdict(
-      lambda: Every(self.config.setdefault('update_interval', 1), -1))
 
     self._models: Dict[str, List[ModelPath]] = AttrDict()
     self._models[ModelType.FORMER] = [None for _ in range(self.n_agents)]
@@ -115,14 +108,14 @@ class ParameterServer(RayBase):
 
   def build(self, configs: List[Dict], env_stats: Dict):
     self.configs = [dict2AttrDict(c) for c in configs]
-    self._builders: List[ElementsBuilderVC] = []
+    self.builders: List[ElementsBuilderVC] = []
     for aid, config in enumerate(self.configs):
       model = os.path.join(config.root_dir, config.model_name)
       assert model.rsplit(PATH_SPLIT)[-1] == f'a{aid}', model
       os.makedirs(model, exist_ok=True)
       builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
-      self._builders.append(builder)
-    assert len(self._builders) == self.n_agents, (len(configs), len(self._builders), self.n_agents)
+      self.builders.append(builder)
+    assert len(self.builders) == self.n_agents, (len(configs), len(self.builders), self.n_agents)
 
   """ Strategy Pool Management """
   def save_strategy_pool(self):
@@ -356,17 +349,17 @@ class ParameterServer(RayBase):
       weights.pop(ANCILLARY, None)
       strategies.append(ModelWeights(model, weights))
       do_logging(f'Restoring active strategy: {model}', color='green')
-    for b in self._builders:
+    for b in self.builders:
       config = b.config.copy(shallow=False)
       config.status = Status.TRAINING
       b.save_config(config)
     return strategies
 
   def _construct_raw_strategy(self, aid, iteration):
-    self._builders[aid].set_iteration_version(iteration)
-    config = self._builders[aid].config.copy(shallow=False)
+    self.builders[aid].set_iteration_version(iteration)
+    config = self.builders[aid].config.copy(shallow=False)
     config.status = Status.TRAINING
-    model = self._builders[aid].get_model_path()
+    model = self.builders[aid].get_model_path()
     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
     assert model not in self._params[aid], (model, list(self._params[aid]))
     self._params[aid][model] = {}
@@ -405,8 +398,8 @@ class ParameterServer(RayBase):
     weights = self._params[aid][model].copy()
     weights.pop(ANCILLARY)
     config = search_for_config(model)
-    model = self._builders[aid].get_sub_version(config, iteration)
-    config = self._builders[aid].config.copy(shallow=False)
+    model = self.builders[aid].get_sub_version(config, iteration)
+    config = self.builders[aid].config.copy(shallow=False)
     config.status = Status.TRAINING
     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
     assert model not in self._params[aid], f'{model} is already in {list(self._params[aid])}'
@@ -441,7 +434,7 @@ class ParameterServer(RayBase):
 
   def archive_training_strategies(self, **kwargs):
     do_logging('Archiving training strategies', color='green')
-    for b in self._builders:
+    for b in self.builders:
       config = b.config.copy(shallow=False)
       config.update(kwargs)
       b.save_config(config)
@@ -566,6 +559,8 @@ class ParameterServer(RayBase):
     self.payoff_manager.save()
     ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
     pickle.save(ps_data, filedir=self.dir, filename=self.name, name=self.name, atomic=True)
+    builder_data = [b.retrieve() for b in self.builders]
+    pickle.save(builder_data, filedir=self.dir, filename=BUILDERS, name=BUILDERS, atomic=True)
 
   def retrieve_active_model(self, aid: int, model: ModelPath, train_step: int=None, env_step: int=None):
     assert model == self._models[ModelType.ACTIVE][aid], (model, self._models[ModelType.ACTIVE])
@@ -583,13 +578,17 @@ class ParameterServer(RayBase):
   def retrieve(self):
     payoff_data = self.payoff_manager.retrieve()
     ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
-    return payoff_data, ps_data
+    print(f'Retrieve Parameter Server: {ps_data}')
+    builder_data = [b.retrieve() for b in self.builders]
+    return payoff_data, ps_data, builder_data
 
-  def load(self, payoff_data, ps_data):
+  def load(self, payoff_data, ps_data, builder_data):
     if payoff_data is not None:
       self.payoff_manager.load(payoff_data)
     config_attr(self, ps_data, filter_dict=False, config_as_attr=False, 
                 private_attr=True, check_overwrite=True)
+    for b, d in zip(self.builders, builder_data):
+      b.load(d)
 
   def load_params(self, params):
     for model_param in params:
@@ -599,6 +598,7 @@ class ParameterServer(RayBase):
   def restore(self):
     self.payoff_manager.restore()
     data = pickle.restore(filedir=self.dir, filename=self.name, name=self.name)
+    data = pickle.restore(filedir=self.dir, filename=BUILDERS, name=BUILDERS)
     self.load(None, data)
 
 

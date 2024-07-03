@@ -60,6 +60,9 @@ env:
 
 agent: {}
 
+monitor:
+  use_tensorboard: True
+
 strategy:
   algorithm: *algo
   train_loop: {}
