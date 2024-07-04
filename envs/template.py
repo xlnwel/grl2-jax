@@ -27,15 +27,15 @@ class TemplateEnv:
 
     # 观测/动作空间相关定义
     self.observation_space = [{
-      'obs': gym.spaces.Box(high=float('inf'), low=0, shape=(6,)),
-      'global_state': gym.spaces.Box(high=float('inf'), low=0, shape=(6,)), 
+      'obs': gym.spaces.Box(high=float('inf'), low=0, shape=(6,), dtype=np.float32),
+      'global_state': gym.spaces.Box(high=float('inf'), low=0, shape=(6,), dtype=np.float32), 
       'sample_mask': gym.spaces.Discrete(2)
     } for _ in range(self.n_groups)]
     self.obs_shape = [{
       k: v.shape for k, v in obs.items()
     } for obs in self.observation_space]
     self.obs_dtype = [{
-      k: v.dtype for k, v in obs.items()
+      k: v.dtype if isinstance(v, gym.spaces.Box) else np.int32 for k, v in obs.items()
     } for obs in self.observation_space]
     self.action_space = [{
       'action_discrete': gym.spaces.Discrete(4), 

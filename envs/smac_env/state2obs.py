@@ -1,4 +1,3 @@
-import jax
 import jax.numpy as jnp
 import enum
 from tools.log import do_logging

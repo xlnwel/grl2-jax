@@ -3,14 +3,14 @@ import collections
 from typing import Dict
 import numpy as np
 
-from tools.pickle import save, restore
+from core.typing import AttrDict
 from core.elements.buffer import Buffer
 from core.elements.model import Model
+from tools.pickle import save, restore
 from tools.log import do_logging
-from core.typing import AttrDict
-from replay.local import NStepBuffer
 from tools.timer import Timer, timeit
 from tools.utils import batch_dicts, yield_from_tree, yield_from_tree_with_indices
+from replay.local import NStepBuffer
 from replay import replay_registry
 from replay.mixin.rms import TemporaryRMS
 

@@ -7,12 +7,11 @@ import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.elements.builder import ElementsBuilder
+from core.builder import ElementsBuilder
 from tools.log import do_logging
 from core.names import PATH_SPLIT
-from core.utils import configure_jax_gpu
+from core.utils import configure_gpu
 from core.typing import dict2AttrDict, get_basic_model_name
-from tools.display import print_dict_info
 from tools.plot import plot_data, plot_data_dict
 from tools.ray_setup import sigint_shutdown_ray
 from tools.graph import save_video
@@ -118,7 +117,7 @@ def plot(data: dict, outdir: str, figname: str):
 
 def main(configs, n, record=False, size=(256, 256), video_len=1000, 
     fps=30, out_dir=None, info=''):
-  configure_jax_gpu()
+  configs = configure_gpu(configs)
 
   configs = [dict2AttrDict(config, to_copy=True) for config in configs]
   config = configs[0]

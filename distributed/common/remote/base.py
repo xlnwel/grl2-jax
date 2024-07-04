@@ -5,28 +5,28 @@ import ray
 
 from core.names import DL_LIB
 from core.typing import dict2AttrDict
-from core.utils import set_seed
+from core.utils import set_seed, get_num_gpus
 from tools.utils import modify_config
 
 
 class RayBase:
   def __init__(self, id=None, config={}):
     self.config = dict2AttrDict(config)
-    dllib = config.get('dllib', DL_LIB.JAX)
-    if dllib == DL_LIB.JAX:
+    self.dllib = config.get('dllib', DL_LIB.JAX)
+    if self.dllib == DL_LIB.JAX:
       from core.utils import configure_jax_gpu
       os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
       warnings.filterwarnings("ignore")
       configure_jax_gpu()
     else:
-      from th.core.utils import configure_torch_gpu
+      from core.utils import configure_torch_gpu
       device = configure_torch_gpu()
       self.config = modify_config(self.config, device=device)
     seed = config.get('seed', 42)
     if seed is not None:
       if id is not None:
         seed += id * 1000
-      set_seed(seed, dllib=dllib)
+      set_seed(seed, dllib=self.dllib)
 
   def register_handler(self, **kwargs):
     for k, v in kwargs.items():
@@ -35,6 +35,9 @@ class RayBase:
   @classmethod
   def as_remote(cls, **kwargs):
     if kwargs:
+      n_gpus = get_num_gpus()
+      if n_gpus < kwargs.get('num_gpus', 0):
+        kwargs['num_gpus'] = n_gpus
       return ray.remote(**kwargs)(cls)
     return ray.remote(cls)
 

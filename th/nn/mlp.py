@@ -6,7 +6,7 @@ import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
 
 from tools.log import do_logging
-from th.core.utils import tpdv
+from th.utils import tpdv
 from th.nn.layers import RNNLayer, LSTMState
 from th.nn.registry import nn_registry
 from th.nn.utils import get_initializer, get_activation, calculate_scale
@@ -56,7 +56,6 @@ class MLP(nn.Module):
     norm_after_activation=False, 
     norm_kwargs={
       'elementwise_affine': True, 
-      'bias': True, 
     }, 
     out_w_init='orthogonal', 
     out_b_init='zeros', 

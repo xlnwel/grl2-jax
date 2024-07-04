@@ -2,13 +2,13 @@ import collections
 import logging
 import time
 import numpy as np
-import jax
 
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from tools.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
+from tools.tree_ops import tree_map
 from tools.utils import batch_dicts, batch_states, stack_data_with_state
 from replay import replay_registry
 
@@ -166,7 +166,7 @@ class ACBuffer(Buffer):
             sum([b[k] for b in self._buffers.values()], []), 
             np.concatenate
           )
-          data[k] = jax.tree_util.tree_map(lambda x: x[-self.batch_size:], v)
+          data[k] = tree_map(lambda x: x[-self.batch_size:], v)
         elif k == 'prev_info':
           for kk in keys:
             if k in kk:
@@ -174,7 +174,7 @@ class ACBuffer(Buffer):
                 sum([b[kk] for b in self._buffers.values()], []), 
                 np.concatenate
               )
-              data[kk] = jax.tree_util.tree_map(lambda x: x[-self.batch_size:], v)
+              data[kk] = tree_map(lambda x: x[-self.batch_size:], v)
         elif k == 'state':
           data[k] = batch_states(
             [batch_states(b[k], axis=0, func=np.concatenate) 

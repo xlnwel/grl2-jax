@@ -1,6 +1,4 @@
 import numpy as np
-import jax
-import haiku as hk
 from typing import Dict, Union, List, Tuple
 
 from tools.log import do_logging
@@ -8,8 +6,6 @@ from core.names import MODEL
 from core.ckpt.base import ParamsCheckpointBase
 from core.ensemble import Ensemble, constructor
 from core.typing import AttrDict, dict2AttrDict
-from nn.func import create_network
-from tools.display import print_dict_info, summarize_arrays, int2str
 
 
 class Model(ParamsCheckpointBase):
@@ -27,24 +23,18 @@ class Model(ParamsCheckpointBase):
   ):
     super().__init__(config, name, MODEL)
     self.env_stats = dict2AttrDict(env_stats, to_copy=True)
-    self.modules: Dict[str, hk.Module] = AttrDict()
-    self.rng = self._prngkey()
-    self.act_rng = self.rng
+    self.modules: Dict = AttrDict()
 
     self._initial_states = AttrDict()
 
+    self.dl_init()
     self.post_init()
     self.build_nets()
     self.print_params()
     self.compile_model()
 
-  def _prngkey(self, seed=None):
-    if seed is None:
-      if self.config.seed is None:
-        self.config.seed = 42
-      seed = self.config.seed
-    do_logging(f'Model({self.name}) seed: {seed}', level='debug')
-    return jax.random.PRNGKey(seed)
+  def dl_init(self):
+    pass
 
   def post_init(self):
     self.aid = self.config.get('aid', 0)
@@ -56,42 +46,23 @@ class Model(ParamsCheckpointBase):
     self.is_action_discrete = self.env_stats.is_action_discrete[self.aid]
 
   def build_net(self, *args, name, return_init=False, **kwargs):
-    def build(*args, **kwargs):
-      net = create_network(self.config[name], name)
-      return net(*args, **kwargs)
-    net = hk.transform(build)
-    if return_init:
-      return net.init, net.apply
-    else:
-      self.rng, rng = jax.random.split(self.rng)
-      self.act_rng = self.rng
-      return net.init(rng, *args, **kwargs), net.apply
+    raise NotImplementedError
 
   def build_nets(self):
     raise NotImplementedError
 
   def print_params(self):
-    if self.config.get('print_params', True):
-      for k, v in self.params.items():
-        do_logging(f'Module: {k}', level='info')
-        print_dict_info(v, prefix='\t', level='info')
-        n = summarize_arrays(v)
-        n = int2str(n)
-        do_logging(f'Total number of params of {k}: {n}', level='info')
+    pass
+
+  def compile_model(self):
+    pass
 
   @property
   def theta(self):
     return self.params
 
-  def compile_model(self):
-    self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
-    # self.jit_action = jax.jit(self.raw_action, static_argnums=(3))
-
   def action(self, data, evaluation):
-    self.act_rng, act_rng = jax.random.split(self.act_rng)
-    action, stats, state = self.jit_action(self.params, act_rng, data, evaluation)
-    action, stats = jax.tree_util.tree_map(np.asarray, (action, stats))
-    return action, stats, state
+    raise NotImplementedError
 
   def raw_action(self, params, rng, data, evaluation=False):
     raise NotImplementedError
@@ -104,14 +75,7 @@ class Model(ParamsCheckpointBase):
       for models specified by keys. Otherwise, it 
       returns a list of all weights
     """
-    if name is None:
-      name = list(self.params.keys())
-    elif isinstance(name, str):
-      name = [name]
-    assert isinstance(name, (tuple, list))
-
-    weights = {n: self.params[n] for n in name}
-    return weights
+    raise NotImplementedError
 
   def set_weights(self, weights: dict):
     """ Sets weights
@@ -121,12 +85,7 @@ class Model(ParamsCheckpointBase):
       it sets weights for models specified by the keys.
       Otherwise, it sets all weights 
     """
-    assert set(weights).issubset(set(self.params)) or set(self.params).issubset(set(weights)), (list(self.params), list(weights))
-    for name in self.params.keys():
-      if name in weights:
-        self.params[name] = weights[name]
-      else:
-        do_logging(f'Missing params: {name}', level='info')
+    raise NotImplementedError
 
   def get_states(self):
     pass

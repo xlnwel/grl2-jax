@@ -1,4 +1,4 @@
-from core.elements.trainer import TrainerBase
+from core.elements.trainer import Trainer
 from core.typing import AttrDict, dict2AttrDict
 from tools.timer import Timer
 
@@ -8,7 +8,7 @@ class TrainingLoop:
     self, 
     config: AttrDict, 
     buffer, 
-    trainer: TrainerBase, 
+    trainer: Trainer, 
     **kwargs
   ):
     self.config = dict2AttrDict(config, to_copy=True)

@@ -3,11 +3,11 @@ import argparse
 import numpy as np
 import collections
 
-from tools.pickle import save
-from tools.log import do_logging
 from core.names import PATH_SPLIT
 from core.typing import AttrDict
-from core.utils import configure_jax_gpu
+from core.utils import configure_gpu
+from tools.pickle import save
+from tools.log import do_logging
 from tools.display import print_dict, print_dict_info
 from tools.utils import batch_dicts, modify_config
 from tools import yaml_op
@@ -191,6 +191,7 @@ def main(configs, args):
 if __name__ == '__main__':
   args = parse_args()
 
-  configure_jax_gpu(None)
   configs = setup_configs(args)
+  configs = configure_gpu(configs)
+
   main(configs, args)

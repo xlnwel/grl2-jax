@@ -1,9 +1,9 @@
 import numpy as np
 import torch
 
-from tools.utils import tree_map
-from th.core.elements.model import Model as ModelCore
-from th.core.typing import AttrDict, dict2AttrDict
+from core.typing import AttrDict, dict2AttrDict
+from tools.tree_ops import tree_map
+from th.elements.model import Model as ModelCore
 from th.nn.layers import LSTMState
 from th.tools import th_dist
 

@@ -28,9 +28,9 @@ class EnvRunner(XSimEnv):
         print("初始化 EnvRunner")
         XSimEnv.__init__(self, TimeRatio, address, IMAGE, mode)
         self.agents = {}
-        self.__init_agents(agents)
+        self.init_agents(agents)
 
-    def __init_agents(self, agents):
+    def init_agents(self, agents):
         """
         根据配置信息构建红蓝双方智能体
         @param agents: 智能体列表
@@ -45,6 +45,7 @@ class EnvRunner(XSimEnv):
         self.agents["red"] = red_agent
         blue_agent = blue_cls('blue', {"side": 'blue'})
         self.agents["blue"] = blue_agent
+        return self.agents
 
 
     def _end(self):

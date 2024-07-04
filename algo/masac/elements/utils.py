@@ -4,7 +4,7 @@ import jax.numpy as jnp
 
 from core.typing import AttrDict
 from tools.utils import batch_dicts
-from jax_tools import jax_assert, jax_loss
+from jx.tools import jax_assert, jax_loss
 
 
 def get_initial_state(state, i):

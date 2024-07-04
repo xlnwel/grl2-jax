@@ -1,7 +1,7 @@
 from functools import partial
 
-from th.core.typing import AttrDict
-from th.core.elements.strategy import Strategy as StrategyBase, create_strategy
+from core.typing import AttrDict
+from th.elements.strategy import Strategy as StrategyBase, create_strategy
 from tools.run import concat_along_unit_dim
 from tools.utils import batch_dicts
 

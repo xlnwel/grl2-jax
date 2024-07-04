@@ -23,7 +23,6 @@ class Trans:
             [0, 1, 0],
             [-sin_p, 0, cos_p]
         ])
-
     @staticmethod
     def rotation_matrix_z(yaw):
         """生成绕Z轴的旋转矩阵"""
@@ -49,18 +48,8 @@ class Trans:
 
     """输入当前姿态，目标到自身的坐标差，返回目标在自身机体系下向量"""
 
-    @staticmethod
-    def test(pitch, roll, yaw, dir_x, dir_y, dir_z):
-        # print("pitch:", np.degrees(pitch)," roll:", np.degrees(roll)," yaw:", np.degrees(yaw))
-        rotation_matrix = Trans.rotation_matrix(pitch, roll, yaw).T
-        tar_self_dir = np.array([dir_y, dir_x, -dir_z])
-        body_dir = rotation_matrix @ tar_self_dir
-
-        return {'X': body_dir[0], 'Y': body_dir[1], 'Z': body_dir[2]}
-
-
-distance = 400 * 5
-
+# distance = 10000
+distance = 10000
 
 class CalNineDir:
     @staticmethod
@@ -91,12 +80,12 @@ class CalNineDir:
 
 all_nine_body_dir = {
     '0': [1, 0, 0],  # 向前
-    '1': [0, -1, -1],  # 左上
-    '2': [0, 1, -1],  # 右上
-    '3': [0, -1, 1],  # 左下
-    '4': [0, 1, 1],  # 右下
-    '5': [0, 0, -1],  # 向上
-    '6': [0, 0, 1],  # 向下
-    '7': [0, -1, 0],  # 向左
-    '8': [0, 1, 0],  # 向右
+    '1': [0.5, -1, -0.3],  # 左上
+    '2': [0.5, 1, -0.3],  # 右上
+    '3': [1, -1, 0.3],  # 左下
+    '4': [1, 1, 0.3],  # 右下
+    '5': [1, 0, -0.3],  # 向上
+    '6': [1, 0, 0.3],  # 向下
+    '7': [0, -0.3, 0],  # 向左
+    '8': [0, 0.3, 0],  # 向右
 }

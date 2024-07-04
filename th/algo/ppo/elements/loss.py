@@ -1,7 +1,7 @@
+from core.names import TRAIN_AXIS
+from core.typing import dict2AttrDict
 from envs.utils import get_action_mask
-from th.core.names import TRAIN_AXIS
-from th.core.elements.loss import LossBase
-from th.core.typing import dict2AttrDict
+from th.elements.loss import Loss as LossBase
 from th.tools import th_loss
 from .utils import *
 

@@ -1,6 +1,7 @@
 import numpy as np
 import torch
-from tools.utils import tree_map
+
+from tools.tree_ops import tree_map
 
 
 def to_tensor(data, tpdv):

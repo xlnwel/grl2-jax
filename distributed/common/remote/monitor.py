@@ -3,7 +3,6 @@ from datetime import datetime
 import collections
 import time
 from typing import Any, Dict
-import cloudpickle
 import numpy as np
 import ray
 
@@ -151,9 +150,10 @@ class Monitor(RayBase):
     self._last_save_time[model] = time.time()
 
   def clear_iteration_stats(self):
+    do_logging('Clearing iteration stats', 'green')
     self._recording_stats.clear()
-    self.monitors.clear()
     self._last_save_time.clear()
+    self.monitors.clear()
 
   """ Checkpoints """
   def restore(self):

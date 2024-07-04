@@ -1,7 +1,7 @@
 import os
 from typing import Dict, Union
 
-from core.elements.builder import ElementsBuilder
+from core.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.names import PATH_SPLIT
 from core.elements.monitor import Monitor
@@ -102,7 +102,7 @@ class Agent:
     else:
       algo = get_algo(strategy.model.root_dir)
       if algo not in self.strategies:
-        config = search_for_config(os.path.join(strategy.model))
+        config = search_for_config(os.path.join(*strategy.model))
         self.config = config
         build_func = self.builder.build_training_strategy_from_scratch \
           if self.is_trainable else self.builder.build_acting_strategy_from_scratch

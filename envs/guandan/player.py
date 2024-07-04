@@ -5,7 +5,7 @@
 import random
 import numpy as np
 from .action import Action
-from core.elements.agent import Agent
+from jx.elements.agent import Agent
 from .utils import get_action_id
 from .infoset import get_obs
 from envs.typing import EnvOutput

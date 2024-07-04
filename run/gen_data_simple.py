@@ -4,7 +4,7 @@ import numpy as np
 
 from tools.pickle import save
 from tools.log import do_logging
-from core.utils import configure_jax_gpu
+from core.utils import configure_gpu
 from tools.display import print_dict_info
 from tools.utils import batch_dicts
 from envs.func import create_env
@@ -102,9 +102,9 @@ def main(configs, args):
 if __name__ == '__main__':
   args = parse_args()
 
-  configure_jax_gpu()
   args.n_runners = 1
   args.n_envs = 1
   configs = setup_configs(args)
+  configs = configure_gpu(configs)
 
   main(configs, args)

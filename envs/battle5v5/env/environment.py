@@ -12,7 +12,7 @@ import numpy as np
 import gym
 import torch as th
 from time import sleep
-from envs.battle5v5.config import config, Agent, BLUE_INFO, RED_INFO, BLUE_FIRE_INFO, RED_FIRE_INFO
+from envs.battle5v5.config import config, Agent, PlaneInfo, MissileInfo
 # from .multiagentenv import MultiAgentEnv
 import math
 import logging
@@ -145,8 +145,8 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     self.state = self.get_state()
     # 准备将自己已经知道的所有信息一起发送给Agent
     parse_msg_ = {'agent_pre_loc': self.red_agent_loc,
-           'blue_info': BLUE_INFO,
-           'red_info': RED_INFO,
+           'blue_info': PlaneInfo.BLUE,
+           'red_info': PlaneInfo.RED,
            'sim_time': self.ori_message['sim_time'],
            'agent_speed': self.agents_speed # 记录当前帧每个智能体的速度，如果已经死亡，则速度为-1
     }
@@ -209,8 +209,8 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     if_done = False
     # # 准备将自己已经知道的所有信息一起发送给Agent
     parse_msg_ = {'agent_pre_loc': self.red_agent_loc,
-           'blue_info': BLUE_INFO,
-           'red_info': RED_INFO,
+           'blue_info': PlaneInfo.BLUE,
+           'red_info': PlaneInfo.RED,
            'sim_time': self.ori_message['sim_time'],
            'agent_speed': self.agents_speed # 记录当前帧每个智能体的速度，如果已经死亡，则速度为-1
     }
@@ -561,7 +561,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     # 计算伤害奖励
     if last_red_agent_num - next_red_agent_num > 0:
       # 说明上一轮红方飞机更多，红方飞机有伤亡
-      if RED_INFO['0']['ID'] in self.red_death:
+      if PlaneInfo.RED['0']['ID'] in self.red_death:
         # 红方有人机被打掉，红方输掉了
         # damaged_reward -= 600
         pass # 算在最终输赢奖励里
@@ -580,7 +580,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
 
     if last_blue_agent_num - next_blue_agent_num > 0:
       # 说明上一帧蓝方飞机要更多
-      if BLUE_INFO['0']['ID'] in self.blue_death:
+      if PlaneInfo.BLUE['0']['ID'] in self.blue_death:
         # 蓝方有人机被打掉，红方胜利
         # attack_reward += 600
         pass # 算在最终输赢奖励里
@@ -647,7 +647,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     elif next_red_weapon_num == 0: # 无弹惩罚 （无弹时已经输了）
       missile_locking_human = None
       for missile in next_obs['red']['missileinfos']:
-        if missile['Identification'] == '红方' and missile['EngageTargetID'] == BLUE_INFO['0']['ID']: # 场上没有正在追击敌方有人机的导弹 已经输了
+        if missile['Identification'] == '红方' and missile['EngageTargetID'] == PlaneInfo.BLUE['0']['ID']: # 场上没有正在追击敌方有人机的导弹 已经输了
           missile_locking_human = missile
           break
       if missile_locking_human is None:
@@ -655,7 +655,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     elif next_blue_weapon_num == 0: # 无弹提前胜利
       missile_locking_human = None
       for missile in next_obs['blue']['missileinfos']:
-        if missile['Identification'] == '蓝方' and missile['EngageTargetID'] == RED_INFO['0']['ID']:
+        if missile['Identification'] == '蓝方' and missile['EngageTargetID'] == PlaneInfo.RED['0']['ID']:
           missile_locking_human = missile
           break
       if missile_locking_human is None:
@@ -714,7 +714,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     # 计算伤害奖励
     if last_red_agent_num - next_red_agent_num > 0:
       # 说明上一轮红方飞机更多，红方飞机有伤亡
-      if RED_INFO['0']['ID'] in self.red_death:
+      if PlaneInfo.RED['0']['ID'] in self.red_death:
         # 红方有人机被打掉，红方输掉了
         damaged_reward -= 12
       else:
@@ -730,7 +730,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     # 计算攻击奖励
     if last_blue_agent_num - next_blue_agent_num > 0:
       # 说明上一帧蓝方飞机要更多
-      if BLUE_INFO['0']['ID'] in self.blue_death:
+      if PlaneInfo.BLUE['0']['ID'] in self.blue_death:
         attack_reward += 12
       else:
         attack_reward += 2 * (last_blue_agent_num - next_blue_agent_num)
@@ -839,7 +839,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     # attack_reward
     if last_blue_agent_num - next_blue_agent_num > 0:
       # 说明上一帧蓝方飞机要更多
-      if BLUE_INFO['0']['ID'] in self.blue_death:
+      if PlaneInfo.BLUE['0']['ID'] in self.blue_death:
         attack_reward += 50
       #    print('蓝方有人机被击落', attack_reward)
       else:
@@ -853,7 +853,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
 
     if last_red_agent_num - next_red_agent_num > 0:
       # 说明上一帧红方飞机要更多
-      if RED_INFO['0']['ID'] in self.red_death:
+      if PlaneInfo.RED['0']['ID'] in self.red_death:
         damage_reward -= 50
       #    print('红方有人机被击落', damage_reward)
       else:
@@ -878,7 +878,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
       manned_aircraft_position = None
       manned_aircraft_heading = None
       for entity in self.ori_message['red']['platforminfos']:
-        if entity['ID'] == RED_INFO['0']['ID']:  # 假设有人机的ID为RED_INFO中的'0'
+        if entity['ID'] == PlaneInfo.RED['0']['ID']:  # 假设有人机的ID为PlaneInfo.RED中的'0'
           manned_aircraft_position = [entity['X'], entity['Y'], entity['Alt']]
           manned_aircraft_heading = entity['Heading']
           break
@@ -888,7 +888,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
         for i in range(1, 5):
           unmanned_aircraft_position = None
           for entity in self.ori_message['red']['platforminfos']:
-            if entity['ID'] == RED_INFO[str(i)]['ID']:
+            if entity['ID'] == PlaneInfo.RED[str(i)]['ID']:
               unmanned_aircraft_position = [entity['X'], entity['Y'], entity['Alt']]
               break
 
@@ -945,8 +945,8 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     # 已经有一个全局属性self.ori_message
     assert self.ori_message is not None
     # 通过解析这个原始数据构造每个Agent的obs，先通过这个id来判断是否已经死亡，就是判断字典中是否有这个实体
-    self.cur_agent_name = RED_INFO[str(agent_order)]['Name']  # 当前Agent的名字
-    self.cur_agent_id = RED_INFO[str(agent_order)]['ID']  # 当前Agent的id
+    self.cur_agent_name = PlaneInfo.RED[str(agent_order)]['Name']  # 当前Agent的名字
+    self.cur_agent_id = PlaneInfo.RED[str(agent_order)]['ID']  # 当前Agent的id
     # 查找返回的信息中是否包含当前Agent，如果没有的话说明当前Agent已经死亡
     cur_agent_exist = any(filter(lambda x: x['ID'] == self.cur_agent_id, self.ori_message['red']['platforminfos']))
     if not cur_agent_exist:
@@ -965,7 +965,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     if exist:
       """当前Agent还存活"""
       # 获取当前Agent在['platforminfos']中的索引
-      cur_index = next(((i, item) for i, item in enumerate(platforminfos_list) if item['ID'] == RED_INFO[str(agent_order)]['ID']), (-1, None))[0]
+      cur_index = next(((i, item) for i, item in enumerate(platforminfos_list) if item['ID'] == PlaneInfo.RED[str(agent_order)]['ID']), (-1, None))[0]
       ## 拿这个Agent本身的信息
       # identification_own = 0 if platforminfos_list[cur_index]['Identification'] == '红方' else 1
       type_own = platforminfos_list[cur_index]['Type'] / 3.0
@@ -997,7 +997,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
       ## 拿其他队友的信息，对于某个Agent，它的队友固定为1，2，3，4顺序, 除了agent_order以外
       for i in range(5):
         if i != int(agent_order):
-          team_ID = RED_INFO[str(i)]['ID']
+          team_ID = PlaneInfo.RED[str(i)]['ID']
           # 先查找这个队友还存在
           team_exist = any(filter(lambda x: x['ID'] == team_ID, platforminfos_list))
           if team_exist:
@@ -1027,7 +1027,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
       ## 拿敌人的状态信息
       enemy_list = []
       for i in range(5):
-        enemy_ID = BLUE_INFO[str(i)]['ID']
+        enemy_ID = PlaneInfo.BLUE[str(i)]['ID']
         enemy_exist = any(filter(lambda x: x['ID'] == enemy_ID, trackinfos_list))
         if enemy_exist:
           # 说明这个敌人还活着
@@ -1061,14 +1061,14 @@ class HuaRuBattleEnvWrapper(EnvRunner):
       for i in range(12):
         # 一共是12枚导弹，
         # 分别查看这12枚导弹是否出现了
-        cur_blue_fire_exist = any(filter(lambda x: x['Name'] == BLUE_FIRE_INFO[str(i)]['Name'], missileinfos_list))
-        cur_blue_fire_index = next(((j, item) for j, item in enumerate(missileinfos_list) if item['Name'] == BLUE_FIRE_INFO[str(i)]['Name']), (-1, None))[0]
+        cur_blue_fire_exist = any(filter(lambda x: x['Name'] == MissileInfo.BLUE[str(i)]['Name'], missileinfos_list))
+        cur_blue_fire_index = next(((j, item) for j, item in enumerate(missileinfos_list) if item['Name'] == MissileInfo.BLUE[str(i)]['Name']), (-1, None))[0]
         # 如果出现了，查看是否锁定了自己？
         if cur_blue_fire_exist:
           # 说明这枚弹已经出现了
           # 拿到这枚弹的信息
           cur_blue_fire_info = missileinfos_list[cur_blue_fire_index]
-          if cur_blue_fire_info['EngageTargetID'] == RED_INFO[str(agent_order)]['ID']:
+          if cur_blue_fire_info['EngageTargetID'] == PlaneInfo.RED[str(agent_order)]['ID']:
             # 锁定了自己
             # cur_blue_fire_Z = self.llh_to_ecef(cur_blue_fire_info['Lon'], cur_blue_fire_info['Lat'],cur_blue_fire_info['Alt'])['Z']
             cur_blue_fire_Z = cur_blue_fire_info['Alt']
@@ -1109,7 +1109,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     all_state = []
     def get_ego_info(msg, uid):
       pinfos = msg[Agent.RED]['platforminfos']
-      pid = get_info_id(pinfos, RED_INFO[str(uid)]['ID'])
+      pid = get_info_id(pinfos, PlaneInfo.RED[str(uid)]['ID'])
       ptype = pinfos[pid]['Type']
       ptype_oh = [0, 0]
       ptype_oh[ptype-1] = 1
@@ -1142,7 +1142,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
       pinfos = msg[side]['platforminfos']
       gs = []
 
-      info_dict = RED_INFO if side == Agent.RED else BLUE_INFO
+      info_dict = PlaneInfo.RED if side == Agent.RED else PlaneInfo.BLUE
       alive_mask = self.red_alive_mask if side == Agent.RED else self.blue_alive_mask
       # 获取当前Agent在['platforminfos']中的索引
       for i in range(5):
@@ -1187,8 +1187,8 @@ class HuaRuBattleEnvWrapper(EnvRunner):
 
     def get_miss_info(msg, side):
       gs = []
-      info_dict = RED_INFO if side == Agent.RED else BLUE_INFO
-      fire_dict = BLUE_FIRE_INFO if side == Agent.RED else RED_FIRE_INFO
+      info_dict = PlaneInfo.RED if side == Agent.RED else PlaneInfo.BLUE
+      fire_dict = MissileInfo.RED if side == Agent.RED else MissileInfo.BLUE
       pinfos = msg[side]['platforminfos']
       minfos = msg[side]['missileinfos']
       for i in range(12):
@@ -1265,7 +1265,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
     for i in range(5):
       """分别遍历五个Agent给出available mask"""
       # 先判断这个Agent是否已经死亡
-      if_death = RED_INFO[str(i)]['ID'] in self.red_death  # 查看这个Agent的ID是否在死亡列表self.red_death中
+      if_death = PlaneInfo.RED[str(i)]['ID'] in self.red_death  # 查看这个Agent的ID是否在死亡列表self.red_death中
       if if_death:
         # avai_mask[i][0] = np.array([0 for _ in range(20)], dtype=object)
         # avai_mask[i][0][9] = 1  # 10 动作是不执行任何指令，任何情况下都是1
@@ -1275,10 +1275,10 @@ class HuaRuBattleEnvWrapper(EnvRunner):
         avai_mask[i][16] = 1
       else:
         # 如果没有死亡，那么移动就可以全部是1,需要判断能不能攻击具体到某个敌方，要进行弹药数量判断和距离判断
-        # cur_index = next(((j, item) for j, item in enumerate(self.ori_message['red']['platforminfos']) if RED_INFO[str(i)]['ID'] == self.ori_message['red']['platforminfos'][j])['ID'], (-1, None))[0]
+        # cur_index = next(((j, item) for j, item in enumerate(self.ori_message['red']['platforminfos']) if PlaneInfo.RED[str(i)]['ID'] == self.ori_message['red']['platforminfos'][j])['ID'], (-1, None))[0]
         # next的正确用法。
         cur_index = next(((j, item) for j, item in enumerate(self.ori_message['red']['platforminfos']) if
-                  RED_INFO[str(i)]['ID'] == item.get('ID')), (-1, None))[0]
+                  PlaneInfo.RED[str(i)]['ID'] == item.get('ID')), (-1, None))[0]
 
         left_weapon_num = self.ori_message['red']['platforminfos'][cur_index]['LeftWeapon']  # 先判断有没有剩余弹药
         cur_red_agent_loc = [self.ori_message['red']['platforminfos'][cur_index]['X'],
@@ -1303,11 +1303,11 @@ class HuaRuBattleEnvWrapper(EnvRunner):
         #     # 跟随的不是自己，要判断这个实体是否已经死亡
         #     if follow_order >=0 and follow_order < 5:
         #       # 红方队友
-        #       team_id = RED_INFO[str(follow_order)]["ID"]
+        #       team_id = PlaneInfo.RED[str(follow_order)]["ID"]
         #       avai_mask[i][follow_order+16] = 1 if team_id not in self.red_death else 0
         #     else:
         #       # 蓝方敌人
-        #       enemy_id = BLUE_INFO[str(follow_order-5)]["ID"]
+        #       enemy_id = PlaneInfo.BLUE[str(follow_order-5)]["ID"]
         #       avai_mask[i][follow_order+16] = 1 if enemy_id not in self.blue_death else 0
         #     # print(f'当前跟随的对象不是自己，是{follow_order}')
         #     pass
@@ -1323,7 +1323,7 @@ class HuaRuBattleEnvWrapper(EnvRunner):
           # 分别计算敌方实体的距离
           for j in range(5):
             # 查找蓝方实体的位置，要先判断这个蓝方是不是已经死掉了
-            blue_ID = BLUE_INFO[str(j)]['ID']
+            blue_ID = PlaneInfo.BLUE[str(j)]['ID']
             if blue_ID in self.blue_death:
               cur_ava = np.append(cur_ava, 0)
             else:

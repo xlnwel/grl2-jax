@@ -1,8 +1,6 @@
 import logging
 import functools
 import collections
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from tools.log import do_logging
@@ -70,10 +68,6 @@ def process_with_env(data, env_stats, obs_range=None,
           data[k] = data[k] / 255. - .5
     else:
       raise ValueError(obs_range)
-  if env_stats['is_action_discrete'] and one_hot_action:
-    for k in data:
-      if k.endswith('action'):
-        data[k] = jax.nn.one_hot(data[k], env_stats['action_dim'], dtype=dtype)
   return data
 
 

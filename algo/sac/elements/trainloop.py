@@ -1,1 +1,1 @@
-from core.elements.trainloop import TrainingLoop
+from jx.elements.trainloop import TrainingLoop

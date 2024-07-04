@@ -1,14 +1,13 @@
 from functools import partial
 import numpy as np
-from torch.utils._pytree import tree_map
 
-from th.core.names import TRAIN_AXIS
-from th.core.elements.trainer import TrainerBase, create_trainer
-from th.core import optimizer
-from th.core.typing import AttrDict, dict2AttrDict
-from th.tools.th_utils import to_tensor, to_numpy
+from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.utils import flatten_dict, prefix_name
+from tools.tree_ops import tree_map
+from th.elements.trainer import Trainer as TrainerBase, create_trainer
+from th.elements import optimizer
+from th.tools.th_utils import to_tensor, to_numpy
 
 
 def construct_fake_data(env_stats, aid):
@@ -40,7 +39,7 @@ def construct_fake_data(env_stats, aid):
 
 
 class Trainer(TrainerBase):
-  def add_attributes(self):
+  def post_init(self):
     self.indices = np.arange(self.config.n_runners * self.config.n_envs)
 
   def build_optimizers(self):

@@ -64,11 +64,12 @@ class ParamsCheckpointBase:
     if self._ckpt is not None:
       self._ckpt.reset_model_path(model_path)
 
-  def restore(self, params: Sequence[str]=None):
-    if params is None:
-      params = list(self.params)
-    params = self._ckpt.restore(params)
+  def restore(self):
+    params = self._ckpt.restore()
     self.set_weights(params)
+    return params
     
-  def save(self):
-    self._ckpt.save(self.params)
+  def save(self, params=None):
+    if params is None:
+      params = self.params
+    self._ckpt.save(params)

@@ -8,7 +8,7 @@ from nn.func import nn_registry
 from nn.layers import Layer
 from nn.mlp import MLP
 from nn.utils import get_activation
-from jax_tools import jax_assert
+from jx.tools import jax_assert
 """ Source this file to register Networks """
 
 

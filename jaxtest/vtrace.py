@@ -7,7 +7,7 @@ import numpy as np
 import rlax
 
 from core.typing import dict2AttrDict
-from jax_tools.jax_loss import compute_target_advantage
+from jx.tools.jax_loss import compute_target_advantage
 
 class VTraceTest(parameterized.TestCase):
 

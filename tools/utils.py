@@ -6,10 +6,9 @@ import itertools
 import math
 import multiprocessing
 import numpy as np
-import jax
 
 from core.typing import AttrDict, ModelPath, dict2AttrDict
-
+from tools.tree_ops import tree_flatten, tree_unflatten
 
 def is_empty(x):
   if isinstance(x, dict):
@@ -28,18 +27,6 @@ def is_empty(x):
     return True
   else:
     return False
-
-def tree_map(func, tree):
-  if tree is None:
-    return tree
-  elif isinstance(tree, (list, tuple)):
-    return type(tree)(tree_map(func, x) for x in tree)
-  elif isinstance(tree, AttrDict):
-    return AttrDict(dict= {k: tree_map(func, v) for k, v in tree.items()})
-  elif isinstance(tree, dict):
-    return {k: tree_map(func, v) for k, v in tree.items()}
-  else:
-    return func(tree)
 
 def deep_update(source: dict, target: dict):
   for k, v in target.items():
@@ -162,7 +149,7 @@ def config_attr(
       v = int(v)
     if check_overwrite and not hasattr(obj, k):
       raise ValueError(f'{k} does not exist in {obj}')
-    setattr(obj, k, v)
+    setattr(obj, k, copy.deepcopy(v))
   return config
 
 
@@ -475,18 +462,18 @@ def extract_from_tree(d, idx):
   return d
 
 def yield_from_tree(tree):
-  vals, keys = jax.tree_util.tree_flatten(tree)
+  vals, keys = tree_flatten(tree)
   for v in zip(*vals):
-    yield jax.tree_util.tree_unflatten(keys, v)
+    yield tree_unflatten(keys, v)
 
 def yield_from_tree_with_indices(tree, indices, axis, keep_none=False):
-  vals, keys = jax.tree_util.tree_flatten(tree)
+  vals, keys = tree_flatten(tree)
   for idx in indices:
     if keep_none:
       v = [v if v is None else v.take(indices=idx, axis=axis) for v in vals]
     else:
       v = [v.take(indices=idx, axis=axis) for v in vals]
-    yield jax.tree_util.tree_unflatten(keys, v)
+    yield tree_unflatten(keys, v)
 
 def product_flatten_dict(**kwargs):
   """ Flatten a dict of lists into a list of dicts

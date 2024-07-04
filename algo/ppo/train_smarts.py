@@ -2,9 +2,10 @@ import functools
 import numpy as np
 import ray
 
-from core.elements.builder import ElementsBuilder
+from core.builder import ElementsBuilder
 from tools.log import do_logging
-from core.utils import configure_jax_gpu, set_seed, save_code
+from core.utils import set_seed, save_code
+from core.utils import configure_gpu
 from core.typing import ModelPath
 from tools.store import StateStore
 from tools.utils import modify_config
@@ -92,11 +93,11 @@ def train(
 
 
 def main(configs, train=train):
+  configs = configure_gpu(configs)
   config = configs[0]
   seed = config.get('seed')
   set_seed(seed)
 
-  configure_jax_gpu()
   use_ray = config.env.get('n_runners', 1) > 1 or config.routine.get('EVAL_PERIOD', False)
   if use_ray:
     from tools.ray_setup import sigint_shutdown_ray

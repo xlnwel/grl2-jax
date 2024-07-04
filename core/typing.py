@@ -3,10 +3,11 @@ import sys
 import copy
 import collections
 from typing import Any
-from jax import tree_util
+# from jax import tree_util
 
 from tools.log import do_logging, stringify
-from core.names import PATH_SPLIT
+from tools.tree_ops import *
+from core.names import PATH_SPLIT, DL_LIB, dllib
 
 
 ModelWeights = collections.namedtuple('model_weights', 'model weights')
@@ -14,9 +15,9 @@ ModelStats = collections.namedtuple('model_stats', 'model stats')
 
 
 """ Attribute Dictionary """
-@tree_util.register_pytree_node_class
+# @tree_util.register_pytree_node_class
 class AttrDict(collections.defaultdict):
-  def __init__(self, default=None, *args, dict=None, **kwargs):
+  def __init__(self, dict=None, *args, default=None, **kwargs):
     self._default = default
     if default is None and dict is None:
       super().__init__(None,  *args, **kwargs)
@@ -41,8 +42,8 @@ class AttrDict(collections.defaultdict):
 
   def copy(self, shallow=True):
     if shallow:
-      return AttrDict(self._default, dict=self)
-    res = AttrDict(self._default)
+      return AttrDict(dict=self, default=self._default)
+    res = AttrDict(default=self._default)
     for k, v in self.items():
       if isinstance(v, AttrDict):
         res[k] = v.copy(shallow=False)
@@ -90,16 +91,20 @@ class AttrDict(collections.defaultdict):
     return (AttrDict, (), self.__getstate__())
 
   def tree_flatten(self):
-    children = tuple(self.values())
-    aux_data = tuple(self.keys())
-    return children, aux_data
+    if dllib == DL_LIB.JAX:
+      leaves = tuple(self.values())
+      structrue = tuple(self.keys())
+      return leaves, structrue
+    return tree_flatten(self)
 
   @classmethod
-  def tree_unflatten(cls, aux_data, children):
-    t = cls()
-    for k, v in zip(aux_data, children):
-      t[k] = v
-    return t
+  def tree_unflatten(cls, structure, leaves):
+    if dllib == DL_LIB.JAX:
+      t = cls()
+      for k, v in zip(structure, leaves):
+        t[k] = v
+      return t
+    return tree_unflatten(structure, leaves)
 
   def subdict(self, *args):
     return subdict(self, *args)
@@ -110,6 +115,10 @@ class AttrDict(collections.defaultdict):
   def slice(self, loc=None, indices=None, axis=None):
     return tree_slice(self, loc, indices, axis)
 
+  @classmethod
+  def as_jax_pytree(cls):
+    import jax
+    return jax.tree_util.register_pytree_node_class(AttrDict)
 
 def subdict(d, *args):
   res = type(d)()
@@ -126,34 +135,28 @@ def exclude_subdict(d, *args):
     res[k] = d[k]
   return res
 
-def tree_slice(d, loc=None, indices=None, axis=None):
-  if loc is None:
-    return tree_util.tree_map(lambda x: x.take(indices=indices, axis=axis), d)
-  else:
-    return tree_util.tree_map(lambda x: x[loc], d)
-
-def dict2AttrDict(d: dict, shallow=False, to_copy=False):
+def dict2AttrDict(d: dict, shallow=False, to_copy=False, to_jax_pytree=False):
   if isinstance(d, AttrDict) and not to_copy:
-    return d
+    return AttrDict.as_jax_pytree()(d) if to_jax_pytree else d
   if not isinstance(d, (list, dict, tuple)):
     return d
   if isinstance(d, (list, tuple)):
     if hasattr(d, '_fields'):
       return type(d)(*[
-        dict2AttrDict(dd, to_copy=to_copy) 
+        dict2AttrDict(dd, to_copy=to_copy, to_jax_pytree=to_jax_pytree) 
         for dd in d])
     else:
       return type(d)([
-        dict2AttrDict(dd, to_copy=to_copy) 
+        dict2AttrDict(dd, to_copy=to_copy, to_jax_pytree=to_jax_pytree) 
         for dd in d])
   assert isinstance(d, dict), d
   if shallow:
-    res = AttrDict()
+    res = AttrDict.as_jax_pytree() if to_jax_pytree else AttrDict()
     for k, v in d.items():
       res[k] = v
     return res
 
-  res = AttrDict()
+  res = AttrDict.as_jax_pytree() if to_jax_pytree else AttrDict()
   for k, v in d.items():
     if isinstance(v, (dict, list, tuple)):
       res[k] = dict2AttrDict(v, to_copy=to_copy)
@@ -337,12 +340,14 @@ def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
   result = type(typename, (NtCls,), class_namespace)
   result.__module__ = NtCls.__module__
 
-  # register NtCls as pytree node
-  tree_util.register_pytree_node(
-    NtCls,
-    lambda xs: (tuple(xs), None),  # tell JAX how to unpack to an iterable
-    lambda _, xs: NtCls(*xs)     # tell JAX how to pack back into a Point
-  )
+  # if dllib == DL_LIB.JAX:
+  #   # register NtCls as pytree node
+  #   import jax
+  #   jax.tree_util.register_pytree_node(
+  #     NtCls,
+  #     lambda xs: (tuple(xs), None),  # tell JAX how to unpack to an iterable
+  #     lambda _, xs: NtCls(*xs)     # tell JAX how to pack back into a Point
+  #   )
 
   if return_namedtuple_cls:
     return result, NtCls

@@ -1,7 +1,7 @@
 import numpy as np
 
-from core.elements.actor import Actor
-from core.elements.strategy import Strategy
+from jx.elements.actor import Actor
+from jx.elements.strategy import Strategy
 from tools.utils import dict2AttrDict
 
 

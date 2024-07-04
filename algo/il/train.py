@@ -1,9 +1,9 @@
 import numpy as np
 
 from tools.pickle import restore
-from core.typing import tree_slice
 from tools.display import print_dict_info
 from tools.timer import Every
+from tools.tree_ops import tree_slice
 from tools.utils import yield_from_tree
 from algo.ma_common.train import *
 
@@ -61,11 +61,11 @@ def load_data(filename, filedir='/System/Volumes/Data/mnt/公共区/cxw/data', n
 
 
 def main(configs, train=train, Runner=Runner):
+  configs = configure_gpu(configs)
   config = configs[0]
   seed = config.get('seed')
   set_seed(seed)
 
-  configure_jax_gpu()
   use_ray = config.env.get('n_runners', 1) > 1
   if use_ray:
     from tools.ray_setup import sigint_shutdown_ray

@@ -1,8 +1,8 @@
 import threading
 import ray
 
-from core.elements.builder import ElementsBuilder
-from core.elements.strategy import Strategy
+from core.builder import ElementsBuilder
+from jx.elements.strategy import Strategy
 from core.names import *
 from core.typing import ModelStats, ModelWeights
 from tools.log import do_logging

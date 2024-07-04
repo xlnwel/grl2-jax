@@ -125,7 +125,7 @@ class HuaRu5v5(EnvRunner):
     n_attack_actions = 5
     n_speed_actions = 2
     self.action_space = [{
-      DEFAULT_ACTION: gym.spaces.Discrete(n_move_actions + n_attack_actions), 
+      DEFAULT_ACTION: gym.spaces.Discrete(n_move_actions + n_attack_actions + n_speed_actions), 
     } for _ in range(self.n_groups)]
     self.action_shape = [{
       k: v.shape for k, v in a.items()
@@ -146,6 +146,7 @@ class HuaRu5v5(EnvRunner):
     self._score = np.zeros(self.n_units)  # 最终胜负
     self._dense_score = np.zeros(self.n_units)  # 稠密奖励累积
 
+    self._engage_step = -1
     self.max_episode_steps = max_episode_steps  # 最大回合步长
 
     # 初始化智能体，红方智能体是用于转换仿真的指令；蓝方智能体适用于利用代码规则
@@ -167,11 +168,23 @@ class HuaRu5v5(EnvRunner):
 
   def reset(self):
     """重置仿真环境, 返回初始帧obs"""
+    global Agent, PlaneInfo, MissileInfo, InitLoc, Identification, config
+    Agent.RED, Agent.BLUE = Agent.BLUE, Agent.RED
+    PlaneInfo.RED, PlaneInfo.BLUE = PlaneInfo.BLUE, PlaneInfo.RED
+    MissileInfo.RED, MissileInfo.BLUE = MissileInfo.BLUE, MissileInfo.RED
+    InitLoc.RED, InitLoc.BLUE = InitLoc.BLUE, InitLoc.RED
+    Identification.RED, Identification.BLUE = Identification.BLUE, Identification.RED
+    config['agents']['red'], config['agents']['blue'] = config['agents']['blue'], config['agents']['red']
+    del self.agents
+    self.agents = {}
+    self.agents = super().init_agents(config['agents'])
+
     self._epslen = 0
     self._score = np.zeros(self.n_units)
     self._dense_score = np.zeros(self.n_units)
     self._scores = collections.defaultdict(float)
     self._rewards = {}
+    self._engage_step = -1
 
     for side, agent in self.agents.items():
       agent.reset()
@@ -181,6 +194,7 @@ class HuaRu5v5(EnvRunner):
     self.red_alive_mask = []
     self.blue_alive_mask = []
     self.shoot_interval = np.zeros([self.n_units, 5])
+    self._in_range = True
     
     self.red_agent_loc = {}
     self.agents_speed = {}
@@ -190,21 +204,22 @@ class HuaRu5v5(EnvRunner):
       msg = super().step([])  # 推动拿到第一帧的obs信息
     parsed_msg = {
       'agent_pre_loc': self.red_agent_loc,
-      'blue_info': BLUE_INFO,
-      'red_info': RED_INFO,
+      'blue_info': PlaneInfo.BLUE,
+      'red_info': PlaneInfo.RED,
       'sim_time': msg['sim_time'],
       'agent_speed': self.agents_speed # 记录当前帧每个智能体的速度，如果已经死亡，则速度为-1
     }
 
     cmd_list = []
-    cmd_list.extend(self.agents[Agent.RED].make_init_cmd(RED_INFO, RED_INIT_LOC))
+    cmd_list.extend(self.agents[Agent.RED].make_init_cmd(PlaneInfo.RED, InitLoc.RED))
     cmd_list.extend(self.get_blue_cmd(self.agents[Agent.BLUE], msg))
 
-    self.last_msg = msg
     self.msg = super().step(cmd_list)
+    self.last_msg = self.msg
     # 将前200步的规则操作都移到reset()中，不输入到算法中，减小探索空间
     # 前200将动作为0传给alo_agent
-    rule_actions = [0]*5  # 加一个强规则，前150帧像前飞，减小探索空间
+    rule_actions = [14]*5  # 加一个强规则，前150帧像前飞，减小探索空间
+    k = 0
     while self.msg["sim_time"] < 200:
       cmd_list = []
       pinfos = self.msg[Agent.RED]['platforminfos']
@@ -216,19 +231,17 @@ class HuaRu5v5(EnvRunner):
         self.agents_speed[i] = pinfo['Speed']
       parsed_msg = {
         'agent_pre_loc': self.red_agent_loc,
-        'blue_info': BLUE_INFO,
-        'red_info': RED_INFO,
         'sim_time': self.msg['sim_time'],
         'agent_speed': self.agents_speed # 记录当前帧每个智能体的速度，如果已经死亡，则速度为-1
       }
-      if self.msg["sim_time"] % self.frame_skip == 0:
-        cmd_list.extend(self.agents["red"].make_actions(rule_actions, parsed_msg))  # parse_msg里的sim_time应该没更新
+      k += 1
+      if k % self.frame_skip == 0:
+        cmd_list.extend(self.agents[Agent.RED].make_actions(rule_actions, parsed_msg, PlaneInfo.RED, PlaneInfo.BLUE))  # parse_msg里的sim_time应该没更新
         self.last_msg = self.msg  # 2024/06/24 修改，15帧决策时，上一帧的数据应该是20帧之前
       else:
         pass
-      cmd_list.extend(self.get_blue_cmd(self.agents["blue"], self.msg))
+      cmd_list.extend(self.get_blue_cmd(self.agents[Agent.BLUE], self.msg))
       self.msg = super().step(cmd_list)
-
     obs = self.make_obs(self.msg)
 
     return obs   # list, np
@@ -262,6 +275,7 @@ class HuaRu5v5(EnvRunner):
       'game_over': np.any(done), 
       'red_left_missile': sum([p['LeftWeapon'] for p in self.msg[Agent.RED]['platforminfos']]), 
       'blue_left_missile': sum([p['LeftWeapon'] for p in self.msg[Agent.BLUE]['platforminfos']]), 
+      'oor_times': done_reason == Reason.OOR, 
       'timeout_times': done_reason == Reason.TIMEOUT, 
       'win_times': done_reason == Reason.WIN, 
       'lose_times': done_reason == Reason.LOSE, 
@@ -298,12 +312,10 @@ class HuaRu5v5(EnvRunner):
     cmd_list = []
     parsed_msg = {
       'agent_pre_loc': self.red_agent_loc,
-      'blue_info': BLUE_INFO,
-      'red_info': RED_INFO,
       'sim_time': self.msg['sim_time'],
       'agent_speed': self.agents_speed # 记录当前帧每个智能体的速度，如果已经死亡，则速度为-1
     }
-    cmd_list.extend(self.agents[Agent.RED].make_actions(action, parsed_msg)) # Agents的仿真指令
+    cmd_list.extend(self.agents[Agent.RED].make_actions(action, parsed_msg, PlaneInfo.RED, PlaneInfo.BLUE)) # Agents的仿真指令
     # print(f'cmd list: {cmd_list}')
     cmd_list.extend(blue_cmd_list)
 
@@ -354,7 +366,7 @@ class HuaRu5v5(EnvRunner):
     """当前Agent还存活"""
     obs = agent_id
     # 获取当前Agent在['platforminfos']中的索引
-    pid = get_info_id(pinfos, RED_INFO[uid]['ID'])
+    pid = get_info_id(pinfos, PlaneInfo.RED[uid]['ID'])
     # 拿这个Agent本身的信息
     ptype = pinfos[pid]['Type']
     ptype_oh = [0, 0]
@@ -384,7 +396,7 @@ class HuaRu5v5(EnvRunner):
       # 先查找这个队友还存在
       if self.red_alive_mask[i]:
         # 说明这个队友还活着，拿到这个队友的索引
-        al_id = get_info_id(pinfos, RED_INFO[i]['ID'])
+        al_id = get_info_id(pinfos, PlaneInfo.RED[i]['ID'])
         al_type = pinfos[al_id]['Type']
         al_type_oh = [0, 0]
         al_type_oh[al_type-1] = 1
@@ -406,7 +418,7 @@ class HuaRu5v5(EnvRunner):
     for i in range(5):
       if self.blue_alive_mask[i]:
         # 说明这个敌人还活着
-        e_id = get_info_id(pinfos, BLUE_INFO[i]['ID'])
+        e_id = get_info_id(pinfos, PlaneInfo.BLUE[i]['ID'])
         # 找到这个敌人在trackinfos_list中的索引位置
         e_type = pinfos[e_id]['Type']
         e_type_oh = [0, 0]
@@ -430,13 +442,13 @@ class HuaRu5v5(EnvRunner):
       for i in range(12):
         # 一共是12枚导弹，
         # 分别查看这12枚导弹是否出现了
-        minfo = list(filter(lambda x: x['Name'] == BLUE_FIRE_INFO[i]['Name'], minfos))
+        minfo = list(filter(lambda x: x['Name'] == MissileInfo.BLUE[i]['Name'], minfos))
         if not minfo:
           obs += [0.] * 5
           continue
         minfo = minfo[0]
         # 如果出现了，查看是否锁定了自己？
-        if minfo['EngageTargetID'] == RED_INFO[uid]['ID']:
+        if minfo['EngageTargetID'] == PlaneInfo.RED[uid]['ID']:
           # 说明这枚弹已经出现了
           # 拿到这枚弹的信息
           # 锁定了自己
@@ -455,7 +467,7 @@ class HuaRu5v5(EnvRunner):
   def get_global_state(self, msg, uid):
     def get_ego_info(msg, uid):
       pinfos = msg[Agent.RED]['platforminfos']
-      pid = get_info_id(pinfos, RED_INFO[uid]['ID'])
+      pid = get_info_id(pinfos, PlaneInfo.RED[uid]['ID'])
       ptype = pinfos[pid]['Type']
       ptype_oh = [0, 0]
       ptype_oh[ptype-1] = 1
@@ -483,7 +495,7 @@ class HuaRu5v5(EnvRunner):
       pinfos = msg[side]['platforminfos']
       gs = []
 
-      info_dict = RED_INFO if side == Agent.RED else BLUE_INFO
+      info_dict = PlaneInfo.RED if side == Agent.RED else PlaneInfo.BLUE
       alive_mask = self.red_alive_mask if side == Agent.RED else self.blue_alive_mask
       # 获取当前Agent在['platforminfos']中的索引
       for i in range(5):
@@ -515,8 +527,8 @@ class HuaRu5v5(EnvRunner):
 
     def get_miss_info(msg, side):
       gs = []
-      info_dict = RED_INFO if side == Agent.RED else BLUE_INFO
-      fire_dict = BLUE_FIRE_INFO if side == Agent.RED else RED_FIRE_INFO
+      info_dict = PlaneInfo.RED if side == Agent.RED else PlaneInfo.BLUE
+      fire_dict = MissileInfo.BLUE if side == Agent.RED else MissileInfo.RED
       pinfos = msg[side]['platforminfos']
       minfos = msg[side]['missileinfos']
       for i in range(12):
@@ -577,7 +589,7 @@ class HuaRu5v5(EnvRunner):
     action_mask[-1] = 0
     pinfos = msg[Agent.RED]['platforminfos']
     # 如果没有死亡，那么移动就可以全部是1,需要判断能不能攻击具体到某个敌方，要进行弹药数量判断和距离判断
-    pid = get_info_id(pinfos, RED_INFO[uid]['ID'])
+    pid = get_info_id(pinfos, PlaneInfo.RED[uid]['ID'])
 
     if pinfos[pid]['LeftWeapon'] == 0:
       action_mask[9:14] = 0
@@ -591,7 +603,7 @@ class HuaRu5v5(EnvRunner):
         # 查找蓝方实体的位置，要先判断这个蓝方是不是已经死掉了
         if self.blue_alive_mask[i]:
           # 这个蓝方实体还没有死掉
-          e_id = BLUE_INFO[i]['ID']
+          e_id = PlaneInfo.BLUE[i]['ID']
           e_ids = [j for j, item in enumerate(msg[Agent.RED]['trackinfos']) if item['ID'] == e_id]
           if e_ids:
             assert len(e_ids) == 1, e_ids
@@ -628,10 +640,10 @@ class HuaRu5v5(EnvRunner):
     last_blue_pinfos = last_blue_msg['platforminfos']
     red_pinfos = red_msg['platforminfos']
     blue_pinfos = blue_msg['platforminfos']
-    last_red_weapon = [m for m in last_blue_msg["missileinfos"] if m["Identification"] == "红方"]
-    last_blue_weapon = [m for m in last_red_msg["missileinfos"] if m["Identification"] == "蓝方"]
-    red_weapon = [m for m in blue_msg["missileinfos"] if m["Identification"] == "红方"]
-    blue_weapon = [m for m in red_msg["missileinfos"] if m["Identification"] == "蓝方"]
+    last_red_weapon = [m for m in last_blue_msg["missileinfos"] if m["Identification"] == Identification.RED]
+    last_blue_weapon = [m for m in last_red_msg["missileinfos"] if m["Identification"] == Identification.BLUE]
+    red_weapon = [m for m in blue_msg["missileinfos"] if m["Identification"] == Identification.RED]
+    blue_weapon = [m for m in red_msg["missileinfos"] if m["Identification"] == Identification.BLUE]
     # 1. 统计上一帧中，红方战机的数量 & 存在的导弹剩余数量
     n_last_red_planes = len(last_red_pinfos)
     n_last_red_weapon = len(last_red_weapon)
@@ -654,7 +666,7 @@ class HuaRu5v5(EnvRunner):
         if self.shared_reward:
           red_locked -= 1
         else:
-          uid = get_uid(RED_INFO, p['ID'])
+          uid = get_uid(PlaneInfo.RED, p['ID'])
           red_locked[uid] -= 1
     # for p in blue_pinfos:
     #   if p['IsLocked']:
@@ -673,7 +685,7 @@ class HuaRu5v5(EnvRunner):
         for p in last_red_pinfos:
           if any([True for pp in red_pinfos if p['ID'] == pp['ID']]):
             continue
-          uid = get_uid(RED_INFO, p['ID'])
+          uid = get_uid(PlaneInfo.RED, p['ID'])
           rewards[Reward.DAMAGE][uid] -= self.damage_reward_scale
     elif n_last_blue_weapon - n_blue_weapon > 0:
       # 说明红方飞机数量没有变化, 躲蛋成功获得奖励
@@ -683,7 +695,7 @@ class HuaRu5v5(EnvRunner):
         for w in last_blue_weapon:
           if any([True for ww in blue_weapon if w['ID'] == ww['ID']]):
             continue
-          uid = get_uid(RED_INFO, w['EngageTargetID'])
+          uid = get_uid(PlaneInfo.RED, w['EngageTargetID'])
           rewards[Reward.ESCAPE][uid] += self.escape_reward_scale
     reward += rewards[Reward.DAMAGE]
     reward += rewards[Reward.ESCAPE]
@@ -703,7 +715,7 @@ class HuaRu5v5(EnvRunner):
         for w in last_red_weapon:
           if any([True for ww in red_weapon if w['ID'] == ww['ID']]):
             continue
-          uid = get_uid(RED_INFO, w['LauncherID'])
+          uid = get_uid(PlaneInfo.RED, w['LauncherID'])
           rewards[Reward.MISS][uid] -= self.miss_reward_scale
     reward += rewards[Reward.ATTACK]
     reward += rewards[Reward.MISS]
@@ -713,13 +725,13 @@ class HuaRu5v5(EnvRunner):
     for rid in range(self.n_units):
       if not self.red_alive_mask[rid]:
         continue
-      id = RED_INFO[rid]['ID']
+      id = PlaneInfo.RED[rid]['ID']
       pid = get_info_id(red_pinfos, id)
       if not self.red_alive_mask[rid] or red_pinfos[pid]['IsLocked']:
         continue
       # 当前的坐标
       cur_x = red_pinfos[pid]['X'] - last_blue_pinfos[0]['X']
-      cur_y = red_pinfos[pid]['Y'] - last_blue_pinfos[0]['X']
+      cur_y = red_pinfos[pid]['Y'] - last_blue_pinfos[0]['Y']
       cur_distance = np.linalg.norm(np.array([cur_x/10000, cur_y/10000]))
       # 上一个坐标
       last_pids = [j for j, item in enumerate(last_red_pinfos) if item['ID'] == id]
@@ -728,11 +740,11 @@ class HuaRu5v5(EnvRunner):
       assert len(last_pids) == 1, last_pids
       last_pid = last_pids[0]
       last_x = last_red_pinfos[last_pid]['X'] - last_blue_pinfos[0]['X']
-      last_y = last_red_pinfos[last_pid]['Y'] - last_blue_pinfos[0]['X']
+      last_y = last_red_pinfos[last_pid]['Y'] - last_blue_pinfos[0]['Y']
       last_distance = np.linalg.norm(np.array([last_x/10000, last_y/10000]))
       # 这个值是很大的
       # distance_reward += 1 if (last_distance - cur_distance) > 0 else -1
-      distance_reward[rid] += last_distance - cur_distance
+      distance_reward[rid] += max(0, last_distance - cur_distance)
     rewards[Reward.DISTANCE] = self.distance_reward_scale * distance_reward
     reward += rewards[Reward.DISTANCE]
 
@@ -742,17 +754,21 @@ class HuaRu5v5(EnvRunner):
       if not self.red_alive_mask[rid]:
         continue
       # 当前的坐标
-      cur_pid = get_info_id(red_pinfos, RED_INFO[rid]['ID'])
+      cur_pid = get_info_id(red_pinfos, PlaneInfo.RED[rid]['ID'])
       cur_x = red_pinfos[cur_pid]['X']
       cur_y = red_pinfos[cur_pid]['Y']
       r = 0
       if abs(cur_x) > 140000:
         if abs(cur_x) >= 150000:
+          if rid == 0:
+            self._in_range = False
           print(f"红方飞机{rid}自杀了！")
         # print(f"红方飞机{rid}距离x轴飞出边界还剩{150000 - abs(cur_x)}！")
         r -= 1
       if abs(cur_y) > 140000:
         if abs(cur_y) >= 150000:
+          if rid == 0:
+            self._in_range = False
           print(f"红方飞机{rid}自杀了！")
         # print(f"红方飞机{agent_order}距离y轴飞出边界还剩{150000 - abs(cur_y)}！")
         r -= 1
@@ -781,7 +797,12 @@ class HuaRu5v5(EnvRunner):
     red_pinfos = msg[Agent.RED]["platforminfos"]
     blue_pinfos = msg[Agent.BLUE]["platforminfos"]
     # print("get_done cur_time:", cur_time)
-    if not self.red_alive_mask[0]:
+    if not self._in_range:
+      done = True
+      reward = -self.win_reward
+      reason = Reason.OOR
+      self._rewards[Reward.WIN] = reward
+    elif not self.red_alive_mask[0]:
       # print("红方有人机阵亡")
       done = True
       reward = - self.win_reward
@@ -801,8 +822,8 @@ class HuaRu5v5(EnvRunner):
     else:
       red_ammo_free = all([pinfo["LeftWeapon"] == 0 for pinfo in red_pinfos])
       blue_ammo_free = all([pinfo["LeftWeapon"] == 0 for pinfo in blue_pinfos])
-      red_fly_missile = len([m for m in msg[Agent.BLUE]["missileinfos"] if m["Identification"] == "红方"]) > 0
-      blue_fly_missile = len([m for m in msg[Agent.RED]["missileinfos"] if m["Identification"] == "蓝方"]) > 0
+      red_fly_missile = len([m for m in msg[Agent.BLUE]["missileinfos"] if m["Identification"] == Identification.RED]) > 0
+      blue_fly_missile = len([m for m in msg[Agent.RED]["missileinfos"] if m["Identification"] == Identification.BLUE]) > 0
       if red_ammo_free and blue_ammo_free and not red_fly_missile and not blue_fly_missile:
         done = True
         reward = -self.win_reward if not red_fly_missile else self.win_reward

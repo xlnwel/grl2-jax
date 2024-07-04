@@ -1,1 +1,1 @@
-from core.elements.strategy import create_strategy
+from jx.elements.strategy import create_strategy

@@ -9,7 +9,7 @@ import time
 from tools.display import do_logging
 from envs.battle5v5.env.xsim_manager import XSimManager
 from envs.battle5v5.env.communication_service import CommunicationService
-from envs.battle5v5.config import Agent, BLUE_INFO, RED_INFO, BLUE_FIRE_INFO, RED_FIRE_INFO
+from envs.battle5v5.config import Agent, PlaneInfo, MissileInfo
 
 
 class XSimEnv(object):
@@ -132,5 +132,5 @@ class XSimEnv(object):
 
     def check_alive(self, msg, i, side):
         pinfo = msg[side]['platforminfos']
-        uid = (RED_INFO if side == Agent.RED else BLUE_INFO)[i]['ID']
+        uid = (PlaneInfo.RED if side == Agent.RED else PlaneInfo.BLUE)[i]['ID']
         return any(filter(lambda x: x['ID'] == uid, pinfo))

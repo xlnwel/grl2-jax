@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from core.typing import AttrDict, dict2AttrDict
-from core.elements.strategy import Strategy as StrategyBase, create_strategy
+from jx.elements.strategy import Strategy as StrategyBase, create_strategy
 from core.mixin.strategy import Memory as MemoryBase
 from envs.typing import EnvOutput
 from tools.display import print_dict_info

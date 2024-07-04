@@ -1,6 +1,6 @@
 from jax import lax, random
 
-from core.elements.loss import LossBase
+from jx.elements.loss import Loss as LossBase
 from core.typing import dict2AttrDict
 from .utils import *
 

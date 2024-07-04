@@ -2,8 +2,6 @@ import os
 import re
 import random
 import numpy as np
-import jax
-import jax.numpy as jnp
 from typing import Union
 
 from tools import pickle
@@ -15,7 +13,6 @@ from distributed.common.typing import *
 from core.typing import ModelPath, retrieve_model_path
 from tools.graph import get_tick_labels
 from tools.log import do_logging
-from nn.utils import reset_linear_weights, reset_weights
 
 
 def divide_runners(n_agents, n_runners, online_frac):
@@ -29,6 +26,9 @@ def divide_runners(n_agents, n_runners, online_frac):
 
 
 def reset_policy_head(weights, config):
+  import jax
+  import jax.numpy as jnp
+  from nn.utils import reset_linear_weights, reset_weights
   def reset_logstd(vv, rng):
     if config.model.policy.sigmoid_scale:
       logstd = config.model.policy.std_x_coef

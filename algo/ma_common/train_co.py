@@ -2,7 +2,7 @@ import importlib
 import ray
 
 from tools.log import do_logging
-from core.utils import configure_jax_gpu, set_seed, save_code_for_seed
+from core.utils import set_seed, save_code_for_seed
 from tools.display import print_dict
 from tools.timer import timeit, Every
 from tools.yaml_op import load_config
@@ -46,13 +46,13 @@ def train(
 
 
 def main(configs, train=train, Runner=CurriculumRunner):
+  configs = configure_gpu(configs)
   config = configs[0]
   if config.routine.compute_return_at_once:
     config.buffer.sample_keys += ['advantage', 'v_target']
   seed = config.get('seed')
   set_seed(seed)
 
-  configure_jax_gpu()
   use_ray = config.env.get('n_runners', 1) > 1
   if use_ray:
     from tools.ray_setup import sigint_shutdown_ray

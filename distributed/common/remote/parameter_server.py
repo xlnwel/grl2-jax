@@ -1,26 +1,21 @@
-import collections
 import itertools
 import os
-import filelock
 import random
-import time
 from typing import Dict, List
 import numpy as np
-import jax
 import ray
 
 from tools import pickle
-from core.elements.builder import ElementsBuilderVC
+from core.builder import ElementsBuilderVC
 from tools.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
 from distributed.common.remote.base import RayBase
 from core.typing import AttrDict, AttrDict2dict, ModelPath, ModelWeights, \
-  construct_model_name, exclude_subdict, get_aid, get_date, get_basic_model_name
+  construct_model_name, get_aid, get_date, get_basic_model_name
 from rule.utils import is_rule_strategy
 from tools.file import search_for_config
 from tools.schedule import PiecewiseSchedule
-from tools.timer import Every
 from tools.utils import config_attr, dict2AttrDict
 from tools import yaml_op
 from distributed.common.names import *
@@ -343,6 +338,7 @@ class ParameterServer(RayBase):
   def _restore_active_strategies(self):
     # restore active strategies 
     strategies = []
+    configs = []
     for aid, model in enumerate(self._models['active']):
       assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
       weights = self._params[aid][model].copy()
@@ -352,8 +348,8 @@ class ParameterServer(RayBase):
     for b in self.builders:
       config = b.config.copy(shallow=False)
       config.status = Status.TRAINING
-      b.save_config(config)
-    return strategies
+      configs.append(config)
+    return strategies, configs
 
   def _construct_raw_strategy(self, aid, iteration):
     self.builders[aid].set_iteration_version(iteration)
@@ -415,7 +411,7 @@ class ParameterServer(RayBase):
     is_raw_strategy = [False for _ in range(self.n_agents)]
     configs = []
     if any([am is not None for am in self._models['active']]):
-      strategies = self._restore_active_strategies()
+      strategies, configs = self._restore_active_strategies()
     else:
       assert all([am is None for am in self._models['active']]), self._models['active']
       for aid in range(self.n_agents):
@@ -434,20 +430,22 @@ class ParameterServer(RayBase):
 
   def archive_training_strategies(self, **kwargs):
     do_logging('Archiving training strategies', color='green')
+    configs = []
     for b in self.builders:
       config = b.config.copy(shallow=False)
       config.update(kwargs)
-      b.save_config(config)
+      configs.append(config)
+      # b.save_config(config)
     self._models['former'] = self._models['active'].copy()
     for aid, model in enumerate(self._models['active']):
-      self.save_params(model)
+      # self.save_params(model)
       self._update_active_model(aid, None)
       if model in self._opp_dist:
         del self._opp_dist[model]
     self._iteration += 1
     self._reset_ready()
     self._update_runner_distribution()
-    self.save()
+    return configs
 
   """ Strategy Sampling """
   def sample_opponent_strategies(self, aid, model: ModelPath, step=None):
@@ -520,47 +518,42 @@ class ParameterServer(RayBase):
                f'with weights ({weights}) and payoffs ({payoffs})', color='green')
 
   """ Checkpoints """
-  def save_active_model(self, model: ModelPath, train_step: int=None, 
-                        env_step: int=None, to_print=True):
-    if to_print:
-      do_logging(f'Saving active model: {model}', color='green')
-    assert model in self._models['active'], (model, self._models['active'])
-    aid = get_aid(model.model_name)
-    assert model in self._params[aid], f'{model} does not in {list(self._params[aid])}'
-    if train_step is not None:
-      self._params[aid][model][TRAIN_STEP] = train_step
-    if env_step is not None:
-      self._params[aid][model][ENV_STEP] = env_step
-    self.save_params(model)
+  # def save_active_model(self, model: ModelPath, train_step: int=None, 
+  #                       env_step: int=None, to_print=True):
+  #   if to_print:
+  #     do_logging(f'Saving active model: {model}', color='green')
+  #   assert model in self._models['active'], (model, self._models['active'])
+  #   aid = get_aid(model.model_name)
+  #   assert model in self._params[aid], f'{model} does not in {list(self._params[aid])}'
+  #   if train_step is not None:
+  #     self._params[aid][model][TRAIN_STEP] = train_step
+  #   if env_step is not None:
+  #     self._params[aid][model][ENV_STEP] = env_step
+  #   self.save_params(model)
 
-  def save_active_models(self, train_step: int=None, env_step: int=None, to_print=True):
-    for m in self._models['active']:
-      self.save_active_model(m, train_step, env_step, to_print=to_print)
+  # def save_active_models(self, train_step: int=None, env_step: int=None, to_print=True):
+  #   for m in self._models['active']:
+  #     self.save_active_model(m, train_step, env_step, to_print=to_print)
 
-  def save_params(self, model: ModelPath, name='params'):
-    assert model in self._models['active'], (model, self._models['active'])
-    aid = get_aid(model.model_name)
-    if MODEL in self._params[aid][model]:
-      pickle.save_params(
-        self._params[aid][model][MODEL], model, f'{name}/model')
-    if OPTIMIZER in self._params[aid][model]:
-      pickle.save_params(
-        self._params[aid][model][OPTIMIZER], model, f'{name}/opt')
-    rest_params = exclude_subdict(self._params[aid][model], MODEL, OPTIMIZER)
-    if rest_params:
-      pickle.save_params(rest_params, model, name)
+  # def save_params(self, model: ModelPath, name='params'):
+  #   assert model in self._models['active'], (model, self._models['active'])
+  #   aid = get_aid(model.model_name)
+  #   if MODEL in self._params[aid][model]:
+  #     pickle.save_params(
+  #       self._params[aid][model][MODEL], model, f'{name}/model')
+  #   if OPTIMIZER in self._params[aid][model]:
+  #     pickle.save_params(
+  #       self._params[aid][model][OPTIMIZER], model, f'{name}/opt')
+  #   rest_params = exclude_subdict(self._params[aid][model], MODEL, OPTIMIZER)
+  #   if rest_params:
+  #     pickle.save_params(rest_params, model, name)
 
-  def restore_params(self, model: ModelPath, name='params'):
-    aid = get_aid(model.model_name)
-    params = pickle.restore_params(model, name)
-    self._params[aid][model] = params
-
-  def save(self):
-    self.payoff_manager.save()
-    ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
-    pickle.save(ps_data, filedir=self.dir, filename=self.name, name=self.name, atomic=True)
-    builder_data = [b.retrieve() for b in self.builders]
-    pickle.save(builder_data, filedir=self.dir, filename=BUILDERS, name=BUILDERS, atomic=True)
+  # def save(self):
+  #   self.payoff_manager.save()
+  #   ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
+  #   pickle.save(ps_data, filedir=self.dir, filename=self.name, name=self.name, atomic=True)
+  #   builder_data = [b.retrieve() for b in self.builders]
+  #   pickle.save(builder_data, filedir=self.dir, filename=BUILDERS, name=BUILDERS, atomic=True)
 
   def retrieve_active_model(self, aid: int, model: ModelPath, train_step: int=None, env_step: int=None):
     assert model == self._models[ModelType.ACTIVE][aid], (model, self._models[ModelType.ACTIVE])
@@ -578,7 +571,6 @@ class ParameterServer(RayBase):
   def retrieve(self):
     payoff_data = self.payoff_manager.retrieve()
     ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
-    print(f'Retrieve Parameter Server: {ps_data}')
     builder_data = [b.retrieve() for b in self.builders]
     return payoff_data, ps_data, builder_data
 
@@ -594,6 +586,11 @@ class ParameterServer(RayBase):
     for model_param in params:
       for model, param in model_param.items():
         self._params[model] = param
+
+  def restore_params(self, model: ModelPath, name='params'):
+    aid = get_aid(model.model_name)
+    params = pickle.restore_params(model, name)
+    self._params[aid][model] = params
 
   def restore(self):
     self.payoff_manager.restore()

@@ -27,7 +27,7 @@ class Ensemble:
     as its arguments. See method <constructor> for an example
     2. without <classes>, constructor create all components at once
     with <config> as its only argument. See for an example:
-    <core.elements.construct_components>
+    <jx.elements.construct_components>
     """
     self.name = name
     self.config = dict2AttrDict(config, to_copy=True)

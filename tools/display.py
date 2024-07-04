@@ -1,8 +1,7 @@
 from typing import Sequence, Dict
 import numpy as np
-import jax
-import torch
 
+from core.typing import AttrDict
 from tools.log import do_logging
 
 
@@ -55,11 +54,9 @@ def print_dict_info(tree, prefix='', backtrack=3, **kwargs):
   elif isinstance(tree, (list, tuple)):
     for i, v in enumerate(tree):
       print_dict_info(v, f'{prefix} idx({i})', backtrack=backtrack+1, **kwargs)
-  elif isinstance(tree, (np.ndarray, jax.Array, torch.Tensor)):
-    print_array(tree, prefix, backtrack=backtrack, **kwargs)
-  elif isinstance(tree, Dict):
+  elif isinstance(tree, (Dict, AttrDict)):
     for k, v in tree.items():
-      if isinstance(v, Dict):
+      if isinstance(v, (Dict, AttrDict)):
         do_logging(f'{prefix} {k}', backtrack=backtrack, **kwargs)
         print_dict_info(v, prefix+'\t', backtrack=backtrack+1, **kwargs)
       elif isinstance(v, tuple) and hasattr(v, '_asdict'):
@@ -69,10 +66,13 @@ def print_dict_info(tree, prefix='', backtrack=3, **kwargs):
       elif isinstance(v, (Sequence)):
         do_logging(f'{prefix} {k} length: {len(v)}', backtrack=backtrack, **kwargs)
         print_dict_info(v, f'{prefix} {k}', backtrack=backtrack+1, **kwargs)
-      elif isinstance(v, (np.ndarray, jax.Array, torch.Tensor)):
+      elif isinstance(v, (np.ndarray)):
         print_array(v, f'{prefix} {k}', backtrack=backtrack, **kwargs)
       else:
         do_logging(f'{prefix} {k}: {v} {type(v)}', backtrack=backtrack, **kwargs)
+  elif isinstance(tree, (np.ndarray)):
+    print('tree,', tree, type(tree), isinstance(tree, (np.ndarray)))
+    print_array(tree, prefix, backtrack=backtrack, **kwargs)
   else:
     do_logging(f'{prefix}: {tree}', backtrack=backtrack, **kwargs)
 

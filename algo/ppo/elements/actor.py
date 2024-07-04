@@ -1,4 +1,4 @@
-from core.elements.actor import Actor as ActorBase
+from jx.elements.actor import Actor as ActorBase
 
 
 class Actor(ActorBase):

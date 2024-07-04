@@ -1,10 +1,10 @@
 import numpy as np
 import torch
-from torch.utils._pytree import tree_map
 
 from core.names import DEFAULT_ACTION, PATH_SPLIT
 from core.typing import AttrDict
 from tools.utils import expand_shape_match
+from tools.tree_ops import tree_map
 from th.tools import th_loss, th_math, th_utils
 
 UNIT_DIM = 2
@@ -30,7 +30,7 @@ def compute_values(func, data, state, bptt, seq_axis=1):
     value = func(curr_data, return_state=False)
     next_value = func(next_data, return_state=False)
   else:
-    state_reset, next_state_reset = split_data(data.state_reset, axis=seq_axis)
+    state_reset, next_state_reset = th_utils.split_data(data.state_reset, axis=seq_axis)
     curr_data = AttrDict(
       global_state=data.global_state, prev_info=data.prev_info, state_reset=state_reset
     )
@@ -184,7 +184,7 @@ def compute_actor_loss(config, data, stats, act_dists, entropy_coef):
   if sample_mask is not None:
     sample_mask = expand_shape_match(sample_mask, stats.ratio, np=torch)
   clip_frac = th_math.mask_mean(
-    torch.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2), 
+    (torch.abs(stats.ratio - 1.) > config.get('ppo_clip_range', .2)).float(), 
     sample_mask, replace=None
   )
   stats.clip_frac = clip_frac

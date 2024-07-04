@@ -5,10 +5,11 @@ import jax.numpy as jnp
 
 from envs.utils import get_action_mask
 from core.names import DEFAULT_ACTION, TRAIN_AXIS
-from core.typing import AttrDict, tree_slice
+from core.typing import AttrDict
 from nn.utils import reset_weights
-from jax_tools import jax_utils
+from jx.tools import jax_utils
 from tools.file import source_file
+from tools.tree_ops import tree_slice
 from tools.utils import batch_dicts
 from algo.ma_common.elements.model import *
 

@@ -27,7 +27,7 @@ from jax import nn
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.elements.builder import ElementsBuilder
+from core.builder import ElementsBuilder
 from tools.log import setup_logging
 from core.utils import *
 from core.typing import ModelPath, get_basic_model_name, dict2AttrDict
@@ -186,6 +186,7 @@ def main(
   write_to_disk=True, 
 ):
   configs = [dict2AttrDict(c) for c in configs]
+  configs = configure_gpu(configs)
   if configs[0].self_play:
     assert configs[0].n_agents == 2, configs[0].n_agents
     new_configs = []
@@ -204,7 +205,6 @@ def main(
   env = create_env(config.env)
 
   set_seed(config.seed)
-  configure_jax_gpu(None)
 
   nash_conv = {'step': step}
 

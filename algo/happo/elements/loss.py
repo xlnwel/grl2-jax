@@ -2,9 +2,9 @@ from jax import lax, random
 import jax.numpy as jnp
 
 from envs.utils import get_action_mask
-from core.elements.loss import LossBase
+from jx.elements.loss import Loss as LossBase
 from core.typing import dict2AttrDict
-from jax_tools import jax_loss
+from jx.tools import jax_loss
 from tools.rms import denormalize, normalize
 from .utils import *
 

@@ -7,7 +7,7 @@ from core.typing import dict2AttrDict
 from nn.func import nn_registry
 from nn.layers import Layer
 from nn.mlp import MLP
-from jax_tools import jax_assert
+from jx.tools import jax_assert
 """ Source this file to register Networks """
 
 

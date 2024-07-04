@@ -1,11 +1,10 @@
 import collections
 import numpy as np
-import jax
 
 from core.elements.buffer import Buffer
 from core.elements.model import Model
-from tools.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
+from tools.tree_ops import tree_map
 from tools.utils import batch_dicts
 from replay import replay_registry
 
@@ -84,7 +83,7 @@ class TurnBasedLocalBuffer(Buffer):
         assert len(self._buffers[(eid, uid)]) == 0, (eid, uid, len(self._buffers[(eid, uid)])) 
       for k, v in data.items():
         if k == 'state':
-          self._buffers[(eid, uid)]['state'].append(jax.tree_util.tree_map(lambda x: x[i], v))
+          self._buffers[(eid, uid)]['state'].append(tree_map(lambda x: x[i], v))
         else:
           self._buffers[(eid, uid)][k].append(v[i])
 

@@ -42,3 +42,5 @@ class INFER_AXIS:
 class DL_LIB:
   TORCH = 'th'
   JAX = 'jax'
+
+dllib = DL_LIB.JAX

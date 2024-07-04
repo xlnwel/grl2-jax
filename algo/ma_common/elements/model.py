@@ -2,9 +2,9 @@ import numpy as np
 import jax.numpy as jnp
 import haiku as hk
 
-from core.elements.model import Model as ModelCore
+from jx.elements.model import Model as ModelCore
 from core.typing import AttrDict, dict2AttrDict
-from jax_tools import jax_dist
+from jx.tools import jax_dist
 
 
 def construct_fake_data(env_stats, aid, batch_size=1):

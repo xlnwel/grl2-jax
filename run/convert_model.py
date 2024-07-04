@@ -17,7 +17,7 @@ from torch.utils._pytree import tree_map
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.utils import configure_jax_gpu
+from core.utils import configure_gpu
 from tools.display import print_dict_info
 from tools import pkg
 from th.nn.mlp import MLP
@@ -307,10 +307,10 @@ if __name__ == '__main__':
   model_path = args.out_path
   if not os.path.isdir(model_path):
     os.mkdir(model_path)
-  configure_jax_gpu(None)
 
   # load respective config
   config = search_for_config(args.directory)
+  config = configure_gpu([config])[0]
   env_stats = config.env_stats
 
   # load parameters

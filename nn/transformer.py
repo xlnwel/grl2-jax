@@ -5,7 +5,7 @@ from nn.attention import Attention
 from nn.mlp import MLP
 from nn.utils import dropout
 from nn.registry import nn_registry
-from jax_tools import jax_utils
+from jx.tools import jax_utils
 
 
 @nn_registry.register('tx')

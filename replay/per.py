@@ -2,11 +2,11 @@ import os
 from typing import List
 import numpy as np
 
-from tools.pickle import save, restore
 from core.elements.buffer import Buffer
 from core.elements.model import Model
-from tools.log import do_logging
 from core.typing import AttrDict
+from tools.log import do_logging
+from tools.pickle import save, restore
 from tools.schedule import PiecewiseSchedule
 from tools.utils import batch_dicts, yield_from_tree
 from replay.local import NStepBuffer

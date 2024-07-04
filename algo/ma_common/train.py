@@ -2,13 +2,11 @@ import os
 import importlib
 import ray
 
-from core.elements.builder import ElementsBuilder
+from core.builder import ElementsBuilder
 from core.names import ANCILLARY, DL_LIB
 from core.typing import get_basic_model_name
-from core.utils import configure_jax_gpu, set_seed, save_code_for_seed
-from th.core.utils import configure_torch_gpu
+from core.utils import configure_gpu, set_seed, save_code_for_seed
 from envs.utils import divide_env_output
-from tools.display import print_dict
 from tools.log import do_logging
 from tools.utils import modify_config, flatten_dict
 from tools.timer import Timer, timeit, Every
@@ -187,11 +185,8 @@ def train(
 
 
 def main(configs, train=train, Runner=Runner):
+  configs = configure_gpu(configs)
   config = configs[0]
-  if config.dllib == 'jax':
-    configure_jax_gpu()
-  else:
-    configure_torch_gpu(0)
   if config.routine.compute_return_at_once:
     config.buffer.sample_keys += ['advantage', 'v_target']
   seed = config.get('seed')

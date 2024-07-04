@@ -20,7 +20,7 @@ def parse_train_args():
   parser.add_argument(
     '--dllib', '-dl', 
     type=str, 
-    default=None, 
+    default='jax', 
     help='package where the algorithm is located. '
       'If None (by default), folders starting with [algo] is searched in an alphabet order.')
   parser.add_argument(

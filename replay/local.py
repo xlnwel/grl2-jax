@@ -4,7 +4,7 @@ import collections
 import math
 import numpy as np
 
-from core.elements.buffer import Buffer
+from jx.elements.buffer import Buffer
 from tools.utils import batch_dicts, stack_data_with_state
 from replay.utils import *
 

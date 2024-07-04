@@ -2,7 +2,7 @@ from core.elements.model import Model, Ensemble
 from core.typing import AttrDict, dict2AttrDict
 
 
-class LossBase:
+class Loss:
   def __init__(
     self,
     *,
@@ -14,13 +14,16 @@ class LossBase:
     self.name = name
 
     self.model = model
-    self.params = self.model.params
     self.modules = model.modules
-    self.rng = self.model.rng
+
+    self.dl_init()
     self.post_init()
 
   def loss(self):
     raise NotImplementedError
+
+  def dl_init(self):
+    pass
 
   def post_init(self):
     """ Add some additional attributes and do some post processing here """

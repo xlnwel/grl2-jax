@@ -9,8 +9,8 @@ import haiku as hk
 from tools.pickle import save, restore
 from tools.log import do_logging
 from core.names import TRAIN_AXIS
-from core.elements.trainer import TrainerBase, create_trainer
-from core import optimizer
+from jx.elements.trainer import Trainer as TrainerBase, create_trainer
+from jx.elements import optimizer
 from core.typing import AttrDict
 from tools.rms import RunningMeanStd
 from tools.utils import flatten_dict, prefix_name, yield_from_tree_with_indices

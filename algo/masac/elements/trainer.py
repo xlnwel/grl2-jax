@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import haiku as hk
 
 from tools.log import do_logging
-from core.elements.trainer import TrainerBase, create_trainer
-from core import optimizer
+from jx.elements.trainer import Trainer as TrainerBase, create_trainer
+from jx.elements import optimizer
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.utils import flatten_dict, prefix_name

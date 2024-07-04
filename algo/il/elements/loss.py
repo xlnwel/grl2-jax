@@ -1,8 +1,8 @@
 import jax.numpy as jnp
 
 from envs.utils import get_action_mask
-from core.elements.loss import LossBase
 from core.typing import AttrDict
+from jx.elements.loss import Loss as LossBase
 from .utils import *
 
 

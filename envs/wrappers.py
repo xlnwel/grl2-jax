@@ -4,7 +4,6 @@ import logging
 from gym.core import Env
 import numpy as np
 import gym
-import jax
 import random
 import cv2
 
@@ -14,6 +13,7 @@ from core.typing import AttrDict, dict2AttrDict
 from envs.utils import compute_aid2uids, compute_aid2gids
 from tools.feature import one_hot
 from tools.utils import infer_dtype, convert_dtype, batch_dicts
+from tools.tree_ops import tree_map
 from envs.typing import EnvOutput, GymOutput
 
 # stop using GPU
@@ -816,7 +816,7 @@ class MultiAgentUnitsDivision(gym.Wrapper):
       assert len(obs) == self.n_agents, (len(obs), self.n_agents)
       return obs
     else:
-      return [jax.tree_util.tree_map(lambda x: x[uids], obs) for uids in self.aid2uids]
+      return [tree_map(lambda x: x[uids], obs) for uids in self.aid2uids]
 
 
 class PopulationSelection(gym.Wrapper):
@@ -901,7 +901,7 @@ class DataProcess(gym.Wrapper):
         self.obs_dtype = {'obs': infer_dtype(self.observation_space.dtype, precision)}
 
   def observation(self, observation):
-    observation = jax.tree_util.tree_map(lambda x: convert_dtype(x, self.precision), observation)
+    observation = tree_map(lambda x: convert_dtype(x, self.precision), observation)
     return observation
 
   def reset(self):
@@ -909,7 +909,7 @@ class DataProcess(gym.Wrapper):
     return self.observation(obs)
 
   def step(self, action, **kwargs):
-    action = jax.tree_util.tree_map(np.asarray, action)
+    action = tree_map(np.asarray, action)
     if not isinstance(action, (list, tuple)):
       action = [action]
     action = [a if isinstance(a, dict) else {DEFAULT_ACTION: a} for a in action]

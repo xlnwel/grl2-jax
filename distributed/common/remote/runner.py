@@ -4,9 +4,9 @@ import threading
 import numpy as np
 import ray
 
-from core.elements.agent import Agent
-from core.elements.buffer import Buffer
-from core.elements.builder import ElementsBuilder
+from jx.elements.agent import Agent
+from jx.elements.buffer import Buffer
+from core.builder import ElementsBuilder
 from core.mixin.actor import RMS
 from core.names import ANCILLARY, MODEL, TRAIN_STEP
 from core.typing import ModelStats, ModelWeights, ModelPath, dict2AttrDict
@@ -182,8 +182,10 @@ class MultiAgentRunner(RayBase):
     self._running_thread.join()
 
   def run_loop(self):
+    mids = None
     while self.run_signal:
-      mids = ray.get(self.parameter_server.get_prepared_strategies.remote(self.id))
+      while mids is None:
+        mids = ray.get(self.parameter_server.get_prepared_strategies.remote(self.id))
       self.run_with_model_weights(mids)
 
   def run_with_model_weights(self, mids: List[ModelWeights]):

@@ -8,7 +8,7 @@ import numpy as np
 import ray
 
 from tools import pickle
-from core.elements.builder import ElementsBuilderVC
+from core.builder import ElementsBuilderVC
 from tools.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.names import *
@@ -125,11 +125,11 @@ class SPParameterServer(RayBase):
     self.builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
 
   """ Strategy Pool Management """
-  def save_strategy_pool(self):
-    config = yaml_op.load(self.pool_path)
-    config[self.dir] = [list(m) for m in self._params]
-    yaml_op.dump(self.pool_path, **config)
-    do_logging(f'Saving strategy pool to {self.pool_path}', color='green')
+  # def save_strategy_pool(self):
+  #   config = yaml_op.load(self.pool_path)
+  #   config[self.dir] = [list(m) for m in self._params]
+  #   yaml_op.dump(self.pool_path, **config)
+  #   do_logging(f'Saving strategy pool to {self.pool_path}', color='green')
 
   @timeit
   def load_strategy_pool(self, to_search=True, pattern=None):
@@ -448,7 +448,7 @@ class SPParameterServer(RayBase):
     self._iteration += 1
     self._reset_ready()
     self._update_runner_distribution()
-    return config
+    return [config]
 
   """ Strategy Sampling """
   def sample_opponent_strategies(self, model: ModelPath):
@@ -521,36 +521,30 @@ class SPParameterServer(RayBase):
     return self._models[ModelType.HARD][model]
 
   """ Checkpoints """
-  def save_active_model(self, model: ModelPath, train_step: int=None, 
-                        env_step: int=None, to_print=True):
-    if to_print:
-      do_logging(f'Saving active model: {model}', color='green')
-    assert model == self._models[ModelType.ACTIVE], (model, self._models[ModelType.ACTIVE])
-    assert model in self._params, f'{model} does not in {list(self._params)}'
-    if train_step is not None:
-      self._params[model][TRAIN_STEP] = train_step
-    if env_step is not None:
-      self._params[model][ENV_STEP] = env_step
-    self.save_params(model, to_print=to_print)
+  # def save_active_model(self, model: ModelPath, train_step: int=None, 
+  #                       env_step: int=None, to_print=True):
+  #   if to_print:
+  #     do_logging(f'Saving active model: {model}', color='green')
+  #   assert model == self._models[ModelType.ACTIVE], (model, self._models[ModelType.ACTIVE])
+  #   assert model in self._params, f'{model} does not in {list(self._params)}'
+  #   if train_step is not None:
+  #     self._params[model][TRAIN_STEP] = train_step
+  #   if env_step is not None:
+  #     self._params[model][ENV_STEP] = env_step
+  #   self.save_params(model, to_print=to_print)
 
-  def save_active_models(self, train_step: int=None, env_step: int=None, to_print=True):
-    self.save_active_model(self._models[ModelType.ACTIVE], train_step, 
-                           env_step, to_print=to_print)
+  # def save_active_models(self, train_step: int=None, env_step: int=None, to_print=True):
+  #   self.save_active_model(self._models[ModelType.ACTIVE], train_step, 
+  #                          env_step, to_print=to_print)
 
-  def save_params(self, model: ModelPath, name='params', to_print=True):
-    assert model == self._models[ModelType.ACTIVE], (model, self._models[ModelType.ACTIVE])
-    pickle.save_hierarchical_params(self._params[model], model, name, to_print=to_print)
+  # def save_params(self, model: ModelPath, name='params', to_print=True):
+  #   assert model == self._models[ModelType.ACTIVE], (model, self._models[ModelType.ACTIVE])
+  #   pickle.save_hierarchical_params(self._params[model], model, name, to_print=to_print)
 
-  def restore_params(self, model: ModelPath, name='params', force=False):
-    if force or model not in self._params \
-        or STATUS not in self._params[model] \
-        or self._params[model][STATUS] == Status.TRAINING:
-      self._params[model] = pickle.restore_params(model, name, backtrack=6)
-
-  def save(self):
-    self.payoff_manager.save()
-    ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
-    pickle.save(ps_data, filedir=self.dir, filename=self.name, name=self.name, atomic=True)
+  # def save(self):
+  #   self.payoff_manager.save()
+  #   ps_data = {v[1:]: getattr(self, v) for v in vars(self) if v.startswith('_')}
+  #   pickle.save(ps_data, filedir=self.dir, filename=self.name, name=self.name, atomic=True)
 
   def retrieve_active_model(self, model: ModelPath, train_step: int=None, env_step: int=None):
     assert model == self._models[ModelType.ACTIVE], (model, self._models[ModelType.ACTIVE])
@@ -580,6 +574,12 @@ class SPParameterServer(RayBase):
   def load_params(self, params):
     for model, param in params.items():
       self._params[model] = param
+
+  def restore_params(self, model: ModelPath, name='params', force=False):
+    if force or model not in self._params \
+        or STATUS not in self._params[model] \
+        or self._params[model][STATUS] == Status.TRAINING:
+      self._params[model] = pickle.restore_params(model, name, backtrack=6)
 
   def restore(self):
     self.payoff_manager.restore()

@@ -1,14 +1,14 @@
 import os
 import torch
-from torch.utils._pytree import tree_map
 
+from core.names import DEFAULT_ACTION
+from core.typing import AttrDict, dict2AttrDict
+from tools.file import source_file
+from tools.tree_ops import tree_map
 from envs.utils import get_action_mask
-from th.core.names import DEFAULT_ACTION
-from th.core.typing import AttrDict, dict2AttrDict
 from th.tools.th_utils import to_tensor
 from th.algo.ma_common.elements.model import MAModelBase, \
   setup_config_from_envstats, construct_fake_data
-from tools.file import source_file
 
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -131,7 +131,7 @@ def create_model(
 if __name__ == '__main__':
   from tools.yaml_op import load_config
   from envs.func import create_env
-  from th.core.utils import set_seed
+  from th.utils import set_seed
   set_seed(50)
   config = load_config('th.algo/ppo/configs/template')
   

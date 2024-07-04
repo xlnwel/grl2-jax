@@ -9,11 +9,11 @@
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
 
 # from tools.log import do_logging
-# from jax_tools.jax_utils import static_scan
-# from jax_tools.jax_dist import MultivariateNormalDiag
+# from jx.tools.jax_utils import static_scan
+# from jx.tools.jax_dist import MultivariateNormalDiag
 # from nn.layers import Layer
 # from nn.registry import nn_registry
-# from jax_tools import jax_utils
+# from jx.tools import jax_utils
 
 # logger = logging.getLogger(__name__)
 

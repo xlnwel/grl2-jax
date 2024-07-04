@@ -1,3 +1,18 @@
+## Testscripts
+
+The code for now only supports torch--the support of jax is currently broken.
+
+```shell
+# run in torch
+python run/train.py -a sync-ppo -e smac-8m_vs_9m -c smac_th -dl th
+```
+In this command:
+
+- `-a sync-ppo`: Specifies the algorithm `ppo` using synchronous distributed architecture (`sync`).
+- `-e smac-8m_vs_9m`: Selects the environment `8m_vs_9m` from the SMAC suite (smac).
+- `-c smac_th`: Specifies the configuration (`smac_th`).
+- `-dl th`: Indicates the use of Torch (`th`) as the deep learning library.
+
 ## Overview
 
 A multi-agent reinforcement learning library. 
@@ -32,12 +47,16 @@ For stable simulators, `python run/train.py` is still the recommanded way to go.
 #### Basics
 
 ```shell
-python run/train.py -a ppo -e template-temp -c template template  # two agents playing against each other
+# two agents playing against each other
+python run/train.py -a ppo -e template-temp -c template template
 python run/train.py -a ppo -e template-temp -c template -kw uid2aid=0,0 uid2gid=0,0
-python run/train.py -a async-ppo -e template-temp -c template     # self-play
+# self-play
+python run/train.py -a async-ppo -e template-temp -c template
+# run in torch
+python run/train.py -a sync-ppo -e smac-8m_vs_9m -c smac_th -dl th
 ```
 
-where `sync` specifies the distributed architecture(dir: distributed), `hm` specifies the algorithm(dir: algo), `unity` denotes the environment suite, and `combat2d` is the environment name
+where `sync` specifies the distributed architecture(dir: distributed), `ppo` specifies the algorithm(dir: algo), `template` denotes the environment suite, and `temp` is the environment name
 
 By default, all the checkpoints and loggings are saved in `./logs/{env}/{algo}/{model_name}/`.
 

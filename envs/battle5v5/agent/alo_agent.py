@@ -15,33 +15,34 @@
 @Author: ZhengtaoCao
 @Description:
 """
+import numpy as np
+
 from envs.battle5v5.agent.agent import Agent
-import torch as th
 from envs.battle5v5.env.env_cmd import CmdEnv
 from envs.battle5v5.utils.test_utils import CalNineDir, Trans
 
 fly_config = {
-            # 有人机
-            0: {
-                'move_min_speed': 150,
-                'move_max_speed': 300,
-                'move_max_acc': 1,
-                'move_max_g': 4,
-                'area_max_alt': 14000,
-                'attack_range': 1,
-                'launch_range': 80000
-            },
-            # 无人机
-            1: {
-                'move_min_speed': 100,
-                'move_max_speed': 300,
-                'move_max_acc': 2,
-                'move_max_g': 3,
-                'area_max_alt': 10000,
-                'attack_range': 1,
-                'launch_range': 60000
-            }
-        }
+    # 有人机
+    0: {
+        'move_min_speed': 150,
+        'move_max_speed': 400,
+        'move_max_acc': 1,
+        'move_max_g': 4,
+        'area_max_alt': 14000,
+        'attack_range': 1,
+        'launch_range': 80000
+    },
+    # 无人机
+    1: {
+        'move_min_speed': 100,
+        'move_max_speed': 300,
+        'move_max_acc': 2,
+        'move_max_g': 3,
+        'area_max_alt': 10000,
+        'attack_range': 1,
+        'launch_range': 60000
+    }
+}
 
 class AloAgent(Agent):
     """
@@ -53,79 +54,47 @@ class AloAgent(Agent):
         :param name:阵营名称
         :param config:阵营配置信息
         """
+        self.side = config['side']
         super(AloAgent, self).__init__(name, config["side"])
-        self.cur_msg = None
         self.cur_agents_speed = None  # 记录每个episode中的智能体速度
         # self.agents
-        self.flag = True
     
     def reset(self, **kwargs):
         """当引擎重置会调用,选手需要重写此方法,来实现重置的逻辑"""
         # print(f'Init agents speed....')
-        self.cur_agents_speed = [fly_config[0]['move_max_speed'], fly_config[1]['move_max_speed'], 
-                                  fly_config[1]['move_max_speed'], fly_config[1]['move_max_speed'], 
-                                  fly_config[1]['move_max_speed']
-                                ]
+        self.cur_agents_speed = [
+            fly_config[0]['move_max_speed'], 
+            fly_config[1]['move_max_speed'], 
+            fly_config[1]['move_max_speed'], 
+            fly_config[1]['move_max_speed'], 
+            fly_config[1]['move_max_speed']
+        ]
         # print(self.cur_agents_speed)
 
-    def make_actions(self, actions=None, parse_msg=None, side='red'):
+    def make_actions(self, actions, parse_msg, agent_info, target_info):
         """
             接受Environment传入的动作，生成每个Agent的仿真执行指令
             :params actions Agents policy net outputs
             :params parse_msg 解析后的态势信息
             :params side Agents所属方
         """
-        self.cur_msg = parse_msg
         red_agents_pre_loc = parse_msg['agent_pre_loc']
         cmd_list = []
-        sim_time = parse_msg['sim_time']
         # if sim_time >= 0 and sim_time % 15 == 0:
         for i in range(len(actions)):
             # 当前Agent的仿真ID
-            agent_id = parse_msg['red_info'][i]['ID']
+            agent_id = agent_info[i]['ID']
             # 对于每个Agent分别产生动作
             cur_agent_pre_loc = red_agents_pre_loc[i]  # 拿到当前Agent上一帧的动作
             agents_speed = parse_msg["agent_speed"]  # 当前智能体的speed
             cur_agent_speed = agents_speed[i]
             # -> 转换为智能体的一个动作
             cur_agent_actions = actions[i]   # 拿到当前Agent的网络动作输出
-            
-            if th.is_tensor(cur_agent_actions):
-                # cur_agent_actions = [int(a) for a in cur_agent_actions]
-                cur_agent_actions = int(cur_agent_actions)
-            else:
-                cur_agent_actions = cur_agent_actions
-                        # if sim_time < 150:
-            #     cur_agent_actions = 0
-            
-            # ## 统一做动作测试
-            # # if sim_time < 200:
-            # #     cur_agent_actions = 0
-            # # elif sim_time >= 200 and sim_time <= 230:
-            # #     print('turn right, turn right, turn right, turn right,')
-                
-            # #     cur_agent_actions = 17 # 4 # 3 ## 2# 1 # 8
-            # #     self.flag = False
-            # # elif sim_time > 230 and sim_time <= 400:
-            # #     print('continue ...')
-            # #     cur_agent_actions = 0
-            # # elif sim_time > 400 and sim_time <= 430:
-            # #     # cur_agent_actions = 16 # 1 # 2 # 2 # 1 # 7
-            # #     cur_agent_actions = 16 # 4 # 3 ## 2# 1 # 8
-            # #     self.flag = False
-            # # elif sim_time > 430:
-            # #     cur_agent_actions = 0
-            # # else:
-            # #     return cmd_list
-            # if sim_time == 240:
-            #     cur_agent_actions = 3
-            # else:
-            #     cur_agent_actions = 0
-            
             # 获取位置
             try:
                 last_x, last_y, last_z, last_heading, last_pitch = \
-                    cur_agent_pre_loc['X'], cur_agent_pre_loc['Y'], cur_agent_pre_loc['Z'], cur_agent_pre_loc['heading'], cur_agent_pre_loc['pitch']
+                    cur_agent_pre_loc['X'], cur_agent_pre_loc['Y'], \
+                        cur_agent_pre_loc['Z'], cur_agent_pre_loc['heading'], cur_agent_pre_loc['pitch']
             except:
                 # 实体死亡，传过来是
                 last_x, last_y, last_z, last_heading, last_pitch = None, None, None, None, None
@@ -174,7 +143,7 @@ class AloAgent(Agent):
                 #     else:
                 #         # 产生跟随指令
                 #         global fly_config
-                #         if agent_id == 1: # 有人机
+                #         if agent_id == 1 or agent_id == 6: # 有人机
                 #             fly_param = fly_config['0']
                 #         else:
                 #             fly_param = fly_config['1']
@@ -188,7 +157,7 @@ class AloAgent(Agent):
                 # attack_action = cur_agent_actions[1]
                 attack_action = cur_agent_actions
                 # attack_action = 9 # 发现把红方攻击目标都改成蓝方有人机后，正样本的探索效率能显著提高。
-                attack_cmd = self.make_attack_cmd(agent_id, attack_action)
+                attack_cmd = self.make_attack_cmd(agent_id, attack_action, target_info)
                 if attack_cmd is not None:
                     cmd_list.append(attack_cmd)
 
@@ -205,26 +174,30 @@ class AloAgent(Agent):
                     # speed_con_action: 0 加速 1 减速 2 速度不变
                     # if speed_con_action == 0 or speed_con_action == 1:
                     if speed_con_action == 14:
-                        speed_change = (9.8 * 10) if agent_id == 1 else (9.8 * 20) # 有人机按照加速度增加9.8 m/s， 无人机增加9.8 * 2 m/s
+                        speed_change = (9.8 * 10) if agent_id == 1 or agent_id == 6 else (9.8 * 20) # 有人机按照加速度增加9.8 m/s， 无人机增加9.8 * 2 m/s
                     elif speed_con_action == 15:
-                        speed_change = (9.8 * (-10)) if agent_id == 1 else (9.8 * (-20))
+                        speed_change = (9.8 * (-10)) if agent_id == 1 or agent_id == 6 else (9.8 * (-20))
                     
-                    self.cur_agents_speed[i] = self.cur_agents_speed[i] + speed_change
+                    new_speed = cur_agent_speed + speed_change
                     
                     # 速度边界处理
                     # 有人机：[150, 400]
                     # 无人机：[100, 300]
-                    if agent_id == 1: 
-                        new_speed = max(150, min(self.cur_agents_speed[i], 400))
+                    if agent_id == 1 or agent_id == 6: 
+                        new_speed = max(150, min(new_speed, 400))
+                        cmd_accmag = 1
+                        cmd_g = 4
                     else:
-                        new_speed = max(100, min(self.cur_agents_speed[i], 300))
+                        new_speed = max(100, min(new_speed, 300))
+                        cmd_accmag = 2
+                        cmd_g = 3
 
                     self.cur_agents_speed[i] = new_speed
 
                     speed_con_cmd = self.make_changes_speed_cmd(agent_id,
                                                                 self.cur_agents_speed[i],
-                                                                1.0 if agent_id == 1 else 2.0,
-                                                                4 if agent_id==1 else 3)
+                                                                cmd_accmag,
+                                                                cmd_g)
                     cmd_list.append(speed_con_cmd)
 
             else:
@@ -261,16 +234,16 @@ class AloAgent(Agent):
             :param new_loc: 新的坐标X，Y，Z
             :param agent_id: 当前Agent ID
         """
-        global fly_config
-        if agent_id == 1: # 有人机
+        if agent_id == 1 or agent_id == 6: # 有人机
             fly_param = fly_config[0]
         else:
             fly_param = fly_config[1]
-        move_cmd = CmdEnv.make_linepatrolparam(agent_id,
-                                               [new_loc],
-                                               cur_agent_speed,
-                                               fly_param['move_max_acc'],
-                                               fly_param['move_max_g']
+        move_cmd = CmdEnv.make_linepatrolparam(
+            agent_id,
+            [new_loc],
+            cur_agent_speed,
+            fly_param['move_max_acc'],
+            fly_param['move_max_g']
         )
         return move_cmd
 
@@ -306,12 +279,11 @@ class AloAgent(Agent):
             :param cmd_g: 指令过载
         """
         x, y, z = new_point[0], new_point[1], new_point[2]  # list
-        global fly_config
-        if agent_id == 1: # 有人机
-            fly_param = fly_config['0']
+        if agent_id == 1 or agent_id == 6: # 有人机
+            fly_param = fly_config[0]
             z = max(2500, min(z, 14500)) # 限制巡逻高度
         else:
-            fly_param = fly_config['1']
+            fly_param = fly_config[1]
             z = max(2500, min(z, 9500)) # 限制巡逻高度
         # try
         areapatrolparam_cmd = CmdEnv.make_areapatrolparam(agent_id,
@@ -326,7 +298,7 @@ class AloAgent(Agent):
         return areapatrolparam_cmd  # 区域巡航指令
 
 
-    def make_attack_cmd(self, agent_id=None, action=None):
+    def make_attack_cmd(self, agent_id, action, msg):
         """
             将agent的网络输出转换为攻击指令
             :params agent_id: 当前agent的id是哪一个
@@ -338,19 +310,18 @@ class AloAgent(Agent):
         #     pass
         # else:
         # 拿到攻击敌方的ID
-        target_ID = self.cur_msg['blue_info'][int(action)]['ID']
+        target_ID = msg[action]['ID']
         attack_cmd = CmdEnv.make_attackparam(agent_id, target_ID, fire_range=1)
 
         return attack_cmd
 
 
 
-    def make_init_cmd(self, RED_INFO, INIT_LOC):
+    def make_init_cmd(self, info, init_loc):
         """
             制作初始化位置训练仿照HR1，有人机在最后方
             :params parse_msg: 使用红方ID
         """
-        global fly_config
         cmd_list = []
         for ia in range(5):
             if ia == 0:
@@ -358,14 +329,14 @@ class AloAgent(Agent):
             else:
                 speed = fly_config[1]['move_max_speed']
 
-            cur_iagnet_id = RED_INFO[ia]['ID']
+            cur_iagnet_id = info[ia]['ID']
             cmd_list.append(CmdEnv.make_entityinitinfo(
                 cur_iagnet_id,
-                INIT_LOC[ia]['X'],
-                INIT_LOC[ia]['Y'],
-                INIT_LOC[ia]['Z'],
+                np.random.randint(*init_loc[ia]['X']),
+                np.random.randint(*init_loc[ia]['Y']),
+                init_loc[ia]['Z'],
                 speed,
-                90))
+                init_loc[ia]['heading']))
 
         return cmd_list
     

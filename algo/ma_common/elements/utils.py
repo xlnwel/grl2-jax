@@ -7,7 +7,7 @@ from jax.tree_util import tree_map
 from core.names import DEFAULT_ACTION, PATH_SPLIT
 from core.typing import AttrDict
 from tools.utils import expand_shape_match
-from jax_tools import jax_assert, jax_math, jax_loss, jax_utils
+from jx.tools import jax_assert, jax_math, jax_loss, jax_utils
 
 
 UNIT_DIM = 2

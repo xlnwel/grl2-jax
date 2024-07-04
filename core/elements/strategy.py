@@ -1,9 +1,8 @@
 from typing import Tuple, Union
-import jax
 
 from core.elements.actor import Actor
 from core.elements.model import Model
-from core.elements.trainer import TrainerBase, TrainerEnsemble
+from core.elements.trainer import Trainer as TrainerBase, TrainerEnsemble
 from core.elements.trainloop import TrainingLoop
 from core.mixin.strategy import StepCounter, Memory
 from core.names import *
@@ -118,15 +117,15 @@ class Strategy:
     """
     weights = {}
     if self.model is not None:
-      weights[MODEL] = jax.device_get(self.model.get_weights(module_name))
+      weights[MODEL] = self.model.get_weights(module_name)
     if self.trainer is not None and opt_weights:
-      weights[OPTIMIZER] = jax.device_get(self.trainer.get_optimizer_weights())
+      weights[OPTIMIZER] = self.trainer.get_optimizer_weights()
     if self.actor is not None and aux_stats:
       weights[ANCILLARY] = self.actor.get_auxiliary_stats()
     if train_step:
-      weights[f'train_step'] = self.step_counter.get_train_step()
+      weights[TRAIN_STEP] = self.step_counter.get_train_step()
     if env_step:
-      weights[f'env_step'] = self.step_counter.get_env_step()
+      weights[ENV_STEP] = self.step_counter.get_env_step()
 
     return weights
 
@@ -142,10 +141,10 @@ class Strategy:
       self.trainer.set_optimizer_weights(weights[OPTIMIZER])
     if ANCILLARY in weights:
       self.actor.set_auxiliary_stats(weights[ANCILLARY])
-    if 'train_step' in weights:
-      self.step_counter.set_train_step(weights['train_step'])
-    if 'env_step' in weights:
-      self.step_counter.set_env_step(weights['env_step'])
+    if TRAIN_STEP in weights:
+      self.step_counter.set_train_step(weights[TRAIN_STEP])
+    if ENV_STEP in weights:
+      self.step_counter.set_env_step(weights[ENV_STEP])
 
   def train(self, **kwargs):
     """ 训练模型

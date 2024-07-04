@@ -3,13 +3,13 @@ from typing import Dict
 import torch
 import torch.nn as nn
 
-from th.core.names import DEFAULT_ACTION
-from th.core.typing import dict2AttrDict
-from th.core.utils import tpdv
+from core.names import DEFAULT_ACTION
+from core.typing import dict2AttrDict
+from tools.tree_ops import tree_map
+from th.utils import tpdv
 from th.nn.func import nn_registry
 from th.nn.mlp import MLP
 from th.nn.utils import get_activation, init_linear
-from tools.utils import tree_map
 """ Source this file to register Networks """
 
 

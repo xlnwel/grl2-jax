@@ -8,7 +8,7 @@ from tools.log import do_logging
 logger = logging.getLogger(__name__)
 
 
-class  RayDataset(Dataset):
+class RayDataset(Dataset):
   def __init__(
     self, 
     buffer, 

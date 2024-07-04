@@ -3,9 +3,9 @@ import jax
 from jax import random
 import jax.numpy as jnp
 
-from envs.utils import get_action_mask
 from core.names import DEFAULT_ACTION
 from core.typing import AttrDict, dict2AttrDict
+from envs.utils import get_action_mask
 from nn.utils import reset_weights
 from tools.file import source_file
 from algo.ma_common.elements.model import *

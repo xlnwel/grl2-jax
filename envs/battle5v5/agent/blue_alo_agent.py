@@ -163,7 +163,7 @@ class BlueAloAgent(Agent):
             制作初始化位置训练仿照HR1，有人机在最后方
             :params parse_msg: 使用红方ID
         """
-        BLUE_INFO = {
+        PlaneInfo.BLUE = {
             '0': {'Name': '蓝有人机', 'ID': 6},
             '1': {'Name': '蓝无人机1', 'ID': 14},
             '2': {'Name': '蓝无人机2', 'ID': 15},
@@ -206,7 +206,7 @@ class BlueAloAgent(Agent):
             else:
                 speed = fly_config['1']['move_max_speed']
 
-            cur_iagnet_id = BLUE_INFO[str(ia)]['ID']
+            cur_iagnet_id = PlaneInfo.BLUE[str(ia)]['ID']
             cmd_list.append(CmdEnv.make_entityinitinfo(cur_iagnet_id,
                                                        INIT_LOC[str(ia)]['X'],
                                                        INIT_LOC[str(ia)]['Y'],

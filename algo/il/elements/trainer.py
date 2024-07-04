@@ -8,8 +8,8 @@ import haiku as hk
 
 from tools.pickle import save, restore
 from tools.log import do_logging
-from core.elements.trainer import TrainerBase, create_trainer
-from core import optimizer
+from jx.elements.trainer import Trainer as TrainerBase, create_trainer
+from jx.elements import optimizer
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.rms import RunningMeanStd

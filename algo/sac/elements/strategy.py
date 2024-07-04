@@ -1,6 +1,6 @@
 from functools import partial
 
-from core.elements.strategy import Strategy as StrategyBase, create_strategy
+from jx.elements.strategy import Strategy as StrategyBase, create_strategy
 from core.mixin.strategy import Memory
 from tools.run import concat_along_unit_dim
 

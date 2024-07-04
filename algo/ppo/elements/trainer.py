@@ -9,8 +9,8 @@ import haiku as hk
 from tools.pickle import save, restore
 from tools.log import do_logging
 from core.names import TRAIN_AXIS
-from core.elements.trainer import TrainerBase, create_trainer
-from core import optimizer
+from jx.elements.trainer import Trainer as TrainerBase, create_trainer
+from jx.elements import optimizer
 from core.typing import AttrDict, dict2AttrDict
 from tools.display import print_dict_info
 from tools.rms import RunningMeanStd
@@ -45,7 +45,7 @@ def construct_fake_data(env_stats, aid):
 
 
 class Trainer(TrainerBase):
-  def add_attributes(self):
+  def post_init(self):
     self.popart = RunningMeanStd((0, 1), name='popart', ndim=1)
     self.indices = np.arange(self.config.n_runners * self.config.n_envs)
 
@@ -179,6 +179,13 @@ class Trainer(TrainerBase):
 
     return theta, opt_state, stats
 
+  def get_weights(self):
+    weights = super().get_weights()
+    return weights
+  
+  def set_weights(self, weights):
+    super().set_weights(weights)
+
   def save_optimizer(self):
     super().save_optimizer()
     self.save_popart()
@@ -217,8 +224,9 @@ class Trainer(TrainerBase):
     return weights
 
   def set_optimizer_weights(self, weights):
-    popart_stats = weights.pop('popart')
-    self.popart.set_rms_stats(*popart_stats)
+    if 'popart' in weights:
+      popart_stats = weights.pop('popart')
+      self.popart.set_rms_stats(*popart_stats)
     super().set_optimizer_weights(weights)
 
   # def haiku_tabulate(self, data=None):

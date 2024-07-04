@@ -8,8 +8,8 @@ import ray
 
 from core.ckpt.base import YAMLCheckpointBase
 from tools import pickle
-from core.elements.builder import ElementsBuilderVC
-from core.elements.monitor import Monitor
+from core.builder import ElementsBuilderVC
+from jx.elements.monitor import Monitor
 from core.typing import ModelPath, AttrDict, dict2AttrDict, \
   decompose_model_name, get_basic_model_name, get_date
 from core.utils import save_code
@@ -247,15 +247,15 @@ class Controller(YAMLCheckpointBase):
     model_weights, is_raw_strategy, configs = ray.get(
       self.parameter_server.sample_training_strategies.remote())
     self.configs = [dict2AttrDict(c, to_copy=True) for c in configs]
+    self.configs = self._prepare_configs(self.n_runners, self.n_steps, self._iteration)
+
     for c in self.configs:
       self.builder.save_config(c)
     self.save_active_models()
     self.active_models = [m.model for m in model_weights]
     do_logging(f'Training Strategies at Iteration {self._iteration}: {self.active_models}', color='blue')
 
-    configs = self._prepare_configs(self.n_runners, self.n_steps, self._iteration)
-
-    self.agent_manager.build_agents(configs)  # 构建remote agents
+    self.agent_manager.build_agents(self.configs)  # 构建remote agents
     self.agent_manager.set_model_weights(model_weights, wait=True)  # 设置remote agents的模型权重
     self.agent_manager.publish_weights(wait=True) # 发布remote agents的模型权重
     do_logging(f'Finishing Building Agents', color='blue')
@@ -267,7 +267,7 @@ class Controller(YAMLCheckpointBase):
 
     # 构建remote runners
     self.runner_manager.build_runners(
-      configs, 
+      self.configs, 
       remote_buffers=self.agent_manager.get_agents(),
       active_models=self.active_models, 
     )
@@ -302,12 +302,12 @@ class Controller(YAMLCheckpointBase):
   def cleanup(self):
     do_logging(f'Cleaning up for Training Iteration {self._iteration}...', color='blue')
     oid = self.monitor.clear_iteration_stats.remote()
-    cid = self.parameter_server.archive_training_strategies.remote(status=self._status)
+    self.save_active_models()
+    self.save_archieved_configs()
+    self.save_parameter_server()
     self.runner_manager.destroy_runners()
     self.agent_manager.destroy_agents()
     self._iteration += 1
-    self.save_active_models()
-    self.builder.save_config(ray.get(cid))
     self.save()
     ray.get(oid)
 
@@ -615,3 +615,8 @@ class Controller(YAMLCheckpointBase):
   def save_monitor(self):
     data = ray.get(self.monitor.retrieve())
     pickle.save(data, filedir=self.dir, filename=MONITOR, name=MONITOR)
+
+  def save_archieved_configs(self):
+    configs = ray.get(self.parameter_server.archive_training_strategies.remote(status=self._status))
+    for c in configs:
+      self.builder.save_config(c)

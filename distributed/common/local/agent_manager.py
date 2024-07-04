@@ -1,7 +1,7 @@
 from typing import List
 import ray
 
-from core.elements.monitor import Monitor
+from jx.elements.monitor import Monitor
 from distributed.common.remote.base import ManagerBase
 from core.typing import AttrDict, AttrDict2dict
 from core.typing import ModelWeights

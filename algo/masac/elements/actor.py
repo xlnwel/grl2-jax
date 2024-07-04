@@ -1,1 +1,1 @@
-from core.elements.actor import *
+from jx.elements.actor import *

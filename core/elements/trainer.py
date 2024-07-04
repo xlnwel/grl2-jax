@@ -1,24 +1,20 @@
 from typing import Dict, Sequence, Union
-import jax
-import optax
 
 from core.ckpt.base import ParamsCheckpointBase
-from core.elements.loss import LossBase
+from core.elements.loss import Loss
 from core.ensemble import Ensemble
-from core.optimizer import build_optimizer
 from core.typing import AttrDict, ModelPath, dict2AttrDict
 from core.names import MODEL, OPTIMIZER
-from tools.timer import Timer
 from tools.utils import set_path
 
 
-class TrainerBase(ParamsCheckpointBase):
+class Trainer(ParamsCheckpointBase):
   def __init__(
     self, 
     *,
     config: AttrDict,
     env_stats: AttrDict,
-    loss: LossBase,
+    loss: Loss,
     name: str
   ):
     super().__init__(config, f'{name}_trainer', OPTIMIZER)
@@ -27,56 +23,43 @@ class TrainerBase(ParamsCheckpointBase):
 
     self.loss = loss
     self.model = loss.model
-    self.opts: Dict[str, optax.GradientTransformation] = AttrDict()
-    self.rng = self.model.rng
+    self.opts: Dict = AttrDict()
 
-    self.add_attributes()
+    self.dl_init()
+    self.post_init()
     self.build_optimizers()
     self.compile_train()
-    self.post_init()
 
-  def add_attributes(self):
+  def dl_init(self):
+    """ Add some dl-specific attributes here """
+    pass
+
+  def post_init(self):
+    """ Add some additional attributes and do some post processing here """
     pass
 
   def theta_train(self):
     raise NotImplementedError
 
   def build_optimizers(self):
-    self.opts.theta, self.params.theta = build_optimizer(
-      params=self.model.theta, 
-      **self.config.theta_opt, 
-      name='theta'
-    )
+    raise NotImplementedError
 
   def compile_train(self):
-    with Timer(f'{self.name}_jit_train', 1):
-      _jit_train = jax.jit(self.theta_train, static_argnames='return_stats')
-    def jit_train(*args, return_stats=True, **kwargs):
-      self.rng, rng = jax.random.split(self.rng)
-      return _jit_train(*args, rng=rng, return_stats=return_stats, **kwargs)
-    self.jit_train = jit_train
-    self.haiku_tabulate()
-
-  def haiku_tabulate(self, data=None):
     pass
 
   def train(self, data):
     raise NotImplementedError
 
-  def post_init(self):
-    """ Add some additional attributes and do some post processing here """
-    pass
-
   """ Weights Access """
   def get_weights(self):
     weights = {
-      MODEL: self.model.get_weights(),
+      MODEL: self.get_model_weights(),
       OPTIMIZER: self.get_optimizer_weights(),
     }
     return weights
 
   def set_weights(self, weights):
-    self.model.set_weights(weights[MODEL])
+    self.set_model_weights(weights[MODEL])
     self.set_optimizer_weights(weights[OPTIMIZER])
 
   def get_model_weights(self, name: str=None):
@@ -101,10 +84,12 @@ class TrainerBase(ParamsCheckpointBase):
     self._ckpt.reset_model_path(model_path)
 
   def save_optimizer(self):
-    self._ckpt.save(self.params)
+    params = self.get_optimizer_weights()
+    self._ckpt.save(params)
 
   def restore_optimizer(self):
-    self._ckpt.restore()
+    params = self._ckpt.restore()
+    self.set_optimizer_weights(params)
 
   def save(self):
     self.save_optimizer()
@@ -115,13 +100,14 @@ class TrainerBase(ParamsCheckpointBase):
     self.model.restore()
 
 
+
 class TrainerEnsemble(Ensemble):
   def __init__(
     self, 
     *, 
     config: AttrDict, 
     env_stats: AttrDict,
-    components: Dict[str, TrainerBase], 
+    components: Dict[str, Trainer], 
     name: str, 
   ):
     super().__init__(
